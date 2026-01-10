@@ -113,7 +113,7 @@ try await privateDatabase.save(zone)
 | `sourceAppName` | String | No | Yes | Display name |
 | `itemType` | Int64 | Yes | No | Enum raw value |
 | `primaryText` | String | No | Yes | Truncated to 10k chars |
-| `hash` | String | Yes | No | SHA-256 for deduplication |
+| `contentHash` | String | Yes | No | SHA-256 for deduplication |
 | `isSensitive` | Int64 | No | No | Bool as Int (0/1) |
 | `isTransient` | Int64 | No | No | Bool as Int |
 | `isPinned` | Int64 | Yes | No | Bool as Int |
@@ -125,7 +125,7 @@ try await privateDatabase.save(zone)
 ```
 - createdAt (queryable)
 - itemType (queryable)
-- hash (for duplicate detection)
+- contentHash (for duplicate detection)
 - isPinned (for filtered queries)
 ```
 
@@ -751,9 +751,11 @@ Status: Synced now | Last synced 2m ago | Syncing... | Error
 ### Phase 1-4: No Sync (Local Only)
 
 **Tasks:**
-- [ ] Design CloudKit schema (this document)
+- [x] Design CloudKit schema (this document)
 - [ ] Create record types in CloudKit Dashboard
 - [ ] No implementation yet
+
+**Status:** Deferred (local-only through Phase 4)
 
 ---
 
@@ -1103,7 +1105,7 @@ extension ClipItem {
         record["sourceAppName"] = sourceAppName
         record["itemType"] = Int64(itemType)
         record["primaryText"] = String(primaryText?.prefix(10000) ?? "")
-        record["hash"] = hash
+        record["contentHash"] = hash
         record["isSensitive"] = isSensitive ? 1 : 0
         record["isTransient"] = isTransient ? 1 : 0
         record["isPinned"] = isPinned ? 1 : 0
@@ -1121,7 +1123,7 @@ extension ClipItem {
         item.sourceAppName = record["sourceAppName"] as? String
         item.itemType = Int16(record["itemType"] as! Int64)
         item.primaryText = record["primaryText"] as? String
-        item.hash = record["hash"] as! String
+        item.contentHash = record["contentHash"] as! String
         item.isSensitive = (record["isSensitive"] as! Int64) == 1
         item.isTransient = (record["isTransient"] as! Int64) == 1
         item.isPinned = (record["isPinned"] as! Int64) == 1

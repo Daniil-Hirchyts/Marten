@@ -849,6 +849,8 @@ Content:
 
 **Focus:** Core functionality only
 
+**Status:** Deferred (no privacy features implemented yet)
+
 ---
 
 ### Phase 4: Privacy & Settings (Weeks 9-10)

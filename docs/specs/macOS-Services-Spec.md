@@ -197,7 +197,7 @@ func writeToPasteboard(_ item: ClipItem) {
 private var lastWrittenHash: String?
 
 func writeToPasteboard(_ item: ClipItem) {
-    lastWrittenHash = item.hash
+    lastWrittenHash = item.contentHash
     
     pasteboard.clearContents()
     pasteboard.writeObjects([item.toPasteboardItem()])
@@ -1134,29 +1134,34 @@ class PermissionManager: ObservableObject {
 ### Phase 1: Core Foundation (Weeks 1-3)
 
 **Services Tasks:**
-- [ ] Implement `PasteboardMonitor` with basic polling
-- [ ] Detect text changes only
-- [ ] Extract plain text from pasteboard
-- [ ] Test feedback loop prevention
-- [ ] Add basic logging
+- [x] Implement `PasteboardMonitor` with basic polling
+- [x] Detect text changes only
+- [x] Extract plain text from pasteboard
+- [x] Test feedback loop prevention
+- [x] Add basic logging
 
 **Success Criteria:**
 - Monitor detects changes within 500ms
 - No feedback loops
 - CPU usage < 1% when idle
 
+**Status Notes:**
+- Feedback-loop suppression validated; paste-to-app integration still pending
+- Latency/CPU benchmarks captured (avg 0.394s, max 0.409s; CPU idle 0.20%)
+- Default poll interval set to 0.4s to meet latency target
+
 ---
 
 ### Phase 2: Full Capture & UI Parity (Weeks 4-6)
 
 **Services Tasks:**
-- [ ] Extend capture to all content types (images, RTF, files, URLs)
-- [ ] Implement multi-representation extraction
-- [ ] Add type detection (text, code, image, file, URL)
-- [ ] Implement asset file storage for large content
-- [ ] Generate thumbnails for images
-- [ ] Add source app detection
-- [ ] Implement adaptive polling
+- [x] Extend capture to all content types (images, RTF, files, URLs)
+- [x] Implement multi-representation extraction
+- [x] Add type detection (text, code, image, file, URL)
+- [x] Implement asset file storage for large content (thresholded binary data)
+- [x] Generate thumbnails for images (initial generator + thumbnail updates)
+- [x] Add source app detection
+- [x] Implement adaptive polling
 
 **Success Criteria:**
 - All content types captured correctly

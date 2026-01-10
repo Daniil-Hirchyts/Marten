@@ -107,36 +107,57 @@ This document defines the high-level system architecture for the Paste Clipboard
    - Cache management
    - Orphan cleanup
 
-### 3.2 ClipboardMac (macOS App Target)
+### 3.2 ClipboardMacServices (macOS Services Module)
 
-**Responsibility:** macOS-specific UI and system integration
+**Responsibility:** macOS services shared by the app and validation tooling
 
 **Components:**
 
 1. **PasteboardMonitor**
    - NSPasteboard polling
    - Change detection
-   - Content extraction
    - See: `macOS-Services-Spec.md`
 
-2. **OverlayWindow**
+2. **PasteboardExtractor**
+   - Representation extraction (text/RTF/HTML/images/URLs)
+   - Type detection
+   - See: `macOS-Services-Spec.md`
+
+3. **HotkeyManager**
+   - Global hotkey registration (Carbon)
+   - See: `macOS-Services-Spec.md`
+
+4. **ThumbnailGenerator**
+   - Image thumbnail generation for previews
+   - See: `macOS-Services-Spec.md`
+
+5. **Loggers**
+   - App, pasteboard, hotkey, retention log channels
+
+### 3.3 ClipboardMac (macOS App Target)
+
+**Responsibility:** macOS-specific UI and system integration
+
+**Components:**
+
+1. **OverlayWindow**
    - Custom NSPanel management
    - Keyboard navigation
    - Focus handling
    - See: `UI-Contract-Spec.md`
 
-3. **PasteEngine**
+2. **PasteEngine**
    - Active app tracking
    - Synthetic paste injection
    - Accessibility integration
    - See: `macOS-Services-Spec.md`
 
-4. **SettingsUI**
+3. **SettingsUI**
    - SwiftUI-based preferences
    - Shortcut recorder
    - App picker for ignore list
 
-5. **MenuBarApp**
+4. **MenuBarApp**
    - NSStatusItem management
    - Quick actions menu
    - Status indicators
@@ -262,33 +283,38 @@ Update UI
 ### Phase 1: Core Foundation ✓ Spec Complete
 **Target:** Weeks 1-3  
 **Deliverables:**
-- [ ] `ClipboardCore` Swift package structure
-- [ ] Core Data model implementation (see Data-Model-Spec.md)
-- [ ] Basic persistence layer with SQLite backend
-- [ ] Text-only pasteboard monitor
-- [ ] Minimal SwiftUI overlay listing recent items
-- [ ] Canonical hash implementation
-- [ ] Basic retention policy (day/week/month)
+- [x] `ClipboardCore` Swift package structure
+- [x] Core Data model implementation (see Data-Model-Spec.md)
+- [x] Basic persistence layer with SQLite backend
+- [x] Text-only pasteboard monitor
+- [x] Minimal SwiftUI overlay listing recent items
+- [x] Canonical hash implementation
+- [x] Basic retention policy (day/week/month)
 
 **Success Criteria:**
 - Can capture and display text from pasteboard
 - Items persist across app restarts
 - Duplicate detection works for identical text
 
+**Status Notes:**
+- Pasteboard latency and idle CPU validated (avg 0.382s, max 0.403s; CPU 0.22%)
+- Persistence across restarts validated via XCTest
+- DB insert/fetch and UI overlay performance still unvalidated
+
 ---
 
-### Phase 2: Full Capture & UI Parity ⏳ Spec In Progress
+### Phase 2: Full Capture & UI Parity ✓ Implemented
 **Target:** Weeks 4-6  
 **Deliverables:**
-- [ ] Rich text (RTF, HTML) capture
-- [ ] Image capture with thumbnail generation
-- [ ] File URL capture
-- [ ] Multi-representation support per item
-- [ ] Pinboard data model and UI
-- [ ] Pinboard tab bar component
-- [ ] Item card component with previews
-- [ ] Search mode UI and indexing
-- [ ] Menu bar icon and menu
+- [x] Rich text (RTF, HTML) capture
+- [x] Image capture with thumbnail generation
+- [x] File URL capture
+- [x] Multi-representation support per item
+- [x] Pinboard data model and UI
+- [x] Pinboard tab bar component
+- [x] Item card component with previews
+- [x] Search mode UI and indexing
+- [x] Menu bar icon and menu
 
 **Success Criteria:**
 - All content types display correctly
@@ -300,9 +326,14 @@ Update UI
 - Phase 1 complete
 - UI-Contract-Spec.md finalized
 
+**Status Notes:**
+- Search validation: avg 1.0ms, max 1.4ms for 1000-item dataset (ClipboardMacValidation run)
+- Capture throughput validation: 1103.5 items/sec (ClipboardMacValidation run)
+- UI frame lifetime avg 16.81ms (p99 26.75ms), 1 hitch at 133.33ms (Animation Hitches trace)
+
 ---
 
-### Phase 3: Paste Behaviors 📋 Spec Pending
+### Phase 3: Paste Behaviors 📋 Spec Ready
 **Target:** Weeks 7-8  
 **Deliverables:**
 - [ ] Frontmost app tracking
@@ -323,6 +354,11 @@ Update UI
 - Phase 2 complete
 - macOS-Services-Spec.md finalized
 - Accessibility permission flow implemented
+
+**Status Notes:**
+- Phase 2 complete; UI rendering perf benchmark still pending
+- Accessibility permission flow remains Phase 4; Phase 3 paste engine will need a temporary prompt or dev-only guidance
+- Hotkey manager currently uses Carbon; event tap replacement deferred to Phase 3
 
 ---
 
@@ -479,15 +515,19 @@ Paste/
 │   └── Tests/
 ├── ClipboardMac/               # macOS App Target
 │   ├── Sources/
-│   │   ├── App/
-│   │   ├── UI/
-│   │   │   ├── Overlay/
-│   │   │   ├── Settings/
-│   │   │   └── Components/
-│   │   ├── Services/
-│   │   │   ├── PasteboardMonitor/
-│   │   │   ├── PasteEngine/
-│   │   │   └── HotkeyManager/
+│   │   ├── ClipboardMacApp/
+│   │   │   ├── App/
+│   │   │   └── UI/
+│   │   │       ├── Overlay/
+│   │   │       ├── Settings/
+│   │   │       └── Components/
+│   │   ├── ClipboardMacServices/
+│   │   │   └── Services/
+│   │   │       ├── Logging/
+│   │   │       ├── PasteboardMonitor/
+│   │   │       ├── Thumbnails/
+│   │   │       └── HotkeyManager/
+│   │   └── ClipboardMacValidation/
 │   │   └── Resources/
 │   └── Tests/
 ├── ClipboardiOS/               # Future
@@ -575,15 +615,15 @@ Architecture-Overview.md (this file)
 ---
 
 **Next Steps:**
-1. Review and approve this architecture document
-2. Create detailed specifications for each sub-domain
-3. Set up initial project structure in Xcode
-4. Begin Phase 1 implementation
+1. Review Phase 1 implementation notes and validation gaps
+2. Plan Phase 2 scope/timeline
+3. Set up Xcode workspace/project structure (optional; SwiftPM packages exist)
+4. Begin Phase 2 implementation
 
 **Related Documents:**
-- [Data Model Spec](./Data-Model-Spec.md) - ⏳ In Progress
-- [Cloud Schema Spec](./Cloud-Schema-Spec.md) - 📋 Pending
-- [UI Contract Spec](./UI-Contract-Spec.md) - 📋 Pending
-- [macOS Services Spec](./macOS-Services-Spec.md) - 📋 Pending
-- [Privacy & Security Spec](./Privacy-Security-Spec.md) - 📋 Pending
-- [Testing Strategy](./Testing-Strategy.md) - 📋 Pending
+- [Data Model Spec](./Data-Model-Spec.md) - ✅ Complete
+- [Cloud Schema Spec](./Cloud-Schema-Spec.md) - ✅ Complete
+- [UI Contract Spec](./UI-Contract-Spec.md) - ✅ Complete
+- [macOS Services Spec](./macOS-Services-Spec.md) - ✅ Complete
+- [Privacy & Security Spec](./Privacy-Security-Spec.md) - ✅ Complete
+- [Testing Strategy](./Testing-Strategy.md) - ✅ Complete

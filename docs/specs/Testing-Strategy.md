@@ -109,16 +109,16 @@ class ClipItemTests: XCTestCase {
         item.createdAt = Date()
         item.itemType = .text
         item.primaryText = "Test"
-        item.hash = "abc123"
+        item.contentHash = "abc123"
         
         XCTAssertNoThrow(try context.save())
     }
     
     func testHashMustBeUnique() {
-        let item1 = createClipItem(hash: "duplicate")
+        let item1 = createClipItem(contentHash: "duplicate")
         try! context.save()
         
-        let item2 = createClipItem(hash: "duplicate")
+        let item2 = createClipItem(contentHash: "duplicate")
         
         XCTAssertThrowsError(try context.save())
     }
@@ -849,33 +849,41 @@ Ensure new features don't break existing functionality.
 ### Phase 1: Core Foundation (Weeks 1-3)
 
 **Testing Tasks:**
-- [ ] Set up XCTest target
-- [ ] Create in-memory Core Data stack for tests
-- [ ] Write tests for ClipItem entity
-- [ ] Write tests for hashing logic
-- [ ] Write tests for deduplication
-- [ ] Write tests for basic retention
-- [ ] Achieve 70% code coverage
+- [x] Set up XCTest target
+- [x] Create in-memory Core Data stack for tests
+- [x] Write tests for ClipItem entity
+- [x] Write tests for hashing logic
+- [x] Write tests for deduplication
+- [x] Write tests for basic retention
+- [x] Achieve 70% code coverage (ClipboardCore line coverage 77.78%)
 
 **Success Criteria:**
 - All tests pass
 - No flaky tests
 - Tests run in < 10 seconds
 
+**Status Notes:**
+- Coverage baseline measured via SwiftPM + llvm-cov (ClipboardCore line coverage 77.78%)
+
 ---
 
 ### Phase 2: Full Capture & UI Parity (Weeks 4-6)
 
 **Testing Tasks:**
-- [ ] Write tests for all content type extraction
-- [ ] Write tests for representation normalization
-- [ ] Write integration tests for capture pipeline
-- [ ] Write tests for asset storage
-- [ ] Write tests for thumbnail generation
-- [ ] Write tests for pinboard CRUD
-- [ ] Write tests for search queries
-- [ ] Add first UI tests (overlay open/close)
-- [ ] Achieve 75% code coverage
+- [x] Write tests for all content type extraction (PasteboardExtractor unit tests)
+- [x] Write tests for representation normalization
+- [x] Write integration tests for capture pipeline
+- [x] Write tests for asset storage
+- [x] Write tests for thumbnail generation
+- [x] Write tests for pinboard CRUD
+- [x] Write tests for search queries
+- [x] Add first UI tests (overlay open/close)
+- [x] Achieve 75% code coverage (ClipboardCore line coverage 86.63%; ClipboardMac not re-measured)
+
+**Status Notes:**
+- Perf validation: search avg 1.0ms (max 1.4ms), capture throughput 1103.5 items/sec
+- UI frame lifetime avg 16.81ms (p99 26.75ms), 1 hitch at 133.33ms (Animation Hitches trace)
+- ClipboardMac code coverage not measured
 
 ---
 

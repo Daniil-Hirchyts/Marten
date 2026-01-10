@@ -996,31 +996,37 @@ enum PinboardColor: String {
 ### Phase 1: Core Foundation (Weeks 1-3)
 
 **UI Tasks:**
-- [x] No UI implementation yet (foundational work)
-- [ ] Create basic SwiftUI overlay window
-- [ ] Simple list view of text items
-- [ ] Open/close animation
-- [ ] Global hotkey to show overlay
+- [x] Create basic SwiftUI overlay window
+- [x] Simple list view of text items
+- [x] Open/close animation
+- [x] Global hotkey to show overlay
 
 **Success Criteria:**
 - Overlay opens in <500ms
 - Can display 100 items without lag
+
+**Status Notes:**
+- Performance targets are not yet benchmarked
 
 ---
 
 ### Phase 2: Full Capture & UI Parity (Weeks 4-6)
 
 **UI Tasks:**
-- [ ] Design card component with all preview types
-- [ ] Implement horizontal scroll with snap behavior
-- [ ] Create pinboard tab bar component
-- [ ] Implement tab switching
-- [ ] Add context menus (card + tab)
-- [ ] Create search mode UI
-- [ ] Implement search field with incremental search
-- [ ] Design empty states
-- [ ] Add menu bar icon and menu
-- [ ] Create "New Text Item" sheet
+-- [x] Design card component with all preview types (basic card + thumbnail/metadata)
+-- [x] Implement horizontal scroll with snap behavior (view-aligned on macOS 14+, fallback on 13)
+-- [x] Create pinboard tab bar component (minimal horizontal list in overlay + create)
+-- [x] Implement tab switching (filtering + search scoped to pinboard)
+-- [x] Add context menus (card + tab) (basic actions wired)
+-- [x] Create search mode UI (inline search field + result count)
+-- [x] Implement search field with incremental search (Core Data-backed search results)
+-- [x] Design empty states (search/pinboard empty messaging + styled panel)
+-- [x] Add menu bar icon and menu (initial status item + toggle/quit menu)
+-- [x] Create "New Text Item" sheet (basic panel)
+
+**Status Notes:**
+- Pinboard tab reorder, color picker, and keyboard navigation remain out of scope for Phase 2
+- Card context menu supports move-to-pinboard, pin/unpin, copy, and delete; paste actions deferred to Phase 3
 
 **Success Criteria:**
 - All content types preview correctly

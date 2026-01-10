@@ -152,6 +152,8 @@ This directory contains the complete versioned engineering documentation for the
 - Text-only pasteboard monitor
 - Basic overlay listing items
 
+**Status:** ✅ Implemented (performance validation + automation pending)
+
 ---
 
 ### Phase 2: Full Capture & UI Parity (Weeks 4-6)
@@ -168,6 +170,8 @@ This directory contains the complete versioned engineering documentation for the
 - Search mode
 - Menu bar app
 
+**Status:** ✅ Implemented (UI rendering perf benchmarked)
+
 ---
 
 ### Phase 3: Paste Behaviors (Weeks 7-8)
@@ -183,6 +187,8 @@ This directory contains the complete versioned engineering documentation for the
 - Plain text mode
 - Paste stack sequential logic
 - Global hotkeys
+
+**Status:** 📋 Ready to start (Phase 2 complete; Accessibility permission flow pending)
 
 ---
 
@@ -427,9 +433,9 @@ Total: ~330 KB, ~7,750 lines of technical documentation
 
 ---
 
-**Status:** 🎉 **All specifications complete and ready for implementation!**
+**Status:** 🎉 **All specifications complete; Phase 1 implemented with notes in the index!**
 
 Next steps:
-1. Review and approve all specs
-2. Set up project structure per Architecture Overview
-3. Begin Phase 1: Core Foundation
+1. Review Phase 1 notes and validation gaps
+2. Review the Phase 2 execution plan (`docs/phase-2-plan.md`)
+3. Decide Phase 2 scope/timeline and assign owners

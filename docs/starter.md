@@ -315,7 +315,7 @@ Use Core Data backed by SQLite, or a custom SQLite schema. For speed and CloudKi
 * `sourceAppName: String?` (cached display)
 * `itemType: Enum` (text, richText, image, file, url, mixed)
 * `primaryText: String?` (for indexing and previews)
-* `hash: String` (canonical hash for dedupe)
+* `contentHash: String` (canonical hash for dedupe)
 * `isSensitive: Bool`
 * `isTransient: Bool`
 * `needsLinkPreview: Bool`
@@ -523,7 +523,7 @@ Fields:
 * `sourceAppBundleID` (String)
 * `itemType` (Int)
 * `primaryText` (String) truncated (for search/display only)
-* `hash` (String)
+* `contentHash` (String)
 * `isSensitive` (Bool)
 * `isTransient` (Bool)
 * `deletedAt` (Date?) optional tombstone strategy if needed
@@ -813,6 +813,8 @@ If you keep a “Subscription” settings tab for UI parity, rename the contents
 * `ClipboardCore` package with data model, persistence, hashing, retention.
 * Basic pasteboard monitor that stores text only.
 * Minimal overlay UI listing recent items.
+
+Status: Implemented (performance validation and automation still pending; see docs/INDEX.md).
 
 ### Phase 2: Full capture and UI parity
 

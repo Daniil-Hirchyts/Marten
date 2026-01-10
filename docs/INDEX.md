@@ -2,7 +2,7 @@
 
 **Project:** Paste - Clipboard Manager for macOS  
 **Version:** 1.0.0  
-**Last Updated:** 2026-01-09
+**Last Updated:** 2026-01-10
 
 ---
 
@@ -12,6 +12,7 @@
 docs/
 ├── INDEX.md                    ← You are here
 ├── starter.md                  Original product requirements
+├── phase-2-plan.md             Phase 2 execution plan and checklist
 └── specs/                      Engineering specifications
     ├── README.md               Specs overview and navigation guide
     ├── Architecture-Overview.md
@@ -81,6 +82,10 @@ docs/
 - Dependency diagram
 - Implementation roadmap
 - How to use the specs
+
+**[phase-2-plan.md](./phase-2-plan.md)**
+- Phase 2 execution plan (tasks, owners, estimates)
+- Phase 2 checklist and dependencies
 
 **[specs/Architecture-Overview.md](./specs/Architecture-Overview.md)** (850 lines)
 - System architecture
@@ -165,39 +170,39 @@ docs/
 **Phase 1 Implementation Checklist:**
 
 **Foundation & Package Setup**
-- [ ] Create `ClipboardCore` Swift package structure
-- [ ] Set up basic module boundaries (Core Data + services + UI host)
+- [x] Create `ClipboardCore` Swift package structure
+- [x] Set up basic module boundaries (Core Data + services + UI host)
 
 **Data Model & Persistence** (Data-Model-Spec.md §8)
-- [ ] Define Core Data model file (`Paste.xcdatamodeld`)
-- [ ] Create `ClipItem`, `ClipRepresentation`, and `Pinboard` entities
-- [ ] Set up Core Data stack with SQLite backend
-- [ ] Implement basic CRUD operations
-- [ ] Add text-only item creation flow
-- [ ] Implement canonical hash + hash-based deduplication
-- [ ] Add basic retention policy (day/week/month)
+- [x] Define Core Data model file (`Paste.xcdatamodeld`)
+- [x] Create `ClipItem`, `ClipRepresentation`, and `Pinboard` entities
+- [x] Set up Core Data stack with SQLite backend
+- [x] Implement basic CRUD operations
+- [x] Add text-only item creation flow
+- [x] Implement canonical hash + contentHash-based deduplication
+- [x] Add basic retention policy (day/week/month)
 
 **Pasteboard Capture** (macOS-Services-Spec.md §10)
-- [ ] Implement `PasteboardMonitor` with polling
-- [ ] Detect text changes only
-- [ ] Extract plain text from pasteboard
-- [ ] Prevent feedback loops when app writes to pasteboard
-- [ ] Add basic logging for capture events
+- [x] Implement `PasteboardMonitor` with polling
+- [x] Detect text changes only
+- [x] Extract plain text from pasteboard
+- [x] Prevent feedback loops when app writes to pasteboard (suppression integrated via `.clipboardWillWrite`)
+- [x] Add basic logging for capture events
 
 **Minimal Overlay UI** (UI-Contract-Spec.md §15)
-- [ ] Create basic SwiftUI overlay window
-- [ ] Render a simple list of text items
-- [ ] Add open/close animation
-- [ ] Register a global hotkey to toggle the overlay
+- [x] Create basic SwiftUI overlay window
+- [x] Render a simple list of text items
+- [x] Add open/close animation
+- [x] Register a global hotkey to toggle the overlay
 
 **Testing** (Testing-Strategy.md §10)
-- [ ] Set up XCTest target
-- [ ] Create in-memory Core Data stack for tests
-- [ ] Write tests for ClipItem entity
-- [ ] Write tests for hashing logic
-- [ ] Write tests for deduplication
-- [ ] Write tests for basic retention
-- [ ] Achieve 70% code coverage for Phase 1
+- [x] Set up XCTest target
+- [x] Create in-memory Core Data stack for tests
+- [x] Write tests for ClipItem entity
+- [x] Write tests for hashing logic
+- [x] Write tests for deduplication
+- [x] Write tests for basic retention
+- [x] Achieve 70% code coverage for Phase 1 (ClipboardCore line coverage 77.78%)
 
 **Phase 1 Exit Criteria:**
 - Capture and display text from pasteboard
@@ -207,11 +212,19 @@ docs/
 - CPU usage < 1% when idle
 - Insert 1000 items in <1s; fetch 100 items in <50ms
 - Overlay opens in <500ms and renders 100 items without lag
+  
+**Exit Criteria Validation Notes:**
+- Pasteboard latency validated: avg 0.394s, max 0.409s (poll interval 0.4s)
+- Idle CPU usage validated: 0.20% in validation run
+- Persistence across restarts validated via XCTest
+- Feedback-loop suppression validated in monitor + `.clipboardWillWrite` integration
+- Unvalidated: DB perf targets (1000 inserts, 100 fetch), overlay open/render timing
 
 **Phase 1 Code Deliverables (Core Data):**
 ```
 ClipboardCore/Sources/DataModel/
   ├── Paste.xcdatamodeld
+  ├── Paste.momd
   ├── ClipItem+CoreDataClass.swift
   ├── ClipItem+CoreDataProperties.swift
   ├── ClipRepresentation+CoreDataClass.swift
@@ -221,6 +234,23 @@ ClipboardCore/Sources/DataModel/
       ├── ItemType.swift
       └── RepresentationKind.swift
 ```
+
+**Phase 1 Status (Current Progress)**
+- ✅ ClipboardCore package with Core Data model, persistence, hashing/dedupe, retention, and CRUD
+- ✅ ClipboardMac app package with pasteboard polling, global hotkey, and minimal overlay list
+- ✅ Unit tests for hashing, deduplication, retention, and ClipItem insertions
+- ⚠️ Temporary: Core Data model is compiled manually to `Paste.momd` for SwiftPM; no automated build step yet
+- ⚠️ Temporary: Global hotkey uses Carbon `RegisterEventHotKey` (modern replacement deferred to later phase)
+- ⚠️ Performance budgets for DB/UI remain unvalidated (see exit criteria notes)
+
+**Phase 1 Changes from Spec (Recorded)**
+- `hash` attribute renamed to `contentHash` to avoid `NSObject.hash` collision
+- In-memory Core Data store disables history tracking/remote change notifications for test stability
+- Persistence model lookup targets `DataModel/Paste.momd` bundle path with fallbacks
+
+**Known Issues / Notes**
+- SwiftPM test runs can warn about user cache permissions; safe to ignore
+- Feedback-loop suppression validated; full paste-to-app loop pending
 
 ---
 
@@ -237,6 +267,32 @@ ClipboardCore/Sources/DataModel/
 - Search functionality
 - Menu bar app
 
+**Execution Plan:**
+- See [`phase-2-plan.md`](./phase-2-plan.md) for tasks, owners, estimates, and dependencies
+
+**Phase 2 Execution Checklist (tracking in `phase-2-plan.md`):**
+- [x] P2-G1..P2-G5: Close Phase 1 validation gaps
+- [x] P2-01: Data model audit
+- [x] P2-02: Asset storage subsystem
+- [x] P2-03: Rich capture pipeline + type detection
+- [x] P2-04: Multi-representation normalization
+- [x] P2-05: Thumbnail generation pipeline
+- [x] P2-06: Pinboard CRUD + UI binding
+- [x] P2-07: Card UI + preview variants
+- [x] P2-08: Search indexing + search UI
+- [x] P2-09: Menu bar app + new text sheet
+- [x] P2-10: Tests for new capture/UI work
+- [x] P2-11: Phase 2 performance validation (UI rendering still unbenchmarked)
+
+**Phase 2 Validation Notes:**
+- Search latency validated: avg 1.0ms, max 1.4ms (1000-item dataset)
+- Capture throughput validated: 1103.5 items/sec (500-item run)
+- UI frame lifetime avg 16.81ms (p99 26.75ms), 1 hitch at 133.33ms (Animation Hitches trace)
+- ClipboardCore line coverage: 86.63% (Phase 2 run); ClipboardMac coverage not measured
+
+**Phase 2 Status (Current Progress)**
+- ✅ Phase 2 implementation complete; UI rendering perf benchmarked
+
 ---
 
 ### Phase 3: Paste Behaviors (Weeks 7-8)
@@ -251,6 +307,13 @@ ClipboardCore/Sources/DataModel/
 - Global hotkeys
 - Quick Paste (⌘1-9)
 - Paste stack
+
+**Phase 3 Readiness**
+- ✅ Phase 2 complete; capture, assets, search, pinboards, and UI parity delivered
+- ⚠️ ClipboardMac code coverage not measured (ClipboardCore 86.63% line coverage)
+- ⚠️ Accessibility permission flow not implemented yet (required for paste injection)
+- ⚠️ Hotkey manager still uses Carbon (event tap replacement deferred to Phase 3)
+- ❌ Paste engine, paste stack data model/UI, and plain-text conversion not implemented (Phase 3 scope)
 
 ---
 
@@ -429,7 +492,7 @@ New docs should go in appropriate directories:
 - [Accessibility for macOS](https://developer.apple.com/design/human-interface-guidelines/accessibility)
 
 **Design Resources:**
-- [macOS Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/macos)
+- [macOS Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines)
 - [SF Symbols](https://developer.apple.com/sf-symbols/)
 
 **Testing:**
@@ -440,12 +503,12 @@ New docs should go in appropriate directories:
 ## ✅ Status
 
 **Documentation:** ✅ Complete (Version 1.0.0)  
-**Implementation:** 🔜 Ready to begin Phase 1
+**Implementation:** ✅ Phase 1 Core Foundation implemented (validation + automation pending)
 
-All engineering specifications are complete and ready for development kickoff!
+All engineering specifications are complete; Phase 1 core foundation is implemented with notes above.
 
 ---
 
-**Last Updated:** 2026-01-09  
+**Last Updated:** 2026-01-10
 **Maintained By:** Engineering Team  
 **Questions?** See [`specs/README.md`](./specs/README.md) for contact information

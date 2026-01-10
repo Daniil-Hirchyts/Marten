@@ -91,7 +91,7 @@ WAL Mode: Enabled (for concurrent reads)
 | `itemType` | Int16 | No | 0 | Yes | Enum: ItemType |
 | `primaryText` | String | Yes | nil | No | Preview/search text (max 10k chars) |
 | `searchableText` | String | Yes | nil | No | Normalized for search |
-| `hash` | String | No | "" | Yes (Unique) | Canonical content hash |
+| `contentHash` | String | No | "" | Yes (Unique) | Canonical content hash |
 | `isSensitive` | Bool | No | false | Yes | Privacy flag |
 | `isTransient` | Bool | No | false | No | Ephemeral content flag |
 | `needsLinkPreview` | Bool | No | false | No | URL preview pending |
@@ -112,9 +112,9 @@ WAL Mode: Enabled (for concurrent reads)
 #### Validation Rules
 
 ```swift
-// Hash must be non-empty
-validate(hash: String) -> Bool {
-    return !hash.isEmpty && hash.count == 64 // SHA-256 hex
+// Content hash must be non-empty
+validate(contentHash: String) -> Bool {
+    return !contentHash.isEmpty && contentHash.count == 64 // SHA-256 hex
 }
 
 // CreatedAt must not be in future
@@ -366,7 +366,7 @@ enum StackMode: Int16 {
 ```swift
 // ClipItem
 index on: [createdAt DESC]           // Timeline queries
-index on: [hash]                     // Duplicate detection
+index on: [contentHash]              // Duplicate detection
 index on: [sourceAppBundleID, createdAt DESC]  // Filtered timeline
 index on: [isPinned DESC, createdAt DESC]      // Pinned first
 compound index on: [itemType, createdAt DESC]  // Type filtering
@@ -412,8 +412,8 @@ fetchRequest.relationshipKeyPathsForPrefetching = ["representations", "pinboards
 ```
 1. PasteboardMonitor detects change
 2. Create ClipItem in background context
-3. Compute hash from primary representation
-4. Check for duplicate (fetch by hash)
+3. Compute canonical hash from primary representation
+4. Check for duplicate (fetch by contentHash)
 5. If duplicate: update modifiedAt, skip
 6. If new: Create ClipRepresentation(s)
 7. Add to system "Clipboard" pinboard
@@ -603,24 +603,33 @@ predicate = NSPredicate(format: "itemType == %d", ItemType.code.rawValue)
 
 **Data Model Tasks:**
 - [x] Define Core Data model file (.xcdatamodeld)
-- [ ] Create `ClipItem` entity with basic attributes
-- [ ] Create `ClipRepresentation` entity
-- [ ] Create `Pinboard` entity
-- [ ] Set up Core Data stack in `ClipboardCore`
-- [ ] Implement basic CRUD operations
-- [ ] Add text-only item creation
-- [ ] Implement hash-based deduplication
-- [ ] Add unit tests for data model
+- [x] Create `ClipItem` entity with basic attributes
+- [x] Create `ClipRepresentation` entity
+- [x] Create `Pinboard` entity
+- [x] Set up Core Data stack in `ClipboardCore`
+- [x] Implement basic CRUD operations
+- [x] Add text-only item creation
+- [x] Implement contentHash-based deduplication
+- [x] Add unit tests for data model
+
+**Implementation Notes:**
+- Attribute name is `contentHash` in the shipped model to avoid `NSObject.hash` collisions
+- SwiftPM bundles a precompiled `Paste.momd` (manual `momc` until automated)
 
 **Success Criteria:**
 - Can insert 1000 items in <1s
 - Fetch recent 100 items in <50ms
 - Hash collision rate: 0%
+  
+**Status Notes:**
+- Persistence across restarts validated via XCTest
+- Performance targets and hash-collision rate are not yet benchmarked
 
 **Code Deliverables:**
 ```
 ClipboardCore/Sources/DataModel/
   ├── Paste.xcdatamodeld
+  ├── Paste.momd
   ├── ClipItem+CoreDataClass.swift
   ├── ClipItem+CoreDataProperties.swift
   ├── ClipRepresentation+CoreDataClass.swift
@@ -636,14 +645,14 @@ ClipboardCore/Sources/DataModel/
 ### Phase 2: Full Capture & UI Parity (Weeks 4-6)
 
 **Data Model Tasks:**
-- [ ] Add `LinkPreview` entity
-- [ ] Add `thumbnailPath` to ClipItem
-- [ ] Implement asset file storage
-- [ ] Add thumbnail generation pipeline
-- [ ] Create pinboard CRUD operations
-- [ ] Implement many-to-many pinboard relationships
-- [ ] Add search indexing (searchableText generation)
-- [ ] Create fetch requests for UI components
+- [x] Add `LinkPreview` entity
+- [x] Add `thumbnailPath` to ClipItem (present in model)
+- [x] Implement asset file storage (AssetStore + thresholded binary storage)
+- [x] Add thumbnail generation pipeline (image payloads generate thumbnails)
+- [x] Create pinboard CRUD operations (ClipItemStore)
+- [x] Implement many-to-many pinboard relationships (model relationships in place)
+- [x] Add search indexing (searchableText generation)
+- [x] Create fetch requests for UI components (recent items + search)
 
 **Success Criteria:**
 - Support all content types (text, image, RTF, URL)
@@ -801,14 +810,17 @@ func testMigrationFromV1ToV2() throws {
 
 Before marking Phase 1 complete:
 
-- [ ] All entities compile without errors
-- [ ] Relationships have correct delete rules
-- [ ] All required indexes are defined
+- [x] All entities compile without errors
+- [x] Relationships have correct delete rules
+- [x] All required indexes are defined
 - [ ] Unit tests cover basic CRUD operations
-- [ ] Sample data can be inserted and queried
+- [x] Sample data can be inserted and queried
 - [ ] No force-unwraps in model code
 - [ ] Documentation comments on all entities
 - [ ] Migration path from empty DB is tested
+
+**Notes:**
+- CRUD tests cover create/fetch/delete paths; update-specific tests are still missing
 
 ---
 
@@ -842,8 +854,8 @@ func createClipItem(
         item.addToRepresentations(rep)
     }
     
-    // Compute hash
-    item.hash = try item.computeCanonicalHash()
+    // Compute canonical hash
+    item.contentHash = try item.computeCanonicalHash()
     
     // Add to default pinboard
     let clipboard = try fetchSystemClipboardPinboard(in: context)
