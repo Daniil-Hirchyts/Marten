@@ -1,93 +1,102 @@
-import Carbon.HIToolbox
+import AppKit
 import Foundation
 import OSLog
 
-struct Hotkey {
-    let keyCode: UInt32
-    let modifiers: UInt32
-}
-
 public final class HotkeyManager {
-    private var hotKeyRef: EventHotKeyRef?
-    private var eventHandlerRef: EventHandlerRef?
-    private var handler: (() -> Void)?
+    public struct Hotkey {
+        public let keyCode: UInt16
+        public let modifiers: NSEvent.ModifierFlags
+
+        public init(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) {
+            self.keyCode = keyCode
+            self.modifiers = modifiers
+        }
+    }
+
+    private var eventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
+    private var hotkeys: [String: Hotkey] = [:]
+    private var handlers: [String: (NSEvent.ModifierFlags) -> Void] = [:]
 
     public init() {}
 
-    public func registerToggleOverlayHotkey(handler: @escaping () -> Void) {
-        self.handler = handler
-        let hotkey = Hotkey(keyCode: UInt32(kVK_ANSI_V), modifiers: UInt32(cmdKey | shiftKey))
-        register(hotkey: hotkey, id: 1)
+    public func register(action: String, hotkey: Hotkey, handler: @escaping (NSEvent.ModifierFlags) -> Void) {
+        hotkeys[action] = hotkey
+        handlers[action] = handler
     }
 
-    public func unregister() {
-        if let hotKeyRef {
-            UnregisterEventHotKey(hotKeyRef)
-            self.hotKeyRef = nil
-        }
-        if let eventHandlerRef {
-            RemoveEventHandler(eventHandlerRef)
-            self.eventHandlerRef = nil
-        }
+    public func unregister(action: String) {
+        hotkeys.removeValue(forKey: action)
+        handlers.removeValue(forKey: action)
     }
 
-    private func register(hotkey: Hotkey, id: UInt32) {
-        unregister()
+    public func unregisterAll() {
+        hotkeys.removeAll()
+        handlers.removeAll()
+    }
 
-        let hotKeyID = EventHotKeyID(signature: fourCharCode("PST1"), id: id)
-        let status = RegisterEventHotKey(
-            hotkey.keyCode,
-            hotkey.modifiers,
-            hotKeyID,
-            GetEventDispatcherTarget(),
-            0,
-            &hotKeyRef
-        )
+    public func start() {
+        guard eventTap == nil else { return }
 
-        if status != noErr {
-            Logger.hotkey.error("Failed to register hotkey: \(status)")
+        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: mask,
+            callback: { proxy, type, event, refcon in
+                let manager = Unmanaged<HotkeyManager>
+                    .fromOpaque(refcon!)
+                    .takeUnretainedValue()
+                return manager.handleEvent(proxy: proxy, type: type, event: event)
+            },
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else {
+            Logger.hotkey.error("Failed to create event tap")
             return
         }
 
-        var eventSpec = EventTypeSpec(
-            eventClass: OSType(kEventClassKeyboard),
-            eventKind: UInt32(kEventHotKeyPressed)
-        )
+        eventTap = tap
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        runLoopSource = source
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        Logger.hotkey.info("Hotkey event tap started")
+    }
 
-        let handlerStatus = InstallEventHandler(
-            GetEventDispatcherTarget(),
-            HotkeyManager.hotKeyHandler,
-            1,
-            &eventSpec,
-            UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
-            &eventHandlerRef
-        )
-
-        if handlerStatus != noErr {
-            Logger.hotkey.error("Failed to install hotkey handler: \(handlerStatus)")
-        } else {
-            Logger.hotkey.info("Registered global hotkey")
+    public func stop() {
+        if let eventTap {
+            CGEvent.tapEnable(tap: eventTap, enable: false)
+            self.eventTap = nil
+        }
+        if let runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
+            self.runLoopSource = nil
         }
     }
 
-    private func handleHotKeyEvent() {
-        DispatchQueue.main.async { [handler] in
-            handler?()
+    private func handleEvent(
+        proxy: CGEventTapProxy,
+        type: CGEventType,
+        event: CGEvent
+    ) -> Unmanaged<CGEvent>? {
+        guard type == .keyDown else {
+            return Unmanaged.passUnretained(event)
         }
-    }
 
-    private static let hotKeyHandler: EventHandlerUPP = { _, _, userData in
-        guard let userData else { return noErr }
-        let manager = Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue()
-        manager.handleHotKeyEvent()
-        return noErr
-    }
+        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+        let flags = NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
+            .intersection(.deviceIndependentFlagsMask)
 
-    private func fourCharCode(_ string: String) -> OSType {
-        var result: UInt32 = 0
-        for scalar in string.unicodeScalars.prefix(4) {
-            result = (result << 8) + UInt32(scalar.value)
+        for (action, hotkey) in hotkeys where hotkey.keyCode == keyCode {
+            if flags.contains(hotkey.modifiers) {
+                DispatchQueue.main.async {
+                    self.handlers[action]?(flags)
+                }
+                return nil
+            }
         }
-        return result
+
+        return Unmanaged.passUnretained(event)
     }
 }

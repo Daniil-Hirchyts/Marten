@@ -7,11 +7,13 @@ import SwiftUI
 final class MenuBarController: NSObject {
     private let statusItem: NSStatusItem
     private let toggleHandler: () -> Void
+    private let pasteStackHandler: () -> Void
     private let store = ClipItemStore()
     private var newItemPanel: NSPanel?
 
-    init(toggleHandler: @escaping () -> Void) {
+    init(toggleHandler: @escaping () -> Void, pasteStackHandler: @escaping () -> Void) {
         self.toggleHandler = toggleHandler
+        self.pasteStackHandler = pasteStackHandler
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
         configureStatusItem()
@@ -24,15 +26,33 @@ final class MenuBarController: NSObject {
         }
 
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Toggle Overlay", action: #selector(toggleOverlay), keyEquivalent: "v"))
-        menu.addItem(NSMenuItem(title: "New Text Item", action: #selector(showNewTextItem), keyEquivalent: "n"))
+        menu.autoenablesItems = false
+
+        let toggleItem = NSMenuItem(title: "Toggle Overlay", action: #selector(toggleOverlay), keyEquivalent: "v")
+        toggleItem.target = self
+        menu.addItem(toggleItem)
+
+        let stackItem = NSMenuItem(title: "Paste Stack", action: #selector(openPasteStack), keyEquivalent: "c")
+        stackItem.target = self
+        menu.addItem(stackItem)
+
+        let newItem = NSMenuItem(title: "New Text Item", action: #selector(showNewTextItem), keyEquivalent: "n")
+        newItem.target = self
+        menu.addItem(newItem)
+
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q"))
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
         statusItem.menu = menu
     }
 
     @objc private func toggleOverlay() {
         toggleHandler()
+    }
+
+    @objc private func openPasteStack() {
+        pasteStackHandler()
     }
 
     @objc private func quitApp() {

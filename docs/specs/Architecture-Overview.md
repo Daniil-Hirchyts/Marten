@@ -333,15 +333,15 @@ Update UI
 
 ---
 
-### Phase 3: Paste Behaviors 📋 Spec Ready
+### Phase 3: Paste Behaviors ✅ Implemented
 **Target:** Weeks 7-8  
 **Deliverables:**
-- [ ] Frontmost app tracking
-- [ ] Accessibility-based paste injection
-- [ ] Plain text mode with modifier key
-- [ ] Quick Paste (Cmd+1..9) mapping
-- [ ] Paste Stack data model
-- [ ] Paste Stack sequential paste logic
+- [x] Frontmost app tracking
+- [x] Accessibility-based paste injection
+- [x] Plain text mode with modifier key
+- [x] Quick Paste (Cmd+1-9) mapping
+- [x] Paste Stack data model
+- [x] Paste Stack sequential paste logic
 - [ ] Copy-to-clipboard mode (alternative to paste)
 
 **Success Criteria:**
@@ -353,12 +353,11 @@ Update UI
 **Dependencies:**
 - Phase 2 complete
 - macOS-Services-Spec.md finalized
-- Accessibility permission flow implemented
 
 **Status Notes:**
-- Phase 2 complete; UI rendering perf benchmark still pending
-- Accessibility permission flow remains Phase 4; Phase 3 paste engine will need a temporary prompt or dev-only guidance
-- Hotkey manager currently uses Carbon; event tap replacement deferred to Phase 3
+- Accessibility prompt now handled in overlay/quick paste; onboarding still Phase 4
+- Event tap hotkey manager replaces Carbon registration
+- Unvalidated: paste success rate in 10+ apps, hotkey reliability after sleep, Quick Paste latency
 
 ---
 

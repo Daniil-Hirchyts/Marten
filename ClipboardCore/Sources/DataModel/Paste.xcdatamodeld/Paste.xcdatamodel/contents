@@ -4,10 +4,12 @@
         <attribute name="id" optional="NO" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="createdAt" optional="NO" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="modifiedAt" optional="NO" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="displayOrder" optional="NO" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="sourceAppBundleID" optional="YES" attributeType="String"/>
         <attribute name="sourceAppName" optional="YES" attributeType="String"/>
         <attribute name="itemType" optional="NO" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="primaryText" optional="YES" attributeType="String"/>
+        <attribute name="customTitle" optional="YES" attributeType="String"/>
         <attribute name="searchableText" optional="YES" attributeType="String"/>
         <attribute name="contentHash" optional="NO" attributeType="String" defaultValueString=""/>
         <attribute name="isSensitive" optional="NO" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
@@ -19,6 +21,7 @@
         <attribute name="isPinned" optional="NO" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
         <relationship name="representations" destinationEntity="ClipRepresentation" toMany="YES" deletionRule="Cascade" inverseName="clipItem" inverseEntity="ClipRepresentation"/>
         <relationship name="pinboards" destinationEntity="Pinboard" toMany="YES" deletionRule="Nullify" inverseName="items" inverseEntity="Pinboard"/>
+        <relationship name="stackEntries" destinationEntity="StackEntry" toMany="YES" deletionRule="Nullify" inverseName="clipItem" inverseEntity="StackEntry"/>
         <relationship name="linkPreview" optional="YES" destinationEntity="LinkPreview" maxCount="1" deletionRule="Cascade" inverseName="clipItem" inverseEntity="LinkPreview"/>
         <uniquenessConstraints>
             <constraint>
@@ -104,5 +107,34 @@
                 <constraintElement name="id"/>
             </constraint>
         </uniquenessConstraints>
+    </entity>
+    <entity name="StackSession" representedClassName="StackSession" syncable="YES">
+        <attribute name="id" optional="NO" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="createdAt" optional="NO" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="isActive" optional="NO" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="separator" optional="NO" attributeType="String" defaultValueString="\n"/>
+        <attribute name="mode" optional="NO" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="entries" destinationEntity="StackEntry" toMany="YES" deletionRule="Cascade" inverseName="session" inverseEntity="StackEntry"/>
+        <uniquenessConstraints>
+            <constraint>
+                <constraintElement name="id"/>
+            </constraint>
+        </uniquenessConstraints>
+    </entity>
+    <entity name="StackEntry" representedClassName="StackEntry" syncable="YES">
+        <attribute name="id" optional="NO" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="position" optional="NO" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="addedAt" optional="NO" attributeType="Date" usesScalarValueType="NO"/>
+        <relationship name="session" destinationEntity="StackSession" maxCount="1" deletionRule="Nullify" inverseName="entries" inverseEntity="StackSession"/>
+        <relationship name="clipItem" destinationEntity="ClipItem" maxCount="1" deletionRule="Nullify" inverseName="stackEntries" inverseEntity="ClipItem"/>
+        <uniquenessConstraints>
+            <constraint>
+                <constraintElement name="id"/>
+            </constraint>
+        </uniquenessConstraints>
+        <fetchIndex name="StackEntryBySessionPosition">
+            <fetchIndexElement property="session" type="Binary"/>
+            <fetchIndexElement property="position" type="Binary"/>
+        </fetchIndex>
     </entity>
 </model>

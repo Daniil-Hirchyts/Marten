@@ -9,10 +9,12 @@ public extension ClipItem {
     @NSManaged var id: UUID
     @NSManaged var createdAt: Date
     @NSManaged var modifiedAt: Date
+    @NSManaged var displayOrder: Int64
     @NSManaged var sourceAppBundleID: String?
     @NSManaged var sourceAppName: String?
     @NSManaged var itemType: Int16
     @NSManaged var primaryText: String?
+    @NSManaged var customTitle: String?
     @NSManaged var searchableText: String?
     @NSManaged var contentHash: String
     @NSManaged var isSensitive: Bool
@@ -24,6 +26,7 @@ public extension ClipItem {
     @NSManaged var isPinned: Bool
     @NSManaged var representations: Set<ClipRepresentation>?
     @NSManaged var pinboards: Set<Pinboard>?
+    @NSManaged var stackEntries: Set<StackEntry>?
     @NSManaged var linkPreview: LinkPreview?
 }
 
@@ -53,4 +56,16 @@ public extension ClipItem {
 
     @objc(removePinboards:)
     @NSManaged func removeFromPinboards(_ values: Set<Pinboard>)
+
+    @objc(addStackEntriesObject:)
+    @NSManaged func addToStackEntries(_ value: StackEntry)
+
+    @objc(removeStackEntriesObject:)
+    @NSManaged func removeFromStackEntries(_ value: StackEntry)
+
+    @objc(addStackEntries:)
+    @NSManaged func addToStackEntries(_ values: Set<StackEntry>)
+
+    @objc(removeStackEntries:)
+    @NSManaged func removeFromStackEntries(_ values: Set<StackEntry>)
 }

@@ -1173,15 +1173,15 @@ class PermissionManager: ObservableObject {
 ### Phase 3: Paste Behaviors (Weeks 7-8)
 
 **Services Tasks:**
-- [ ] Implement `ActiveAppTracker`
-- [ ] Implement `sendPasteKeystroke()` with CGEvent
+- [x] Implement `ActiveAppTracker`
+- [x] Implement `sendPasteKeystroke()` with CGEvent
 - [ ] Test paste in 10+ applications
-- [ ] Implement plain text conversion
-- [ ] Implement paste stack sequential logic
-- [ ] Add paste delays and separator handling
-- [ ] Implement `HotkeyManager` with event tap
-- [ ] Register default hotkeys
-- [ ] Add Quick Paste (⌘1-9) handlers
+- [x] Implement plain text conversion
+- [x] Implement paste stack sequential logic
+- [x] Add paste delays and separator handling
+- [x] Implement `HotkeyManager` with event tap
+- [x] Register default hotkeys
+- [x] Add Quick Paste (⌘1-9) handlers
 - [ ] Test hotkeys globally
 
 **Success Criteria:**

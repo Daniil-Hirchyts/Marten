@@ -899,6 +899,10 @@ Ensure new features don't break existing functionality.
 - [ ] Manual test: Quick Paste (Cmd+1-9)
 - [ ] Achieve 75% code coverage
 
+**Status Notes:**
+- StackSessionStore unit tests added in ClipboardCore (data model coverage)
+- Paste engine + hotkey manager tests still missing; manual app testing pending
+
 ---
 
 ### Phase 4: Privacy & Settings (Weeks 9-10)

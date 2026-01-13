@@ -308,14 +308,16 @@ ClipboardCore/Sources/DataModel/
 - Quick Paste (⌘1-9)
 - Paste stack
 
-**Phase 3 Readiness**
-- ✅ Phase 2 complete; capture, assets, search, pinboards, and UI parity delivered
-- ⚠️ ClipboardMac code coverage not measured (ClipboardCore 86.63% line coverage)
-- ⚠️ Accessibility permission flow not implemented yet (required for paste injection)
-- ⚠️ Hotkey manager still uses Carbon (event tap replacement deferred to Phase 3)
-- ❌ Paste engine, paste stack data model/UI, and plain-text conversion not implemented (Phase 3 scope)
+**Phase 3 Status (Current Progress)**
+- ✅ Paste engine with ActiveAppTracker, CGEvent paste injection, and plain-text conversion
+- ✅ Paste stack Core Data model + selection UI + sequential paste workflow
+- ✅ Event tap hotkey manager with default hotkeys + Quick Paste (⌘1-9)
+- ✅ Accessibility prompt surfaced from overlay + quick paste fallback
+- ✅ Paste stack UI: multi-select, footer actions, quick-paste badges, plain-text indicator
+- ⚠️ Unvalidated: paste success rate across 10+ apps, Quick Paste latency target, hotkey reliability after sleep
 
 ---
+
 
 ### Phase 4: Privacy & Settings (Weeks 9-10)
 **Goal:** Privacy features and settings

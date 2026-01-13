@@ -86,6 +86,7 @@ WAL Mode: Enabled (for concurrent reads)
 | `id` | UUID | No | UUID() | Yes (Primary) | Stable across devices |
 | `createdAt` | Date | No | Date() | Yes | Capture timestamp |
 | `modifiedAt` | Date | No | Date() | No | Last update time |
+| `displayOrder` | Int64 | No | 0 | No | Manual/recency sort order |
 | `sourceAppBundleID` | String | Yes | nil | Yes | e.g. "com.apple.Safari" |
 | `sourceAppName` | String | Yes | nil | No | Display name cache |
 | `itemType` | Int16 | No | 0 | Yes | Enum: ItemType |
@@ -106,7 +107,7 @@ WAL Mode: Enabled (for concurrent reads)
 |------|-------------|-------------|-------------|---------|
 | `representations` | ClipRepresentation | One-to-Many | Cascade | `clipItem` |
 | `pinboards` | Pinboard | Many-to-Many | Nullify | `items` |
-| `stackEntries` | StackEntry | One-to-Many | Cascade | `clipItem` |
+| `stackEntries` | StackEntry | One-to-Many | Nullify | `clipItem` |
 | `linkPreview` | LinkPreview | One-to-One (Optional) | Cascade | `clipItem` |
 
 #### Validation Rules
@@ -664,11 +665,11 @@ ClipboardCore/Sources/DataModel/
 ### Phase 3: Paste Behaviors (Weeks 7-8)
 
 **Data Model Tasks:**
-- [ ] Create `StackSession` entity
-- [ ] Create `StackEntry` entity
-- [ ] Implement stack CRUD operations
-- [ ] Add `isPinned` flag to ClipItem
-- [ ] Create specialized fetch requests for Quick Paste
+- [x] Create `StackSession` entity
+- [x] Create `StackEntry` entity
+- [x] Implement stack CRUD operations (StackSessionStore)
+- [x] Add `isPinned` flag to ClipItem
+- [x] Create specialized fetch requests for Quick Paste (reuse `fetchRecentItems`)
 
 **Success Criteria:**
 - Stack with 50 items performs adequately

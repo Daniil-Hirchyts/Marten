@@ -3,6 +3,8 @@ import OSLog
 public extension Logger {
     static let app = Logger(subsystem: "com.paste.clipboard", category: "App")
     static let pasteboard = Logger(subsystem: "com.paste.clipboard", category: "Pasteboard")
+    static let paste = Logger(subsystem: "com.paste.clipboard", category: "Paste")
     static let hotkey = Logger(subsystem: "com.paste.clipboard", category: "Hotkey")
     static let retention = Logger(subsystem: "com.paste.clipboard", category: "Retention")
+    static let permissions = Logger(subsystem: "com.paste.clipboard", category: "Permissions")
 }

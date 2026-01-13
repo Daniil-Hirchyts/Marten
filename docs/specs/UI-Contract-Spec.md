@@ -6,7 +6,7 @@
 ## Document Metadata
 
 - **Version:** 1.0.0
-- **Last Updated:** 2026-01-09
+- **Last Updated:** 2026-01-10
 - **Status:** Draft
 - **Owner:** Engineering Team
 - **Dependencies:** 
@@ -74,16 +74,16 @@ PasteApp (SwiftUI App)
 ```swift
 panel.level = .floating
 panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-panel.styleMask = [.borderless, .nonactivatingPanel]
+panel.styleMask = [.borderless]
 panel.isOpaque = false
 panel.backgroundColor = .clear
 panel.hasShadow = true
 ```
 
 **Positioning:**
-- Anchored: Bottom center of screen
-- Margin: 40pt from bottom edge
-- Width: 80% of screen width (max 1200pt)
+- Anchored: Bottom of screen
+- Margin: 8pt from bottom edge, 8pt from left/right edges
+- Width: Full width minus horizontal margins
 - Height: Adaptive based on content (typical: 320pt)
 
 **States:**
@@ -91,6 +91,8 @@ panel.hasShadow = true
 - Visible - Browse Mode
 - Visible - Search Mode
 - Visible - Paste Stack Mode
+- Click outside overlay closes the panel
+- Overlay closes when the app loses focus or another app activates
 
 ### 3.2 Visual Design
 
@@ -100,9 +102,9 @@ panel.hasShadow = true
 - Shadow: 0pt 8pt 32pt rgba(0,0,0,0.3)
 
 **Safe Areas:**
-- Top padding: 16pt
-- Bottom padding: 16pt
-- Leading/trailing padding: 20pt
+- Top padding: 8pt
+- Bottom padding: 8pt
+- Leading/trailing padding: 8pt
 
 ### 3.3 Animation
 
@@ -124,11 +126,11 @@ panel.hasShadow = true
 
 ### 4.1 Layout
 
-**Position:** Top of overlay
+**Position:** Top row of overlay (tabs + search field)
 
 **Structure:**
 ```
-[• Clipboard] [• Work] [• Personal] [+]
+[• All] [• Work] [• Personal] [+]   [ Search ]
 ```
 
 **Dimensions:**
@@ -137,6 +139,7 @@ panel.hasShadow = true
 - Tab max width: 200pt
 - Spacing: 8pt
 - Plus button: 32x32pt
+- Search field: 160pt width, right aligned in the same row
 
 ### 4.2 Tab Component
 
@@ -165,21 +168,11 @@ panel.hasShadow = true
 **Menu Items:**
 ```
 Rename Pinboard
-Change Color ▸
-  • Red
-  • Orange
-  • Yellow
-  • Green
-  • Blue
-  • Purple
-  • Gray
-Share Pinboard (if enabled)
----
 Delete Pinboard
 ```
 
 **Conditional:**
-- "Delete Pinboard" disabled for system "Clipboard" pinboard
+- System "Clipboard" pinboard is not shown in the tab bar
 
 ### 4.4 Plus Button
 
@@ -193,19 +186,24 @@ Delete Pinboard
 - Click: Show "New Pinboard" sheet
 - Keyboard: ⌘N (when overlay is focused)
 
+**Pinboard Editor Sheet:**
+- Fields: Name, color swatch picker
+- Color palette uses predefined hex values
+- Rename uses the same sheet with current values prefilled
+
 ---
 
 ## 5. Item Card Row
 
 ### 5.1 Layout
 
-**Position:** Center of overlay, below pinboard tabs
+**Position:** Top of overlay, below pinboard tabs
 
 **Structure:**
 - Horizontal scroll view with snap-to-card behavior
-- Cards: 280pt width, 200pt height
-- Spacing: 16pt between cards
-- Padding: 20pt leading/trailing
+- Cards: 220pt width, 220pt height (square)
+- Spacing: 8pt between cards
+- Padding: 8pt leading/trailing
 - Shows 1-4 cards simultaneously depending on screen width
 
 **Scrolling:**
@@ -213,6 +211,7 @@ Delete Pinboard
 - Momentum: Moderate spring feel
 - Keyboard: ← / → arrows to navigate
 - Mouse wheel / trackpad: Natural scroll
+- Drag cards to reorder (browse mode)
 
 ### 5.2 Card Component
 
@@ -240,6 +239,7 @@ Delete Pinboard
 - Hover (border highlight, scale 1.02)
 - Selected (blue border 2pt, scale 1.03)
 - Pressing (scale 0.98)
+- Reorder target (dashed blue outline placeholder)
 
 ### 5.3 Card Header
 
@@ -323,6 +323,10 @@ Delete Pinboard
 - Border radius: 12pt (circular)
 - Visibility: Only for first 9 visible items
 
+**Pinboard Colors:**
+- Small color dots next to the type badge
+- One dot per pinboard membership (excluding system clipboard)
+
 ### 5.6 Card Context Menu
 
 **Menu Items:**
@@ -331,7 +335,6 @@ Paste (or "Copy to Clipboard")
 Paste as Plain Text
 ---
 Move to Pinboard ▸
-  • Clipboard
   • Work
   • Personal
   ---
@@ -343,7 +346,7 @@ Delete Item
 
 **Conditional:**
 - "Paste" vs "Copy" based on general settings
-- "Pin Item" / "Unpin Item" toggles
+- "Pin Item" / "Unpin Item" available only when a pinboard is selected
 
 ### 5.7 Empty State
 
@@ -368,28 +371,26 @@ Clipboard history will appear here
 ### 6.1 Activation
 
 **Triggers:**
-- Click magnifier icon in overlay header
-- Keyboard: ⌘F (when overlay is visible)
-- Start typing (when overlay is visible and not in search mode)
+- Click the search field (always visible)
+- Keyboard: ⌘F (focuses the search field)
+- Start typing when overlay is focused
 
 **Transition:**
-- Fade in search field (200ms)
-- Fade out pinboard tabs (150ms)
-- Maintain item card row (update with results)
+- Search field remains visible
+- Item card row updates live with results
 
 ### 6.2 Search Field
 
 **Layout:**
-- Position: Top of overlay (replaces pinboard tabs)
-- Width: 60% of overlay width, centered
-- Height: 40pt
+- Position: Same row as pinboard tabs
+- Width: 160pt (short field aligned to trailing edge)
+- Height: 28pt
 
 **Visual:**
 - Background: `.quaternarySystemFill`
 - Border: 1pt `.separator`
 - Border radius: 10pt
-- Icon (leading): SF Symbol `magnifyingglass`, 16pt, `.secondary`
-- Placeholder: "Search clipboard history"
+- Placeholder: "Search"
 - Font: System 14pt
 - Clear button (trailing): SF Symbol `xmark.circle.fill` (appears when typing)
 
@@ -687,7 +688,7 @@ New Text Item
 
 [Text Field: Multi-line, 200pt height]
 
-Pinboard: [Dropdown: Clipboard ▾]
+Pinboard: [Dropdown: All ▾]
 
 [Cancel]  [Create]
 ```
@@ -807,7 +808,7 @@ remember everything.
 - Click card: Select and paste (or copy based on settings)
 - Right-click card: Context menu
 - Scroll horizontally: Navigate cards
-- Click outside overlay: Close (optional, configurable)
+- Click outside overlay: Close
 
 **Pinboard Tabs:**
 - Click: Switch pinboard
@@ -854,13 +855,13 @@ remember everything.
 **Pinboard Colors:**
 ```swift
 enum PinboardColor: String {
-    case red     = "#FF3B30"
-    case orange  = "#FF9500"
-    case yellow  = "#FFCC00"
-    case green   = "#34C759"
-    case blue    = "#007AFF"
-    case purple  = "#AF52DE"
-    case pink    = "#FF2D55"
+    case red     = "#E86B6B"
+    case orange  = "#F0B25D"
+    case yellow  = "#E2D36B"
+    case green   = "#6BCB83"
+    case blue    = "#4FAAD7"
+    case purple  = "#7A79E3"
+    case pink    = "#C47AD8"
     case gray    = "#8E8E93"
 }
 ```
@@ -1025,8 +1026,9 @@ enum PinboardColor: String {
 -- [x] Create "New Text Item" sheet (basic panel)
 
 **Status Notes:**
-- Pinboard tab reorder, color picker, and keyboard navigation remain out of scope for Phase 2
-- Card context menu supports move-to-pinboard, pin/unpin, copy, and delete; paste actions deferred to Phase 3
+- Pinboard tab reorder and keyboard navigation remain out of scope for Phase 2
+- Pinboard color picker delivered via the pinboard editor sheet (create/rename)
+- Card context menu supports paste (preserved/plain), move-to-pinboard, pin/unpin (pinboard only), copy, and delete
 
 **Success Criteria:**
 - All content types preview correctly
@@ -1063,14 +1065,14 @@ ClipboardMac/UI/
 ### Phase 3: Paste Behaviors (Weeks 7-8)
 
 **UI Tasks:**
-- [ ] Implement paste stack mode UI
-- [ ] Add multi-selection visual feedback
-- [ ] Create stack footer bar
-- [ ] Add selection count label and buttons
-- [ ] Implement quick paste index badges (1-9)
-- [ ] Add visual feedback for paste actions
-- [ ] Create plain text mode indicator (when Shift held)
-- [ ] Add sound effects integration
+- [x] Implement paste stack mode UI
+- [x] Add multi-selection visual feedback
+- [x] Create stack footer bar
+- [x] Add selection count label and buttons
+- [x] Implement quick paste index badges (1-9)
+- [x] Add visual feedback for paste actions (footer "Pasting..." state)
+- [x] Create plain text mode indicator (when Shift held)
+- [x] Add sound effects integration (system sounds)
 
 **Success Criteria:**
 - Stack selection feels responsive
@@ -1140,25 +1142,23 @@ ClipboardMac/UI/
 
 ---
 
-## 16. Open Questions
+## 16. Decisions
 
 ### 16.1 Decisions Needed
 
 1. **Click outside to close?**
-   - **Recommendation:** Yes, but make it a setting (default: on)
-   - **Alternative:** Only close with Escape
+   - **Implemented:** Close on outside interaction and app focus loss
+   - **Notes:** Escape still closes the overlay
 
 2. **Card width: Fixed or adaptive?**
-   - **Recommendation:** Fixed 280pt (consistent sizing)
-   - **Alternative:** Adaptive 20-30% of overlay width
+   - **Implemented:** Fixed 220pt (consistent sizing)
 
 3. **Maximum visible cards?**
    - **Recommendation:** Show 3-4 cards, scroll for more
    - **Alternative:** Scale down to show more (max 6)
 
 4. **Pinboard color in card UI?**
-   - **Recommendation:** Subtle dot in top-right of card
-   - **Alternative:** Colored left border (3pt)
+   - **Implemented:** Color dots in card footer
 
 ### 16.2 Future Enhancements
 
@@ -1167,7 +1167,7 @@ ClipboardMac/UI/
 - [ ] Custom fonts for code preview
 - [ ] Grid view (alternative to carousel)
 - [ ] Advanced search syntax (type:image, app:Safari)
-- [ ] Drag to reorder within pinboard
+- [x] Drag to reorder within pinboard (browse mode only)
 - [ ] Inline editing of text items
 - [ ] Item annotations/notes
 

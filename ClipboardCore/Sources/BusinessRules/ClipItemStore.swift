@@ -54,6 +54,7 @@ public final class ClipItemStore {
         }
 
         let now = Date()
+        let displayOrder = currentDisplayOrder(reference: now)
         let hash = try computeContentHash(primaryText: payload.primaryText, representations: payload.representations)
 
         let context = persistence.newBackgroundContext()
@@ -61,6 +62,7 @@ public final class ClipItemStore {
         try context.performAndWaitThrowing {
             if let existing = try fetchExistingItem(hash: hash, in: context) {
                 existing.modifiedAt = now
+                existing.displayOrder = displayOrder
                 try context.save()
                 createdObjectID = existing.objectID
                 return
@@ -72,6 +74,7 @@ public final class ClipItemStore {
             item.id = UUID()
             item.createdAt = now
             item.modifiedAt = now
+            item.displayOrder = displayOrder
             item.sourceAppBundleID = sourceApp?.bundleID
             item.sourceAppName = sourceApp?.name
             item.itemTypeValue = payload.itemType
@@ -151,7 +154,10 @@ public final class ClipItemStore {
         try context.performAndWaitThrowing {
             let request = ClipItem.fetchRequest()
             request.predicate = NSPredicate(format: "isTransient == NO")
-            request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+            request.sortDescriptors = [
+                NSSortDescriptor(key: "displayOrder", ascending: false),
+                NSSortDescriptor(key: "createdAt", ascending: false)
+            ]
             request.fetchLimit = limit
             request.relationshipKeyPathsForPrefetching = ["representations", "pinboards"]
             results = try context.fetch(request)
@@ -206,6 +212,7 @@ public final class ClipItemStore {
             item.searchableText = trimmedText.normalizedForSearch()
             item.modifiedAt = now
             item.contentHash = hash
+            item.displayOrder = currentDisplayOrder(reference: now)
             item.byteCount = Int64(trimmedText.utf8.count)
 
             let primaryRep = item.representations?
@@ -344,11 +351,21 @@ public final class ClipItemStore {
                 try context.save()
             }
         }
+    }
 
-        let viewContext = persistence.viewContext
-        try viewContext.performAndWaitThrowing {
-            if let pinboard = try? viewContext.existingObject(with: objectID) as? Pinboard {
-                viewContext.refresh(pinboard, mergeChanges: true)
+    public func renameItem(objectID: NSManagedObjectID, title: String?) throws {
+        let context = persistence.newBackgroundContext()
+        try context.performAndWaitThrowing {
+            guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                throw ClipItemStoreError.missingItem
+            }
+            item.customTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if item.customTitle?.isEmpty == true {
+                item.customTitle = nil
+            }
+            item.modifiedAt = Date()
+            if context.hasChanges {
+                try context.save()
             }
         }
     }
@@ -427,6 +444,92 @@ public final class ClipItemStore {
         }
     }
 
+    public func markItemUsed(objectID: NSManagedObjectID, now: Date = Date()) throws {
+        try markItemsUsed(objectIDs: [objectID], now: now)
+    }
+
+    public func markItemsUsed(objectIDs: [NSManagedObjectID], now: Date = Date()) throws {
+        guard !objectIDs.isEmpty else { return }
+        let context = persistence.newBackgroundContext()
+        let baseOrder = currentDisplayOrder(reference: now) + Int64(objectIDs.count)
+
+        try context.performAndWaitThrowing {
+            for (index, objectID) in objectIDs.enumerated() {
+                guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                    continue
+                }
+                item.modifiedAt = now
+                item.displayOrder = baseOrder - Int64(index)
+            }
+            if context.hasChanges {
+                try context.save()
+            }
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            for objectID in objectIDs {
+                if let item = try? viewContext.existingObject(with: objectID) as? ClipItem {
+                    viewContext.refresh(item, mergeChanges: true)
+                }
+            }
+        }
+    }
+
+    public func reorderItems(objectIDs: [NSManagedObjectID]) throws {
+        guard !objectIDs.isEmpty else { return }
+        let context = persistence.newBackgroundContext()
+        let now = Date()
+        let baseOrder = currentDisplayOrder(reference: now) + Int64(objectIDs.count)
+
+        try context.performAndWaitThrowing {
+            for (index, objectID) in objectIDs.enumerated() {
+                guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                    continue
+                }
+                item.displayOrder = baseOrder - Int64(index)
+            }
+            if context.hasChanges {
+                try context.save()
+            }
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            for objectID in objectIDs {
+                if let item = try? viewContext.existingObject(with: objectID) as? ClipItem {
+                    viewContext.refresh(item, mergeChanges: true)
+                }
+            }
+        }
+    }
+
+    public func reorderPinboards(orderedIDs: [NSManagedObjectID]) throws {
+        guard !orderedIDs.isEmpty else { return }
+        let context = persistence.newBackgroundContext()
+
+        try context.performAndWaitThrowing {
+            for (index, objectID) in orderedIDs.enumerated() {
+                guard let pinboard = try context.existingObject(with: objectID) as? Pinboard else {
+                    continue
+                }
+                pinboard.sortOrder = Int16(index)
+            }
+            if context.hasChanges {
+                try context.save()
+            }
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            for objectID in orderedIDs {
+                if let pinboard = try? viewContext.existingObject(with: objectID) as? Pinboard {
+                    viewContext.refresh(pinboard, mergeChanges: true)
+                }
+            }
+        }
+    }
+
     public func searchItems(query: String, limit: Int = 50, pinboardID: UUID? = nil) throws -> [ClipItem] {
         let normalized = query.normalizedForSearch()
         let context = persistence.viewContext
@@ -440,7 +543,10 @@ public final class ClipItemStore {
                 predicates.append(NSPredicate(format: "ANY pinboards.id == %@", pinboardID as CVarArg))
             }
             request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
-            request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+            request.sortDescriptors = [
+                NSSortDescriptor(key: "displayOrder", ascending: false),
+                NSSortDescriptor(key: "createdAt", ascending: false)
+            ]
             request.fetchLimit = limit
             request.relationshipKeyPathsForPrefetching = ["representations", "pinboards"]
             results = try context.fetch(request)
@@ -488,6 +594,10 @@ public final class ClipItemStore {
         return try context.fetch(request).first
     }
 
+    private func currentDisplayOrder(reference: Date = Date()) -> Int64 {
+        Int64(reference.timeIntervalSince1970 * 1000)
+    }
+
     private func nextPinboardSortOrder(in context: NSManagedObjectContext) throws -> Int {
         let request = Pinboard.fetchRequest()
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: false)]
@@ -529,5 +639,9 @@ public final class ClipItemStore {
         if let thumbnailPath = item.thumbnailPath {
             try? FileManager.default.removeItem(atPath: thumbnailPath)
         }
+    }
+
+    public func saveChanges() throws {
+        try persistence.saveViewContextIfNeeded()
     }
 }

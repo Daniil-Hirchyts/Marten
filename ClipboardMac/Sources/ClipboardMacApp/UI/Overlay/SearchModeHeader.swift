@@ -6,24 +6,23 @@ struct SearchModeHeader: View {
     let onClear: () -> Void
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Search")
-                    .font(.system(size: 12, weight: .semibold))
-                Text("“\(query)” · \(resultCount) results")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
+        HStack(spacing: 12) {
+            Text("\(resultCount) results for \"\(query)\"")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.primary)
+            
             Button("Clear") {
                 onClear()
             }
-            .font(.system(size: 12, weight: .medium))
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.blue)
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Color.white.opacity(0.06))
-        .cornerRadius(8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Material.regular) // Use Material for glass effect
+        .clipShape(Capsule())
+        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+        .padding(.bottom, 4) // Spacing from content
     }
 }
