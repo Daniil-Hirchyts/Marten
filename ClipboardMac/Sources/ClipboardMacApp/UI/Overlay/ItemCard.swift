@@ -124,10 +124,10 @@ struct ItemCard: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(isSelected ? Color.white.opacity(0.1) : Color.white.opacity(0.06))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .strokeBorder(isSelected ? Color.white.opacity(0.3) : Color.white.opacity(0.1),
                                     lineWidth: isSelected ? 2 : 1)
                     )
@@ -143,7 +143,7 @@ struct ItemCard: View {
             }
 
         }
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
         .onTapGesture {
             let now = Date()

@@ -17,19 +17,23 @@ struct OverlayRootView: View {
     @FocusState private var searchFocused: Bool
     @StateObject private var modifierMonitor = ModifierKeyMonitor()
     @State private var window: NSWindow?
-    @State private var isHoveringResize = false
-    @State private var startWindowHeight: CGFloat = 0
     @State private var isSearchExpanded = false
+    @State private var searchDateFilter: SearchDateFilter = .any
+    @State private var searchTypeFilters: Set<ItemType> = []
+    @State private var searchAppFilters: Set<String> = []
     @State private var pinboardFrames: [NSManagedObjectID: CGRect] = [:]
     @State private var allPinboardFrame: CGRect?
     @State private var pinboardEditorFrame: CGRect?
     @State private var searchFieldFrame: CGRect?
-    @State private var isHoveringTop = false
-    @State private var hoverTimer: Timer?
-    
+    @State private var dragPreviewData: DragPreviewData?
+    @State private var dragPreviewWindow: DragPreviewWindow?
+    @State private var isFilterPopoverPresented = false
+
     private let store = ClipItemStore()
     private let overlayCoordinateSpaceName = "OverlaySpace"
-    private let searchCollapsedWidth: CGFloat = 28
+    private let headerButtonSize: CGFloat = 30
+    private let headerButtonIconSize: CGFloat = 14
+    private let searchCollapsedWidth: CGFloat = 30
     private let searchExpandedWidth: CGFloat = 220
     private var headerSideWidth: CGFloat { searchExpandedWidth + 20 }
 
@@ -52,30 +56,25 @@ struct OverlayRootView: View {
     @State private var selectedPinboardID: UUID?
 
     private var filteredItems: [ClipItem] {
-        if isSearchActive {
-            return sortItems(searchResults)
-        }
-
-        let query = searchText.normalizedForSearch()
         let baseItems = items.filter { item in
             guard let selectedPinboardID else { return true }
             return item.pinboards?.contains(where: { $0.id == selectedPinboardID }) ?? false
         }
-
-        let filtered: [ClipItem]
-        if query.isEmpty {
-            filtered = Array(baseItems)
-        } else {
-            filtered = baseItems.filter {
-                ($0.searchableText ?? "").contains(query) || ($0.primaryText ?? "").normalizedForSearch().contains(query)
-            }
-        }
-
+        let baseList = isSearchTextActive ? searchResults : Array(baseItems)
+        let filtered = applySearchFilters(to: baseList)
         return sortItems(filtered)
     }
 
     private var isSearchActive: Bool {
+        isSearchTextActive || hasActiveFilters
+    }
+
+    private var isSearchTextActive: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasActiveFilters: Bool {
+        searchDateFilter != .any || !searchTypeFilters.isEmpty || !searchAppFilters.isEmpty
     }
 
     private var visiblePinboards: [Pinboard] {
@@ -110,11 +109,13 @@ struct OverlayRootView: View {
                         draftName: $renamePinboardName,
                         draftColor: $renamePinboardColor,
                         onSelect: { id in
+                            closeSearchIfEmpty()
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 selectedPinboardID = id
                             }
                         },
                         onCreate: {
+                            closeSearchIfEmpty()
                             // Smart Color Selection
                             let usedColors = Set(pinboards.map { $0.colorHex })
                             let availableColors = PinboardPalette.colors.filter { !usedColors.contains($0) }
@@ -155,6 +156,7 @@ struct OverlayRootView: View {
                         coordinateSpaceName: overlayCoordinateSpaceName
                     )
                     .padding(.horizontal, headerSideWidth)
+                    .frame(height: headerButtonSize, alignment: .center)
                     .onPreferenceChange(PinboardFrameKey.self) { frames in
                         pinboardFrames = frames
                     }
@@ -172,37 +174,24 @@ struct OverlayRootView: View {
                     HStack(alignment: .center) {
                         HStack(spacing: 0) {
                             // Search Icon / Toggle
-                            ZStack {
-                                Circle()
-                                    .fill(Color.white.opacity(0.1))
-                                    .frame(width: 30, height: 30)
-                                    .opacity(isSearchExpanded ? 0 : 1)
-                                
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(.secondary)
+                            Button(action: handleSearchButtonTap) {
+                                searchIcon
                             }
-                            .frame(width: 30, height: 30)
-                            .onTapGesture {
-                                if !isSearchExpanded {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                        isSearchExpanded = true
-                                        searchFocused = true
-                                    }
-                                }
-                            }
+                            .buttonStyle(.plain)
 
                             if isSearchExpanded {
-                                HStack(spacing: 8) {
+                                HStack(spacing: 6) {
                                     TextField("Search", text: $searchText)
                                         .textFieldStyle(.plain)
                                         .font(.system(size: 13))
                                         .foregroundStyle(.white)
                                         .tint(.white)
                                         .focused($searchFocused)
+                                        .frame(height: headerButtonSize)
                                     
                                     // Close search button (on the right)
                                     Button(action: {
+                                        isFilterPopoverPresented = false
                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                             isSearchExpanded = false
                                             searchText = ""
@@ -210,26 +199,30 @@ struct OverlayRootView: View {
                                         }
                                     }) {
                                         Image(systemName: "xmark")
-                                            .font(.system(size: 12, weight: .semibold))
+                                            .font(.system(size: 10, weight: .semibold))
                                             .foregroundStyle(.secondary)
-                                            .padding(4)
+                                            .padding(3)
                                             .background(Color.white.opacity(0.1))
                                             .clipShape(Circle())
                                     }
                                     .buttonStyle(.plain)
                                 }
-                                .padding(.leading, 8)
-                                .padding(.trailing, 4)
+                                .padding(.leading, 6)
+                                .padding(.trailing, 6)
                             }
                         }
-                        .padding(isSearchExpanded ? 4 : 0)
                         .background(
                             Capsule()
                                 .fill(Color.white.opacity(0.1))
                                 .opacity(isSearchExpanded ? 1 : 0)
                         )
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(isSearchExpanded ? 0.3 : 0), lineWidth: 1)
+                        )
                         .frame(
-                            width: isSearchExpanded ? searchExpandedWidth : 30,
+                            width: isSearchExpanded ? searchExpandedWidth : searchCollapsedWidth,
+                            height: headerButtonSize,
                             alignment: .leading
                         )
                         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSearchExpanded)
@@ -241,6 +234,9 @@ struct OverlayRootView: View {
                                 )
                             }
                         )
+                        .popover(isPresented: $isFilterPopoverPresented, arrowEdge: .bottom) {
+                            searchFilterPopover
+                        }
                     }
                     .frame(width: headerSideWidth, alignment: .leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -251,28 +247,32 @@ struct OverlayRootView: View {
                         Spacer()
                         Button(action: openSettings) {
                             Image(systemName: "gearshape.fill")
-                                .font(.system(size: 14))
+                                .font(.system(size: headerButtonIconSize, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .padding(8)
-                                .background(Color.white.opacity(0.1))
-                                .clipShape(Circle())
+                                .frame(width: headerButtonSize, height: headerButtonSize)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(0.1))
+                                )
                         }
                         .buttonStyle(.plain)
                     }
                     .padding(.trailing, 4)
                 }
-                .frame(height: 40)
+                .padding(.horizontal, 14)
+                .frame(height: headerButtonSize)
                 .zIndex(1)
 
                 if viewModel.mode == .pasteStack {
                     Text("Paste Stack")
                         .font(.system(size: 14, weight: .semibold))
-                        .padding(.horizontal, 4)
+                        .padding(.horizontal, 14 + 4)
                 }
 
                 Group {
                     if filteredItems.isEmpty {
                         emptyStateView
+                            .padding(.horizontal, 14)
                     } else {
                         ItemCardRow(
                             items: filteredItems,
@@ -300,10 +300,12 @@ struct OverlayRootView: View {
                             onReorderEnd: finalizeReorder,
                             onDropToPinboard: handleDropToPinboard,
                             onDropToAll: handleDropToAll,
+                            onPasteOutside: pasteItemsOutside,
                             coordinateSpaceName: overlayCoordinateSpaceName,
                             pinboardFrames: pinboardFrames,
                             allPinboardFrame: allPinboardFrame,
-                            window: window
+                            window: window,
+                            dragPreviewData: $dragPreviewData
                         )
                         .frame(maxHeight: .infinity, alignment: .topLeading)
                     }
@@ -320,91 +322,22 @@ struct OverlayRootView: View {
                         onClear: viewModel.clearSelection,
                         onPaste: { viewModel.pasteStack(plainText: modifierMonitor.isShiftPressed) }
                     )
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 14)
                 }
             }
-            .padding([.horizontal, .top], 14)
+            .padding(.top, 14)
             .padding(.bottom, 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             // Resize Handle Area
-            VStack {
-                ZStack {
-                    Color.clear
-                    if isHoveringTop || isHoveringResize {
-                        Capsule()
-                            .fill(Color.white.opacity(0.3))
-                            .frame(width: 36, height: 4)
-                            .shadow(radius: 2)
-                            .transition(.opacity)
-                    }
-                }
-                .frame(height: 12)
-                .contentShape(Rectangle())
-                .onHover { hovering in
-                    isHoveringResize = hovering
-                    if hovering {
-                        NSCursor.resizeUpDown.push()
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            isHoveringTop = true
-                        }
-                        hoverTimer?.invalidate()
-                        hoverTimer = nil
-                    } else {
-                        NSCursor.pop()
-                        hoverTimer?.invalidate()
-                        hoverTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
-                            withAnimation(.easeIn(duration: 0.2)) {
-                                isHoveringTop = false
-                            }
-                        }
-                    }
-                }
-                .gesture(
-                    DragGesture()
-                        .onChanged { _ in
-                            // Ensure visible and cancel hide timer during drag
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                isHoveringTop = true
-                            }
-                            hoverTimer?.invalidate()
-                            hoverTimer = nil
-                            
-                            guard let window = window else { return }
-                            
-                            // Use absolute Cocoa screen coordinates (Origin: Bottom-Left)
-                            // This avoids SwiftUI coordinate space translation issues during window resizing
-                            let mouseLocation = NSEvent.mouseLocation
-                            let newHeight = mouseLocation.y - window.frame.minY
-                            
-                            // Clamp height
-                            // Max height relative to screen, leaving some buffer
-                            // Min height 280 to prevent card content clipping
-                            let screenHeight = window.screen?.visibleFrame.height ?? 800
-                            let maxHeight = min(screenHeight - 50, 400)
-                            let minHeight: CGFloat = 280
-                            let clamped = min(max(minHeight, newHeight), maxHeight)
-                            
-                            var frame = window.frame
-                            frame.size.height = clamped
-                            window.setFrame(frame, display: true)
-                        }
-                        .onEnded { _ in
-                            if let window = window {
-                                UserDefaults.standard.set(window.frame.height, forKey: "OverlayHeight")
-                            }
-                            // Start hide timer after drag ends
-                            hoverTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { _ in
-                                withAnimation(.easeIn(duration: 0.2)) {
-                                    isHoveringTop = false
-                                }
-                            }
-                        }
-                )
-                Spacer()
-            }
+            ResizeHandleView(window: window)
         }
         .coordinateSpace(name: overlayCoordinateSpaceName)
         .contentShape(Rectangle())
+        .onTapGesture(coordinateSpace: .named(overlayCoordinateSpaceName)) { location in
+            handleOverlayTap(at: location)
+        }
         .simultaneousGesture(
             DragGesture(minimumDistance: 0, coordinateSpace: .named(overlayCoordinateSpaceName))
                 .onEnded { value in
@@ -413,7 +346,10 @@ struct OverlayRootView: View {
         )
         .background(WindowAccessor(window: $window))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+        .onChange(of: dragPreviewData) { newData in
+            updateDragPreviewWindow(newData)
+        }
         .alert("Accessibility Permission Required", isPresented: $viewModel.showAccessibilityAlert) {
             Button("Open System Settings") {
                 viewModel.requestAccessibility()
@@ -428,21 +364,46 @@ struct OverlayRootView: View {
         .onChange(of: selectedPinboardID) { _ in
             updateSearchResults()
         }
+        .onChange(of: isSearchExpanded) { expanded in
+            if !expanded {
+                isFilterPopoverPresented = false
+            }
+        }
+        .onChange(of: searchFocused) { focused in
+            // Close empty search when focus is lost
+            if !focused && isSearchExpanded && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
+                    isSearchExpanded = false
+                }
+            }
+        }
         .onAppear {
             searchFocused = true
             modifierMonitor.start()
             ensureValidSelection()
-            // Reset resize state
-            isHoveringTop = false
-            isHoveringResize = false
-            hoverTimer?.invalidate()
-            hoverTimer = nil
+
+            // Initialize drag preview window
+            if dragPreviewWindow == nil {
+                dragPreviewWindow = DragPreviewWindow()
+            }
         }
         .onDisappear {
             modifierMonitor.stop()
-            // Cleanup timer
-            hoverTimer?.invalidate()
-            hoverTimer = nil
+
+            // Cleanup drag preview window
+            dragPreviewWindow?.orderOut(nil)
+            dragPreviewWindow = nil
+            
+            // Close search on overlay close only if empty
+            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                isSearchExpanded = false
+                searchFocused = false
+            }
+            isFilterPopoverPresented = false
+            
+            // Allow clean state for next time
+            isCreatingPinboard = false
+            renamePinboardID = nil
         }
         .onChange(of: pinboards.count) { _ in
             ensureValidSelection()
@@ -488,7 +449,10 @@ struct OverlayRootView: View {
 
     private var emptyStateText: String {
         if isSearchActive {
-            return "No results for \"\(searchText)\". Try another keyword."
+            if isSearchTextActive {
+                return "No results for \"\(searchText)\". Try another keyword."
+            }
+            return "No results for the current filters."
         }
         if selectedPinboardID != nil {
             return "No items in this pinboard"
@@ -569,6 +533,28 @@ struct OverlayRootView: View {
         }
     }
 
+    private func pasteItemsOutside(_ itemIDs: [NSManagedObjectID]) {
+        let plainText = modifierMonitor.isShiftPressed
+        let draggedItems = filteredItems.filter { itemIDs.contains($0.objectID) }
+        guard let firstItem = draggedItems.first else {
+            return
+        }
+
+        // Small delay to ensure drag gesture is fully complete
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [viewModel] in
+            if draggedItems.count == 1 {
+                viewModel.paste(item: firstItem, plainText: plainText)
+            } else {
+                // For multiple items, switch to paste stack mode and paste
+                if viewModel.mode == .browse {
+                    viewModel.setMode(.pasteStack)
+                    viewModel.restoreSelection(Set(itemIDs), in: draggedItems)
+                }
+                viewModel.pasteStack(plainText: plainText)
+            }
+        }
+    }
+
     private func renameItem(_ item: ClipItem) {
         renameItemID = item.objectID
     }
@@ -628,7 +614,7 @@ struct OverlayRootView: View {
         
         do {
             let pinboard = try store.createPinboard(name: trimmedName, colorHex: renamePinboardColor)
-            selectedPinboardID = pinboard.id
+            // selectedPinboardID = pinboard.id // User requested no redirect
             if let pendingPinboardItem {
                 try? store.moveItem(objectID: pendingPinboardItem.objectID, toPinboard: pinboard.objectID)
             }
@@ -650,6 +636,124 @@ struct OverlayRootView: View {
             Logger.app.error("Search failed: \(error.localizedDescription)")
             searchResults = []
         }
+    }
+
+    private func applySearchFilters(to items: [ClipItem]) -> [ClipItem] {
+        guard hasActiveFilters else { return items }
+        return items.filter { item in
+            if !matchesDateFilter(item) {
+                return false
+            }
+            if !searchTypeFilters.isEmpty, !searchTypeFilters.contains(item.itemTypeValue) {
+                return false
+            }
+            if !searchAppFilters.isEmpty {
+                guard let key = appFilterKey(for: item) else { return false }
+                if !searchAppFilters.contains(key) {
+                    return false
+                }
+            }
+            return true
+        }
+    }
+
+    private func matchesDateFilter(_ item: ClipItem) -> Bool {
+        switch searchDateFilter {
+        case .any:
+            return true
+        case .today:
+            return Calendar.current.isDateInToday(item.createdAt)
+        case .last7Days:
+            return item.createdAt >= dateCutoff(days: 7)
+        case .last30Days:
+            return item.createdAt >= dateCutoff(days: 30)
+        }
+    }
+
+    private func dateCutoff(days: Int) -> Date {
+        Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date.distantPast
+    }
+
+    private func appFilterKey(for item: ClipItem) -> String? {
+        if let bundleID = item.sourceAppBundleID, !bundleID.isEmpty {
+            return bundleID
+        }
+        if let name = item.sourceAppName, !name.isEmpty {
+            return name
+        }
+        return nil
+    }
+
+    private var appFilterOptions: [AppFilterOption] {
+        let baseItems = items.filter { item in
+            guard let selectedPinboardID else { return true }
+            return item.pinboards?.contains(where: { $0.id == selectedPinboardID }) ?? false
+        }
+        var options: [String: AppFilterOption] = [:]
+        for item in baseItems {
+            guard let key = appFilterKey(for: item) else { continue }
+            let name = item.sourceAppName?.isEmpty == false ? item.sourceAppName! : key
+            if options[key] == nil {
+                let bundleID = item.sourceAppBundleID
+                var icon: NSImage?
+                if let bundleID,
+                   let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+                    icon = NSWorkspace.shared.icon(forFile: url.path)
+                }
+                options[key] = AppFilterOption(id: key, name: name, bundleID: bundleID, icon: icon)
+            }
+        }
+        return options
+            .map(\.value)
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private var searchIcon: some View {
+        ZStack {
+            Circle()
+                .fill(Color.white.opacity(0.1))
+                .frame(width: headerButtonSize, height: headerButtonSize)
+                .opacity(isSearchExpanded ? 0 : 1)
+
+            Image(systemName: "text.magnifyingglass")
+                .font(.system(size: headerButtonIconSize, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            if hasActiveFilters {
+                Circle()
+                    .fill(Color.white.opacity(0.9))
+                    .frame(width: 6, height: 6)
+                    .offset(x: 9, y: -9)
+            }
+        }
+        .frame(width: headerButtonSize, height: headerButtonSize)
+    }
+
+    private var searchFilterPopover: some View {
+        FilterPopoverView(
+            dateFilter: $searchDateFilter,
+            typeFilters: $searchTypeFilters,
+            appFilters: $searchAppFilters,
+            appOptions: appFilterOptions,
+            onClear: clearSearchFilters
+        )
+    }
+
+    private func handleSearchButtonTap() {
+        if isSearchExpanded {
+            isFilterPopoverPresented.toggle()
+        } else {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                isSearchExpanded = true
+                searchFocused = true
+            }
+        }
+    }
+
+    private func clearSearchFilters() {
+        searchDateFilter = .any
+        searchTypeFilters.removeAll()
+        searchAppFilters.removeAll()
     }
 
     private func ensureValidSelection() {
@@ -809,6 +913,7 @@ struct OverlayRootView: View {
     }
 
     private func handleCardTap(_ item: ClipItem) {
+        closeSearchIfEmpty()
         viewModel.selectItem(
             item,
             in: filteredItems,
@@ -818,8 +923,19 @@ struct OverlayRootView: View {
     }
 
     private func handleCardDoubleTap(_ item: ClipItem) {
+        closeSearchIfEmpty()
         if viewModel.mode == .browse {
             viewModel.paste(item: item, plainText: modifierMonitor.isShiftPressed)
+        }
+    }
+    
+    /// Closes search only if it's expanded AND the search text is empty
+    private func closeSearchIfEmpty() {
+        guard isSearchExpanded, searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        isFilterPopoverPresented = false
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
+            isSearchExpanded = false
+            searchFocused = false
         }
     }
 
@@ -841,11 +957,7 @@ struct OverlayRootView: View {
         if isSearchExpanded,
            let searchFieldFrame,
            !searchFieldFrame.contains(location) {
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
-                isSearchExpanded = false
-                searchText = ""
-                searchFocused = false
-            }
+            closeSearchIfEmpty()
         }
 
         guard (isCreatingPinboard || renamePinboardID != nil),
@@ -863,6 +975,29 @@ struct OverlayRootView: View {
         }
     }
 
+    private func updateDragPreviewWindow(_ data: DragPreviewData?) {
+        guard let dragPreviewWindow = dragPreviewWindow,
+              window != nil else { return }
+
+        if let data = data {
+            // Get actual mouse location in screen coordinates
+            let mouseLocation = NSEvent.mouseLocation
+
+            // Position the 600x600 preview window centered on the actual mouse position
+            let previewFrame = NSRect(
+                x: mouseLocation.x - 300,
+                y: mouseLocation.y - 300,
+                width: 600,
+                height: 600
+            )
+
+            dragPreviewWindow.setFrame(previewFrame, display: false)
+            dragPreviewWindow.updatePreview(data)
+        } else {
+            dragPreviewWindow.updatePreview(nil)
+        }
+    }
+
 }
 
 private struct SearchFieldFrameKey: PreferenceKey {
@@ -870,6 +1005,274 @@ private struct SearchFieldFrameKey: PreferenceKey {
 
     static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
         value = nextValue() ?? value
+    }
+}
+
+private enum SearchDateFilter: String, CaseIterable, Identifiable {
+    case any
+    case today
+    case last7Days
+    case last30Days
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .any:
+            return "Any time"
+        case .today:
+            return "Today"
+        case .last7Days:
+            return "Last 7 days"
+        case .last30Days:
+            return "Last 30 days"
+        }
+    }
+}
+
+private struct AppFilterOption: Identifiable {
+    let id: String
+    let name: String
+    let bundleID: String?
+    let icon: NSImage?
+}
+
+private struct FilterPopoverView: View {
+    @Binding var dateFilter: SearchDateFilter
+    @Binding var typeFilters: Set<ItemType>
+    @Binding var appFilters: Set<String>
+    let appOptions: [AppFilterOption]
+    let onClear: () -> Void
+
+    private let popoverWidth: CGFloat = 360
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Text("Filters")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                Button("Clear all") {
+                    onClear()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(hasActiveFilters ? .secondary : .tertiary)
+                .disabled(!hasActiveFilters)
+            }
+
+            filterSection(title: "Date", icon: "calendar") {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
+                    ForEach(SearchDateFilter.allCases) { filter in
+                        FilterChip(
+                            title: filter.title,
+                            icon: dateIcon(for: filter),
+                            isSelected: dateFilter == filter
+                        ) {
+                            dateFilter = filter
+                        }
+                    }
+                }
+            }
+
+            filterSection(title: "Type", icon: "square.3.layers.3d") {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
+                    ForEach(ItemType.allCases, id: \.self) { type in
+                        FilterChip(
+                            title: itemTypeLabel(type),
+                            icon: itemTypeIcon(type),
+                            isSelected: typeFilters.contains(type)
+                        ) {
+                            toggleType(type)
+                        }
+                    }
+                }
+            }
+
+            filterSection(title: "App", icon: "app.dashed") {
+                if appOptions.isEmpty {
+                    Text("No apps found")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
+                            ForEach(appOptions) { option in
+                                AppFilterChip(
+                                    option: option,
+                                    isSelected: appFilters.contains(option.id)
+                                ) {
+                                    toggleApp(option.id)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .frame(maxHeight: 160)
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: popoverWidth)
+    }
+
+    private var hasActiveFilters: Bool {
+        dateFilter != .any || !typeFilters.isEmpty || !appFilters.isEmpty
+    }
+
+    private func toggleType(_ type: ItemType) {
+        if typeFilters.contains(type) {
+            typeFilters.remove(type)
+        } else {
+            typeFilters.insert(type)
+        }
+    }
+
+    private func toggleApp(_ id: String) {
+        if appFilters.contains(id) {
+            appFilters.remove(id)
+        } else {
+            appFilters.insert(id)
+        }
+    }
+
+    private func itemTypeLabel(_ type: ItemType) -> String {
+        switch type {
+        case .text:
+            return "Text"
+        case .richText:
+            return "Rich Text"
+        case .image:
+            return "Image"
+        case .file:
+            return "File"
+        case .url:
+            return "URL"
+        case .code:
+            return "Code"
+        case .mixed:
+            return "Mixed"
+        }
+    }
+
+    private func filterSection<Content: View>(title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            content()
+        }
+    }
+
+    private func dateIcon(for filter: SearchDateFilter) -> String {
+        switch filter {
+        case .any:
+            return "clock"
+        case .today:
+            return "sun.max"
+        case .last7Days:
+            return "7.circle"
+        case .last30Days:
+            return "calendar"
+        }
+    }
+
+    private func itemTypeIcon(_ type: ItemType) -> String {
+        switch type {
+        case .text:
+            return "text.alignleft"
+        case .richText:
+            return "textformat"
+        case .image:
+            return "photo"
+        case .file:
+            return "doc"
+        case .url:
+            return "link"
+        case .code:
+            return "chevron.left.slash.chevron.right"
+        case .mixed:
+            return "square.stack.3d.up"
+        }
+    }
+}
+
+private struct FilterChip: View {
+    let title: String
+    let icon: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(isSelected ? Color.black.opacity(0.9) : Color.white.opacity(0.7))
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(isSelected ? Color.black : Color.white)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isSelected ? Color.white.opacity(0.9) : Color.white.opacity(0.12))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(Color.white.opacity(isSelected ? 0.2 : 0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct AppFilterChip: View {
+    let option: AppFilterOption
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if let icon = option.icon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                } else {
+                    Image(systemName: "app")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                Text(option.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(isSelected ? Color.black : Color.white)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? Color.white.opacity(0.9) : Color.white.opacity(0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.white.opacity(isSelected ? 0.2 : 0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -993,6 +1396,82 @@ private struct RenameOverlayView: View {
         )
         .onAppear {
             isFocused = true
+        }
+    }
+}
+
+private struct ResizeHandleView: View {
+    let window: NSWindow?
+    @State private var isDragging = false
+    
+    // Resize State
+    @State private var anchorY: CGFloat = 0
+    @State private var clickOffsetY: CGFloat = 0
+    
+    var body: some View {
+        VStack {
+            ZStack {
+                ResizeHandleCursorView()
+            }
+            .frame(height: 12)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard let window = window else { return }
+                        
+                        // Initialize state on first drag event
+                        if !isDragging {
+                            isDragging = true
+                            
+                            // Capture the "Bottom" of the window (Anchor)
+                            anchorY = window.frame.minY
+                            
+                            // Capture where the mouse is relative to the "Top" of the window
+                            let currentTopY = window.frame.maxY
+                            let mouseScreenY = NSEvent.mouseLocation.y
+                            clickOffsetY = currentTopY - mouseScreenY
+                        }
+                        
+                        let mouseScreenY = NSEvent.mouseLocation.y
+                        let targetTopY = mouseScreenY + clickOffsetY
+                        let newHeight = targetTopY - anchorY
+                        
+                        // Clamp
+                        let screenHeight = window.screen?.visibleFrame.height ?? 800
+                        let maxHeight = min(screenHeight - 50, 450)
+                        let minHeight: CGFloat = 280
+                        let clamped = min(max(minHeight, newHeight), maxHeight)
+                        
+                        var frame = window.frame
+                        if frame.size.height != clamped {
+                            frame.size.height = clamped
+                            window.setFrame(frame, display: true)
+                        }
+                    }
+                    .onEnded { _ in
+                        isDragging = false
+                        if let window = window {
+                            UserDefaults.standard.set(window.frame.height, forKey: "OverlayHeight")
+                        }
+                    }
+            )
+            Spacer()
+        }
+    }
+}
+
+private struct ResizeHandleCursorView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        CursorRectView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class CursorRectView: NSView {
+        override func resetCursorRects() {
+            super.resetCursorRects()
+            addCursorRect(bounds, cursor: .resizeUpDown)
         }
     }
 }

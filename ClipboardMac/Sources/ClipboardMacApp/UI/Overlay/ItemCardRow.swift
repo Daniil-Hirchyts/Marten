@@ -31,36 +31,48 @@ struct ItemCardRow: View {
     let onReorderEnd: () -> Void
     let onDropToPinboard: (ClipItem, NSManagedObjectID) -> Void
     let onDropToAll: (ClipItem) -> Void
+    let onPasteOutside: ([NSManagedObjectID]) -> Void
     let coordinateSpaceName: String
     let pinboardFrames: [NSManagedObjectID: CGRect]
     let allPinboardFrame: CGRect?
     let window: NSWindow?
+    @Binding var dragPreviewData: DragPreviewData?
 
     @State private var itemFrames: [NSManagedObjectID: CGRect] = [:]
     @State private var rowFrame: CGRect = .zero
     @State private var dragState: DragState?
     @State private var dragOpacity: Double = 0
+    @State private var dragCenteringOffset: CGSize = .zero
+    @State private var centeringTimer: Timer?
     @State private var dropTarget: DropTarget?
     @State private var pinboardDropTarget: PinboardDropTarget?
 
     var body: some View {
         GeometryReader { geometry in
             let cardSize = geometry.size.height
-            let placeholderInset = (cardSpacing / 2) + (placeholderWidth / 2)
-
-            let content = LazyHStack(alignment: .top, spacing: cardSpacing) {
-                cardViews(size: cardSize)
-            }
-            .padding(.horizontal, placeholderInset)
+            // Add side margin (14) to the placeholder allowance so cards start aligned with header
+            let sideMargin: CGFloat = 14
+            let placeholderInset = sideMargin + (placeholderWidth / 2)
 
             if #available(macOS 14.0, *) {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    content.scrollTargetLayout()
+                    ScrollViewReader { proxy in
+                        LazyHStack(alignment: .top, spacing: cardSpacing) {
+                            cardViews(size: cardSize, proxy: proxy)
+                        }
+                        .scrollTargetLayout()
+                    }
                 }
+                .contentMargins(.horizontal, placeholderInset, for: .scrollContent)
                 .scrollTargetBehavior(.viewAligned)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    content
+                    ScrollViewReader { proxy in
+                        LazyHStack(alignment: .top, spacing: cardSpacing) {
+                            cardViews(size: cardSize, proxy: proxy)
+                        }
+                        .padding(.horizontal, placeholderInset)
+                    }
                 }
             }
         }
@@ -76,19 +88,20 @@ struct ItemCardRow: View {
         .overlay(alignment: .topLeading) {
             placeholderView()
         }
-        .overlay(alignment: .topLeading) {
-            dragPreviewView()
-        }
         .onPreferenceChange(ItemFrameKey.self) { frames in
             itemFrames = frames
         }
         .onPreferenceChange(ItemRowFrameKey.self) { frame in
             rowFrame = frame
         }
+        .onChange(of: dragState?.primaryItemID) { _ in updateDragPreview() }
+        .onChange(of: dragState?.translation) { _ in updateDragPreview() }
+        .onChange(of: dragOpacity) { _ in updateDragPreview() }
+        .onChange(of: dragCenteringOffset) { _ in updateDragPreview() }
     }
 
     @ViewBuilder
-    private func cardViews(size: CGFloat) -> some View {
+    private func cardViews(size: CGFloat, proxy: ScrollViewProxy?) -> some View {
         ForEach(Array(items.enumerated()), id: \.element.objectID) { index, item in
             let isDragging = dragState?.itemIDs.contains(item.objectID) ?? false
 
@@ -110,9 +123,15 @@ struct ItemCardRow: View {
                 onCreatePinboard: { onCreatePinboard(item) },
                 onRename: { onRename(item) },
                 onCommitRename: { newTitle in onCommitRename(item, newTitle) },
-                onTap: { onTap(item) },
+                onTap: {
+                    withAnimation {
+                        proxy?.scrollTo(item.objectID)
+                    }
+                    onTap(item)
+                },
                 onDoubleTap: { onDoubleTap(item) }
             )
+            .id(item.objectID)
             .frame(width: size, height: size)
             .opacity(isDragging ? 0.25 : 1)
             .background(
@@ -175,6 +194,81 @@ struct ItemCardRow: View {
                 translation: .zero
             )
             dragOpacity = 1
+            
+            // Calculate initial offset from center to cursor
+            let centerX = frame.midX
+            let centerY = frame.midY
+            // pointer starts at value.startLocation
+            let startPointerX = value.startLocation.x
+            let startPointerY = value.startLocation.y
+            
+            // If pointer is at (10, 10) and center is (50, 50)
+            // We want preview to be at (50, 50) initially.
+            // Pointer is at (10, 10).
+            // Normal logic puts preview at center + translation.
+            // translation is 0. preview is at center (50, 50).
+            // But visually, mouse is at 10,10.
+            // We want card to be under mouse if offset logic wasn't applied?
+            // Actually, existing logic puts card at its ORIGINAL center.
+            // If mouse is at corner, card is offset from mouse.
+            // We want card to MOVE to be centered on mouse.
+            // Target center relative to mouse: Mouse + 0.
+            // Current center relative to mouse: Mouse + (Center - Mouse).
+            // So offset = Center - Mouse.
+            // We want to animate offset -> 0.
+            // But we actually apply this offset to the position?
+            
+            // Let's look at updateDragPreview:
+            // pos = baseCenter + translation.
+            // translation = mouse - startMouse.
+            // pos = baseCenter + mouse - startMouse.
+            // If mouse == startMouse (start), pos = baseCenter.
+            
+            // We want pos to start at baseCenter, and animate to (startMouse + translation) = mouse.
+            // At start: pos = baseCenter. mouse = startMouse.
+            // Difference = baseCenter - startMouse.
+            // We want to animate FROM this difference TO zero?
+            // No, we want pos to equal mouse eventually.
+            // Currently pos = baseCenter + (mouse - startMouse).
+            // We want pos = mouse.
+            // Discrepancy = (baseCenter + mouse - startMouse) - mouse = baseCenter - startMouse.
+            // So there is a constant offset of (baseCenter - startMouse).
+            // We want to remove this offset over time.
+            
+            // So we start with offset = 0 (relative to logic), which means visual offset exists.
+            // We want to add a correction vector C.
+            // Final position = StandardLogicPosition - C.
+            // Initially, we want StandardLogicPosition - C = StandardLogicPosition. -> C=0.
+            // Wait, initially we are fine (card under finger).
+            // We want card center to move to finger.
+            // Center is at baseCenter. Finger is at startMouse.
+            // We want Center -> Finger.
+            // So we want to add (Finger - Center) to position over time.
+            // Let targetCorrection = startMouse - baseCenter.
+            // We start at correction = 0. We animate correction to targetCorrection.
+            
+            dragCenteringOffset = CGSize(
+                width: startPointerX - centerX,
+                height: startPointerY - centerY
+            )
+            
+            // Manual animation loop for smooth window updates
+            centeringTimer?.invalidate()
+            centeringTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { timer in
+                let easing: CGFloat = 0.2
+                let current = dragCenteringOffset
+                let nextX = current.width * (1 - easing)
+                let nextY = current.height * (1 - easing)
+                
+                if abs(nextX) < 0.5 && abs(nextY) < 0.5 {
+                    dragCenteringOffset = .zero
+                    timer.invalidate()
+                    centeringTimer = nil
+                } else {
+                    dragCenteringOffset = CGSize(width: nextX, height: nextY)
+                }
+            }
+            
         } else if var state = dragState {
             state.pointerLocation = overlayPointer
             state.translation = value.translation
@@ -212,6 +306,8 @@ struct ItemCardRow: View {
         )
         let overlayPointer = overlayPointerLocation(localPointer: localPointer)
 
+        var handled = false
+
         if let pinboardTarget = computePinboardDropTarget(overlayLocation: overlayPointer) {
             switch pinboardTarget {
             case .all:
@@ -227,12 +323,28 @@ struct ItemCardRow: View {
                     }
                 }
             }
+            handled = true
         } else if isReorderingEnabled,
                   let target = computeDropTarget(location: localPointerLocation(from: overlayPointer), draggedIDs: dragState.itemIDs) {
             onReorder(dragState.itemIDs, target.item, target.insertBefore)
             onReorderEnd()
+            handled = true
         }
 
+        // Check if dropped outside the overlay window
+        if !handled, let window = window {
+            let mouseLocation = NSEvent.mouseLocation
+            let windowFrame = window.frame
+
+            // Check if mouse is outside the window bounds
+            if !windowFrame.contains(CGPoint(x: mouseLocation.x, y: mouseLocation.y)) {
+                onPasteOutside(dragState.itemIDs)
+            }
+        }
+
+        centeringTimer?.invalidate()
+        centeringTimer = nil
+        
         endDrag(for: dragState.primaryItemID)
     }
 
@@ -363,40 +475,6 @@ struct ItemCardRow: View {
         }
     }
 
-    @ViewBuilder
-    private func dragPreviewView() -> some View {
-        if let dragState {
-            let draggedItems = dragState.itemIDs.compactMap { id in
-                items.first { $0.objectID == id }
-            }
-            let cardSize = itemFrames[dragState.primaryItemID]?.width ?? 0
-
-            let previewPosition = CGPoint(
-                x: dragState.baseCenter.x + dragState.translation.width,
-                y: dragState.baseCenter.y + dragState.translation.height
-            )
-
-            if draggedItems.count == 1, let item = draggedItems.first {
-                ItemCardDragPreview(item: item, pinboards: pinboards)
-                    .frame(width: cardSize, height: cardSize)
-                    .position(previewPosition)
-                    .opacity(dragOpacity)
-                    .animation(.easeOut(duration: 0.06), value: dragOpacity)
-                    .allowsHitTesting(false)
-            } else if draggedItems.count > 1 {
-                MultiItemCardDragPreview(
-                    items: draggedItems,
-                    pinboards: pinboards,
-                    cardSize: cardSize
-                )
-                .position(previewPosition)
-                .opacity(dragOpacity)
-                .animation(.easeOut(duration: 0.06), value: dragOpacity)
-                .allowsHitTesting(false)
-            }
-        }
-    }
-
     private func badgeIndex(for index: Int) -> Int? {
         guard mode == .browse, index < 9 else { return nil }
         return index + 1
@@ -406,6 +484,31 @@ struct ItemCardRow: View {
         items.compactMap { item in
             ids.contains(item.objectID) ? item.objectID : nil
         }
+    }
+
+    private func updateDragPreview() {
+        guard let dragState else {
+            dragPreviewData = nil
+            return
+        }
+
+        let draggedItems = dragState.itemIDs.compactMap { id in
+            items.first { $0.objectID == id }
+        }
+        let cardSize = itemFrames[dragState.primaryItemID]?.width ?? 0
+
+        let previewPosition = CGPoint(
+            x: dragState.baseCenter.x + dragState.translation.width + rowFrame.minX + dragCenteringOffset.width,
+            y: dragState.baseCenter.y + dragState.translation.height + rowFrame.minY + dragCenteringOffset.height
+        )
+
+        dragPreviewData = DragPreviewData(
+            items: draggedItems,
+            pinboards: pinboards,
+            cardSize: cardSize,
+            position: previewPosition,
+            opacity: dragOpacity
+        )
     }
 }
 
@@ -422,6 +525,22 @@ private struct ItemRowFrameKey: PreferenceKey {
 
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         value = nextValue()
+    }
+}
+
+struct DragPreviewData: Equatable {
+    let items: [ClipItem]
+    let pinboards: [Pinboard]
+    let cardSize: CGFloat
+    let position: CGPoint
+    let opacity: Double
+
+    static func == (lhs: DragPreviewData, rhs: DragPreviewData) -> Bool {
+        lhs.items.map { $0.objectID } == rhs.items.map { $0.objectID } &&
+        lhs.pinboards.map { $0.objectID } == rhs.pinboards.map { $0.objectID } &&
+        lhs.cardSize == rhs.cardSize &&
+        lhs.position == rhs.position &&
+        lhs.opacity == rhs.opacity
     }
 }
 
@@ -450,7 +569,7 @@ private enum PinboardDropTarget: Equatable {
     case pinboard(NSManagedObjectID)
 }
 
-private struct ItemCardDragPreview: View {
+struct ItemCardDragPreview: View {
     let item: ClipItem
     let pinboards: [Pinboard]
 
@@ -482,7 +601,7 @@ private struct ItemCardDragPreview: View {
     }
 }
 
-private struct MultiItemCardDragPreview: View {
+struct MultiItemCardDragPreview: View {
     let items: [ClipItem]
     let pinboards: [Pinboard]
     let cardSize: CGFloat

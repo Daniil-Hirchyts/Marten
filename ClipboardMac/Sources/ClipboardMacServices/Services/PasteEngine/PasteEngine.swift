@@ -41,7 +41,7 @@ public final class PasteEngine {
         await MainActor.run {
             activeAppTracker.reactivateRecordedApp()
         }
-        try await Task.sleep(nanoseconds: 50_000_000)
+        _ = await waitForTargetActivation(timeout: 0.6)
         try await sendPasteKeystroke()
     }
 
@@ -54,7 +54,7 @@ public final class PasteEngine {
         await MainActor.run {
             activeAppTracker.reactivateRecordedApp()
         }
-        try await Task.sleep(nanoseconds: 50_000_000)
+        _ = await waitForTargetActivation(timeout: 0.6)
 
         for (index, entry) in entries.enumerated() {
             guard let item = entry.clipItem else { continue }
@@ -144,7 +144,6 @@ public final class PasteEngine {
         guard permissionManager.checkAccessibility(prompt: false) else {
             throw PasteEngineError.accessibilityPermissionDenied
         }
-
         let source = CGEventSource(stateID: .hidSystemState)
         let cmdDown = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_Command), keyDown: true)
         cmdDown?.flags = .maskCommand
@@ -158,5 +157,22 @@ public final class PasteEngine {
         vDown?.post(tap: .cghidEventTap)
         vUp?.post(tap: .cghidEventTap)
         cmdUp?.post(tap: .cghidEventTap)
+    }
+
+    private func waitForTargetActivation(timeout: TimeInterval) async -> Bool {
+        let targetBundleID = await MainActor.run { activeAppTracker.recordedBundleID }
+        guard let targetBundleID else { return false }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let frontmost = await MainActor.run { NSWorkspace.shared.frontmostApplication }
+            if frontmost?.bundleIdentifier == targetBundleID {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        let frontmost = await MainActor.run { NSWorkspace.shared.frontmostApplication }
+        return frontmost?.bundleIdentifier == targetBundleID
     }
 }

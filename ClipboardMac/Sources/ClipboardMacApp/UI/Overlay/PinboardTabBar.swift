@@ -6,7 +6,14 @@ struct PinboardTabBar: View {
     private let tabSpacing: CGFloat = 12
     private let placeholderWidth: CGFloat = 3
     private let localCoordinateSpaceName = "PinboardBarLocalSpace"
-    private let createFieldWidth: CGFloat = 200
+    private let scrollSpaceName = "PinboardScrollSpace"
+    private let headerButtonSize: CGFloat = 30
+    private let headerButtonIconSize: CGFloat = 14
+    private let tabContentHeight: CGFloat = 20
+    private let tabVerticalPadding: CGFloat = 5
+    private let tabHorizontalPadding: CGFloat = 10
+    private let maxTabWidth: CGFloat = 160
+    private let maxPinboardNameLength = 22
 
     let pinboards: [Pinboard]
     let selectedID: UUID?
@@ -35,65 +42,158 @@ struct PinboardTabBar: View {
     @State private var cancelRequested = false
     @State private var commitRequested = false
     @State private var suppressNextBlurCommit = false
+    @State private var scrollOffset: CGFloat = 0
+    @State private var contentWidth: CGFloat = 0
+    @State private var trailingTabWidth: CGFloat = 40 // Default or estimated
+    @State private var isScrolled = false
 
+    private let contentSpaceName = "PinboardContentSpace"
     private var canReorder: Bool {
         editingID == nil && !isCreating
     }
 
+    private let maxScrollableWidthRatio: CGFloat = 0.85 // Maximum width as percentage of overlay width
+    private let estimatedTabWidth: CGFloat = 90 // Estimated average tab width
+    private let scrollContentPadding: CGFloat = 20 // Padding on each side inside scroll
+    
+    // Computed property for estimated content width based on number of pinboards (including All)
+    private var estimatedContentWidth: CGFloat {
+        let count = CGFloat(pinboards.count + 1) // +1 for "All" tab
+        if count == 0 { return 0 }
+        return (count * estimatedTabWidth) + ((count - 1) * tabSpacing)
+    }
+    
     var body: some View {
         GeometryReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                let placeholderInset = (tabSpacing / 2) + (placeholderWidth / 2)
-                HStack(spacing: tabSpacing) {
-                    PinboardTab(title: "All", colorHex: nil, isSelected: selectedID == nil, minWidth: 60) {
-                        onSelect(nil)
-                    }
-                    .background(
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: PinboardAllFrameKey.self,
-                                value: proxy.frame(in: .named(coordinateSpaceName))
-                            )
-                        }
-                    )
-
-                    ForEach(Array(pinboards.enumerated()), id: \.element.objectID) { index, pinboard in
-                        if editingID == pinboard.objectID {
-                            editingView(pinboard: pinboard)
-                        } else {
-                            pinboardView(pinboard: pinboard, index: index)
-                        }
-                    }
-
-                    ZStack(alignment: .leading) {
-                        if isCreating {
-                            createView()
-                        } else {
-                            Button(action: onCreate) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .padding(8)
-                                    .background(Color.white.opacity(0.12))
-                                    .clipShape(Circle())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .frame(width: createFieldWidth, alignment: .leading)
+            HStack(spacing: tabSpacing) {
+                // Scrollable Pinboards (including "All" tab) - adapts to content width up to max
+                ScrollView(.horizontal, showsIndicators: false) {
+                    pinboardsContent(isMeasuring: false)
+                        .padding(.horizontal, scrollContentPadding) // Extra padding so first item clears the blur zone
+                        .coordinateSpace(name: contentSpaceName)
                 }
-                .padding(.horizontal, placeholderInset)
-                .frame(minWidth: proxy.size.width)
+                .coordinateSpace(name: scrollSpaceName)
+                .frame(width: {
+                    let maxScrollableWidth = proxy.size.width * maxScrollableWidthRatio
+                    let availableWidth = max(0, proxy.size.width - trailingTabWidth - tabSpacing)
+                    // Use actual measured width if available, otherwise estimate
+                    let effectiveContentWidth = contentWidth > 0 ? contentWidth : estimatedContentWidth
+                    // Add padding to content width, cap at max, and don't exceed available space
+                    return min(effectiveContentWidth + (scrollContentPadding * 2), maxScrollableWidth, availableWidth)
+                }())
+                .mask(
+                    LinearGradient(
+                        gradient: Gradient(stops: !isScrolled ? [
+                            // At initial position: only fade trailing edge
+                            .init(color: .black, location: 0),
+                            .init(color: .black, location: 0.975),
+                            .init(color: .clear, location: 1)
+                        ] : [
+                            // When scrolled: fade both edges (shorter blur zone)
+                            .init(color: .clear, location: 0),
+                            .init(color: .black, location: 0.025),
+                            .init(color: .black, location: 0.975),
+                            .init(color: .clear, location: 1)
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .animation(.easeOut(duration: 0.2), value: isScrolled)
+                )
+
+                // Fixed Creation View
+                ZStack(alignment: .leading) {
+                    if isCreating {
+                        createView()
+                    } else {
+                        Button(action: onCreate) {
+                            Image(systemName: "plus")
+                                .font(.system(size: headerButtonIconSize, weight: .semibold))
+                                .frame(width: headerButtonSize, height: headerButtonSize)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(0.12))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: PinboardEditorFrameKey.self,
+                            value: proxy.frame(in: .named(coordinateSpaceName))
+                        )
+                    }
+                )
             }
-        }
-        .coordinateSpace(name: localCoordinateSpaceName)
-        .overlay(alignment: .topLeading) {
-            placeholderView()
-        }
-        .overlay(alignment: .topLeading) {
-            dragPreviewView()
+            .fixedSize(horizontal: true, vertical: false) // Let HStack take only the width it needs
+            .coordinateSpace(name: localCoordinateSpaceName)
+            .overlay(alignment: .topLeading) {
+                placeholderView()
+            }
+            .overlay(alignment: .topLeading) {
+                dragPreviewView()
+            }
+            .frame(maxWidth: .infinity, alignment: .center) // Center the whole bar
         }
         .onPreferenceChange(TabFrameKey.self) { frames in
             tabFrames = frames
+            // Calculate actual content width from tab frames
+            if !frames.isEmpty {
+                let minX = frames.values.map { $0.minX }.min() ?? 0
+                let maxX = frames.values.map { $0.maxX }.max() ?? 0
+                let measuredWidth = maxX - minX
+                if measuredWidth > 0 {
+                    contentWidth = measuredWidth
+                }
+            }
+        }
+        .onPreferenceChange(ScrollOffsetKey.self) { offset in
+            isScrolled = offset < 15
+            scrollOffset = offset
+        }
+        .onPreferenceChange(PinboardEditorFrameKey.self) { rect in
+             if let w = rect?.width { trailingTabWidth = w }
+        }
+        .onChange(of: draftName) { newValue in
+            let clamped = String(newValue.prefix(maxPinboardNameLength))
+            if clamped != newValue {
+                draftName = clamped
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pinboardsContent(isMeasuring: Bool) -> some View {
+        HStack(spacing: tabSpacing) {
+            // "All" tab as first item in the list
+            PinboardTab(title: "All", iconName: "tray", colorHex: nil, isSelected: selectedID == nil, minWidth: 60, maxWidth: maxTabWidth) {
+                onSelect(nil)
+            }
+            .background(
+                GeometryReader { proxy in
+                    if !isMeasuring {
+                        let localFrame = proxy.frame(in: .named(contentSpaceName))
+                        let overlayFrame = proxy.frame(in: .named(coordinateSpaceName))
+                        let minX = proxy.frame(in: .named(scrollSpaceName)).minX
+                        
+                        Color.clear
+                            .preference(key: TabFrameKey.self, value: [NSManagedObjectID(): localFrame]) // Use empty ID for "All"
+                            .preference(key: PinboardAllFrameKey.self, value: overlayFrame) // For drag/drop to All
+                            .preference(key: ScrollOffsetKey.self, value: minX) // First item reports scroll offset
+                    }
+                }
+            )
+            
+            // Other pinboards
+            ForEach(Array(pinboards.enumerated()), id: \.element.objectID) { index, pinboard in
+                if editingID == pinboard.objectID {
+                    editingView(pinboard: pinboard)
+                } else {
+                    pinboardView(pinboard: pinboard, index: index + 1, isMeasuring: isMeasuring) // +1 because "All" is index 0
+                }
+            }
         }
     }
 
@@ -110,10 +210,18 @@ struct PinboardTabBar: View {
             }
 
             ZStack(alignment: .leading) {
+                // Auto-sizing hidden text
+                Text(draftName.isEmpty ? "Name" : draftName)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.clear)
+                    .padding(.vertical, 0)
+                    .layoutPriority(1)
+                
                 if draftName.isEmpty {
                     Text("Name")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white.opacity(0.5))
+                        .allowsHitTesting(false)
                 }
                 TextField("", text: $draftName) { editing in
                     if !editing {
@@ -127,16 +235,29 @@ struct PinboardTabBar: View {
                 .foregroundColor(.white)
                 .accentColor(.white)
                 .focused($isFocused)
-                .onAppear { isFocused = true }
+                // Ensure focus on appear
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        isFocused = true
+                    }
+                }
             }
-            .frame(minWidth: 70)
-            .layoutPriority(1)
+            .frame(minWidth: 40)
         }
-        .padding(.vertical, 7)
-        .padding(.horizontal, 12)
+        .frame(minHeight: tabContentHeight, alignment: .center)
+        .padding(.vertical, tabVerticalPadding)
+        .padding(.horizontal, tabHorizontalPadding)
         .background(Color.white.opacity(0.15))
         .clipShape(Capsule())
-        .frame(width: 140)
+        // Focus border
+        .overlay(
+             Capsule()
+                 .stroke(Color.white.opacity(isFocused ? 0.3 : 0), lineWidth: 1)
+        )
+        // Fixed height, dynamic width
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(maxWidth: maxTabWidth, alignment: .leading)
+        .frame(height: headerButtonSize)
         .background(
             GeometryReader { proxy in
                 Color.clear.preference(
@@ -159,10 +280,18 @@ struct PinboardTabBar: View {
             }
 
             ZStack(alignment: .leading) {
+                // Auto-sizing hidden text for dynamic width
+                Text(draftName.isEmpty ? "Name" : draftName)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.clear)
+                    .padding(.vertical, 0)
+                    .layoutPriority(1)
+
                 if draftName.isEmpty {
                     Text("Name")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white.opacity(0.5))
+                        .allowsHitTesting(false)
                 }
                 TextField("", text: $draftName) { editing in
                     if !editing {
@@ -176,32 +305,29 @@ struct PinboardTabBar: View {
                 .foregroundColor(.white)
                 .accentColor(.white)
                 .focused($isFocused)
-                .onAppear { isFocused = true }
+                // Ensure focus works reliably
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        isFocused = true
+                    }
+                }
             }
-            .frame(minWidth: 90)
-            .layoutPriority(1)
-
-            Button(action: handleCommitButton) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.white.opacity(0.85))
-            }
-            .buttonStyle(.plain)
-            .focusable(false)
-
-            Button(action: handleCancel) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.white.opacity(0.75))
-            }
-            .buttonStyle(.plain)
-            .focusable(false)
+            .frame(minWidth: 40)
         }
-        .padding(.vertical, 7)
-        .padding(.horizontal, 12)
+        .frame(minHeight: tabContentHeight, alignment: .center)
+        .padding(.vertical, tabVerticalPadding)
+        .padding(.horizontal, tabHorizontalPadding)
         .background(Color.white.opacity(0.15))
         .clipShape(Capsule())
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Focus border
+        .overlay(
+             Capsule()
+                 .stroke(Color.white.opacity(isFocused ? 0.3 : 0), lineWidth: 1)
+        )
+        // Fixed height, dynamic width
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(maxWidth: maxTabWidth, alignment: .leading)
+        .frame(height: headerButtonSize)
         .background(
             GeometryReader { proxy in
                 Color.clear.preference(
@@ -213,23 +339,27 @@ struct PinboardTabBar: View {
     }
 
     @ViewBuilder
-    private func pinboardView(pinboard: Pinboard, index: Int) -> some View {
+    private func pinboardView(pinboard: Pinboard, index: Int, isMeasuring: Bool = false) -> some View {
         let isDragging = dragState?.itemID == pinboard.objectID
-
-        let base = PinboardTab(title: pinboard.name, colorHex: pinboard.colorHex, isSelected: selectedID == pinboard.id) {
+        
+        let base = PinboardTab(title: pinboard.name, colorHex: pinboard.colorHex, isSelected: selectedID == pinboard.id, maxWidth: maxTabWidth) {
             onSelect(pinboard.id)
         }
         .opacity(isDragging ? 0.25 : 1)
         .background(
-            GeometryReader { proxy in
-                let localFrame = proxy.frame(in: .named(localCoordinateSpaceName))
-                let overlayFrame = proxy.frame(in: .named(coordinateSpaceName))
-                Color.clear
-                    .preference(key: TabFrameKey.self, value: [pinboard.objectID: localFrame])
-                    .preference(key: PinboardFrameKey.self, value: [pinboard.objectID: overlayFrame])
-            }
-        )
-        .fixedSize(horizontal: true, vertical: false)
+             GeometryReader { proxy in
+                  if !isMeasuring {
+                      let contentFrame = proxy.frame(in: .named(contentSpaceName))
+                      let overlayFrame = proxy.frame(in: .named(coordinateSpaceName))
+                      let minX = proxy.frame(in: .named(scrollSpaceName)).minX
+                      
+                      Color.clear
+                         .preference(key: TabFrameKey.self, value: [pinboard.objectID: contentFrame])
+                         .preference(key: PinboardFrameKey.self, value: [pinboard.objectID: overlayFrame])
+                         .preference(key: ScrollOffsetKey.self, value: index == 0 ? minX : 0) // Only first item reports scroll offset
+                  }
+             }
+         )
         .contextMenu {
             PinboardContextMenu(
                 canEdit: !pinboard.isSystemClipboard,
@@ -247,7 +377,7 @@ struct PinboardTabBar: View {
     }
 
     private func dragGesture(for pinboard: Pinboard, index: Int) -> some Gesture {
-        DragGesture(minimumDistance: 2, coordinateSpace: .named(localCoordinateSpaceName))
+        DragGesture(minimumDistance: 2, coordinateSpace: .named(contentSpaceName))
             .onChanged { value in
                 handleDragChanged(pinboard: pinboard, value: value)
             }
@@ -414,14 +544,15 @@ struct PinboardTabBar: View {
                 suppressNextBlurCommit = false
                 return
             }
-            onCommit()
+            
+            // Only commit if the user clicked elsewhere in the active window.
+            // If the window is not visible or not key, we assume the overlay is closing/inactive, so we cancel.
+            if let window = NSApp.windows.first(where: { $0.isKeyWindow }), window.isVisible {
+                onCommit()
+            } else {
+                onCancel()
+            }
         }
-    }
-
-    private func handleCancel() {
-        cancelRequested = true
-        onCancel()
-        isFocused = false
     }
 
     private func handleCommitButton() {
@@ -451,7 +582,7 @@ struct PinboardTabBar: View {
                 .frame(width: tabFrames[draggedItem.objectID]?.width ?? 0,
                        height: tabFrames[draggedItem.objectID]?.height ?? 0)
                 .position(
-                    x: dragState.baseCenter.x + dragState.translation.width,
+                    x: dragState.baseCenter.x + dragState.translation.width + scrollOffset,
                     y: dragState.baseCenter.y + dragState.translation.height
                 )
                 .opacity(dragOpacity)
@@ -552,15 +683,30 @@ private struct PinboardTabPreview: View {
             Text(title)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white)
-                .fixedSize()
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
         .frame(minHeight: 20)
-        .padding(.vertical, 6)
+        .padding(.vertical, 5)
         .padding(.horizontal, 10)
         .background(Color.white.opacity(0.2))
         .clipShape(Capsule())
         .allowsHitTesting(false)
         .opacity(0.9)
         .scaleEffect(0.96)
+    }
+}
+
+private struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct ContentWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

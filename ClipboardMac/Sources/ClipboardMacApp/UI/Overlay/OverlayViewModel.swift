@@ -15,7 +15,7 @@ final class OverlayViewModel: ObservableObject {
     private let clipItemStore: ClipItemStore
     private let pasteEngine: PasteEngine
     private let permissionManager: PermissionManager
-    private let closeOverlay: () -> Void
+    private let closeOverlayForPaste: (@escaping () -> Void) -> Void
     private let soundPlayer = SoundEffectPlayer()
 
     private var stackSession: StackSession?
@@ -24,13 +24,13 @@ final class OverlayViewModel: ObservableObject {
         persistence: PersistenceController,
         pasteEngine: PasteEngine,
         permissionManager: PermissionManager,
-        closeOverlay: @escaping () -> Void
+        closeOverlayForPaste: @escaping (@escaping () -> Void) -> Void
     ) {
         self.stackStore = StackSessionStore(persistence: persistence)
         self.clipItemStore = ClipItemStore(persistence: persistence)
         self.pasteEngine = pasteEngine
         self.permissionManager = permissionManager
-        self.closeOverlay = closeOverlay
+        self.closeOverlayForPaste = closeOverlayForPaste
     }
 
     func setMode(_ mode: OverlayMode) {
@@ -122,14 +122,18 @@ final class OverlayViewModel: ObservableObject {
     }
 
     func paste(item: ClipItem, plainText: Bool) {
+        guard !isPasting else { return }
         isPasting = true
         Task {
-            defer { isPasting = false }
+            await waitForOverlayToHide()
+            defer {
+                isPasting = false
+                resetState()
+            }
             try? clipItemStore.markItemUsed(objectID: item.objectID)
             do {
                 try await pasteEngine.pasteItem(item, format: plainText ? .plainText : .preserved)
                 soundPlayer.play(.paste)
-                closeOverlay()
             } catch PasteEngineError.accessibilityPermissionDenied {
                 showAccessibilityAlert = true
             } catch {
@@ -140,9 +144,14 @@ final class OverlayViewModel: ObservableObject {
 
     func pasteStack(plainText: Bool) {
         guard let stackSession else { return }
+        guard !isPasting else { return }
         isPasting = true
         Task {
-            defer { isPasting = false }
+            await waitForOverlayToHide()
+            defer {
+                isPasting = false
+                resetState()
+            }
             let orderedIDs = stackSession.entries?
                 .sorted { $0.position < $1.position }
                 .compactMap { $0.clipItem?.objectID } ?? []
@@ -150,7 +159,6 @@ final class OverlayViewModel: ObservableObject {
             do {
                 try await pasteEngine.pasteStack(stackSession, format: plainText ? .plainText : .preserved)
                 soundPlayer.play(.paste)
-                closeOverlay()
             } catch PasteEngineError.accessibilityPermissionDenied {
                 showAccessibilityAlert = true
             } catch {
@@ -161,6 +169,14 @@ final class OverlayViewModel: ObservableObject {
 
     func requestAccessibility() {
         permissionManager.requestAccessibility()
+    }
+
+    private func waitForOverlayToHide() async {
+        await withCheckedContinuation { continuation in
+            closeOverlayForPaste {
+                continuation.resume()
+            }
+        }
     }
 
     private func syncStackEntries(using orderedItems: [ClipItem]) {

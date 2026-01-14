@@ -23,7 +23,7 @@ final class OverlayWindowController {
         let initialFrame = NSRect(x: 0, y: 0, width: 800, height: 320)
         panel = OverlayPanel(
             contentRect: initialFrame,
-            styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -38,6 +38,8 @@ final class OverlayWindowController {
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.isFloatingPanel = true
+        panel.isMovableByWindowBackground = false
+        panel.isMovable = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.ignoresMouseEvents = false
         panel.acceptsMouseMovedEvents = true
@@ -52,8 +54,12 @@ final class OverlayWindowController {
                 persistence: persistence,
                 pasteEngine: pasteEngine,
                 permissionManager: permissionManager
-            ) { [weak self] in
-                self?.hide()
+            ) { [weak self] completion in
+                guard let self else {
+                    completion()
+                    return
+                }
+                self.hide(resetState: false, completion: completion)
             }
             viewModel = model
             let contentView = AnyView(
@@ -121,8 +127,15 @@ final class OverlayWindowController {
         NotificationCenter.default.post(name: .overlayDidShow, object: nil)
     }
 
-    private func hide() {
-        guard isVisible else { return }
+    func hideForPaste(completion: (() -> Void)? = nil) {
+        hide(resetState: false, completion: completion)
+    }
+
+    private func hide(resetState: Bool = true, completion: (() -> Void)? = nil) {
+        guard isVisible else {
+            completion?()
+            return
+        }
         isVisible = false
 
         let endFrame = panel.frame.offsetBy(dx: 0, dy: -14)
@@ -135,9 +148,12 @@ final class OverlayWindowController {
         } completionHandler: { [weak self] in
             guard let self else { return }
             self.panel.orderOut(nil)
-            self.viewModel?.resetState()
+            if resetState {
+                self.viewModel?.resetState()
+            }
             self.stopOutsideClickMonitor()
             self.stopActivationObservers()
+            completion?()
         }
     }
 

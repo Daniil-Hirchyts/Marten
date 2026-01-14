@@ -132,14 +132,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard items.count >= index else { return }
             let item = items[index - 1]
             try? clipItemStore.markItemUsed(objectID: item.objectID)
-            pasteEngine.recordFrontmostApp()
-            Task {
-                do {
-                    try await pasteEngine.pasteItem(item, format: isPlainText ? .plainText : .preserved)
-                } catch PasteEngineError.accessibilityPermissionDenied {
-                    permissionManager.requestAccessibility()
-                } catch {
-                    Logger.app.error("Quick paste failed: \(error.localizedDescription)")
+            overlayController?.hideForPaste { [weak self] in
+                guard let self else { return }
+                self.pasteEngine.recordFrontmostApp()
+                Task {
+                    do {
+                        try await self.pasteEngine.pasteItem(item, format: isPlainText ? .plainText : .preserved)
+                    } catch PasteEngineError.accessibilityPermissionDenied {
+                        self.permissionManager.requestAccessibility()
+                    } catch {
+                        Logger.app.error("Quick paste failed: \(error.localizedDescription)")
+                    }
                 }
             }
         } catch {
