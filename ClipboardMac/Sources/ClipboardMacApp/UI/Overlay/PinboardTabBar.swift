@@ -75,9 +75,9 @@ struct PinboardTabBar: View {
     // Non-reactive frame storage - always up to date, doesn't trigger re-renders
     private static var latestTabFrames: [NSManagedObjectID: CGRect] = [:]
     private static var latestLocalTabFrames: [NSManagedObjectID: CGRect] = [:]
-    @State private var dragState: DragState?
+    @State private var dragState: PinboardTabDragState?
     @State private var dragOpacity: Double = 0
-    @State private var dropTarget: DropTarget?
+    @State private var dropTarget: PinboardTabDropTarget?
     @State private var cancelRequested = false
     @State private var commitRequested = false
     @State private var suppressNextBlurCommit = false
@@ -452,7 +452,6 @@ struct PinboardTabBar: View {
 
         if dragState == nil {
             // If frames are missing, trigger a refresh and abort this attempt
-            // The next gesture event will have fresh frames
             if Self.latestLocalTabFrames[pinboard.objectID] == nil ||
                Self.latestTabFrames[pinboard.objectID] == nil {
                 if !shouldReportFrames {
@@ -460,66 +459,75 @@ struct PinboardTabBar: View {
                 }
                 return
             }
-            
+
             // Get frames from non-reactive storage (always up to date)
             guard let localFrame = Self.latestLocalTabFrames[pinboard.objectID],
                   let contentFrame = Self.latestTabFrames[pinboard.objectID] else {
                 debugLog("Drag start failed: missing frames for \(pinboard.name)")
                 return
             }
-            
+
             // Update reactive state with latest frames at drag start
             tabFrames = Self.latestTabFrames
             localTabFrames = Self.latestLocalTabFrames
-            
-            // Calculate cursor offset from item center
-            let cursorOffset = CGSize(
-                width: value.startLocation.x - localFrame.midX,
-                height: value.startLocation.y - localFrame.midY
-            )
-            
-            // Cache ordered frames at drag start (both content and local space)
-            cachedOrderedFrames = computeOrderedFrames()
-            cachedLocalOrderedFrames = computeLocalOrderedFrames()
-            
-            debugLog("Drag started: item=\(pinboard.name), scrollOffset=\(Self.latestScrollOffset)")
-            
-            dragState = DragState(
-                itemID: pinboard.objectID,
-                pointerLocation: localPointer,
-                localBaseCenter: CGPoint(x: localFrame.midX, y: localFrame.midY),
-                contentBaseCenter: CGPoint(x: contentFrame.midX, y: contentFrame.midY),
-                initialScrollOffset: Self.latestScrollOffset,
-                translation: .zero,
-                cursorOffset: cursorOffset
-            )
-            dragOpacity = 1
-        } else if var state = dragState {
-            state.pointerLocation = localPointer
-            state.translation = value.translation
-            dragState = state
-        }
 
-        // Use local pointer directly for drop target (local-space calculation)
-        let target = computeDropTarget(location: localPointer, draggedID: pinboard.objectID)
-        // Update without animation during drag for better performance
-        dropTarget = target
+            // Use handler to begin drag
+            let handler = PinboardDragHandler(pinboards: pinboards, tabSpacing: tabSpacing)
+            guard let result = handler.beginDrag(
+                pinboard: pinboard,
+                at: localPointer,
+                localFrame: localFrame,
+                contentFrame: contentFrame,
+                scrollOffset: Self.latestScrollOffset,
+                tabFrames: Self.latestTabFrames,
+                localTabFrames: Self.latestLocalTabFrames
+            ) else {
+                return
+            }
+
+            dragState = result.dragState
+            cachedOrderedFrames = result.cachedOrderedFrames
+            cachedLocalOrderedFrames = result.cachedLocalOrderedFrames
+            dragOpacity = 1
+
+            // Compute initial drop target
+            if let cachedLocal = cachedLocalOrderedFrames {
+                dropTarget = handler.computeDropTarget(
+                    location: localPointer,
+                    draggedID: pinboard.objectID,
+                    orderedFrames: cachedLocal
+                )
+            }
+        } else {
+            // Use handler to update drag
+            guard let currentDragState = dragState,
+                  let cachedLocal = cachedLocalOrderedFrames else { return }
+            let handler = PinboardDragHandler(pinboards: pinboards, tabSpacing: tabSpacing)
+            let result = handler.updateDrag(
+                currentState: currentDragState,
+                translation: value.translation,
+                newLocation: localPointer,
+                localTabFrames: localTabFrames,
+                cachedLocalOrderedFrames: cachedLocal
+            )
+
+            dragState = result.dragState
+            dropTarget = result.dropTarget
+        }
     }
     
     private func handleDragEnded(pinboard: Pinboard, value: DragGesture.Value) {
         guard canReorder,
               let dragState,
-              dragState.itemID == pinboard.objectID else {
+              dragState.itemID == pinboard.objectID,
+              let cachedLocal = cachedLocalOrderedFrames else {
             return
         }
 
-        debugLog("Drag ended: item=\(pinboard.name)")
-        
-        // Use local pointer directly for drop target
-        if let target = computeDropTarget(location: dragState.pointerLocation, draggedID: dragState.itemID),
-           let draggedItem = pinboards.first(where: { $0.objectID == dragState.itemID }) {
-            debugLog("Reorder: \(draggedItem.name) -> \(target.item.name), insertBefore=\(target.insertBefore)")
-            onReorder(draggedItem, target.item, target.insertBefore)
+        // Use handler to end drag
+        let handler = PinboardDragHandler(pinboards: pinboards, tabSpacing: tabSpacing)
+        if let result = handler.endDrag(state: dragState, cachedLocalOrderedFrames: cachedLocal) {
+            onReorder(result.draggedItem, result.targetItem, result.insertBefore)
             onReorderEnd()
         }
 
@@ -543,114 +551,6 @@ struct PinboardTabBar: View {
                 debugLog("Drag state cleared")
             }
         }
-    }
-
-    /// Computes drop target using local-space frames (stable during drag)
-    private func computeDropTarget(location: CGPoint, draggedID: NSManagedObjectID) -> DropTarget? {
-        // Use local-space frames for hit testing
-        let ordered = localOrderedFrames()
-        guard let draggedIndex = ordered.firstIndex(where: { $0.item.objectID == draggedID }),
-              let first = ordered.first,
-              let last = ordered.last else {
-            return nil
-        }
-
-        let locationX = location.x
-        let candidate: DropTarget?
-
-        if locationX < first.frame.minX {
-            let pX = computePlaceholderX(for: ordered, targetIndex: 0, insertBefore: true)
-            candidate = DropTarget(item: first.item, insertBefore: true, placeholderX: pX)
-        } else if locationX > last.frame.maxX {
-            let pX = computePlaceholderX(for: ordered, targetIndex: ordered.count - 1, insertBefore: false)
-            candidate = DropTarget(item: last.item, insertBefore: false, placeholderX: pX)
-        } else if let hit = ordered.first(where: { $0.frame.minX <= locationX && locationX <= $0.frame.maxX }) {
-            let insertBefore = locationX < hit.frame.midX
-            let targetIndex = ordered.firstIndex(where: { $0.item.objectID == hit.item.objectID }) ?? 0
-            let pX = computePlaceholderX(for: ordered, targetIndex: targetIndex, insertBefore: insertBefore)
-            candidate = DropTarget(item: hit.item, insertBefore: insertBefore, placeholderX: pX)
-        } else if let next = ordered.first(where: { locationX < $0.frame.minX }) {
-            let targetIndex = ordered.firstIndex(where: { $0.item.objectID == next.item.objectID }) ?? 0
-            let pX = computePlaceholderX(for: ordered, targetIndex: targetIndex, insertBefore: true)
-            candidate = DropTarget(item: next.item, insertBefore: true, placeholderX: pX)
-        } else {
-            candidate = nil
-        }
-
-        guard let candidate,
-              let targetIndex = ordered.firstIndex(where: { $0.item.objectID == candidate.item.objectID }),
-              !isNoOp(draggedIndex: draggedIndex, targetIndex: targetIndex, insertBefore: candidate.insertBefore) else {
-            return nil
-        }
-
-        return candidate
-    }
-
-    /// Calculates placeholder X position in local-space
-    private func computePlaceholderX(for ordered: [(item: Pinboard, frame: CGRect)], targetIndex: Int, insertBefore: Bool) -> CGFloat {
-        if insertBefore {
-            if targetIndex > 0 {
-                let previous = ordered[targetIndex - 1].frame
-                let current = ordered[targetIndex].frame
-                return (previous.maxX + current.minX) / 2
-            }
-            return ordered[targetIndex].frame.minX - tabSpacing / 2
-        }
-
-        if targetIndex + 1 < ordered.count {
-            let current = ordered[targetIndex].frame
-            let next = ordered[targetIndex + 1].frame
-            return (current.maxX + next.minX) / 2
-        }
-
-        return ordered[targetIndex].frame.maxX + tabSpacing / 2
-    }
-
-    /// Returns cached local ordered frames during drag, or computes fresh ones
-    private func localOrderedFrames() -> [(item: Pinboard, frame: CGRect)] {
-        if let cached = cachedLocalOrderedFrames {
-            return cached
-        }
-        return computeLocalOrderedFrames()
-    }
-    
-    /// Returns cached content-space ordered frames during drag, or computes fresh ones
-    private func orderedFrames() -> [(item: Pinboard, frame: CGRect)] {
-        if let cached = cachedOrderedFrames {
-            return cached
-        }
-        return computeOrderedFrames()
-    }
-    
-    /// Computes ordered frames from content-space (for compatibility)
-    private func computeOrderedFrames() -> [(item: Pinboard, frame: CGRect)] {
-        pinboards.compactMap { pinboard in
-            guard let frame = tabFrames[pinboard.objectID] else { return nil }
-            return (item: pinboard, frame: frame)
-        }
-        .sorted { $0.frame.minX < $1.frame.minX }
-    }
-    
-    /// Computes ordered frames from local-space (for drag and placeholder)
-    private func computeLocalOrderedFrames() -> [(item: Pinboard, frame: CGRect)] {
-        pinboards.compactMap { pinboard in
-            guard let frame = localTabFrames[pinboard.objectID] else { return nil }
-            return (item: pinboard, frame: frame)
-        }
-        .sorted { $0.frame.minX < $1.frame.minX }
-    }
-
-    private func isNoOp(draggedIndex: Int, targetIndex: Int, insertBefore: Bool) -> Bool {
-        if draggedIndex == targetIndex {
-            return true
-        }
-        if insertBefore && targetIndex == draggedIndex + 1 {
-            return true
-        }
-        if !insertBefore && targetIndex == draggedIndex - 1 {
-            return true
-        }
-        return false
     }
 
     private func handleBlurCommit() {
