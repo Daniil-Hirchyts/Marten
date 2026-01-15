@@ -99,11 +99,7 @@ final class PinboardFrameManager: ObservableObject {
     /// - Parameter offset: New scroll offset
     func updateScrollOffset(_ offset: CGFloat) {
         scrollOffset = offset
-
-        // Turn off frame reporting after initial capture
-        if shouldReportFrames {
-            shouldReportFrames = false
-        }
+        // Note: We keep shouldReportFrames enabled because frames are needed for drag operations
     }
 
     // MARK: - Cache Management

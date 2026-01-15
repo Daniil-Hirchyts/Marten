@@ -4,35 +4,7 @@ import CoreData
 import OSLog
 import SwiftUI
 
-// Debug flag - set to true to see logs in terminal
-private let DEBUG_DRAG = false
 
-private func debugLog(_ message: String) {
-    if DEBUG_DRAG {
-        print("[PinboardTabBar] \(message)")
-        fflush(stdout)
-    }
-}
-
-// Approximate equality for CGRect to handle floating-point precision issues
-// Using higher tolerance (5.0) to prevent layout jitter from triggering updates
-private func framesApproximatelyEqual(
-    _ lhs: [NSManagedObjectID: CGRect],
-    _ rhs: [NSManagedObjectID: CGRect],
-    tolerance: CGFloat = 5.0
-) -> Bool {
-    guard lhs.count == rhs.count else { return false }
-    for (key, lhsRect) in lhs {
-        guard let rhsRect = rhs[key] else { return false }
-        if abs(lhsRect.origin.x - rhsRect.origin.x) > tolerance ||
-           abs(lhsRect.origin.y - rhsRect.origin.y) > tolerance ||
-           abs(lhsRect.size.width - rhsRect.size.width) > tolerance ||
-           abs(lhsRect.size.height - rhsRect.size.height) > tolerance {
-            return false
-        }
-    }
-    return true
-}
 
 struct PinboardTabBar: View {
     private let tabSpacing: CGFloat = 12
@@ -69,15 +41,20 @@ struct PinboardTabBar: View {
 
     @FocusState private var isFocused: Bool
 
+    private enum CommitState {
+        case none
+        case cancel
+        case commit
+        case suppress
+    }
+
     // Unified frame manager - handles all frame storage, caching, and computation
     @StateObject private var frameManager = PinboardFrameManager()
 
     @State private var dragState: PinboardTabDragState?
     @State private var dragOpacity: Double = 0
     @State private var dropTarget: PinboardTabDropTarget?
-    @State private var cancelRequested = false
-    @State private var commitRequested = false
-    @State private var suppressNextBlurCommit = false
+    @State private var commitState: CommitState = .none
     @State private var trailingTabWidth: CGFloat = 40 // Default or estimated
 
     // Public accessor for OverlayRootView to capture scroll offset
@@ -113,6 +90,18 @@ struct PinboardTabBar: View {
 
     private func availableScrollWidth(parentWidth: CGFloat) -> CGFloat {
         max(0, parentWidth - trailingTabWidth - tabSpacing)
+    }
+
+    private func overlayFrame(from proxy: GeometryProxy) -> CGRect {
+        proxy.frame(in: .named(coordinateSpaceName))
+    }
+
+    private func contentFrame(from proxy: GeometryProxy) -> CGRect {
+        proxy.frame(in: .named(contentSpaceName))
+    }
+
+    private func localFrame(from proxy: GeometryProxy) -> CGRect {
+        proxy.frame(in: .named(localCoordinateSpaceName))
     }
 
     private func scrollViewWidth(parentWidth: CGFloat) -> CGFloat {
@@ -167,7 +156,7 @@ struct PinboardTabBar: View {
                     GeometryReader { proxy in
                         Color.clear.preference(
                             key: PinboardEditorFrameKey.self,
-                            value: proxy.frame(in: .named(coordinateSpaceName))
+                            value: overlayFrame(from: proxy)
                         )
                     }
                 )
@@ -222,14 +211,14 @@ struct PinboardTabBar: View {
             .background(
                 GeometryReader { proxy in
                     if !isMeasuring {
-                        let overlayFrame = proxy.frame(in: .named(coordinateSpaceName))
+                        let overlayFrame = overlayFrame(from: proxy)
                         let minX = proxy.frame(in: .named(scrollSpaceName)).minX
                         
                         // Always report overlay frame and scroll offset (for card drop detection)
                         // Only report internal frames when needed (for pinboard reordering)
                         if frameManager.shouldReportFrames {
-                            let contentFrame = proxy.frame(in: .named(contentSpaceName))
-                            let barLocalFrame = proxy.frame(in: .named(localCoordinateSpaceName))
+                            let contentFrame = contentFrame(from: proxy)
+                            let barLocalFrame = localFrame(from: proxy)
                             
                             Color.clear
                                 .preference(key: TabFrameKey.self, value: [NSManagedObjectID(): contentFrame])
@@ -268,7 +257,7 @@ struct PinboardTabBar: View {
                 DispatchQueue.main.async {
                     isFocused = true
                 }
-                suppressNextBlurCommit = true
+                commitState = .suppress
             }
 
             ZStack(alignment: .leading) {
@@ -324,7 +313,7 @@ struct PinboardTabBar: View {
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: PinboardEditorFrameKey.self,
-                    value: proxy.frame(in: .named(coordinateSpaceName))
+                    value: overlayFrame(from: proxy)
                 )
             }
         )
@@ -341,13 +330,13 @@ struct PinboardTabBar: View {
         .background(
              GeometryReader { proxy in
                   if !isMeasuring {
-                      let overlayFrame = proxy.frame(in: .named(coordinateSpaceName))
+                      let overlayFrame = overlayFrame(from: proxy)
                       
                       // Always report overlay frame (for card drop detection)
                       // Only report internal frames when needed (for pinboard reordering)
                       if frameManager.shouldReportFrames {
-                          let contentFrame = proxy.frame(in: .named(contentSpaceName))
-                          let localFrame = proxy.frame(in: .named(localCoordinateSpaceName))
+                          let contentFrame = contentFrame(from: proxy)
+                          let localFrame = localFrame(from: proxy)
                           
                           Color.clear
                              .preference(key: TabFrameKey.self, value: [pinboard.objectID: contentFrame])
@@ -402,19 +391,9 @@ struct PinboardTabBar: View {
         )
 
         if dragState == nil {
-            // If frames are missing, trigger a refresh and abort this attempt
-            if frameManager.latestLocalTabFrames[pinboard.objectID] == nil ||
-               frameManager.latestTabFrames[pinboard.objectID] == nil {
-                if !frameManager.shouldReportFrames {
-                    frameManager.shouldReportFrames = true
-                }
-                return
-            }
-
             // Get frames from non-reactive storage (always up to date)
             guard let localFrame = frameManager.latestLocalTabFrames[pinboard.objectID],
                   let contentFrame = frameManager.latestTabFrames[pinboard.objectID] else {
-                debugLog("Drag start failed: missing frames for \(pinboard.name)")
                 return
             }
 
@@ -484,8 +463,6 @@ struct PinboardTabBar: View {
     }
 
     private func endDrag(for itemID: NSManagedObjectID) {
-        debugLog("endDrag called")
-
         // Animate out
         withAnimation(.easeOut(duration: 0.1)) {
             dropTarget = nil
@@ -496,7 +473,6 @@ struct PinboardTabBar: View {
             if dragState?.itemID == itemID {
                 dragState = nil
                 frameManager.clearCaches()
-                debugLog("Drag state cleared")
             }
         }
     }
@@ -505,17 +481,18 @@ struct PinboardTabBar: View {
         guard isCreating || editingID != nil else { return }
 
         DispatchQueue.main.async {
-            if cancelRequested {
-                cancelRequested = false
+            switch commitState {
+            case .cancel:
+                commitState = .none
                 return
-            }
-            if commitRequested {
-                commitRequested = false
+            case .commit:
+                commitState = .none
                 return
-            }
-            if suppressNextBlurCommit {
-                suppressNextBlurCommit = false
+            case .suppress:
+                commitState = .none
                 return
+            case .none:
+                break
             }
             
             // Only commit if the user clicked elsewhere in the active window.
@@ -529,7 +506,7 @@ struct PinboardTabBar: View {
     }
 
     private func handleCommitButton() {
-        commitRequested = true
+        commitState = .commit
         onCommit()
         isFocused = false
     }
