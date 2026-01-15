@@ -5,14 +5,14 @@
 
 ## Document Metadata
 
-- **Version:** 1.0.0
-- **Last Updated:** 2026-01-10
+- **Version:** 1.1.0
+- **Last Updated:** 2026-01-14
 - **Status:** Draft
 - **Owner:** Engineering Team
 - **Dependencies:** 
-  - `Architecture-Overview.md` (parent)
-  - `Data-Model-Spec.md` (data sources)
-  - `macOS-Services-Spec.md` (system integration)
+ - `Architecture-Overview.md` (parent)
+ - `Data-Model-Spec.md` (data sources)
+ - `macOS-Services-Spec.md` (system integration)
 
 ---
 
@@ -45,21 +45,21 @@ This document defines the complete user interface specification for the Paste Cl
 ```
 PasteApp (SwiftUI App)
 ├── MenuBarExtra
-│   └── StatusItemView
-│       └── MenuBarMenu
+│ └── StatusItemView
+│ └── MenuBarMenu
 ├── OverlayWindow (NSPanel)
-│   └── OverlayRootView
-│       ├── PinboardTabBar
-│       ├── ItemCardRow
-│       └── SearchMode
+│ └── OverlayRootView
+│ ├── PinboardTabBar
+│ ├── ItemCardRow
+│ └── SearchMode
 ├── SettingsWindow
-│   └── SettingsView
-│       ├── GeneralTab
-│       ├── PrivacyTab
-│       ├── ShortcutsTab
-│       └── PurchaseTab
+│ └── SettingsView
+│ ├── GeneralTab
+│ ├── PrivacyTab
+│ ├── ShortcutsTab
+│ └── PurchaseTab
 └── OnboardingWindow (First Launch)
-    └── OnboardingFlow
+ └── OnboardingFlow
 ```
 
 ---
@@ -93,6 +93,13 @@ panel.hasShadow = true
 - Visible - Paste Stack Mode
 - Click outside overlay closes the panel
 - Overlay closes when the app loses focus or another app activates
+
+**Resizing:**
+- Resize handle at top-center of the panel
+- Drag up/down to adjust height
+- Min height: 200pt
+- Max height: 80% of screen height
+- Cursor: `resizeUpDown`
 
 ### 3.2 Visual Design
 
@@ -130,7 +137,7 @@ panel.hasShadow = true
 
 **Structure:**
 ```
-[• All] [• Work] [• Personal] [+]   [ Search ]
+[• All] [• Work] [• Personal] [+] [ Search ]
 ```
 
 **Dimensions:**
@@ -161,7 +168,7 @@ panel.hasShadow = true
 - Click: Switch to pinboard
 - Right-click: Show context menu
 - Drag: Reorder pinboards
-- Keyboard: ⌘→ / ⌘← to navigate
+- Keyboard: / to navigate
 
 ### 4.3 Tab Context Menu
 
@@ -184,7 +191,7 @@ Delete Pinboard
 
 **Interaction:**
 - Click: Show "New Pinboard" sheet
-- Keyboard: ⌘N (when overlay is focused)
+- Keyboard: N (when overlay is focused)
 
 **Pinboard Editor Sheet:**
 - Fields: Name, color swatch picker
@@ -209,7 +216,7 @@ Delete Pinboard
 **Scrolling:**
 - Paging enabled (snap to card boundaries)
 - Momentum: Moderate spring feel
-- Keyboard: ← / → arrows to navigate
+- Keyboard: / arrows to navigate
 - Mouse wheel / trackpad: Natural scroll
 - Drag cards to reorder (browse mode)
 
@@ -218,13 +225,13 @@ Delete Pinboard
 **Visual Structure:**
 ```
 ┌──────────────────────────────┐
-│ Text  3m              ┌─┐    │ ← Header
-│                       │•│    │
-│                                │
-│   [Preview Content]            │ ← Body
-│                                │
-│                                │
-│                          5     │ ← Footer (index)
+│ Text 3m ┌─┐ │ Header
+│ │•│ │
+│ │
+│ [Preview Content] │ Body
+│ │
+│ │
+│ 5 │ Footer (index)
 └──────────────────────────────┘
 ```
 
@@ -249,16 +256,16 @@ Delete Pinboard
 
 **Elements:**
 1. **Type + Time Label**
-   - Font: System 11pt, weight .medium
-   - Color: `.secondary`
-   - Format: "Text 3m" / "Image now" / "File 2h" / "Code 1d"
+ - Font: System 11pt, weight .medium
+ - Color: `.secondary`
+ - Format: "Text 3m" / "Image now" / "File 2h" / "Code 1d"
 
 2. **Menu Button (trailing)**
-   - Icon: SF Symbol `ellipsis.circle`
-   - Size: 20pt
-   - Color: `.secondary`
-   - Visibility: Hidden by default, shown on hover
-   - Tap: Show context menu
+ - Icon: SF Symbol `ellipsis.circle`
+ - Size: 20pt
+ - Color: `.secondary`
+ - Visibility: Hidden by default, shown on hover
+ - Tap: Show context menu
 
 ### 5.4 Card Body (Preview)
 
@@ -335,10 +342,10 @@ Paste (or "Copy to Clipboard")
 Paste as Plain Text
 ---
 Move to Pinboard ▸
-  • Work
-  • Personal
-  ---
-  New Pinboard...
+ • Work
+ • Personal
+ ---
+ New Pinboard...
 ---
 Pin Item
 Delete Item
@@ -372,7 +379,7 @@ Clipboard history will appear here
 
 **Triggers:**
 - Click the search field (always visible)
-- Keyboard: ⌘F (focuses the search field)
+- Keyboard: F (focuses the search field)
 - Start typing when overlay is focused
 
 **Transition:**
@@ -399,7 +406,7 @@ Clipboard history will appear here
 - Typing: Incremental search (debounced 150ms)
 - Escape: Clear and exit search mode
 - Enter: Select first result
-- ↑ / ↓: Navigate results
+- / : Navigate results
 
 ### 6.3 Search Results
 
@@ -426,6 +433,19 @@ Try different keywords
 
 **Toggle:** Click to switch scope
 
+### 6.5 Advanced Filters
+
+**Activation:** Filter button in search bar or right-click search field
+
+**Filter Types:**
+- **Date:** Today, Yesterday, Last 7 Days, Custom Range
+- **Type:** Text, Image, File, Link, Code
+- **App:** Filter by source application (e.g., "Safari", "Xcode")
+
+**Visual:**
+- Popover menu with sections
+- Active filters shown as tokens in search field
+
 ---
 
 ## 7. Paste Stack Mode
@@ -433,7 +453,7 @@ Try different keywords
 ### 7.1 Activation
 
 **Triggers:**
-- Keyboard: Shift+⌘C (default shortcut)
+- Keyboard: Shift+C (default shortcut)
 - Menu bar menu: "Activate Paste Stack"
 
 **Visual Difference:**
@@ -446,8 +466,8 @@ Try different keywords
 **Interaction:**
 - Click card: Toggle selection
 - Keyboard: Space to toggle current card
-- ← / →: Navigate without deselecting
-- ⌘A: Select all visible items
+- / : Navigate without deselecting
+- A: Select all visible items
 - Escape: Clear selection and exit
 
 **Visual:**
@@ -464,21 +484,21 @@ Try different keywords
 
 **Elements:**
 1. **Selection Count Label**
-   - Text: "3 items selected"
-   - Font: System 13pt, weight .medium
-   - Position: Leading
+ - Text: "3 items selected"
+ - Font: System 13pt, weight .medium
+ - Position: Leading
 
 2. **Clear Button**
-   - Style: Bordered button, secondary
-   - Text: "Clear"
-   - Action: Deselect all
+ - Style: Bordered button, secondary
+ - Text: "Clear"
+ - Action: Deselect all
 
 3. **Paste Button**
-   - Style: Prominent button, blue
-   - Text: "Paste" or "Paste Sequential"
-   - Position: Trailing
-   - Keyboard: ⌘Enter or Enter
-   - Action: Execute paste stack workflow
+ - Style: Prominent button, blue
+ - Text: "Paste" or "Paste Sequential"
+ - Position: Trailing
+ - Keyboard: Enter or Enter
+ - Action: Execute paste stack workflow
 
 ---
 
@@ -512,32 +532,32 @@ Try different keywords
 
 #### Section: Startup
 ```
-☑ Open at login
-☑ Run in background
+ Open at login
+ Run in background
 ```
 
 #### Section: Sync
 ```
-☑ iCloud Sync
-    Status: [Synced now] / [Last synced 2m ago] / [Syncing...] / [Error]
-    [Force Sync Button]
+ iCloud Sync
+ Status: [Synced now] / [Last synced 2m ago] / [Syncing...] / [Error]
+ [Force Sync Button]
 ```
 
 #### Section: Paste Behavior
 ```
 Paste items:
-  ⦿ To active app
-  ○ To clipboard
+ ⦿ To active app
+ ○ To clipboard
 
-☑ Always paste as Plain Text
+ Always paste as Plain Text
 
-☑ Sound effects
+ Sound effects
 ```
 
 #### Section: History
 ```
-Keep History:  [  Day  ] [  Week  ] [  Month  ] [  Year  ] [  Forever  ]
-               ← Slider with 5 discrete steps →
+Keep History: [ Day ] [ Week ] [ Month ] [ Year ] [ Forever ]
+ Slider with 5 discrete steps 
 
 [Erase History...] button (destructive style)
 ```
@@ -554,26 +574,26 @@ Keep History:  [  Day  ] [  Week  ] [  Month  ] [  Year  ] [  Forever  ]
 
 #### Section: Visibility
 ```
-☑ Show during screen sharing
+ Show during screen sharing
 ```
 
 #### Section: Content
 ```
-☑ Generate link previews
-☑ Ignore confidential content
-☑ Ignore transient content
+ Generate link previews
+ Ignore confidential content
+ Ignore transient content
 ```
 
 #### Section: Ignored Applications
 ```
 Applications to ignore:
 ┌────────────────────────────────────┐
-│ [Icon] Keychain Access             │
-│ [Icon] Passwords                   │
-│                                    │
-│                                    │
+│ [Icon] Keychain Access │
+│ [Icon] Passwords │
+│ │
+│ │
 └────────────────────────────────────┘
-  ← List view, 200pt height
+ List view, 200pt height
 
 [+] [-] buttons below list
 ```
@@ -581,7 +601,7 @@ Applications to ignore:
 **Ignored Apps List:**
 - Show: App icon (16x16pt) + app name
 - Selection: Single select
-- Add button: Opens app picker (NSOpenPanel → /Applications)
+- Add button: Opens app picker (NSOpenPanel /Applications)
 - Remove button: Deletes selected app from list
 
 ### 8.5 Shortcuts Tab
@@ -589,12 +609,12 @@ Applications to ignore:
 **Layout:** Form with shortcut recorders
 
 ```
-Activate Paste:           [ ⇧⌘V ]
-Activate Paste Stack:     [ ⇧⌘C ]
-Show next Pinboard:       [ ⌘→ ]
-Show previous Pinboard:   [ ⌘← ]
-Quick Paste:              [ ⌘1..9 ]
-Plain Text mode:          [ ⇧ Hold ]
+Activate Paste: [ V ]
+Activate Paste Stack: [ C ]
+Show next Pinboard: [ ]
+Show previous Pinboard: [ ]
+Quick Paste: [ 1..9 ]
+Plain Text mode: [ Hold ]
 
 [Reset to Defaults] button
 ```
@@ -612,7 +632,7 @@ Plain Text mode:          [ ⇧ Hold ]
 
 **For Paid App (already purchased):**
 ```
-✓ Paste Pro
+ Paste Pro
 
 Thank you for your purchase!
 You have full access to all features.
@@ -648,10 +668,10 @@ Terms of Service | Privacy Policy
 - SF Symbol: `doc.on.clipboard` (or custom icon)
 - Size: 16pt template rendering (adapts to dark/light mode)
 - States:
-  - Default: Black/white based on system appearance
-  - Active (overlay open): Highlight
-  - Paused: Dimmed or with badge indicator
-  - Syncing: Optional spinner overlay (subtle)
+ - Default: Black/white based on system appearance
+ - Active (overlay open): Highlight
+ - Paused: Dimmed or with badge indicator
+ - Syncing: Optional spinner overlay (subtle)
 
 **Interaction:**
 - Click: Show menu (standard NSMenu)
@@ -661,14 +681,14 @@ Terms of Service | Privacy Policy
 
 ```
 About Paste
-New Text Item          ⌘N
+New Text Item N
 ---
-Settings...            ⌘,
+Settings... ,
 Help
 ---
-Pause Paste            [checkbox if paused]
+Pause Paste [checkbox if paused]
 ---
-Quit Paste             ⌘Q
+Quit Paste Q
 ```
 
 **Dynamic:**
@@ -676,7 +696,7 @@ Quit Paste             ⌘Q
 
 ### 9.3 New Text Item Sheet
 
-**Trigger:** Menu item or ⌘N
+**Trigger:** Menu item or N
 
 **Window:**
 - Type: Sheet attached to settings window (or floating if no window)
@@ -690,13 +710,13 @@ New Text Item
 
 Pinboard: [Dropdown: All ▾]
 
-[Cancel]  [Create]
+[Cancel] [Create]
 ```
 
 **Interaction:**
 - Text field: Auto-focus
 - Create button: Disabled if text is empty
-- ⌘Enter: Submit
+- Enter: Submit
 - Escape: Cancel
 
 ---
@@ -752,7 +772,7 @@ Paste needs Accessibility permission to:
 ```
 [Illustration or screenshot]
 
-Press ⇧⌘V to open Paste
+Press V to open Paste
 
 Browse your clipboard history,
 search, and paste with one click.
@@ -783,19 +803,19 @@ remember everything.
 ### 11.1 Keyboard Navigation
 
 **Global Shortcuts:** (when overlay is hidden)
-- ⇧⌘V: Open overlay (browse mode)
-- ⇧⌘C: Open overlay (paste stack mode)
+- V: Open overlay (browse mode)
+- C: Open overlay (paste stack mode)
 
 **Within Overlay:**
-- ← / →: Navigate cards
+- / : Navigate cards
 - Enter: Paste selected card
 - Space: Toggle selection (in paste stack mode)
-- ⌘F: Activate search
-- ⌘→ / ⌘←: Switch pinboards
-- ⌘1..9: Quick paste indexed item
-- ⇧ (hold): Modifier for plain text paste
+- F: Activate search
+- / : Switch pinboards
+- 1..9: Quick paste indexed item
+- (hold): Modifier for plain text paste
 - Escape: Close overlay
-- Tab: Cycle focus (pinboards → cards → search)
+- Tab: Cycle focus (pinboards cards search)
 
 **Accessibility:**
 - VoiceOver: Announce card content and type
@@ -822,11 +842,17 @@ remember everything.
 ### 11.3 Drag and Drop
 
 **Drag Source:**
-- Card → External app: Drag preview, provide pasteboard data
-- Card → Pinboard tab: Move item to pinboard (show highlight)
+- Card External app: Drag preview, provide pasteboard data
+- Card Pinboard tab: Move item to pinboard (show highlight)
 
 **Drop Target:**
 - Overlay (when open): Accept text/images/files, create new clip item
+
+**Drag Out to Paste:**
+- Drag card outside the overlay window
+- Overlay closes
+- Item content is pasted into the target application under cursor
+- Visual feedback: Drag preview follows cursor
 
 ---
 
@@ -855,14 +881,14 @@ remember everything.
 **Pinboard Colors:**
 ```swift
 enum PinboardColor: String {
-    case red     = "#E86B6B"
-    case orange  = "#F0B25D"
-    case yellow  = "#E2D36B"
-    case green   = "#6BCB83"
-    case blue    = "#4FAAD7"
-    case purple  = "#7A79E3"
-    case pink    = "#C47AD8"
-    case gray    = "#8E8E93"
+ case red = "#E86B6B"
+ case orange = "#F0B25D"
+ case yellow = "#E2D36B"
+ case green = "#6BCB83"
+ case blue = "#4FAAD7"
+ case purple = "#7A79E3"
+ case pink = "#C47AD8"
+ case gray = "#8E8E93"
 }
 ```
 
@@ -928,7 +954,7 @@ enum PinboardColor: String {
 
 **Shortcuts:**
 - All actions accessible via keyboard
-- Shortcuts listed in menu (with symbols: ⌘⇧⌥⌃)
+- Shortcuts listed in menu (with symbols: )
 - Customizable shortcuts with conflict detection
 
 ### 13.3 Reduce Motion
@@ -1040,24 +1066,24 @@ enum PinboardColor: String {
 ```
 ClipboardMac/UI/
 ├── Overlay/
-│   ├── OverlayWindow.swift
-│   ├── OverlayRootView.swift
-│   ├── PinboardTabBar.swift
-│   ├── ItemCardRow.swift
-│   ├── ItemCard.swift
-│   ├── CardPreviews/
-│   │   ├── TextPreview.swift
-│   │   ├── ImagePreview.swift
-│   │   ├── URLPreview.swift
-│   │   ├── FilePreview.swift
-│   │   └── CodePreview.swift
-│   └── SearchMode.swift
+│ ├── OverlayWindow.swift
+│ ├── OverlayRootView.swift
+│ ├── PinboardTabBar.swift
+│ ├── ItemCardRow.swift
+│ ├── ItemCard.swift
+│ ├── CardPreviews/
+│ │ ├── TextPreview.swift
+│ │ ├── ImagePreview.swift
+│ │ ├── URLPreview.swift
+│ │ ├── FilePreview.swift
+│ │ └── CodePreview.swift
+│ └── SearchMode.swift
 ├── Components/
-│   ├── PinboardTab.swift
-│   └── ContextMenus.swift
+│ ├── PinboardTab.swift
+│ └── ContextMenus.swift
 └── MenuBar/
-    ├── MenuBarView.swift
-    └── NewTextItemSheet.swift
+ ├── MenuBarView.swift
+ └── NewTextItemSheet.swift
 ```
 
 ---
@@ -1073,11 +1099,20 @@ ClipboardMac/UI/
 - [x] Add visual feedback for paste actions (footer "Pasting..." state)
 - [x] Create plain text mode indicator (when Shift held)
 - [x] Add sound effects integration (system sounds)
+- [x] Implement resizable overlay with drag handle
+- [x] Create advanced search filters (Date, Type, App)
+- [x] Implement drag-out-to-paste functionality
+- [x] Add drag preview window for custom visual feedback
 
 **Success Criteria:**
 - Stack selection feels responsive
-- Quick paste (⌘1-9) responds instantly
+- Quick paste (1-9) responds instantly
 - Plain text mode has clear visual indicator
+
+**Status Notes:**
+- Phase 3 UI fully implemented.
+- Paste Stack footer, quick paste badges, and plain text modifiers are active.
+- Sound effects wired for paste actions.
 
 ---
 
@@ -1147,18 +1182,18 @@ ClipboardMac/UI/
 ### 16.1 Decisions Needed
 
 1. **Click outside to close?**
-   - **Implemented:** Close on outside interaction and app focus loss
-   - **Notes:** Escape still closes the overlay
+ - **Implemented:** Close on outside interaction and app focus loss
+ - **Notes:** Escape still closes the overlay
 
 2. **Card width: Fixed or adaptive?**
-   - **Implemented:** Fixed 220pt (consistent sizing)
+ - **Implemented:** Fixed 220pt (consistent sizing)
 
 3. **Maximum visible cards?**
-   - **Recommendation:** Show 3-4 cards, scroll for more
-   - **Alternative:** Scale down to show more (max 6)
+ - **Recommendation:** Show 3-4 cards, scroll for more
+ - **Alternative:** Scale down to show more (max 6)
 
 4. **Pinboard color in card UI?**
-   - **Implemented:** Color dots in card footer
+ - **Implemented:** Color dots in card footer
 
 ### 16.2 Future Enhancements
 

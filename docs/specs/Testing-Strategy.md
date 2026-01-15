@@ -41,13 +41,13 @@ This document defines the comprehensive testing strategy for the Paste Clipboard
 ### 2.1 Test Distribution
 
 ```
-        ▲
-       /UI\          ~10%  (Slow, brittle)
-      /────\
-     /Integ.\        ~30%  (Medium speed)
-    /────────\
-   /   Unit   \      ~60%  (Fast, reliable)
-  /────────────\
+ ▲
+ /UI\ ~10% (Slow, brittle)
+ /────\
+ /Integ.\ ~30% (Medium speed)
+ /────────\
+ / Unit \ ~60% (Fast, reliable)
+ /────────────\
 ```
 
 **Target Distribution:**
@@ -72,23 +72,23 @@ This document defines the comprehensive testing strategy for the Paste Clipboard
 ```
 ClipboardCoreTests/
 ├── DataModel/
-│   ├── ClipItemTests.swift
-│   ├── PinboardTests.swift
-│   └── RepresentationTests.swift
+│ ├── ClipItemTests.swift
+│ ├── PinboardTests.swift
+│ └── RepresentationTests.swift
 ├── BusinessRules/
-│   ├── DeduplicationTests.swift
-│   ├── RetentionTests.swift
-│   └── Classifiers/
-│       ├── ConfidentialContentClassifierTests.swift
-│       └── TransientContentClassifierTests.swift
+│ ├── DeduplicationTests.swift
+│ ├── RetentionTests.swift
+│ └── Classifiers/
+│ ├── ConfidentialContentClassifierTests.swift
+│ └── TransientContentClassifierTests.swift
 ├── Persistence/
-│   ├── CoreDataStackTests.swift
-│   └── MigrationTests.swift
+│ ├── CoreDataStackTests.swift
+│ └── MigrationTests.swift
 ├── Search/
-│   └── SearchIndexTests.swift
+│ └── SearchIndexTests.swift
 └── Utilities/
-    ├── HashingTests.swift
-    └── NormalizationTests.swift
+ ├── HashingTests.swift
+ └── NormalizationTests.swift
 ```
 
 ### 3.3 What to Test
@@ -96,180 +96,180 @@ ClipboardCoreTests/
 #### Data Model
 ```swift
 class ClipItemTests: XCTestCase {
-    var context: NSManagedObjectContext!
-    
-    override func setUp() {
-        super.setUp()
-        context = createInMemoryContext()
-    }
-    
-    func testClipItemCreation() {
-        let item = ClipItem(context: context)
-        item.id = UUID()
-        item.createdAt = Date()
-        item.itemType = .text
-        item.primaryText = "Test"
-        item.contentHash = "abc123"
-        
-        XCTAssertNoThrow(try context.save())
-    }
-    
-    func testHashMustBeUnique() {
-        let item1 = createClipItem(contentHash: "duplicate")
-        try! context.save()
-        
-        let item2 = createClipItem(contentHash: "duplicate")
-        
-        XCTAssertThrowsError(try context.save())
-    }
-    
-    func testDeletionCascadesToRepresentations() {
-        let item = createClipItem()
-        let rep = createRepresentation(for: item)
-        try! context.save()
-        
-        context.delete(item)
-        try! context.save()
-        
-        XCTAssertTrue(rep.isDeleted)
-    }
+ var context: NSManagedObjectContext!
+ 
+ override func setUp() {
+ super.setUp()
+ context = createInMemoryContext()
+ }
+ 
+ func testClipItemCreation() {
+ let item = ClipItem(context: context)
+ item.id = UUID()
+ item.createdAt = Date()
+ item.itemType = .text
+ item.primaryText = "Test"
+ item.contentHash = "abc123"
+ 
+ XCTAssertNoThrow(try context.save())
+ }
+ 
+ func testHashMustBeUnique() {
+ let item1 = createClipItem(contentHash: "duplicate")
+ try! context.save()
+ 
+ let item2 = createClipItem(contentHash: "duplicate")
+ 
+ XCTAssertThrowsError(try context.save())
+ }
+ 
+ func testDeletionCascadesToRepresentations() {
+ let item = createClipItem()
+ let rep = createRepresentation(for: item)
+ try! context.save()
+ 
+ context.delete(item)
+ try! context.save()
+ 
+ XCTAssertTrue(rep.isDeleted)
+ }
 }
 ```
 
 #### Hashing and Deduplication
 ```swift
 class HashingTests: XCTestCase {
-    func testTextHashIsConsistent() {
-        let text = "Hello, World!"
-        let hash1 = computeHash(text)
-        let hash2 = computeHash(text)
-        
-        XCTAssertEqual(hash1, hash2)
-    }
-    
-    func testTextHashNormalizesWhitespace() {
-        let text1 = "Hello,  World!"
-        let text2 = "Hello, World!"
-        
-        let hash1 = computeHash(text1)
-        let hash2 = computeHash(text2)
-        
-        XCTAssertEqual(hash1, hash2)
-    }
-    
-    func testImageHashUsesRawBytes() {
-        let image = createTestImage()
-        let hash = computeHash(image)
-        
-        XCTAssertEqual(hash.count, 64) // SHA-256 hex
-    }
+ func testTextHashIsConsistent() {
+ let text = "Hello, World!"
+ let hash1 = computeHash(text)
+ let hash2 = computeHash(text)
+ 
+ XCTAssertEqual(hash1, hash2)
+ }
+ 
+ func testTextHashNormalizesWhitespace() {
+ let text1 = "Hello, World!"
+ let text2 = "Hello, World!"
+ 
+ let hash1 = computeHash(text1)
+ let hash2 = computeHash(text2)
+ 
+ XCTAssertEqual(hash1, hash2)
+ }
+ 
+ func testImageHashUsesRawBytes() {
+ let image = createTestImage()
+ let hash = computeHash(image)
+ 
+ XCTAssertEqual(hash.count, 64) // SHA-256 hex
+ }
 }
 ```
 
 #### Classifiers
 ```swift
 class ConfidentialContentClassifierTests: XCTestCase {
-    var classifier: ConfidentialContentClassifier!
-    
-    override func setUp() {
-        classifier = ConfidentialContentClassifier()
-    }
-    
-    func testDetectsStrongPassword() {
-        let password = "aB3$xY9!mN2@"
-        let result = classifier.classify(password)
-        
-        XCTAssertEqual(result, .sensitive(.password))
-    }
-    
-    func testDoesNotDetectURL() {
-        let url = "https://example.com"
-        let result = classifier.classify(url)
-        
-        XCTAssertEqual(result, .safe)
-    }
-    
-    func testDetects6DigitOTP() {
-        let otp = "123456"
-        let result = classifier.classify(otp)
-        
-        XCTAssertEqual(result, .sensitive(.oneTimeCode))
-    }
-    
-    func testDetectsCreditCard() {
-        let card = "4532015112830366"  // Valid test number
-        let result = classifier.classify(card)
-        
-        XCTAssertEqual(result, .sensitive(.creditCard))
-    }
-    
-    func testRejectsInvalidCreditCard() {
-        let card = "4532015112830367"  // Fails Luhn check
-        let result = classifier.classify(card)
-        
-        XCTAssertEqual(result, .safe)
-    }
+ var classifier: ConfidentialContentClassifier!
+ 
+ override func setUp() {
+ classifier = ConfidentialContentClassifier()
+ }
+ 
+ func testDetectsStrongPassword() {
+ let password = "aB3$xY9!mN2@"
+ let result = classifier.classify(password)
+ 
+ XCTAssertEqual(result, .sensitive(.password))
+ }
+ 
+ func testDoesNotDetectURL() {
+ let url = "https://example.com"
+ let result = classifier.classify(url)
+ 
+ XCTAssertEqual(result, .safe)
+ }
+ 
+ func testDetects6DigitOTP() {
+ let otp = "123456"
+ let result = classifier.classify(otp)
+ 
+ XCTAssertEqual(result, .sensitive(.oneTimeCode))
+ }
+ 
+ func testDetectsCreditCard() {
+ let card = "4532015112830366" // Valid test number
+ let result = classifier.classify(card)
+ 
+ XCTAssertEqual(result, .sensitive(.creditCard))
+ }
+ 
+ func testRejectsInvalidCreditCard() {
+ let card = "4532015112830367" // Fails Luhn check
+ let result = classifier.classify(card)
+ 
+ XCTAssertEqual(result, .safe)
+ }
 }
 ```
 
 #### Retention Policy
 ```swift
 class RetentionTests: XCTestCase {
-    var context: NSManagedObjectContext!
-    var retentionManager: RetentionManager!
-    
-    override func setUp() {
-        context = createInMemoryContext()
-        retentionManager = RetentionManager(context: context)
-    }
-    
-    func testDeletesExpiredItems() {
-        // Create old item
-        let oldItem = createClipItem()
-        oldItem.createdAt = Date().addingTimeInterval(-30 * 24 * 60 * 60) // 30 days ago
-        
-        // Create recent item
-        let recentItem = createClipItem()
-        recentItem.createdAt = Date()
-        
-        try! context.save()
-        
-        // Set retention to 7 days
-        retentionManager.retentionDays = 7
-        retentionManager.cleanup()
-        
-        // Old item should be deleted
-        XCTAssertTrue(oldItem.isDeleted)
-        XCTAssertFalse(recentItem.isDeleted)
-    }
-    
-    func testDoesNotDeletePinnedItems() {
-        let oldItem = createClipItem()
-        oldItem.createdAt = Date().addingTimeInterval(-30 * 24 * 60 * 60)
-        oldItem.isPinned = true
-        
-        try! context.save()
-        
-        retentionManager.retentionDays = 7
-        retentionManager.cleanup()
-        
-        XCTAssertFalse(oldItem.isDeleted)
-    }
-    
-    func testDoesNotDeleteItemsInUserPinboards() {
-        let oldItem = createClipItem()
-        oldItem.createdAt = Date().addingTimeInterval(-30 * 24 * 60 * 60)
-        
-        let pinboard = createPinboard(isSystem: false)
-        oldItem.addToPinboards(pinboard)
-        
-        try! context.save()
-        
-        retentionManager.retentionDays = 7
-        retentionManager.cleanup()
-        
-        XCTAssertFalse(oldItem.isDeleted)
-    }
+ var context: NSManagedObjectContext!
+ var retentionManager: RetentionManager!
+ 
+ override func setUp() {
+ context = createInMemoryContext()
+ retentionManager = RetentionManager(context: context)
+ }
+ 
+ func testDeletesExpiredItems() {
+ // Create old item
+ let oldItem = createClipItem()
+ oldItem.createdAt = Date().addingTimeInterval(-30 * 24 * 60 * 60) // 30 days ago
+ 
+ // Create recent item
+ let recentItem = createClipItem()
+ recentItem.createdAt = Date()
+ 
+ try! context.save()
+ 
+ // Set retention to 7 days
+ retentionManager.retentionDays = 7
+ retentionManager.cleanup()
+ 
+ // Old item should be deleted
+ XCTAssertTrue(oldItem.isDeleted)
+ XCTAssertFalse(recentItem.isDeleted)
+ }
+ 
+ func testDoesNotDeletePinnedItems() {
+ let oldItem = createClipItem()
+ oldItem.createdAt = Date().addingTimeInterval(-30 * 24 * 60 * 60)
+ oldItem.isPinned = true
+ 
+ try! context.save()
+ 
+ retentionManager.retentionDays = 7
+ retentionManager.cleanup()
+ 
+ XCTAssertFalse(oldItem.isDeleted)
+ }
+ 
+ func testDoesNotDeleteItemsInUserPinboards() {
+ let oldItem = createClipItem()
+ oldItem.createdAt = Date().addingTimeInterval(-30 * 24 * 60 * 60)
+ 
+ let pinboard = createPinboard(isSystem: false)
+ oldItem.addToPinboards(pinboard)
+ 
+ try! context.save()
+ 
+ retentionManager.retentionDays = 7
+ retentionManager.cleanup()
+ 
+ XCTAssertFalse(oldItem.isDeleted)
+ }
 }
 ```
 
@@ -298,10 +298,10 @@ Test interactions between modules with real dependencies (Core Data, file system
 ```
 ClipboardMacTests/
 ├── Integration/
-│   ├── CaptureToStorageTests.swift
-│   ├── PasteEngineTests.swift
-│   ├── SearchIntegrationTests.swift
-│   └── AssetStorageTests.swift
+│ ├── CaptureToStorageTests.swift
+│ ├── PasteEngineTests.swift
+│ ├── SearchIntegrationTests.swift
+│ └── AssetStorageTests.swift
 ```
 
 ### 4.3 Key Integration Tests
@@ -309,150 +309,150 @@ ClipboardMacTests/
 #### Capture Pipeline
 ```swift
 class CaptureToStorageTests: XCTestCase {
-    var monitor: PasteboardMonitor!
-    var persistence: PersistenceController!
-    var testPasteboard: NSPasteboard!
-    
-    override func setUp() {
-        persistence = PersistenceController(inMemory: true)
-        monitor = PasteboardMonitor(persistence: persistence)
-        testPasteboard = NSPasteboard.general
-    }
-    
-    func testCaptureTextThroughFullPipeline() async throws {
-        // Write to pasteboard
-        testPasteboard.clearContents()
-        testPasteboard.setString("Test content", forType: .string)
-        
-        // Trigger capture
-        monitor.checkForChanges()
-        
-        // Wait for async processing
-        try await Task.sleep(nanoseconds: 100_000_000) // 100ms
-        
-        // Verify in database
-        let items = try persistence.viewContext.fetch(ClipItem.fetchRequest())
-        XCTAssertEqual(items.count, 1)
-        XCTAssertEqual(items.first?.primaryText, "Test content")
-    }
-    
-    func testCaptureLargeImageStoresAsFile() async throws {
-        let largeImage = createLargeTestImage(size: CGSize(width: 2000, height: 2000))
-        
-        testPasteboard.clearContents()
-        testPasteboard.writeObjects([largeImage])
-        
-        monitor.checkForChanges()
-        try await Task.sleep(nanoseconds: 500_000_000) // 500ms for thumbnail
-        
-        let items = try persistence.viewContext.fetch(ClipItem.fetchRequest())
-        XCTAssertEqual(items.count, 1)
-        
-        let item = items.first!
-        let representation = item.representations?.first { $0.kind == .png }
-        
-        XCTAssertNotNil(representation)
-        XCTAssertNotNil(representation?.assetRef) // Should be stored as file
-        XCTAssertNil(representation?.binaryData) // Not inline
-    }
+ var monitor: PasteboardMonitor!
+ var persistence: PersistenceController!
+ var testPasteboard: NSPasteboard!
+ 
+ override func setUp() {
+ persistence = PersistenceController(inMemory: true)
+ monitor = PasteboardMonitor(persistence: persistence)
+ testPasteboard = NSPasteboard.general
+ }
+ 
+ func testCaptureTextThroughFullPipeline() async throws {
+ // Write to pasteboard
+ testPasteboard.clearContents()
+ testPasteboard.setString("Test content", forType: .string)
+ 
+ // Trigger capture
+ monitor.checkForChanges()
+ 
+ // Wait for async processing
+ try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+ 
+ // Verify in database
+ let items = try persistence.viewContext.fetch(ClipItem.fetchRequest())
+ XCTAssertEqual(items.count, 1)
+ XCTAssertEqual(items.first?.primaryText, "Test content")
+ }
+ 
+ func testCaptureLargeImageStoresAsFile() async throws {
+ let largeImage = createLargeTestImage(size: CGSize(width: 2000, height: 2000))
+ 
+ testPasteboard.clearContents()
+ testPasteboard.writeObjects([largeImage])
+ 
+ monitor.checkForChanges()
+ try await Task.sleep(nanoseconds: 500_000_000) // 500ms for thumbnail
+ 
+ let items = try persistence.viewContext.fetch(ClipItem.fetchRequest())
+ XCTAssertEqual(items.count, 1)
+ 
+ let item = items.first!
+ let representation = item.representations?.first { $0.kind == .png }
+ 
+ XCTAssertNotNil(representation)
+ XCTAssertNotNil(representation?.assetRef) // Should be stored as file
+ XCTAssertNil(representation?.binaryData) // Not inline
+ }
 }
 ```
 
 #### Search Integration
 ```swift
 class SearchIntegrationTests: XCTestCase {
-    var persistence: PersistenceController!
-    
-    override func setUp() {
-        persistence = PersistenceController(inMemory: true)
-        populateTestData()
-    }
-    
-    func testSearchFindsRelevantItems() {
-        let query = "swift code"
-        let request = ClipItem.fetchRequest()
-        request.predicate = NSPredicate(format: "searchableText CONTAINS[cd] %@", query)
-        
-        let results = try! persistence.viewContext.fetch(request)
-        
-        XCTAssertGreaterThan(results.count, 0)
-        XCTAssertTrue(results.allSatisfy { $0.searchableText?.lowercased().contains("swift") ?? false })
-    }
-    
-    func testSearchPerformance() {
-        // Create 1000 items
-        for i in 0..<1000 {
-            let item = ClipItem(context: persistence.viewContext)
-            item.id = UUID()
-            item.primaryText = "Item \(i) with some test content"
-            item.searchableText = item.primaryText?.lowercased()
-        }
-        try! persistence.viewContext.save()
-        
-        measure {
-            let request = ClipItem.fetchRequest()
-            request.predicate = NSPredicate(format: "searchableText CONTAINS[cd] %@", "test")
-            _ = try! persistence.viewContext.fetch(request)
-        }
-        
-        // Should complete in < 100ms (assert in XCTest metrics)
-    }
+ var persistence: PersistenceController!
+ 
+ override func setUp() {
+ persistence = PersistenceController(inMemory: true)
+ populateTestData()
+ }
+ 
+ func testSearchFindsRelevantItems() {
+ let query = "swift code"
+ let request = ClipItem.fetchRequest()
+ request.predicate = NSPredicate(format: "searchableText CONTAINS[cd] %@", query)
+ 
+ let results = try! persistence.viewContext.fetch(request)
+ 
+ XCTAssertGreaterThan(results.count, 0)
+ XCTAssertTrue(results.allSatisfy { $0.searchableText?.lowercased().contains("swift") ?? false })
+ }
+ 
+ func testSearchPerformance() {
+ // Create 1000 items
+ for i in 0..<1000 {
+ let item = ClipItem(context: persistence.viewContext)
+ item.id = UUID()
+ item.primaryText = "Item \(i) with some test content"
+ item.searchableText = item.primaryText?.lowercased()
+ }
+ try! persistence.viewContext.save()
+ 
+ measure {
+ let request = ClipItem.fetchRequest()
+ request.predicate = NSPredicate(format: "searchableText CONTAINS[cd] %@", "test")
+ _ = try! persistence.viewContext.fetch(request)
+ }
+ 
+ // Should complete in < 100ms (assert in XCTest metrics)
+ }
 }
 ```
 
 #### Asset Management
 ```swift
 class AssetStorageTests: XCTestCase {
-    var assetManager: AssetManager!
-    var tempDirectory: URL!
-    
-    override func setUp() {
-        tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try! FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
-        assetManager = AssetManager(baseURL: tempDirectory)
-    }
-    
-    override func tearDown() {
-        try? FileManager.default.removeItem(at: tempDirectory)
-    }
-    
-    func testStoreAndRetrieveAsset() throws {
-        let data = "Test asset content".data(using: .utf8)!
-        let assetID = UUID()
-        
-        let url = try assetManager.store(data, for: assetID, extension: "txt")
-        
-        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
-        
-        let retrieved = try Data(contentsOf: url)
-        XCTAssertEqual(retrieved, data)
-    }
-    
-    func testDeleteAsset() throws {
-        let data = "Test".data(using: .utf8)!
-        let assetID = UUID()
-        
-        let url = try assetManager.store(data, for: assetID, extension: "txt")
-        try assetManager.delete(assetID)
-        
-        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
-    }
-    
-    func testOrphanCleanup() throws {
-        // Create orphan file (not referenced in DB)
-        let orphanURL = tempDirectory.appendingPathComponent("orphan.bin")
-        try "Orphan".data(using: .utf8)!.write(to: orphanURL)
-        
-        // Create referenced file
-        let validID = UUID()
-        _ = try assetManager.store("Valid".data(using: .utf8)!, for: validID, extension: "txt")
-        
-        // Run cleanup
-        assetManager.cleanupOrphans(validRefs: [validID])
-        
-        XCTAssertFalse(FileManager.default.fileExists(atPath: orphanURL.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: assetManager.url(for: validID, extension: "txt").path))
-    }
+ var assetManager: AssetManager!
+ var tempDirectory: URL!
+ 
+ override func setUp() {
+ tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+ try! FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+ assetManager = AssetManager(baseURL: tempDirectory)
+ }
+ 
+ override func tearDown() {
+ try? FileManager.default.removeItem(at: tempDirectory)
+ }
+ 
+ func testStoreAndRetrieveAsset() throws {
+ let data = "Test asset content".data(using: .utf8)!
+ let assetID = UUID()
+ 
+ let url = try assetManager.store(data, for: assetID, extension: "txt")
+ 
+ XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+ 
+ let retrieved = try Data(contentsOf: url)
+ XCTAssertEqual(retrieved, data)
+ }
+ 
+ func testDeleteAsset() throws {
+ let data = "Test".data(using: .utf8)!
+ let assetID = UUID()
+ 
+ let url = try assetManager.store(data, for: assetID, extension: "txt")
+ try assetManager.delete(assetID)
+ 
+ XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+ }
+ 
+ func testOrphanCleanup() throws {
+ // Create orphan file (not referenced in DB)
+ let orphanURL = tempDirectory.appendingPathComponent("orphan.bin")
+ try "Orphan".data(using: .utf8)!.write(to: orphanURL)
+ 
+ // Create referenced file
+ let validID = UUID()
+ _ = try assetManager.store("Valid".data(using: .utf8)!, for: validID, extension: "txt")
+ 
+ // Run cleanup
+ assetManager.cleanupOrphans(validRefs: [validID])
+ 
+ XCTAssertFalse(FileManager.default.fileExists(atPath: orphanURL.path))
+ XCTAssertTrue(FileManager.default.fileExists(atPath: assetManager.url(for: validID, extension: "txt").path))
+ }
 }
 ```
 
@@ -479,91 +479,91 @@ ClipboardMacUITests/
 #### Overlay Interaction
 ```swift
 class OverlayUITests: XCTestCase {
-    var app: XCUIApplication!
-    
-    override func setUp() {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-    }
-    
-    func testOverlayOpensWithHotkey() {
-        // Simulate hotkey (Shift+Cmd+V)
-        app.typeKey("v", modifierFlags: [.command, .shift])
-        
-        let overlay = app.windows["Overlay"]
-        XCTAssertTrue(overlay.waitForExistence(timeout: 1.0))
-    }
-    
-    func testCanNavigateCards() {
-        openOverlay()
-        
-        // Navigate right
-        app.typeKey(XCUIKeyboardKey.rightArrow, modifierFlags: [])
-        
-        // Card should change (hard to assert without accessibility labels)
-        // Check that second card is now focused
-    }
-    
-    func testSearchMode() {
-        openOverlay()
-        
-        // Activate search
-        app.typeKey("f", modifierFlags: [.command])
-        
-        let searchField = app.textFields["Search"]
-        XCTAssertTrue(searchField.exists)
-        XCTAssertTrue(searchField.hasFocus)
-        
-        // Type query
-        searchField.typeText("test")
-        
-        // Results should update (verify card count changes)
-    }
-    
-    func testPinboardSwitching() {
-        openOverlay()
-        
-        let tabBar = app.otherElements["PinboardTabBar"]
-        let workTab = tabBar.buttons["Work"]
-        
-        workTab.click()
-        
-        // Verify active pinboard changed (check UI state)
-    }
+ var app: XCUIApplication!
+ 
+ override func setUp() {
+ continueAfterFailure = false
+ app = XCUIApplication()
+ app.launch()
+ }
+ 
+ func testOverlayOpensWithHotkey() {
+ // Simulate hotkey (Shift+Cmd+V)
+ app.typeKey("v", modifierFlags: [.command, .shift])
+ 
+ let overlay = app.windows["Overlay"]
+ XCTAssertTrue(overlay.waitForExistence(timeout: 1.0))
+ }
+ 
+ func testCanNavigateCards() {
+ openOverlay()
+ 
+ // Navigate right
+ app.typeKey(XCUIKeyboardKey.rightArrow, modifierFlags: [])
+ 
+ // Card should change (hard to assert without accessibility labels)
+ // Check that second card is now focused
+ }
+ 
+ func testSearchMode() {
+ openOverlay()
+ 
+ // Activate search
+ app.typeKey("f", modifierFlags: [.command])
+ 
+ let searchField = app.textFields["Search"]
+ XCTAssertTrue(searchField.exists)
+ XCTAssertTrue(searchField.hasFocus)
+ 
+ // Type query
+ searchField.typeText("test")
+ 
+ // Results should update (verify card count changes)
+ }
+ 
+ func testPinboardSwitching() {
+ openOverlay()
+ 
+ let tabBar = app.otherElements["PinboardTabBar"]
+ let workTab = tabBar.buttons["Work"]
+ 
+ workTab.click()
+ 
+ // Verify active pinboard changed (check UI state)
+ }
 }
 ```
 
 #### Settings Window
 ```swift
 class SettingsUITests: XCTestCase {
-    func testGeneralSettings() {
-        openSettings()
-        
-        let generalTab = app.buttons["General"]
-        generalTab.click()
-        
-        let openAtLoginCheckbox = app.checkBoxes["Open at login"]
-        XCTAssertTrue(openAtLoginCheckbox.exists)
-        
-        openAtLoginCheckbox.click()
-        
-        // Verify setting is persisted (relaunch app and check)
-    }
-    
-    func testAddIgnoredApp() {
-        openSettings()
-        
-        let privacyTab = app.buttons["Privacy"]
-        privacyTab.click()
-        
-        let addButton = app.buttons["+"]
-        addButton.click()
-        
-        // App picker dialog should open
-        let dialog = app.dialogs.firstMatch
-        XCTAssertTrue(dialog.waitForExistence(timeout: 2.0))
-    }
+ func testGeneralSettings() {
+ openSettings()
+ 
+ let generalTab = app.buttons["General"]
+ generalTab.click()
+ 
+ let openAtLoginCheckbox = app.checkBoxes["Open at login"]
+ XCTAssertTrue(openAtLoginCheckbox.exists)
+ 
+ openAtLoginCheckbox.click()
+ 
+ // Verify setting is persisted (relaunch app and check)
+ }
+ 
+ func testAddIgnoredApp() {
+ openSettings()
+ 
+ let privacyTab = app.buttons["Privacy"]
+ privacyTab.click()
+ 
+ let addButton = app.buttons["+"]
+ addButton.click()
+ 
+ // App picker dialog should open
+ let dialog = app.dialogs.firstMatch
+ XCTAssertTrue(dialog.waitForExistence(timeout: 2.0))
+ }
 }
 ```
 
@@ -599,48 +599,48 @@ class SettingsUITests: XCTestCase {
 
 ```swift
 class PerformanceTests: XCTestCase {
-    func testDatabaseQueryPerformance() {
-        let persistence = PersistenceController(inMemory: false)
-        
-        // Populate with 10,000 items
-        for i in 0..<10_000 {
-            let item = createClipItem(text: "Item \(i)")
-        }
-        try! persistence.viewContext.save()
-        
-        measure(metrics: [XCTClockMetric()]) {
-            let request = ClipItem.fetchRequest()
-            request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-            request.fetchLimit = 100
-            
-            _ = try! persistence.viewContext.fetch(request)
-        }
-        
-        // Assert: avg < 50ms, max < 100ms
-    }
-    
-    func testThumbnailGenerationPerformance() {
-        let largeImage = createTestImage(size: CGSize(width: 3000, height: 3000))
-        
-        measure {
-            _ = generateThumbnail(for: largeImage, maxSize: CGSize(width: 512, height: 512))
-        }
-        
-        // Assert: avg < 500ms
-    }
-    
-    func testSearchPerformance() {
-        // Populate 1000 items
-        populateTestData(count: 1000)
-        
-        measure {
-            let request = ClipItem.fetchRequest()
-            request.predicate = NSPredicate(format: "searchableText CONTAINS[cd] %@", "test")
-            _ = try! persistence.viewContext.fetch(request)
-        }
-        
-        // Assert: avg < 100ms
-    }
+ func testDatabaseQueryPerformance() {
+ let persistence = PersistenceController(inMemory: false)
+ 
+ // Populate with 10,000 items
+ for i in 0..<10_000 {
+ let item = createClipItem(text: "Item \(i)")
+ }
+ try! persistence.viewContext.save()
+ 
+ measure(metrics: [XCTClockMetric()]) {
+ let request = ClipItem.fetchRequest()
+ request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+ request.fetchLimit = 100
+ 
+ _ = try! persistence.viewContext.fetch(request)
+ }
+ 
+ // Assert: avg < 50ms, max < 100ms
+ }
+ 
+ func testThumbnailGenerationPerformance() {
+ let largeImage = createTestImage(size: CGSize(width: 3000, height: 3000))
+ 
+ measure {
+ _ = generateThumbnail(for: largeImage, maxSize: CGSize(width: 512, height: 512))
+ }
+ 
+ // Assert: avg < 500ms
+ }
+ 
+ func testSearchPerformance() {
+ // Populate 1000 items
+ populateTestData(count: 1000)
+ 
+ measure {
+ let request = ClipItem.fetchRequest()
+ request.predicate = NSPredicate(format: "searchableText CONTAINS[cd] %@", "test")
+ _ = try! persistence.viewContext.fetch(request)
+ }
+ 
+ // Assert: avg < 100ms
+ }
 }
 ```
 
@@ -649,19 +649,19 @@ class PerformanceTests: XCTestCase {
 **Scenarios:**
 
 1. **Large Database:** 10,000 items
-   - App launch time
-   - Overlay open time
-   - Search performance
+ - App launch time
+ - Overlay open time
+ - Search performance
 
 2. **Large Items:** Single 10MB image
-   - Capture time
-   - Storage time
-   - Thumbnail generation
+ - Capture time
+ - Storage time
+ - Thumbnail generation
 
 3. **Rapid Captures:** 100 items in 10 seconds
-   - No dropped captures
-   - No UI lag
-   - Memory stable
+ - No dropped captures
+ - No UI lag
+ - Memory stable
 
 ---
 
@@ -682,38 +682,38 @@ class PerformanceTests: XCTestCase {
 #### Unit Tests (Mocked)
 ```swift
 protocol CloudKitService {
-    func save(_ record: CKRecord) async throws
-    func fetch(_ recordID: CKRecord.ID) async throws -> CKRecord
-    func fetchChanges(token: CKServerChangeToken?) async throws -> ([CKRecord], CKServerChangeToken?)
+ func save(_ record: CKRecord) async throws
+ func fetch(_ recordID: CKRecord.ID) async throws -> CKRecord
+ func fetchChanges(token: CKServerChangeToken?) async throws -> ([CKRecord], CKServerChangeToken?)
 }
 
 class MockCloudKitService: CloudKitService {
-    var savedRecords: [CKRecord] = []
-    var fetchedRecords: [CKRecord] = []
-    
-    func save(_ record: CKRecord) async throws {
-        savedRecords.append(record)
-    }
-    
-    func fetch(_ recordID: CKRecord.ID) async throws -> CKRecord {
-        guard let record = fetchedRecords.first(where: { $0.recordID == recordID }) else {
-            throw CKError(.unknownItem)
-        }
-        return record
-    }
+ var savedRecords: [CKRecord] = []
+ var fetchedRecords: [CKRecord] = []
+ 
+ func save(_ record: CKRecord) async throws {
+ savedRecords.append(record)
+ }
+ 
+ func fetch(_ recordID: CKRecord.ID) async throws -> CKRecord {
+ guard let record = fetchedRecords.first(where: { $0.recordID == recordID }) else {
+ throw CKError(.unknownItem)
+ }
+ return record
+ }
 }
 
 class SyncEngineTests: XCTestCase {
-    func testUploadItem() async throws {
-        let mockService = MockCloudKitService()
-        let syncEngine = SyncEngine(cloudService: mockService)
-        
-        let item = createClipItem()
-        try await syncEngine.upload(item)
-        
-        XCTAssertEqual(mockService.savedRecords.count, 1)
-        XCTAssertEqual(mockService.savedRecords.first?.recordType, "CKClipItem")
-    }
+ func testUploadItem() async throws {
+ let mockService = MockCloudKitService()
+ let syncEngine = SyncEngine(cloudService: mockService)
+ 
+ let item = createClipItem()
+ try await syncEngine.upload(item)
+ 
+ XCTAssertEqual(mockService.savedRecords.count, 1)
+ XCTAssertEqual(mockService.savedRecords.first?.recordType, "CKClipItem")
+ }
 }
 ```
 
@@ -723,50 +723,50 @@ class SyncEngineTests: XCTestCase {
 
 ```swift
 class CloudKitIntegrationTests: XCTestCase {
-    var container: CKContainer!
-    var database: CKDatabase!
-    
-    override func setUp() async throws {
-        container = CKContainer(identifier: "iCloud.com.yourcompany.Paste.test")
-        database = container.privateCloudDatabase
-        
-        // Clear test data
-        try await deleteAllTestRecords()
-    }
-    
-    func testUploadAndFetchItem() async throws {
-        let item = createClipItem()
-        let record = item.toCKRecord(zone: testZone)
-        
-        // Upload
-        let saved = try await database.save(record)
-        XCTAssertNotNil(saved)
-        
-        // Fetch
-        let fetched = try await database.record(for: record.recordID)
-        XCTAssertEqual(fetched["primaryText"] as? String, item.primaryText)
-    }
-    
-    func testConflictResolution() async throws {
-        // Create item on "Device A"
-        let itemA = createClipItem()
-        let recordA = itemA.toCKRecord(zone: testZone)
-        try await database.save(recordA)
-        
-        // Modify on "Device B" (simulate by changing locally)
-        recordA["primaryText"] = "Modified on Device B"
-        
-        // Modify on "Device A" (conflict!)
-        recordA["primaryText"] = "Modified on Device A"
-        
-        // Save should detect conflict
-        do {
-            _ = try await database.save(recordA)
-            XCTFail("Should have thrown conflict error")
-        } catch let error as CKError {
-            XCTAssertEqual(error.code, .serverRecordChanged)
-        }
-    }
+ var container: CKContainer!
+ var database: CKDatabase!
+ 
+ override func setUp() async throws {
+ container = CKContainer(identifier: "iCloud.com.yourcompany.Paste.test")
+ database = container.privateCloudDatabase
+ 
+ // Clear test data
+ try await deleteAllTestRecords()
+ }
+ 
+ func testUploadAndFetchItem() async throws {
+ let item = createClipItem()
+ let record = item.toCKRecord(zone: testZone)
+ 
+ // Upload
+ let saved = try await database.save(record)
+ XCTAssertNotNil(saved)
+ 
+ // Fetch
+ let fetched = try await database.record(for: record.recordID)
+ XCTAssertEqual(fetched["primaryText"] as? String, item.primaryText)
+ }
+ 
+ func testConflictResolution() async throws {
+ // Create item on "Device A"
+ let itemA = createClipItem()
+ let recordA = itemA.toCKRecord(zone: testZone)
+ try await database.save(recordA)
+ 
+ // Modify on "Device B" (simulate by changing locally)
+ recordA["primaryText"] = "Modified on Device B"
+ 
+ // Modify on "Device A" (conflict!)
+ recordA["primaryText"] = "Modified on Device A"
+ 
+ // Save should detect conflict
+ do {
+ _ = try await database.save(recordA)
+ XCTFail("Should have thrown conflict error")
+ } catch let error as CKError {
+ XCTAssertEqual(error.code, .serverRecordChanged)
+ }
+ }
 }
 ```
 
@@ -802,21 +802,21 @@ Ensure new features don't break existing functionality.
 **Run manually before release:**
 
 - [ ] App launches successfully
-- [ ] Copy text → Captured
-- [ ] Copy image → Captured
-- [ ] Open overlay (Shift+Cmd+V) → Opens
-- [ ] Select item → Pastes into TextEdit
-- [ ] Quick Paste (Cmd+1) → Works
-- [ ] Search for item → Found
-- [ ] Create pinboard → Saved
-- [ ] Move item to pinboard → Works
-- [ ] Settings open → All tabs load
-- [ ] Change retention → Takes effect
-- [ ] Erase history → Deletes items
-- [ ] Enable iCloud sync → Syncs
-- [ ] Disable iCloud sync → Stops syncing
-- [ ] Restart app → Data persists
-- [ ] Quit and reopen → Everything works
+- [ ] Copy text Captured
+- [ ] Copy image Captured
+- [ ] Open overlay (Shift+Cmd+V) Opens
+- [ ] Select item Pastes into TextEdit
+- [ ] Quick Paste (Cmd+1) Works
+- [ ] Search for item Found
+- [ ] Create pinboard Saved
+- [ ] Move item to pinboard Works
+- [ ] Settings open All tabs load
+- [ ] Change retention Takes effect
+- [ ] Erase history Deletes items
+- [ ] Enable iCloud sync Syncs
+- [ ] Disable iCloud sync Stops syncing
+- [ ] Restart app Data persists
+- [ ] Quit and reopen Everything works
 
 ---
 
@@ -969,23 +969,23 @@ name: Test
 on: [push, pull_request]
 
 jobs:
-  test:
-    runs-on: macos-14
-    
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Run Unit Tests
-        run: xcodebuild test -scheme ClipboardCore -destination 'platform=macOS'
-      
-      - name: Run Integration Tests
-        run: xcodebuild test -scheme ClipboardMac -destination 'platform=macOS'
-      
-      - name: Generate Coverage Report
-        run: xcrun xccov view --report --json DerivedData/Logs/Test/*.xcresult
-      
-      - name: Upload Coverage
-        uses: codecov/codecov-action@v3
+ test:
+ runs-on: macos-14
+ 
+ steps:
+ - uses: actions/checkout@v3
+ 
+ - name: Run Unit Tests
+ run: xcodebuild test -scheme ClipboardCore -destination 'platform=macOS'
+ 
+ - name: Run Integration Tests
+ run: xcodebuild test -scheme ClipboardMac -destination 'platform=macOS'
+ 
+ - name: Generate Coverage Report
+ run: xcrun xccov view --report --json DerivedData/Logs/Test/*.xcresult
+ 
+ - name: Upload Coverage
+ uses: codecov/codecov-action@v3
 ```
 
 ### 11.2 Pre-Commit Hooks
@@ -1003,8 +1003,8 @@ echo "Running tests..."
 xcodebuild test -scheme ClipboardCore -destination 'platform=macOS' -quiet
 
 if [ $? -ne 0 ]; then
-    echo "Tests failed. Commit aborted."
-    exit 1
+ echo "Tests failed. Commit aborted."
+ exit 1
 fi
 
 echo "Tests passed. Proceeding with commit."

@@ -1,7 +1,7 @@
 # Paste Clipboard Manager - Engineering Specifications
 
-**Version:** 1.0.0  
-**Last Updated:** 2026-01-09  
+**Version:** 1.0.0 
+**Last Updated:** 2026-01-09 
 **Status:** Complete
 
 ---
@@ -14,8 +14,8 @@ This directory contains the complete versioned engineering documentation for the
 
 ## Document Structure
 
-### 1. [Architecture Overview](./Architecture-Overview.md) 📐
-**Status:** ✅ Complete  
+### 1. [Architecture Overview](./Architecture-Overview.md) 
+**Status:** Complete 
 **Purpose:** High-level system architecture, module structure, data flows, and implementation roadmap
 
 **Key Contents:**
@@ -30,8 +30,8 @@ This directory contains the complete versioned engineering documentation for the
 
 ---
 
-### 2. [Data Model Specification](./Data-Model-Spec.md) 🗄️
-**Status:** ✅ Complete  
+### 2. [Data Model Specification](./Data-Model-Spec.md) ️
+**Status:** Complete 
 **Purpose:** Complete local data model using Core Data
 
 **Key Contents:**
@@ -47,8 +47,8 @@ This directory contains the complete versioned engineering documentation for the
 
 ---
 
-### 3. [Cloud Schema Specification](./Cloud-Schema-Spec.md) ☁️
-**Status:** ✅ Complete  
+### 3. [Cloud Schema Specification](./Cloud-Schema-Spec.md) ️
+**Status:** Complete 
 **Purpose:** CloudKit synchronization architecture
 
 **Key Contents:**
@@ -64,8 +64,8 @@ This directory contains the complete versioned engineering documentation for the
 
 ---
 
-### 4. [UI Contract Specification](./UI-Contract-Spec.md) 🎨
-**Status:** ✅ Complete  
+### 4. [UI Contract Specification](./UI-Contract-Spec.md) 
+**Status:** Complete 
 **Purpose:** Complete user interface specification
 
 **Key Contents:**
@@ -84,8 +84,8 @@ This directory contains the complete versioned engineering documentation for the
 
 ---
 
-### 5. [macOS Services Specification](./macOS-Services-Spec.md) ⚙️
-**Status:** ✅ Complete  
+### 5. [macOS Services Specification](./macOS-Services-Spec.md) ️
+**Status:** Complete 
 **Purpose:** macOS-specific system integrations
 
 **Key Contents:**
@@ -101,8 +101,8 @@ This directory contains the complete versioned engineering documentation for the
 
 ---
 
-### 6. [Privacy & Security Specification](./Privacy-Security-Spec.md) 🔒
-**Status:** ✅ Complete  
+### 6. [Privacy & Security Specification](./Privacy-Security-Spec.md) 
+**Status:** Complete 
 **Purpose:** Privacy controls and security measures
 
 **Key Contents:**
@@ -119,8 +119,8 @@ This directory contains the complete versioned engineering documentation for the
 
 ---
 
-### 7. [Testing Strategy](./Testing-Strategy.md) 🧪
-**Status:** ✅ Complete  
+### 7. [Testing Strategy](./Testing-Strategy.md) 
+**Status:** Complete 
 **Purpose:** Comprehensive testing approach
 
 **Key Contents:**
@@ -152,7 +152,7 @@ This directory contains the complete versioned engineering documentation for the
 - Text-only pasteboard monitor
 - Basic overlay listing items
 
-**Status:** ✅ Implemented (performance validation + automation pending)
+**Status:** Implemented (performance validation + automation pending)
 
 ---
 
@@ -170,7 +170,7 @@ This directory contains the complete versioned engineering documentation for the
 - Search mode
 - Menu bar app
 
-**Status:** ✅ Implemented (UI rendering perf benchmarked)
+**Status:** Implemented (UI rendering perf benchmarked)
 
 ---
 
@@ -188,7 +188,7 @@ This directory contains the complete versioned engineering documentation for the
 - Paste stack sequential logic
 - Global hotkeys
 
-**Status:** 📋 Ready to start (Phase 2 complete; Accessibility permission flow pending)
+**Status:** Ready to start (Phase 2 complete; Accessibility permission flow pending)
 
 ---
 
@@ -244,45 +244,45 @@ This directory contains the complete versioned engineering documentation for the
 ### For Developers
 
 1. **Starting a new feature:**
-   - Read Architecture Overview for context
-   - Find the relevant spec (e.g., UI Contract for UI work)
-   - Check phase-specific tasks for your current phase
-   - Implement according to the spec
-   - Write tests per Testing Strategy
+ - Read Architecture Overview for context
+ - Find the relevant spec (e.g., UI Contract for UI work)
+ - Check phase-specific tasks for your current phase
+ - Implement according to the spec
+ - Write tests per Testing Strategy
 
 2. **Resolving ambiguity:**
-   - Check "Open Questions" section in relevant spec
-   - If not documented, propose a decision and update the spec
-   - Version the spec when making changes
+ - Check "Open Questions" section in relevant spec
+ - If not documented, propose a decision and update the spec
+ - Version the spec when making changes
 
 3. **Adding new features (post-MVP):**
-   - Update relevant specs first
-   - Increment version number
-   - Document in changelog
-   - Get approval before implementing
+ - Update relevant specs first
+ - Increment version number
+ - Document in changelog
+ - Get approval before implementing
 
 ### For Product/Design
 
 1. **Understanding what's built:**
-   - Architecture Overview for high-level structure
-   - UI Contract Spec for complete UI definition
-   - Privacy & Security Spec for user-facing privacy features
+ - Architecture Overview for high-level structure
+ - UI Contract Spec for complete UI definition
+ - Privacy & Security Spec for user-facing privacy features
 
 2. **Proposing changes:**
-   - Identify affected specs
-   - Work with engineering to update specs
-   - Changes to specs = changes to scope/timeline
+ - Identify affected specs
+ - Work with engineering to update specs
+ - Changes to specs = changes to scope/timeline
 
 ### For QA/Testing
 
 1. **Test planning:**
-   - Testing Strategy is your primary reference
-   - Phase-specific tasks list what to test when
-   - Manual testing checklists provided
+ - Testing Strategy is your primary reference
+ - Phase-specific tasks list what to test when
+ - Manual testing checklists provided
 
 2. **Bug reporting:**
-   - Reference specific spec section when filing bugs
-   - Check if behavior matches spec (spec bug vs implementation bug)
+ - Reference specific spec section when filing bugs
+ - Check if behavior matches spec (spec bug vs implementation bug)
 
 ---
 
@@ -292,9 +292,9 @@ This directory contains the complete versioned engineering documentation for the
 
 `MAJOR.MINOR.PATCH`
 
-- **MAJOR:** Significant architectural changes (e.g., 1.0 → 2.0)
-- **MINOR:** New features or substantial additions (e.g., 1.0 → 1.1)
-- **PATCH:** Bug fixes, clarifications, minor updates (e.g., 1.0.0 → 1.0.1)
+- **MAJOR:** Significant architectural changes (e.g., 1.0 2.0)
+- **MINOR:** New features or substantial additions (e.g., 1.0 1.1)
+- **PATCH:** Bug fixes, clarifications, minor updates (e.g., 1.0.0 1.0.1)
 
 ### Change Process
 
@@ -312,22 +312,22 @@ This directory contains the complete versioned engineering documentation for the
 
 ```
 Architecture-Overview.md (root)
-    ├── Data-Model-Spec.md
-    │   ├── Cloud-Schema-Spec.md
-    │   └── UI-Contract-Spec.md
-    ├── macOS-Services-Spec.md
-    │   └── Privacy-Security-Spec.md
-    └── Testing-Strategy.md (depends on all)
+ ├── Data-Model-Spec.md
+ │ ├── Cloud-Schema-Spec.md
+ │ └── UI-Contract-Spec.md
+ ├── macOS-Services-Spec.md
+ │ └── Privacy-Security-Spec.md
+ └── Testing-Strategy.md (depends on all)
 ```
 
 **Reading Order:**
 1. Architecture Overview (context)
 2. Data Model Spec (foundation)
 3. Choose based on your role:
-   - **Backend:** Cloud Schema Spec → macOS Services Spec
-   - **Frontend:** UI Contract Spec
-   - **Security:** Privacy & Security Spec
-   - **QA:** Testing Strategy
+ - **Backend:** Cloud Schema Spec macOS Services Spec
+ - **Frontend:** UI Contract Spec
+ - **Security:** Privacy & Security Spec
+ - **QA:** Testing Strategy
 
 ---
 
@@ -394,14 +394,14 @@ Before merging spec changes:
 
 ```
 docs/specs/
-├── README.md                           (this file)
-├── Architecture-Overview.md            (32 KB, 850 lines)
-├── Data-Model-Spec.md                  (48 KB, 1,100 lines)
-├── Cloud-Schema-Spec.md                (52 KB, 1,200 lines)
-├── UI-Contract-Spec.md                 (64 KB, 1,400 lines)
-├── macOS-Services-Spec.md              (56 KB, 1,300 lines)
-├── Privacy-Security-Spec.md            (44 KB, 1,000 lines)
-└── Testing-Strategy.md                 (40 KB, 900 lines)
+├── README.md (this file)
+├── Architecture-Overview.md (32 KB, 850 lines)
+├── Data-Model-Spec.md (48 KB, 1,100 lines)
+├── Cloud-Schema-Spec.md (52 KB, 1,200 lines)
+├── UI-Contract-Spec.md (64 KB, 1,400 lines)
+├── macOS-Services-Spec.md (56 KB, 1,300 lines)
+├── Privacy-Security-Spec.md (44 KB, 1,000 lines)
+└── Testing-Strategy.md (40 KB, 900 lines)
 
 Total: ~330 KB, ~7,750 lines of technical documentation
 ```
@@ -433,7 +433,7 @@ Total: ~330 KB, ~7,750 lines of technical documentation
 
 ---
 
-**Status:** 🎉 **All specifications complete; Phase 1 implemented with notes in the index!**
+**Status:** **All specifications complete; Phase 1 implemented with notes in the index!**
 
 Next steps:
 1. Review Phase 1 notes and validation gaps

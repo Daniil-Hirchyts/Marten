@@ -10,8 +10,8 @@
 - **Status:** Draft
 - **Owner:** Engineering Team
 - **Dependencies:** 
-  - `Architecture-Overview.md` (parent)
-  - `Cloud-Schema-Spec.md` (sync compatibility)
+ - `Architecture-Overview.md` (parent)
+ - `Cloud-Schema-Spec.md` (sync compatibility)
 
 ---
 
@@ -54,20 +54,20 @@ WAL Mode: Enabled (for concurrent reads)
 
 ```
 ┌─────────────────────────────────────┐
-│   ViewContext (Main Thread)         │
-│   - UI reads only                   │
-│   - Fast fetch requests             │
+│ ViewContext (Main Thread) │
+│ - UI reads only │
+│ - Fast fetch requests │
 └─────────────────────────────────────┘
-                ↓
+ 
 ┌─────────────────────────────────────┐
-│   PersistentStoreCoordinator        │
+│ PersistentStoreCoordinator │
 └─────────────────────────────────────┘
-                ↑
+ 
 ┌─────────────────────────────────────┐
-│   BackgroundContext                 │
-│   - Capture pipeline writes         │
-│   - Sync operations                 │
-│   - Cleanup jobs                    │
+│ BackgroundContext │
+│ - Capture pipeline writes │
+│ - Sync operations │
+│ - Cleanup jobs │
 └─────────────────────────────────────┘
 ```
 
@@ -115,17 +115,17 @@ WAL Mode: Enabled (for concurrent reads)
 ```swift
 // Content hash must be non-empty
 validate(contentHash: String) -> Bool {
-    return !contentHash.isEmpty && contentHash.count == 64 // SHA-256 hex
+ return !contentHash.isEmpty && contentHash.count == 64 // SHA-256 hex
 }
 
 // CreatedAt must not be in future
 validate(createdAt: Date) -> Bool {
-    return createdAt <= Date()
+ return createdAt <= Date()
 }
 
 // ByteCount must be non-negative
 validate(byteCount: Int64) -> Bool {
-    return byteCount >= 0
+ return byteCount >= 0
 }
 ```
 
@@ -133,17 +133,17 @@ validate(byteCount: Int64) -> Bool {
 
 ```swift
 extension ClipItem {
-    var relativeTimeString: String {
-        // "now", "3m", "2h", "1d", "Jan 5"
-    }
-    
-    var typeDisplayString: String {
-        // "Text", "Image", "File", "Code"
-    }
-    
-    var hasMultipleRepresentations: Bool {
-        return (representations?.count ?? 0) > 1
-    }
+ var relativeTimeString: String {
+ // "now", "3m", "2h", "1d", "Jan 5"
+ }
+ 
+ var typeDisplayString: String {
+ // "Text", "Image", "File", "Code"
+ }
+ 
+ var hasMultipleRepresentations: Bool {
+ return (representations?.count ?? 0) > 1
+ }
 }
 ```
 
@@ -177,17 +177,17 @@ extension ClipItem {
 
 ```swift
 enum RepresentationKind: Int16 {
-    case plainText = 0
-    case rtf = 1
-    case html = 2
-    case markdown = 3
-    case png = 10
-    case jpeg = 11
-    case tiff = 12
-    case pdf = 20
-    case fileURL = 30
-    case url = 31
-    case custom = 99
+ case plainText = 0
+ case rtf = 1
+ case html = 2
+ case markdown = 3
+ case png = 10
+ case jpeg = 11
+ case tiff = 12
+ case pdf = 20
+ case fileURL = 30
+ case url = 31
+ case custom = 99
 }
 ```
 
@@ -196,15 +196,15 @@ enum RepresentationKind: Int16 {
 ```swift
 // Must have exactly one of: textData, binaryData, or assetRef
 validate() -> Bool {
-    let count = [textData, binaryData, assetRef]
-        .compactMap { $0 }
-        .count
-    return count == 1
+ let count = [textData, binaryData, assetRef]
+ .compactMap { $0 }
+ .count
+ return count == 1
 }
 
 // UTI must be valid
 validate(uti: String) -> Bool {
-    return !uti.isEmpty && uti.contains(".")
+ return !uti.isEmpty && uti.contains(".")
 }
 ```
 
@@ -238,17 +238,17 @@ validate(uti: String) -> Bool {
 ```swift
 // Name must be non-empty and unique
 validate(name: String) -> Bool {
-    return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+ return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 }
 
 // System clipboard cannot be deleted
 validate(isSystemClipboard: Bool) -> Bool {
-    // Enforce in business logic, not Core Data
+ // Enforce in business logic, not Core Data
 }
 
 // ColorHex must be valid
 validate(colorHex: String) -> Bool {
-    return colorHex.matches(regex: "^#[0-9A-Fa-f]{6}$")
+ return colorHex.matches(regex: "^#[0-9A-Fa-f]{6}$")
 }
 ```
 
@@ -256,13 +256,13 @@ validate(colorHex: String) -> Bool {
 
 ```swift
 extension Pinboard {
-    var itemCount: Int {
-        return items?.count ?? 0
-    }
-    
-    var color: NSColor/UIColor {
-        return Color(hex: colorHex) ?? .gray
-    }
+ var itemCount: Int {
+ return items?.count ?? 0
+ }
+ 
+ var color: NSColor/UIColor {
+ return Color(hex: colorHex) ?? .gray
+ }
 }
 ```
 
@@ -292,8 +292,8 @@ extension Pinboard {
 
 ```swift
 enum StackMode: Int16 {
-    case sequential = 0  // Paste one at a time
-    case combined = 1     // Join and paste as one
+ case sequential = 0 // Paste one at a time
+ case combined = 1 // Join and paste as one
 }
 ```
 
@@ -366,20 +366,20 @@ enum StackMode: Int16 {
 
 ```swift
 // ClipItem
-index on: [createdAt DESC]           // Timeline queries
-index on: [contentHash]              // Duplicate detection
-index on: [sourceAppBundleID, createdAt DESC]  // Filtered timeline
-index on: [isPinned DESC, createdAt DESC]      // Pinned first
-compound index on: [itemType, createdAt DESC]  // Type filtering
+index on: [createdAt DESC] // Timeline queries
+index on: [contentHash] // Duplicate detection
+index on: [sourceAppBundleID, createdAt DESC] // Filtered timeline
+index on: [isPinned DESC, createdAt DESC] // Pinned first
+compound index on: [itemType, createdAt DESC] // Type filtering
 
 // ClipRepresentation
-index on: [clipItem, displayOrder]   // Ordered fetch
+index on: [clipItem, displayOrder] // Ordered fetch
 
 // Pinboard
-index on: [sortOrder, name]          // UI display order
+index on: [sortOrder, name] // UI display order
 
 // StackEntry
-index on: [session, position]        // Stack ordering
+index on: [session, position] // Stack ordering
 ```
 
 ### 4.2 Fetch Request Optimization
@@ -387,8 +387,8 @@ index on: [session, position]        // Stack ordering
 ```swift
 // Example: Recent items for overlay
 fetchRequest.predicate = NSPredicate(
-    format: "isTransient == NO AND createdAt > %@",
-    Calendar.current.date(byAdding: .day, value: -retentionDays, to: Date())!
+ format: "isTransient == NO AND createdAt > %@",
+ Calendar.current.date(byAdding: .day, value: -retentionDays, to: Date())!
 )
 fetchRequest.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
 fetchRequest.fetchLimit = 100
@@ -429,25 +429,25 @@ fetchRequest.relationshipKeyPathsForPrefetching = ["representations", "pinboards
 
 ```swift
 func cleanupExpiredItems() {
-    let retentionDate = calculateRetentionDate() // Based on user setting
-    
-    let fetchRequest = ClipItem.fetchRequest()
-    fetchRequest.predicate = NSPredicate(
-        format: "createdAt < %@ AND pinboards.@count == 0 AND isPinned == NO",
-        retentionDate as NSDate
-    )
-    
-    let expired = try context.fetch(fetchRequest)
-    
-    for item in expired {
-        // Delete external assets
-        deleteAssets(for: item)
-        
-        // Delete entity (cascade to representations)
-        context.delete(item)
-    }
-    
-    try context.save()
+ let retentionDate = calculateRetentionDate() // Based on user setting
+ 
+ let fetchRequest = ClipItem.fetchRequest()
+ fetchRequest.predicate = NSPredicate(
+ format: "createdAt < %@ AND pinboards.@count == 0 AND isPinned == NO",
+ retentionDate as NSDate
+ )
+ 
+ let expired = try context.fetch(fetchRequest)
+ 
+ for item in expired {
+ // Delete external assets
+ deleteAssets(for: item)
+ 
+ // Delete entity (cascade to representations)
+ context.delete(item)
+ }
+ 
+ try context.save()
 }
 ```
 
@@ -467,19 +467,19 @@ func cleanupExpiredItems() {
 
 ```
 ClipItem deleted:
-  → Cascade delete all ClipRepresentations
-  → Cascade delete LinkPreview
-  → Cascade delete StackEntry references
-  → Nullify Pinboard relationships
-  → Manually delete external assets (AssetManager)
-  
+ Cascade delete all ClipRepresentations
+ Cascade delete LinkPreview
+ Cascade delete StackEntry references
+ Nullify Pinboard relationships
+ Manually delete external assets (AssetManager)
+ 
 Pinboard deleted:
-  → Nullify all ClipItem relationships (items remain)
-  → Prevent if isSystemClipboard == true
-  
+ Nullify all ClipItem relationships (items remain)
+ Prevent if isSystemClipboard == true
+ 
 StackSession deleted:
-  → Cascade delete all StackEntry records
-  → Nullify ClipItem references
+ Cascade delete all StackEntry records
+ Nullify ClipItem references
 ```
 
 ---
@@ -491,13 +491,13 @@ StackSession deleted:
 **Location:**
 ```
 Application Support/com.yourcompany.Paste/
-  ├── Paste.sqlite
-  ├── Assets/
-  │   ├── {UUID}.png         # Image representations
-  │   ├── {UUID}.rtf         # Rich text files
-  │   └── {UUID}.bin         # Generic binaries
-  └── Thumbnails/
-      └── {UUID}_thumb.png   # Generated thumbnails
+ ├── Paste.sqlite
+ ├── Assets/
+ │ ├── {UUID}.png # Image representations
+ │ ├── {UUID}.rtf # Rich text files
+ │ └── {UUID}.bin # Generic binaries
+ └── Thumbnails/
+ └── {UUID}_thumb.png # Generated thumbnails
 ```
 
 ### 6.2 Storage Strategy
@@ -505,8 +505,8 @@ Application Support/com.yourcompany.Paste/
 | Representation Type | Storage | Threshold |
 |---------------------|---------|-----------|
 | Plain text | `textData` (Data) | < 1 MB |
-| Rich text (RTF) | `textData` or file | > 100 KB → file |
-| HTML | `textData` or file | > 100 KB → file |
+| Rich text (RTF) | `textData` or file | > 100 KB file |
+| HTML | `textData` or file | > 100 KB file |
 | Images | File always | > 10 KB |
 | PDFs | File always | Any size |
 | File URLs | `textData` (path string) | N/A |
@@ -523,19 +523,19 @@ Application Support/com.yourcompany.Paste/
 **Implementation:**
 ```swift
 func generateThumbnail(for item: ClipItem) async throws -> String {
-    guard item.itemType == .image || item.itemType == .file else {
-        throw ThumbnailError.unsupportedType
-    }
-    
-    let thumbnail = try await ThumbnailGenerator.create(
-        from: item.primaryRepresentation,
-        maxSize: CGSize(width: 512, height: 512)
-    )
-    
-    let path = "Thumbnails/\(item.id.uuidString)_thumb.png"
-    try thumbnail.png?.write(to: assetURL(for: path))
-    
-    return path
+ guard item.itemType == .image || item.itemType == .file else {
+ throw ThumbnailError.unsupportedType
+ }
+ 
+ let thumbnail = try await ThumbnailGenerator.create(
+ from: item.primaryRepresentation,
+ maxSize: CGSize(width: 512, height: 512)
+ )
+ 
+ let path = "Thumbnails/\(item.id.uuidString)_thumb.png"
+ try thumbnail.png?.write(to: assetURL(for: path))
+ 
+ return path
 }
 ```
 
@@ -545,14 +545,14 @@ func generateThumbnail(for item: ClipItem) async throws -> String {
 
 ```swift
 func cleanupOrphanedAssets() {
-    let allAssetRefs = fetchAllAssetRefs() // From DB
-    let filesOnDisk = listAssetDirectory()
-    
-    let orphans = filesOnDisk.filter { !allAssetRefs.contains($0) }
-    
-    for orphan in orphans {
-        try? FileManager.default.removeItem(at: orphan)
-    }
+ let allAssetRefs = fetchAllAssetRefs() // From DB
+ let filesOnDisk = listAssetDirectory()
+ 
+ let orphans = filesOnDisk.filter { !allAssetRefs.contains($0) }
+ 
+ for orphan in orphans {
+ try? FileManager.default.removeItem(at: orphan)
+ }
 }
 ```
 
@@ -578,8 +578,8 @@ predicate = NSPredicate(format: "searchableText CONTAINS[cd] %@", "swift code")
 
 // Advanced: Scoped to pinboard
 predicate = NSPredicate(
-    format: "searchableText CONTAINS[cd] %@ AND ANY pinboards.id == %@",
-    query, pinboardID
+ format: "searchableText CONTAINS[cd] %@ AND ANY pinboards.id == %@",
+ query, pinboardID
 )
 
 // Filter by type
@@ -621,7 +621,7 @@ predicate = NSPredicate(format: "itemType == %d", ItemType.code.rawValue)
 - Can insert 1000 items in <1s
 - Fetch recent 100 items in <50ms
 - Hash collision rate: 0%
-  
+ 
 **Status Notes:**
 - Persistence across restarts validated via XCTest
 - Performance targets and hash-collision rate are not yet benchmarked
@@ -629,16 +629,16 @@ predicate = NSPredicate(format: "itemType == %d", ItemType.code.rawValue)
 **Code Deliverables:**
 ```
 ClipboardCore/Sources/DataModel/
-  ├── Paste.xcdatamodeld
-  ├── Paste.momd
-  ├── ClipItem+CoreDataClass.swift
-  ├── ClipItem+CoreDataProperties.swift
-  ├── ClipRepresentation+CoreDataClass.swift
-  ├── Pinboard+CoreDataClass.swift
-  ├── PersistenceController.swift
-  └── Enums/
-      ├── ItemType.swift
-      └── RepresentationKind.swift
+ ├── Paste.xcdatamodeld
+ ├── Paste.momd
+ ├── ClipItem+CoreDataClass.swift
+ ├── ClipItem+CoreDataProperties.swift
+ ├── ClipRepresentation+CoreDataClass.swift
+ ├── Pinboard+CoreDataClass.swift
+ ├── PersistenceController.swift
+ └── Enums/
+ ├── ItemType.swift
+ └── RepresentationKind.swift
 ```
 
 ---
@@ -720,7 +720,7 @@ ClipboardCore/Sources/DataModel/
 - [ ] Optimize slow queries
 - [ ] Add missing indexes
 - [ ] Implement database migration tests
-- [ ] Create v1.0 → v1.1 migration mapping model
+- [ ] Create v1.0 v1.1 migration mapping model
 - [ ] Load test with 10,000+ items
 - [ ] Validate data integrity on startup
 
@@ -747,7 +747,7 @@ Use Core Data lightweight migrations when possible, heavyweight when necessary.
 **Lightweight (automatic):**
 - Adding new optional attributes
 - Adding new entities
-- Changing optional → required with default value
+- Changing optional required with default value
 - Renaming with mapping
 
 **Heavyweight (manual):**
@@ -759,26 +759,26 @@ Use Core Data lightweight migrations when possible, heavyweight when necessary.
 
 ```swift
 func testMigrationFromV1ToV2() throws {
-    // Load v1 store
-    let v1Store = loadFixture("TestStore_v1.sqlite")
-    
-    // Perform migration
-    let coordinator = NSPersistentStoreCoordinator(managedObjectModel: v2Model)
-    let options = [NSMigratePersistentStoresAutomaticallyOption: true]
-    let store = try coordinator.addPersistentStore(
-        ofType: NSSQLiteStoreType,
-        configurationName: nil,
-        at: v1Store,
-        options: options
-    )
-    
-    // Validate data
-    let context = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
-    context.persistentStoreCoordinator = coordinator
-    
-    let items = try context.fetch(ClipItem.fetchRequest())
-    XCTAssertEqual(items.count, expectedCount)
-    // ... more assertions
+ // Load v1 store
+ let v1Store = loadFixture("TestStore_v1.sqlite")
+ 
+ // Perform migration
+ let coordinator = NSPersistentStoreCoordinator(managedObjectModel: v2Model)
+ let options = [NSMigratePersistentStoresAutomaticallyOption: true]
+ let store = try coordinator.addPersistentStore(
+ ofType: NSSQLiteStoreType,
+ configurationName: nil,
+ at: v1Store,
+ options: options
+ )
+ 
+ // Validate data
+ let context = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
+ context.persistentStoreCoordinator = coordinator
+ 
+ let items = try context.fetch(ClipItem.fetchRequest())
+ XCTAssertEqual(items.count, expectedCount)
+ // ... more assertions
 }
 ```
 
@@ -789,13 +789,13 @@ func testMigrationFromV1ToV2() throws {
 ### 10.1 Decisions Needed
 
 1. **Full-Text Search:** Use Core Data predicates or integrate `CSSearchableIndex`?
-   - **Recommendation:** Start with Core Data, migrate to Spotlight if needed
-   
+ - **Recommendation:** Start with Core Data, migrate to Spotlight if needed
+ 
 2. **Asset Size Limits:** Should we cap individual asset sizes?
-   - **Recommendation:** 50 MB per item, warn user if exceeded
+ - **Recommendation:** 50 MB per item, warn user if exceeded
 
 3. **Pinboard Limits:** Maximum number of pinboards?
-   - **Recommendation:** 50 pinboards (UI constraint)
+ - **Recommendation:** 50 pinboards (UI constraint)
 
 ### 10.2 Future Enhancements
 
@@ -831,39 +831,39 @@ Before marking Phase 1 complete:
 
 ```swift
 func createClipItem(
-    from pasteboard: NSPasteboard,
-    in context: NSManagedObjectContext
+ from pasteboard: NSPasteboard,
+ in context: NSManagedObjectContext
 ) throws -> ClipItem {
-    let item = ClipItem(context: context)
-    item.id = UUID()
-    item.createdAt = Date()
-    item.modifiedAt = Date()
-    
-    // Extract text
-    if let string = pasteboard.string(forType: .string) {
-        item.primaryText = String(string.prefix(10000))
-        item.searchableText = string.normalized()
-        item.itemType = .text
-        
-        // Create plain text representation
-        let rep = ClipRepresentation(context: context)
-        rep.id = UUID()
-        rep.uti = "public.utf8-plain-text"
-        rep.kind = .plainText
-        rep.textData = string.data(using: .utf8)
-        rep.displayOrder = 0
-        item.addToRepresentations(rep)
-    }
-    
-    // Compute canonical hash
-    item.contentHash = try item.computeCanonicalHash()
-    
-    // Add to default pinboard
-    let clipboard = try fetchSystemClipboardPinboard(in: context)
-    item.addToPinboards(clipboard)
-    
-    try context.save()
-    return item
+ let item = ClipItem(context: context)
+ item.id = UUID()
+ item.createdAt = Date()
+ item.modifiedAt = Date()
+ 
+ // Extract text
+ if let string = pasteboard.string(forType: .string) {
+ item.primaryText = String(string.prefix(10000))
+ item.searchableText = string.normalized()
+ item.itemType = .text
+ 
+ // Create plain text representation
+ let rep = ClipRepresentation(context: context)
+ rep.id = UUID()
+ rep.uti = "public.utf8-plain-text"
+ rep.kind = .plainText
+ rep.textData = string.data(using: .utf8)
+ rep.displayOrder = 0
+ item.addToRepresentations(rep)
+ }
+ 
+ // Compute canonical hash
+ item.contentHash = try item.computeCanonicalHash()
+ 
+ // Add to default pinboard
+ let clipboard = try fetchSystemClipboardPinboard(in: context)
+ item.addToPinboards(clipboard)
+ 
+ try context.save()
+ return item
 }
 ```
 
@@ -871,16 +871,16 @@ func createClipItem(
 
 ```swift
 func fetchRecentItems(
-    limit: Int = 100,
-    in context: NSManagedObjectContext
+ limit: Int = 100,
+ in context: NSManagedObjectContext
 ) throws -> [ClipItem] {
-    let request = ClipItem.fetchRequest()
-    request.predicate = NSPredicate(format: "isTransient == NO")
-    request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-    request.fetchLimit = limit
-    request.relationshipKeyPathsForPrefetching = ["representations", "pinboards"]
-    
-    return try context.fetch(request)
+ let request = ClipItem.fetchRequest()
+ request.predicate = NSPredicate(format: "isTransient == NO")
+ request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+ request.fetchLimit = limit
+ request.relationshipKeyPathsForPrefetching = ["representations", "pinboards"]
+ 
+ return try context.fetch(request)
 }
 ```
 

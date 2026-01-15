@@ -1,7 +1,51 @@
 import AppKit
 import ClipboardCore
+import ClipboardMacServices
 import CoreData
+import OSLog
 import SwiftUI
+
+// Debug flag - set to true to see logs in terminal
+private let DEBUG_DRAG = false
+
+private func debugLog(_ message: String) {
+    if DEBUG_DRAG {
+        print("[ItemCardRow] \(message)")
+        fflush(stdout)
+    }
+}
+
+// Approximate equality for CGRect to handle floating-point precision issues
+// Using higher tolerance (5.0) to prevent layout jitter from triggering updates
+private func itemFramesApproximatelyEqual(
+    _ lhs: [NSManagedObjectID: CGRect],
+    _ rhs: [NSManagedObjectID: CGRect],
+    tolerance: CGFloat = 5.0
+) -> Bool {
+    guard lhs.count == rhs.count else { return false }
+    for (key, lhsRect) in lhs {
+        guard let rhsRect = rhs[key] else { return false }
+        if abs(lhsRect.origin.x - rhsRect.origin.x) > tolerance ||
+           abs(lhsRect.origin.y - rhsRect.origin.y) > tolerance ||
+           abs(lhsRect.size.width - rhsRect.size.width) > tolerance ||
+           abs(lhsRect.size.height - rhsRect.size.height) > tolerance {
+            return false
+        }
+    }
+    return true
+}
+
+private func rectApproximatelyEqual(
+    _ lhs: CGRect?,
+    _ rhs: CGRect?,
+    tolerance: CGFloat = 5.0
+) -> Bool {
+    guard let lhs = lhs, let rhs = rhs else { return lhs == nil && rhs == nil }
+    return abs(lhs.origin.x - rhs.origin.x) <= tolerance &&
+           abs(lhs.origin.y - rhs.origin.y) <= tolerance &&
+           abs(lhs.size.width - rhs.size.width) <= tolerance &&
+           abs(lhs.size.height - rhs.size.height) <= tolerance
+}
 
 struct ItemCardRow: View {
     private let cardSpacing: CGFloat = 12
@@ -37,15 +81,20 @@ struct ItemCardRow: View {
     let allPinboardFrame: CGRect?
     let window: NSWindow?
     @Binding var dragPreviewData: DragPreviewData?
+    var onPreviewUpdate: ((DragPreviewData?) -> Void)? = nil  // Direct preview update, bypasses state
 
     @State private var itemFrames: [NSManagedObjectID: CGRect] = [:]
     @State private var rowFrame: CGRect = .zero
     @State private var dragState: DragState?
     @State private var dragOpacity: Double = 0
-    @State private var dragCenteringOffset: CGSize = .zero
     @State private var centeringTimer: Timer?
     @State private var dropTarget: DropTarget?
     @State private var pinboardDropTarget: PinboardDropTarget?
+    
+    // Non-reactive storage - doesn't trigger re-renders
+    private static var latestItemFrames: [NSManagedObjectID: CGRect] = [:]
+    private static var latestRowFrame: CGRect = .zero
+    private static var dragCenteringOffset: CGSize = .zero  // Non-reactive for timer animation
 
     var body: some View {
         GeometryReader { geometry in
@@ -89,15 +138,41 @@ struct ItemCardRow: View {
             placeholderView()
         }
         .onPreferenceChange(ItemFrameKey.self) { frames in
-            itemFrames = frames
+            // Always store in non-reactive storage
+            Self.latestItemFrames = frames
+            
+            // Skip reactive updates during drag
+            guard dragState == nil else { return }
+            
+            // Update if count changed OR keys changed (different items after filter)
+            let countChanged = frames.count != itemFrames.count
+            let keysChanged = Set(frames.keys) != Set(itemFrames.keys)
+            if countChanged || keysChanged {
+                itemFrames = frames
+            }
         }
         .onPreferenceChange(ItemRowFrameKey.self) { frame in
-            rowFrame = frame
+            // Always store in non-reactive storage
+            Self.latestRowFrame = frame
+            // Skip reactive updates during drag
+            guard dragState == nil else { return }
+            // Only update if significantly changed
+            if !rectApproximatelyEqual(frame, rowFrame) {
+                rowFrame = frame
+            }
         }
-        .onChange(of: dragState?.primaryItemID) { _ in updateDragPreview() }
-        .onChange(of: dragState?.translation) { _ in updateDragPreview() }
-        .onChange(of: dragOpacity) { _ in updateDragPreview() }
-        .onChange(of: dragCenteringOffset) { _ in updateDragPreview() }
+        // Note: All preview updates now happen directly via callback in drag handlers and timer
+        // This avoids triggering parent re-renders through the binding
+        .onChange(of: items.map(\.objectID)) { newIDs in
+            // Reset item frames when items change (e.g., after search clears or filter changes)
+            // This ensures the drag gesture works with fresh frame data
+            let currentIDs = Set(itemFrames.keys)
+            let newIDSet = Set(newIDs)
+            if currentIDs != newIDSet {
+                itemFrames = [:]
+                Self.latestItemFrames = [:]
+            }
+        }
     }
 
     @ViewBuilder
@@ -175,7 +250,15 @@ struct ItemCardRow: View {
         let overlayPointer = overlayPointerLocation(localPointer: localPointer)
 
         if dragState == nil {
-            guard let frame = itemFrames[item.objectID] else { return }
+            // Use latest frames from non-reactive storage
+            guard let frame = Self.latestItemFrames[item.objectID] else {
+                debugLog("Drag start failed: no frame for item")
+                return
+            }
+            
+            // Sync reactive state with latest frames
+            itemFrames = Self.latestItemFrames
+            rowFrame = Self.latestRowFrame
 
             let draggedID = item.objectID
             let itemIDs: [NSManagedObjectID]
@@ -186,6 +269,8 @@ struct ItemCardRow: View {
                 itemIDs = [draggedID]
             }
 
+            debugLog("Drag started: \(itemIDs.count) items, frame=\(frame)")
+
             dragState = DragState(
                 itemIDs: itemIDs,
                 primaryItemID: draggedID,
@@ -195,101 +280,52 @@ struct ItemCardRow: View {
             )
             dragOpacity = 1
             
-            // Calculate initial offset from center to cursor
-            let centerX = frame.midX
-            let centerY = frame.midY
-            // pointer starts at value.startLocation
-            let startPointerX = value.startLocation.x
-            let startPointerY = value.startLocation.y
+            // Initial preview update (still uses binding to trigger parent state for first render)
+            updateDragPreview(useCallback: false)
             
-            // If pointer is at (10, 10) and center is (50, 50)
-            // We want preview to be at (50, 50) initially.
-            // Pointer is at (10, 10).
-            // Normal logic puts preview at center + translation.
-            // translation is 0. preview is at center (50, 50).
-            // But visually, mouse is at 10,10.
-            // We want card to be under mouse if offset logic wasn't applied?
-            // Actually, existing logic puts card at its ORIGINAL center.
-            // If mouse is at corner, card is offset from mouse.
-            // We want card to MOVE to be centered on mouse.
-            // Target center relative to mouse: Mouse + 0.
-            // Current center relative to mouse: Mouse + (Center - Mouse).
-            // So offset = Center - Mouse.
-            // We want to animate offset -> 0.
-            // But we actually apply this offset to the position?
-            
-            // Let's look at updateDragPreview:
-            // pos = baseCenter + translation.
-            // translation = mouse - startMouse.
-            // pos = baseCenter + mouse - startMouse.
-            // If mouse == startMouse (start), pos = baseCenter.
-            
-            // We want pos to start at baseCenter, and animate to (startMouse + translation) = mouse.
-            // At start: pos = baseCenter. mouse = startMouse.
-            // Difference = baseCenter - startMouse.
-            // We want to animate FROM this difference TO zero?
-            // No, we want pos to equal mouse eventually.
-            // Currently pos = baseCenter + (mouse - startMouse).
-            // We want pos = mouse.
-            // Discrepancy = (baseCenter + mouse - startMouse) - mouse = baseCenter - startMouse.
-            // So there is a constant offset of (baseCenter - startMouse).
-            // We want to remove this offset over time.
-            
-            // So we start with offset = 0 (relative to logic), which means visual offset exists.
-            // We want to add a correction vector C.
-            // Final position = StandardLogicPosition - C.
-            // Initially, we want StandardLogicPosition - C = StandardLogicPosition. -> C=0.
-            // Wait, initially we are fine (card under finger).
-            // We want card center to move to finger.
-            // Center is at baseCenter. Finger is at startMouse.
-            // We want Center -> Finger.
-            // So we want to add (Finger - Center) to position over time.
-            // Let targetCorrection = startMouse - baseCenter.
-            // We start at correction = 0. We animate correction to targetCorrection.
-            
-            dragCenteringOffset = CGSize(
-                width: startPointerX - centerX,
-                height: startPointerY - centerY
+            // Set initial centering offset (will animate to zero) - stored non-reactively
+            Self.dragCenteringOffset = CGSize(
+                width: value.startLocation.x - frame.midX,
+                height: value.startLocation.y - frame.midY
             )
-            
-            // Manual animation loop for smooth window updates
+
+            // Start centering animation timer - updates non-reactive offset and preview window directly
             centeringTimer?.invalidate()
-            centeringTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { timer in
+            centeringTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
                 let easing: CGFloat = 0.2
-                let current = dragCenteringOffset
+                let current = Self.dragCenteringOffset
                 let nextX = current.width * (1 - easing)
                 let nextY = current.height * (1 - easing)
-                
+
                 if abs(nextX) < 0.5 && abs(nextY) < 0.5 {
-                    dragCenteringOffset = .zero
+                    Self.dragCenteringOffset = .zero
                     timer.invalidate()
                     centeringTimer = nil
                 } else {
-                    dragCenteringOffset = CGSize(width: nextX, height: nextY)
+                    Self.dragCenteringOffset = CGSize(width: nextX, height: nextY)
                 }
+                // Update preview window directly using callback (bypasses SwiftUI state)
+                updateDragPreview(useCallback: true)
             }
             
         } else if var state = dragState {
             state.pointerLocation = overlayPointer
             state.translation = value.translation
             dragState = state
+            // Update preview directly using callback (bypasses SwiftUI state)
+            updateDragPreview(useCallback: true)
         }
 
+        // Update drop targets WITHOUT animation for better performance
         if let pinboardTarget = computePinboardDropTarget(overlayLocation: overlayPointer) {
-            withAnimation(.easeOut(duration: 0.06)) {
-                pinboardDropTarget = pinboardTarget
-                dropTarget = nil
-            }
+            pinboardDropTarget = pinboardTarget
+            dropTarget = nil
         } else if isReorderingEnabled {
             pinboardDropTarget = nil
             let target = computeDropTarget(location: localPointer, draggedIDs: dragState?.itemIDs ?? [item.objectID])
-            withAnimation(.easeOut(duration: 0.06)) {
-                dropTarget = target
-            }
+            dropTarget = target
         } else {
-            withAnimation(.easeOut(duration: 0.06)) {
-                dropTarget = nil
-            }
+            dropTarget = nil
         }
     }
 
@@ -349,11 +385,16 @@ struct ItemCardRow: View {
     }
 
     private func endDrag(for itemID: NSManagedObjectID) {
-        withAnimation(.easeOut(duration: 0.06)) {
-            dropTarget = nil
-            pinboardDropTarget = nil
-            dragOpacity = 0
-        }
+        // Stop centering timer
+        centeringTimer?.invalidate()
+        centeringTimer = nil
+        
+        dropTarget = nil
+        pinboardDropTarget = nil
+        dragOpacity = 0
+        
+        // Clear preview using callback (no parent re-render)
+        updateDragPreview(useCallback: true)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             if dragState?.primaryItemID == itemID {
@@ -419,13 +460,45 @@ struct ItemCardRow: View {
     }
 
     private func computePinboardDropTarget(overlayLocation: CGPoint) -> PinboardDropTarget? {
-        if let allPinboardFrame, allPinboardFrame.contains(overlayLocation) {
-            return .all
-        }
+        // Use captured frames from OverlayRootView, adjusted by scroll delta
+        let capturedAllFrame = OverlayRootView.capturedAllPinboardFrame
+        let capturedFrames = OverlayRootView.capturedPinboardFrames
+        let capturedOffset = OverlayRootView.capturedScrollOffset
+        let currentOffset = PinboardTabBar.currentScrollOffset
+        
+        // Calculate scroll delta (positive = scrolled right, frames moved left)
+        let scrollDelta = currentOffset - capturedOffset
+        
+        
+        // If captured frames exist, use them with scroll adjustment
+        if !capturedFrames.isEmpty || capturedAllFrame != nil {
+            // Check "All" tab (adjusted for scroll)
+            if let capturedAllFrame {
+                var adjustedFrame = capturedAllFrame
+                adjustedFrame.origin.x += scrollDelta
+                if adjustedFrame.contains(overlayLocation) {
+                    return .all
+                }
+            }
 
-        for (pinboardID, frame) in pinboardFrames {
-            if frame.contains(overlayLocation) {
-                return .pinboard(pinboardID)
+            // Check individual pinboards (adjusted for scroll)
+            for (pinboardID, capturedFrame) in capturedFrames {
+                var adjustedFrame = capturedFrame
+                adjustedFrame.origin.x += scrollDelta
+                if adjustedFrame.contains(overlayLocation) {
+                    return .pinboard(pinboardID)
+                }
+            }
+        } else {
+            // Fallback: use passed frames directly (no scroll adjustment needed as they're current)
+            if let allPinboardFrame, allPinboardFrame.contains(overlayLocation) {
+                return .all
+            }
+            
+            for (pinboardID, frame) in pinboardFrames {
+                if frame.contains(overlayLocation) {
+                    return .pinboard(pinboardID)
+                }
             }
         }
 
@@ -433,16 +506,18 @@ struct ItemCardRow: View {
     }
 
     private func overlayPointerLocation(localPointer: CGPoint) -> CGPoint {
+        // Try window-based conversion first (more accurate)
         if let window, let pointer = overlayPointerLocation(from: window) {
             return pointer
         }
+        // Fallback to row frame offset
         return CGPoint(x: localPointer.x + rowFrame.minX, y: localPointer.y + rowFrame.minY)
     }
 
     private func localPointerLocation(from overlayPointer: CGPoint) -> CGPoint {
         CGPoint(x: overlayPointer.x - rowFrame.minX, y: overlayPointer.y - rowFrame.minY)
     }
-
+    
     private func overlayPointerLocation(from window: NSWindow) -> CGPoint? {
         let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
         let layout = window.contentLayoutRect
@@ -486,9 +561,13 @@ struct ItemCardRow: View {
         }
     }
 
-    private func updateDragPreview() {
+    private func updateDragPreview(useCallback: Bool = false) {
         guard let dragState else {
-            dragPreviewData = nil
+            if useCallback, let callback = onPreviewUpdate {
+                callback(nil)
+            } else {
+                dragPreviewData = nil
+            }
             return
         }
 
@@ -498,17 +577,24 @@ struct ItemCardRow: View {
         let cardSize = itemFrames[dragState.primaryItemID]?.width ?? 0
 
         let previewPosition = CGPoint(
-            x: dragState.baseCenter.x + dragState.translation.width + rowFrame.minX + dragCenteringOffset.width,
-            y: dragState.baseCenter.y + dragState.translation.height + rowFrame.minY + dragCenteringOffset.height
+            x: dragState.baseCenter.x + dragState.translation.width + rowFrame.minX + Self.dragCenteringOffset.width,
+            y: dragState.baseCenter.y + dragState.translation.height + rowFrame.minY + Self.dragCenteringOffset.height
         )
 
-        dragPreviewData = DragPreviewData(
+        let data = DragPreviewData(
             items: draggedItems,
             pinboards: pinboards,
             cardSize: cardSize,
             position: previewPosition,
             opacity: dragOpacity
         )
+        
+        // Use callback to update preview directly (bypasses SwiftUI state, no re-renders)
+        if useCallback, let callback = onPreviewUpdate {
+            callback(data)
+        } else {
+            dragPreviewData = data
+        }
     }
 }
 

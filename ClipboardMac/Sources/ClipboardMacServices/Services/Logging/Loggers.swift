@@ -7,4 +7,7 @@ public extension Logger {
     static let hotkey = Logger(subsystem: "com.paste.clipboard", category: "Hotkey")
     static let retention = Logger(subsystem: "com.paste.clipboard", category: "Retention")
     static let permissions = Logger(subsystem: "com.paste.clipboard", category: "Permissions")
+    static let drag = Logger(subsystem: "com.paste.clipboard", category: "Drag")
+    static let ui = Logger(subsystem: "com.paste.clipboard", category: "UI")
+    static let preferences = Logger(subsystem: "com.paste.clipboard", category: "Preferences")
 }

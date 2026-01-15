@@ -10,8 +10,8 @@
 - **Status:** Draft
 - **Owner:** Engineering Team
 - **Dependencies:** 
-  - `Architecture-Overview.md` (parent)
-  - `Data-Model-Spec.md` (local model mapping)
+ - `Architecture-Overview.md` (parent)
+ - `Data-Model-Spec.md` (local model mapping)
 
 ---
 
@@ -52,30 +52,30 @@ This document defines the complete CloudKit schema, synchronization engine, conf
 Container Identifier: iCloud.com.yourcompany.Paste
 Environment: Development / Production
 Capabilities:
-  - Private Database (user data)
-  - Public Database (future: shared pinboard templates)
-  - CloudKit Database (enabled)
-  - Push Notifications (for sync triggers)
+ - Private Database (user data)
+ - Public Database (future: shared pinboard templates)
+ - CloudKit Database (enabled)
+ - Push Notifications (for sync triggers)
 ```
 
 ### 2.2 Database Structure
 
 ```
 ┌────────────────────────────────────────┐
-│         CKContainer.default()          │
+│ CKContainer.default() │
 ├────────────────────────────────────────┤
-│  ┌──────────────────────────────────┐  │
-│  │   Private Database               │  │
-│  │   - User's clipboard history     │  │
-│  │   - Pinboards                    │  │
-│  │   - Settings                     │  │
-│  └──────────────────────────────────┘  │
-│  ┌──────────────────────────────────┐  │
-│  │   Custom Zone: "ClipboardZone"   │  │
-│  │   - Enables change tokens        │  │
-│  │   - Better batch operations      │  │
-│  │   - Deletion tracking            │  │
-│  └──────────────────────────────────┘  │
+│ ┌──────────────────────────────────┐ │
+│ │ Private Database │ │
+│ │ - User's clipboard history │ │
+│ │ - Pinboards │ │
+│ │ - Settings │ │
+│ └──────────────────────────────────┘ │
+│ ┌──────────────────────────────────┐ │
+│ │ Custom Zone: "ClipboardZone" │ │
+│ │ - Enables change tokens │ │
+│ │ - Better batch operations │ │
+│ │ - Deletion tracking │ │
+│ └──────────────────────────────────┘ │
 └────────────────────────────────────────┘
 ```
 
@@ -167,8 +167,8 @@ try await privateDatabase.save(zone)
 
 ```swift
 let parentRef = CKRecord.Reference(
-    recordID: clipItemRecordID,
-    action: .deleteSelf  // Cascade delete when parent is deleted
+ recordID: clipItemRecordID,
+ action: .deleteSelf // Cascade delete when parent is deleted
 )
 record["clipItemRef"] = parentRef
 ```
@@ -292,97 +292,97 @@ compound index: [clipItemID, pinboardID] (uniqueness check)
 
 ```swift
 class SyncCoordinator {
-    let container: CKContainer
-    let privateDatabase: CKDatabase
-    let zone: CKRecordZone
-    
-    private var changeToken: CKServerChangeToken?
-    private var syncInProgress = false
-    
-    // MARK: - Lifecycle
-    func start()
-    func stop()
-    func performFullSync()
-    
-    // MARK: - Outbound
-    func pushLocalChanges()
-    func uploadRecord(_ record: CKRecord) async throws
-    func uploadAsset(_ asset: CKAsset, for record: CKRecord) async throws
-    
-    // MARK: - Inbound
-    func fetchRemoteChanges() async throws
-    func applyRemoteChanges(_ records: [CKRecord])
-    func handleDeletion(_ recordID: CKRecord.ID)
-    
-    // MARK: - Conflict Resolution
-    func resolveConflict(_ local: CKRecord, _ remote: CKRecord) -> CKRecord
+ let container: CKContainer
+ let privateDatabase: CKDatabase
+ let zone: CKRecordZone
+ 
+ private var changeToken: CKServerChangeToken?
+ private var syncInProgress = false
+ 
+ // MARK: - Lifecycle
+ func start()
+ func stop()
+ func performFullSync()
+ 
+ // MARK: - Outbound
+ func pushLocalChanges()
+ func uploadRecord(_ record: CKRecord) async throws
+ func uploadAsset(_ asset: CKAsset, for record: CKRecord) async throws
+ 
+ // MARK: - Inbound
+ func fetchRemoteChanges() async throws
+ func applyRemoteChanges(_ records: [CKRecord])
+ func handleDeletion(_ recordID: CKRecord.ID)
+ 
+ // MARK: - Conflict Resolution
+ func resolveConflict(_ local: CKRecord, _ remote: CKRecord) -> CKRecord
 }
 ```
 
-### 4.2 Change Tracking (Local → Cloud)
+### 4.2 Change Tracking (Local Cloud)
 
 **Strategy:** Observe Core Data notifications and enqueue changes
 
 ```swift
 // Observe saves in background context
 NotificationCenter.default.addObserver(
-    forName: .NSManagedObjectContextDidSave,
-    object: backgroundContext,
-    queue: .main
+ forName: .NSManagedObjectContextDidSave,
+ object: backgroundContext,
+ queue: .main
 ) { notification in
-    let inserted = notification.userInfo?[NSInsertedObjectsKey] as? Set<NSManagedObject>
-    let updated = notification.userInfo?[NSUpdatedObjectsKey] as? Set<NSManagedObject>
-    let deleted = notification.userInfo?[NSDeletedObjectsKey] as? Set<NSManagedObject>
-    
-    syncCoordinator.enqueueChanges(
-        inserted: inserted,
-        updated: updated,
-        deleted: deleted
-    )
+ let inserted = notification.userInfo?[NSInsertedObjectsKey] as? Set<NSManagedObject>
+ let updated = notification.userInfo?[NSUpdatedObjectsKey] as? Set<NSManagedObject>
+ let deleted = notification.userInfo?[NSDeletedObjectsKey] as? Set<NSManagedObject>
+ 
+ syncCoordinator.enqueueChanges(
+ inserted: inserted,
+ updated: updated,
+ deleted: deleted
+ )
 }
 ```
 
 **Debouncing:** Batch changes every 2 seconds to avoid excessive uploads
 
-### 4.3 Change Fetching (Cloud → Local)
+### 4.3 Change Fetching (Cloud Local)
 
 **Strategy:** Use `CKFetchRecordZoneChangesOperation` with change tokens
 
 ```swift
 func fetchRemoteChanges() async throws {
-    let operation = CKFetchRecordZoneChangesOperation()
-    
-    // Configure
-    let options = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
-    options.previousServerChangeToken = self.changeToken
-    
-    operation.recordZoneIDs = [zone.zoneID]
-    operation.configurationsByRecordZoneID = [zone.zoneID: options]
-    
-    // Callbacks
-    operation.recordWasChangedBlock = { recordID, result in
-        switch result {
-        case .success(let record):
-            await self.applyRemoteRecord(record)
-        case .failure(let error):
-            self.handleFetchError(error)
-        }
-    }
-    
-    operation.recordWithIDWasDeletedBlock = { recordID, recordType in
-        await self.handleRemoteDeletion(recordID, type: recordType)
-    }
-    
-    operation.recordZoneChangeTokensUpdatedBlock = { zoneID, token, _ in
-        self.changeToken = token
-        self.persistChangeToken(token)
-    }
-    
-    operation.recordZoneFetchResultBlock = { zoneID, result in
-        // Handle completion
-    }
-    
-    privateDatabase.add(operation)
+ let operation = CKFetchRecordZoneChangesOperation()
+ 
+ // Configure
+ let options = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
+ options.previousServerChangeToken = self.changeToken
+ 
+ operation.recordZoneIDs = [zone.zoneID]
+ operation.configurationsByRecordZoneID = [zone.zoneID: options]
+ 
+ // Callbacks
+ operation.recordWasChangedBlock = { recordID, result in
+ switch result {
+ case .success(let record):
+ await self.applyRemoteRecord(record)
+ case .failure(let error):
+ self.handleFetchError(error)
+ }
+ }
+ 
+ operation.recordWithIDWasDeletedBlock = { recordID, recordType in
+ await self.handleRemoteDeletion(recordID, type: recordType)
+ }
+ 
+ operation.recordZoneChangeTokensUpdatedBlock = { zoneID, token, _ in
+ self.changeToken = token
+ self.persistChangeToken(token)
+ }
+ 
+ operation.recordZoneFetchResultBlock = { zoneID, result in
+ // Handle completion
+ }
+ 
+ privateDatabase.add(operation)
 }
 ```
 
@@ -419,16 +419,16 @@ CloudKit detects conflicts automatically when:
 **Algorithm:**
 ```swift
 func resolveConflict(_ local: CKRecord, _ remote: CKRecord) -> CKRecord {
-    guard let localModified = local["modifiedAt"] as? Date,
-          let remoteModified = remote["modifiedAt"] as? Date else {
-        return remote // Fallback: server wins
-    }
-    
-    if localModified > remoteModified {
-        return local
-    } else {
-        return remote
-    }
+ guard let localModified = local["modifiedAt"] as? Date,
+ let remoteModified = remote["modifiedAt"] as? Date else {
+ return remote // Fallback: server wins
+ }
+ 
+ if localModified > remoteModified {
+ return local
+ } else {
+ return remote
+ }
 }
 ```
 
@@ -455,33 +455,33 @@ func resolveConflict(_ local: CKRecord, _ remote: CKRecord) -> CKRecord {
 
 ```swift
 func uploadRecord(_ record: CKRecord) async throws {
-    let operation = CKModifyRecordsOperation(recordsToSave: [record])
-    operation.savePolicy = .changedKeys
-    
-    operation.perRecordResultBlock = { recordID, result in
-        switch result {
-        case .success(let saved):
-            // Success
-            await self.markSynced(recordID)
-            
-        case .failure(let error as CKError):
-            if error.code == .serverRecordChanged {
-                // Conflict detected
-                let serverRecord = error.serverRecord
-                let clientRecord = error.clientRecord
-                
-                let resolved = self.resolveConflict(clientRecord, serverRecord)
-                
-                // Retry with resolved record
-                try await self.uploadRecord(resolved)
-            } else {
-                // Other error
-                throw error
-            }
-        }
-    }
-    
-    privateDatabase.add(operation)
+ let operation = CKModifyRecordsOperation(recordsToSave: [record])
+ operation.savePolicy = .changedKeys
+ 
+ operation.perRecordResultBlock = { recordID, result in
+ switch result {
+ case .success(let saved):
+ // Success
+ await self.markSynced(recordID)
+ 
+ case .failure(let error as CKError):
+ if error.code == .serverRecordChanged {
+ // Conflict detected
+ let serverRecord = error.serverRecord
+ let clientRecord = error.clientRecord
+ 
+ let resolved = self.resolveConflict(clientRecord, serverRecord)
+ 
+ // Retry with resolved record
+ try await self.uploadRecord(resolved)
+ } else {
+ // Other error
+ throw error
+ }
+ }
+ }
+ 
+ privateDatabase.add(operation)
 }
 ```
 
@@ -505,18 +505,18 @@ func uploadRecord(_ record: CKRecord) async throws {
 
 ```swift
 func uploadImageAsset(_ imageData: Data, for record: CKRecord) async throws {
-    let tempURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString)
-        .appendingPathExtension("png")
-    
-    try imageData.write(to: tempURL)
-    
-    let asset = CKAsset(fileURL: tempURL)
-    record["asset"] = asset
-    
-    try await uploadRecord(record)
-    
-    try? FileManager.default.removeItem(at: tempURL)
+ let tempURL = FileManager.default.temporaryDirectory
+ .appendingPathComponent(UUID().uuidString)
+ .appendingPathExtension("png")
+ 
+ try imageData.write(to: tempURL)
+ 
+ let asset = CKAsset(fileURL: tempURL)
+ record["asset"] = asset
+ 
+ try await uploadRecord(record)
+ 
+ try? FileManager.default.removeItem(at: tempURL)
 }
 ```
 
@@ -531,23 +531,23 @@ func uploadImageAsset(_ imageData: Data, for record: CKRecord) async throws {
 
 ```swift
 func fetchRecordWithAssets(_ recordID: CKRecord.ID) async throws -> CKRecord {
-    let record = try await privateDatabase.record(for: recordID)
-    
-    // Download thumbnail immediately
-    if let thumbnailAsset = record["thumbnailAsset"] as? CKAsset,
-       let url = thumbnailAsset.fileURL {
-        let data = try Data(contentsOf: url)
-        await cacheAsset(data, for: recordID, type: .thumbnail)
-    }
-    
-    // Schedule full asset download in background
-    Task.detached {
-        if let asset = record["asset"] as? CKAsset {
-            await self.downloadFullAsset(asset, for: recordID)
-        }
-    }
-    
-    return record
+ let record = try await privateDatabase.record(for: recordID)
+ 
+ // Download thumbnail immediately
+ if let thumbnailAsset = record["thumbnailAsset"] as? CKAsset,
+ let url = thumbnailAsset.fileURL {
+ let data = try Data(contentsOf: url)
+ await cacheAsset(data, for: recordID, type: .thumbnail)
+ }
+ 
+ // Schedule full asset download in background
+ Task.detached {
+ if let asset = record["asset"] as? CKAsset {
+ await self.downloadFullAsset(asset, for: recordID)
+ }
+ }
+ 
+ return record
 }
 ```
 
@@ -557,25 +557,25 @@ func fetchRecordWithAssets(_ recordID: CKRecord.ID) async throws -> CKRecord {
 
 ```swift
 func uploadAssetIfNeeded(_ data: Data, for record: CKRecord) async throws {
-    let hash = data.sha256()
-    
-    // Check if asset with this hash already exists in cloud
-    let query = CKQuery(
-        recordType: "CKClipRepresentation",
-        predicate: NSPredicate(format: "assetHash == %@", hash)
-    )
-    
-    let results = try await privateDatabase.records(matching: query)
-    
-    if let existing = results.matchResults.first?.value {
-        // Reuse existing asset reference
-        record["asset"] = existing["asset"]
-        record["assetHash"] = hash
-    } else {
-        // Upload new asset
-        try await uploadImageAsset(data, for: record)
-        record["assetHash"] = hash
-    }
+ let hash = data.sha256()
+ 
+ // Check if asset with this hash already exists in cloud
+ let query = CKQuery(
+ recordType: "CKClipRepresentation",
+ predicate: NSPredicate(format: "assetHash == %@", hash)
+ )
+ 
+ let results = try await privateDatabase.records(matching: query)
+ 
+ if let existing = results.matchResults.first?.value {
+ // Reuse existing asset reference
+ record["asset"] = existing["asset"]
+ record["assetHash"] = hash
+ } else {
+ // Upload new asset
+ try await uploadImageAsset(data, for: record)
+ record["assetHash"] = hash
+ }
 }
 ```
 
@@ -596,50 +596,50 @@ func uploadAssetIfNeeded(_ data: Data, for record: CKRecord) async throws {
 
 ```swift
 func deleteItem(_ itemID: UUID) async throws {
-    // 1. Delete local
-    let item = try fetchClipItem(id: itemID)
-    context.delete(item)
-    try context.save()
-    
-    // 2. Delete from CloudKit
-    let recordID = CKRecord.ID(
-        recordName: "ClipItem-\(itemID.uuidString)",
-        zoneID: zone.zoneID
-    )
-    
-    try await privateDatabase.deleteRecord(withID: recordID)
-    
-    // 3. Child records (representations, link previews) delete via parent reference cascade
+ // 1. Delete local
+ let item = try fetchClipItem(id: itemID)
+ context.delete(item)
+ try context.save()
+ 
+ // 2. Delete from CloudKit
+ let recordID = CKRecord.ID(
+ recordName: "ClipItem-\(itemID.uuidString)",
+ zoneID: zone.zoneID
+ )
+ 
+ try await privateDatabase.deleteRecord(withID: recordID)
+ 
+ // 3. Child records (representations, link previews) delete via parent reference cascade
 }
 
 func handleRemoteDeletion(_ recordID: CKRecord.ID, type: String) async {
-    switch type {
-    case "CKClipItem":
-        let uuid = extractUUID(from: recordID.recordName)
-        let item = try? fetchClipItem(id: uuid)
-        if let item = item {
-            context.delete(item)
-            try? context.save()
-        }
-        
-    case "CKPinboard":
-        // Similar logic
-        
-    default:
-        break
-    }
+ switch type {
+ case "CKClipItem":
+ let uuid = extractUUID(from: recordID.recordName)
+ let item = try? fetchClipItem(id: uuid)
+ if let item = item {
+ context.delete(item)
+ try? context.save()
+ }
+ 
+ case "CKPinboard":
+ // Similar logic
+ 
+ default:
+ break
+ }
 }
 ```
 
 ### 7.3 Cascade Rules
 
 **CloudKit Parent References:**
-- `CKClipRepresentation.clipItemRef` → `.deleteSelf` (cascade)
-- `CKLinkPreview.clipItemRef` → `.deleteSelf` (cascade)
+- `CKClipRepresentation.clipItemRef` `.deleteSelf` (cascade)
+- `CKLinkPreview.clipItemRef` `.deleteSelf` (cascade)
 
 **Local Core Data:**
-- ClipItem delete → Cascade representations, link preview
-- Pinboard delete → Nullify item relationships
+- ClipItem delete Cascade representations, link preview
+- Pinboard delete Nullify item relationships
 
 ---
 
@@ -649,11 +649,11 @@ func handleRemoteDeletion(_ recordID: CKRecord.ID, type: String) async {
 
 ```swift
 enum SyncStatus {
-    case synced           // All changes uploaded and fetched
-    case syncing          // Operation in progress
-    case error(Error)     // Sync failed
-    case paused           // User disabled sync
-    case accountIssue     // iCloud account not available
+ case synced // All changes uploaded and fetched
+ case syncing // Operation in progress
+ case error(Error) // Sync failed
+ case paused // User disabled sync
+ case accountIssue // iCloud account not available
 }
 ```
 
@@ -673,27 +673,27 @@ enum SyncStatus {
 
 ```swift
 func uploadWithRetry(_ record: CKRecord, maxAttempts: Int = 3) async throws {
-    var attempt = 0
-    var delay: TimeInterval = 1.0
-    
-    while attempt < maxAttempts {
-        do {
-            try await uploadRecord(record)
-            return // Success
-        } catch let error as CKError {
-            attempt += 1
-            
-            if error.code == .networkUnavailable || error.code == .zoneBusy {
-                if attempt < maxAttempts {
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    delay *= 2 // Exponential backoff
-                    continue
-                }
-            }
-            
-            throw error // Unrecoverable or max attempts reached
-        }
-    }
+ var attempt = 0
+ var delay: TimeInterval = 1.0
+ 
+ while attempt < maxAttempts {
+ do {
+ try await uploadRecord(record)
+ return // Success
+ } catch let error as CKError {
+ attempt += 1
+ 
+ if error.code == .networkUnavailable || error.code == .zoneBusy {
+ if attempt < maxAttempts {
+ try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+ delay *= 2 // Exponential backoff
+ continue
+ }
+ }
+ 
+ throw error // Unrecoverable or max attempts reached
+ }
+ }
 }
 ```
 
@@ -906,21 +906,21 @@ Status: Synced now | Last synced 2m ago | Syncing... | Error
 
 ```swift
 func testRecordMapping() {
-    let clipItem = createTestClipItem()
-    let record = clipItem.toCKRecord()
-    
-    XCTAssertEqual(record.recordType, "CKClipItem")
-    XCTAssertEqual(record["id"] as? String, clipItem.id.uuidString)
-    XCTAssertEqual(record["itemType"] as? Int64, Int64(clipItem.itemType))
+ let clipItem = createTestClipItem()
+ let record = clipItem.toCKRecord()
+ 
+ XCTAssertEqual(record.recordType, "CKClipItem")
+ XCTAssertEqual(record["id"] as? String, clipItem.id.uuidString)
+ XCTAssertEqual(record["itemType"] as? Int64, Int64(clipItem.itemType))
 }
 
 func testConflictResolution() {
-    let local = createRecord(modifiedAt: Date())
-    let remote = createRecord(modifiedAt: Date().addingTimeInterval(-10))
-    
-    let resolved = syncCoordinator.resolveConflict(local, remote)
-    
-    XCTAssertEqual(resolved, local) // Local is newer
+ let local = createRecord(modifiedAt: Date())
+ let remote = createRecord(modifiedAt: Date().addingTimeInterval(-10))
+ 
+ let resolved = syncCoordinator.resolveConflict(local, remote)
+ 
+ XCTAssertEqual(resolved, local) // Local is newer
 }
 ```
 
@@ -940,16 +940,16 @@ func testConflictResolution() {
 
 ### 12.3 Manual Testing Checklist
 
-- [ ] Sign out of iCloud → Sync shows error
-- [ ] Sign back in → Sync resumes
-- [ ] Enable airplane mode → Changes queue locally
-- [ ] Disable airplane mode → Changes upload
-- [ ] Create 100 items on Device A → All appear on Device B
-- [ ] Delete pinboard on Device A → Disappears on Device B
-- [ ] Modify pinboard name on both devices simultaneously → Conflict resolves
-- [ ] Upload 10 MB image → Downloads on Device B
-- [ ] Toggle sync off → No network requests
-- [ ] Toggle sync on → Full sync completes
+- [ ] Sign out of iCloud Sync shows error
+- [ ] Sign back in Sync resumes
+- [ ] Enable airplane mode Changes queue locally
+- [ ] Disable airplane mode Changes upload
+- [ ] Create 100 items on Device A All appear on Device B
+- [ ] Delete pinboard on Device A Disappears on Device B
+- [ ] Modify pinboard name on both devices simultaneously Conflict resolves
+- [ ] Upload 10 MB image Downloads on Device B
+- [ ] Toggle sync off No network requests
+- [ ] Toggle sync on Full sync completes
 
 ---
 
@@ -957,7 +957,7 @@ func testConflictResolution() {
 
 ### 13.1 Schema Deployment
 
-**Development → Production:**
+**Development Production:**
 1. Test schema in development environment
 2. Validate all record types and indexes
 3. Deploy to production via CloudKit Dashboard
@@ -986,20 +986,20 @@ os_log("Sync: Conflict detected for %@", log: .sync, type: .error, recordID)
 
 **Common Issues:**
 1. "Items not syncing"
-   - Check iCloud sign-in
-   - Check network connectivity
-   - Check sync toggle in settings
-   - Force full sync
+ - Check iCloud sign-in
+ - Check network connectivity
+ - Check sync toggle in settings
+ - Force full sync
 
 2. "Duplicate items appearing"
-   - Check for hash collision (unlikely)
-   - Validate deduplication logic
-   - Check for multiple devices with same ID
+ - Check for hash collision (unlikely)
+ - Validate deduplication logic
+ - Check for multiple devices with same ID
 
 3. "Assets not downloading"
-   - Check network connectivity
-   - Check CloudKit quota
-   - Retry asset download
+ - Check network connectivity
+ - Check CloudKit quota
+ - Retry asset download
 
 ---
 
@@ -1012,15 +1012,15 @@ os_log("Sync: Conflict detected for %@", log: .sync, type: .error, recordID)
 **Implementation:**
 ```swift
 func sharePin board(_ pinboard: Pinboard) async throws -> CKShare {
-    let record = pinboard.toCKRecord()
-    let share = CKShare(rootRecord: record)
-    
-    share[CKShare.SystemFieldKey.title] = pinboard.name
-    share.publicPermission = .readOnly
-    
-    try await privateDatabase.save(share)
-    
-    return share
+ let record = pinboard.toCKRecord()
+ let share = CKShare(rootRecord: record)
+ 
+ share[CKShare.SystemFieldKey.title] = pinboard.name
+ share.publicPermission = .readOnly
+ 
+ try await privateDatabase.save(share)
+ 
+ return share
 }
 ```
 
@@ -1052,19 +1052,19 @@ func sharePin board(_ pinboard: Pinboard) async throws -> CKShare {
 ### 15.1 Decisions Needed
 
 1. **Sync StackSessions?**
-   - **Recommendation:** No, keep stacks device-local (ephemeral workflow)
-   - **Alternative:** Sync active stack only
+ - **Recommendation:** No, keep stacks device-local (ephemeral workflow)
+ - **Alternative:** Sync active stack only
 
 2. **Sync ignored apps list?**
-   - **Recommendation:** No, device-specific preference
-   - **Alternative:** Sync as user setting
+ - **Recommendation:** No, device-specific preference
+ - **Alternative:** Sync as user setting
 
 3. **Thumbnail resolution?**
-   - **Recommendation:** 512x512 @ 2x (balance quality and size)
+ - **Recommendation:** 512x512 @ 2x (balance quality and size)
 
 4. **Asset retention in cloud?**
-   - **Recommendation:** Match local retention policy
-   - **Implementation:** Delete cloud records when local cleanup runs
+ - **Recommendation:** Match local retention policy
+ - **Implementation:** Delete cloud records when local cleanup runs
 
 ### 15.2 Known Limitations
 
@@ -1091,46 +1091,46 @@ func sharePin board(_ pinboard: Pinboard) async throws -> CKShare {
 
 ```swift
 extension ClipItem {
-    func toCKRecord(zone: CKRecordZone) -> CKRecord {
-        let recordID = CKRecord.ID(
-            recordName: "ClipItem-\(id.uuidString)",
-            zoneID: zone.zoneID
-        )
-        
-        let record = CKRecord(recordType: "CKClipItem", recordID: recordID)
-        record["id"] = id.uuidString
-        record["createdAt"] = createdAt
-        record["modifiedAt"] = modifiedAt
-        record["sourceAppBundleID"] = sourceAppBundleID
-        record["sourceAppName"] = sourceAppName
-        record["itemType"] = Int64(itemType)
-        record["primaryText"] = String(primaryText?.prefix(10000) ?? "")
-        record["contentHash"] = hash
-        record["isSensitive"] = isSensitive ? 1 : 0
-        record["isTransient"] = isTransient ? 1 : 0
-        record["isPinned"] = isPinned ? 1 : 0
-        record["byteCount"] = byteCount
-        
-        return record
-    }
-    
-    static func fromCKRecord(_ record: CKRecord, context: NSManagedObjectContext) -> ClipItem {
-        let item = ClipItem(context: context)
-        item.id = UUID(uuidString: record["id"] as! String)!
-        item.createdAt = record["createdAt"] as! Date
-        item.modifiedAt = record["modifiedAt"] as! Date
-        item.sourceAppBundleID = record["sourceAppBundleID"] as? String
-        item.sourceAppName = record["sourceAppName"] as? String
-        item.itemType = Int16(record["itemType"] as! Int64)
-        item.primaryText = record["primaryText"] as? String
-        item.contentHash = record["contentHash"] as! String
-        item.isSensitive = (record["isSensitive"] as! Int64) == 1
-        item.isTransient = (record["isTransient"] as! Int64) == 1
-        item.isPinned = (record["isPinned"] as! Int64) == 1
-        item.byteCount = record["byteCount"] as! Int64
-        
-        return item
-    }
+ func toCKRecord(zone: CKRecordZone) -> CKRecord {
+ let recordID = CKRecord.ID(
+ recordName: "ClipItem-\(id.uuidString)",
+ zoneID: zone.zoneID
+ )
+ 
+ let record = CKRecord(recordType: "CKClipItem", recordID: recordID)
+ record["id"] = id.uuidString
+ record["createdAt"] = createdAt
+ record["modifiedAt"] = modifiedAt
+ record["sourceAppBundleID"] = sourceAppBundleID
+ record["sourceAppName"] = sourceAppName
+ record["itemType"] = Int64(itemType)
+ record["primaryText"] = String(primaryText?.prefix(10000) ?? "")
+ record["contentHash"] = hash
+ record["isSensitive"] = isSensitive ? 1 : 0
+ record["isTransient"] = isTransient ? 1 : 0
+ record["isPinned"] = isPinned ? 1 : 0
+ record["byteCount"] = byteCount
+ 
+ return record
+ }
+ 
+ static func fromCKRecord(_ record: CKRecord, context: NSManagedObjectContext) -> ClipItem {
+ let item = ClipItem(context: context)
+ item.id = UUID(uuidString: record["id"] as! String)!
+ item.createdAt = record["createdAt"] as! Date
+ item.modifiedAt = record["modifiedAt"] as! Date
+ item.sourceAppBundleID = record["sourceAppBundleID"] as? String
+ item.sourceAppName = record["sourceAppName"] as? String
+ item.itemType = Int16(record["itemType"] as! Int64)
+ item.primaryText = record["primaryText"] as? String
+ item.contentHash = record["contentHash"] as! String
+ item.isSensitive = (record["isSensitive"] as! Int64) == 1
+ item.isTransient = (record["isTransient"] as! Int64) == 1
+ item.isPinned = (record["isPinned"] as! Int64) == 1
+ item.byteCount = record["byteCount"] as! Int64
+ 
+ return item
+ }
 }
 ```
 

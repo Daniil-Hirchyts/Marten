@@ -10,9 +10,9 @@
 - **Status:** Draft
 - **Owner:** Engineering Team
 - **Dependencies:** 
-  - `Architecture-Overview.md` (parent)
-  - `Data-Model-Spec.md` (data protection)
-  - `macOS-Services-Spec.md` (capture filtering)
+ - `Architecture-Overview.md` (parent)
+ - `Data-Model-Spec.md` (data protection)
+ - `macOS-Services-Spec.md` (capture filtering)
 
 ---
 
@@ -48,13 +48,13 @@ This document defines all privacy and security requirements for the Paste Clipbo
 ```
 Privacy Settings
 ├── Visibility
-│   └── Show during screen sharing
+│ └── Show during screen sharing
 ├── Content Filtering
-│   ├── Generate link previews
-│   ├── Ignore confidential content
-│   └── Ignore transient content
+│ ├── Generate link previews
+│ ├── Ignore confidential content
+│ └── Ignore transient content
 └── Application Filtering
-    └── Ignored Applications list
+ └── Ignored Applications list
 ```
 
 ---
@@ -70,22 +70,22 @@ Allow users to prevent clipboard monitoring for specific applications where sens
 **Data Model:**
 ```swift
 struct IgnoredApp: Codable {
-    var bundleIdentifier: String
-    var name: String  // Display name
-    var iconData: Data?  // Cached app icon
-    var addedAt: Date
+ var bundleIdentifier: String
+ var name: String // Display name
+ var iconData: Data? // Cached app icon
+ var addedAt: Date
 }
 
 // Stored in UserDefaults
 @AppStorage("ignoredApps") private var ignoredAppsData: Data = Data()
 
 var ignoredApps: [IgnoredApp] {
-    get {
-        (try? JSONDecoder().decode([IgnoredApp].self, from: ignoredAppsData)) ?? []
-    }
-    set {
-        ignoredAppsData = (try? JSONEncoder().encode(newValue)) ?? Data()
-    }
+ get {
+ (try? JSONDecoder().decode([IgnoredApp].self, from: ignoredAppsData)) ?? []
+ }
+ set {
+ ignoredAppsData = (try? JSONEncoder().encode(newValue)) ?? Data()
+ }
 }
 ```
 
@@ -94,14 +94,14 @@ var ignoredApps: [IgnoredApp] {
 **Pre-populated list (first launch):**
 ```swift
 let defaultIgnoredApps = [
-    "com.apple.keychainaccess",      // Keychain Access
-    "com.apple.Passwords",            // Passwords (macOS 14+)
-    "com.1password.1password",        // 1Password
-    "com.agilebits.onepassword7",    // 1Password 7
-    "com.lastpass.LastPass",          // LastPass
-    "com.dashlane.dashlanephonefinal", // Dashlane
-    "com.bitwarden.desktop",          // Bitwarden
-    "com.todesktop.230313mzl4w4u92", // Bitwarden (alternate)
+ "com.apple.keychainaccess", // Keychain Access
+ "com.apple.Passwords", // Passwords (macOS 14+)
+ "com.1password.1password", // 1Password
+ "com.agilebits.onepassword7", // 1Password 7
+ "com.lastpass.LastPass", // LastPass
+ "com.dashlane.dashlanephonefinal", // Dashlane
+ "com.bitwarden.desktop", // Bitwarden
+ "com.todesktop.230313mzl4w4u92", // Bitwarden (alternate)
 ]
 ```
 
@@ -112,21 +112,21 @@ let defaultIgnoredApps = [
 **Implementation:**
 ```swift
 func shouldCaptureItem(_ snapshot: PasteboardSnapshot) async throws -> Bool {
-    // Check ignored apps
-    if let sourceApp = snapshot.sourceApp {
-        let ignoredBundleIDs = ignoredApps.map { $0.bundleIdentifier }
-        
-        if ignoredBundleIDs.contains(sourceApp.bundleIdentifier ?? "") {
-            os_log("Ignoring clipboard from app: %@", 
-                   log: .privacy, 
-                   type: .info, 
-                   sourceApp.bundleIdentifier ?? "unknown")
-            return false
-        }
-    }
-    
-    // Additional filters...
-    return true
+ // Check ignored apps
+ if let sourceApp = snapshot.sourceApp {
+ let ignoredBundleIDs = ignoredApps.map { $0.bundleIdentifier }
+ 
+ if ignoredBundleIDs.contains(sourceApp.bundleIdentifier ?? "") {
+ os_log("Ignoring clipboard from app: %@", 
+ log: .privacy, 
+ type: .info, 
+ sourceApp.bundleIdentifier ?? "unknown")
+ return false
+ }
+ }
+ 
+ // Additional filters...
+ return true
 }
 ```
 
@@ -157,34 +157,34 @@ Automatically detect and filter sensitive content types:
 
 ```swift
 protocol ContentClassifier {
-    func classify(_ text: String) -> ClassificationResult
+ func classify(_ text: String) -> ClassificationResult
 }
 
 enum ClassificationResult {
-    case safe
-    case sensitive(reason: SensitiveReason)
+ case safe
+ case sensitive(reason: SensitiveReason)
 }
 
 enum SensitiveReason {
-    case password
-    case oneTimeCode
-    case creditCard
-    case apiKey
-    case privateKey
-    case ssn
+ case password
+ case oneTimeCode
+ case creditCard
+ case apiKey
+ case privateKey
+ case ssn
 }
 
 class ConfidentialContentClassifier: ContentClassifier {
-    func classify(_ text: String) -> ClassificationResult {
-        if isPassword(text) { return .sensitive(.password) }
-        if isOneTimeCode(text) { return .sensitive(.oneTimeCode) }
-        if isCreditCard(text) { return .sensitive(.creditCard) }
-        if isAPIKey(text) { return .sensitive(.apiKey) }
-        if isPrivateKey(text) { return .sensitive(.privateKey) }
-        if isSSN(text) { return .sensitive(.ssn) }
-        
-        return .safe
-    }
+ func classify(_ text: String) -> ClassificationResult {
+ if isPassword(text) { return .sensitive(.password) }
+ if isOneTimeCode(text) { return .sensitive(.oneTimeCode) }
+ if isCreditCard(text) { return .sensitive(.creditCard) }
+ if isAPIKey(text) { return .sensitive(.apiKey) }
+ if isPrivateKey(text) { return .sensitive(.privateKey) }
+ if isSSN(text) { return .sensitive(.ssn) }
+ 
+ return .safe
+ }
 }
 ```
 
@@ -201,50 +201,50 @@ class ConfidentialContentClassifier: ContentClassifier {
 
 ```swift
 func isPassword(_ text: String) -> Bool {
-    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    
-    // Length check
-    guard (8...64).contains(trimmed.count) else { return false }
-    
-    // Must not contain spaces (most passwords don't)
-    guard !trimmed.contains(" ") else { return false }
-    
-    // Must not be a URL
-    if trimmed.lowercased().hasPrefix("http") { return false }
-    
-    // Calculate entropy
-    let entropy = calculateEntropy(trimmed)
-    
-    // High entropy threshold (bits per character)
-    guard entropy > 3.5 else { return false }
-    
-    // Character diversity
-    let hasUpper = trimmed.rangeOfCharacter(from: .uppercaseLetters) != nil
-    let hasLower = trimmed.rangeOfCharacter(from: .lowercaseLetters) != nil
-    let hasDigit = trimmed.rangeOfCharacter(from: .decimalDigits) != nil
-    let hasSymbol = trimmed.rangeOfCharacter(from: CharacterSet(charactersIn: "!@#$%^&*()_+-=[]{}|;:,.<>?/~`")) != nil
-    
-    let diversityScore = [hasUpper, hasLower, hasDigit, hasSymbol].filter { $0 }.count
-    
-    return diversityScore >= 3
+ let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+ 
+ // Length check
+ guard (8...64).contains(trimmed.count) else { return false }
+ 
+ // Must not contain spaces (most passwords don't)
+ guard !trimmed.contains(" ") else { return false }
+ 
+ // Must not be a URL
+ if trimmed.lowercased().hasPrefix("http") { return false }
+ 
+ // Calculate entropy
+ let entropy = calculateEntropy(trimmed)
+ 
+ // High entropy threshold (bits per character)
+ guard entropy > 3.5 else { return false }
+ 
+ // Character diversity
+ let hasUpper = trimmed.rangeOfCharacter(from: .uppercaseLetters) != nil
+ let hasLower = trimmed.rangeOfCharacter(from: .lowercaseLetters) != nil
+ let hasDigit = trimmed.rangeOfCharacter(from: .decimalDigits) != nil
+ let hasSymbol = trimmed.rangeOfCharacter(from: CharacterSet(charactersIn: "!@#$%^&*()_+-=[]{}|;:,.<>?/~`")) != nil
+ 
+ let diversityScore = [hasUpper, hasLower, hasDigit, hasSymbol].filter { $0 }.count
+ 
+ return diversityScore >= 3
 }
 
 func calculateEntropy(_ text: String) -> Double {
-    var frequencies: [Character: Int] = [:]
-    
-    for char in text {
-        frequencies[char, default: 0] += 1
-    }
-    
-    let length = Double(text.count)
-    var entropy = 0.0
-    
-    for (_, count) in frequencies {
-        let probability = Double(count) / length
-        entropy -= probability * log2(probability)
-    }
-    
-    return entropy
+ var frequencies: [Character: Int] = [:]
+ 
+ for char in text {
+ frequencies[char, default: 0] += 1
+ }
+ 
+ let length = Double(text.count)
+ var entropy = 0.0
+ 
+ for (_, count) in frequencies {
+ let probability = Double(count) / length
+ entropy -= probability * log2(probability)
+ }
+ 
+ return entropy
 }
 ```
 
@@ -257,17 +257,17 @@ func calculateEntropy(_ text: String) -> Double {
 
 ```swift
 func isOneTimeCode(_ text: String) -> Bool {
-    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    
-    // Length check: 6-8 digits
-    guard (6...8).contains(trimmed.count) else { return false }
-    
-    // Must be all digits
-    guard CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: trimmed)) else {
-        return false
-    }
-    
-    return true
+ let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+ 
+ // Length check: 6-8 digits
+ guard (6...8).contains(trimmed.count) else { return false }
+ 
+ // Must be all digits
+ guard CharacterSet.decimalDigits.isSuperset(of: CharacterSet(charactersIn: trimmed)) else {
+ return false
+ }
+ 
+ return true
 }
 ```
 
@@ -277,29 +277,29 @@ func isOneTimeCode(_ text: String) -> Bool {
 
 ```swift
 func isCreditCard(_ text: String) -> Bool {
-    let digits = text.filter { $0.isNumber }
-    
-    // Card numbers are 13-19 digits
-    guard (13...19).contains(digits.count) else { return false }
-    
-    // Luhn algorithm
-    var sum = 0
-    var shouldDouble = false
-    
-    for char in digits.reversed() {
-        guard let digit = Int(String(char)) else { return false }
-        
-        if shouldDouble {
-            let doubled = digit * 2
-            sum += doubled > 9 ? doubled - 9 : doubled
-        } else {
-            sum += digit
-        }
-        
-        shouldDouble.toggle()
-    }
-    
-    return sum % 10 == 0
+ let digits = text.filter { $0.isNumber }
+ 
+ // Card numbers are 13-19 digits
+ guard (13...19).contains(digits.count) else { return false }
+ 
+ // Luhn algorithm
+ var sum = 0
+ var shouldDouble = false
+ 
+ for char in digits.reversed() {
+ guard let digit = Int(String(char)) else { return false }
+ 
+ if shouldDouble {
+ let doubled = digit * 2
+ sum += doubled > 9 ? doubled - 9 : doubled
+ } else {
+ sum += digit
+ }
+ 
+ shouldDouble.toggle()
+ }
+ 
+ return sum % 10 == 0
 }
 ```
 
@@ -313,44 +313,44 @@ func isCreditCard(_ text: String) -> Bool {
 
 ```swift
 func isAPIKey(_ text: String) -> Bool {
-    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    
-    // JWT pattern
-    if trimmed.components(separatedBy: ".").count == 3 {
-        let parts = trimmed.components(separatedBy: ".")
-        if parts.allSatisfy({ $0.count > 20 && $0.isBase64Like }) {
-            return true
-        }
-    }
-    
-    // GitHub token prefixes
-    let githubPrefixes = ["ghp_", "gho_", "ghs_", "ghu_", "ghr_"]
-    if githubPrefixes.contains(where: { trimmed.hasPrefix($0) }) {
-        return true
-    }
-    
-    // AWS access key
-    if trimmed.hasPrefix("AKIA") && trimmed.count == 20 {
-        return true
-    }
-    
-    // Generic: long alphanumeric (likely a token)
-    if trimmed.count >= 40 && trimmed.isAlphanumeric && !trimmed.contains(" ") {
-        return true
-    }
-    
-    return false
+ let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+ 
+ // JWT pattern
+ if trimmed.components(separatedBy: ".").count == 3 {
+ let parts = trimmed.components(separatedBy: ".")
+ if parts.allSatisfy({ $0.count > 20 && $0.isBase64Like }) {
+ return true
+ }
+ }
+ 
+ // GitHub token prefixes
+ let githubPrefixes = ["ghp_", "gho_", "ghs_", "ghu_", "ghr_"]
+ if githubPrefixes.contains(where: { trimmed.hasPrefix($0) }) {
+ return true
+ }
+ 
+ // AWS access key
+ if trimmed.hasPrefix("AKIA") && trimmed.count == 20 {
+ return true
+ }
+ 
+ // Generic: long alphanumeric (likely a token)
+ if trimmed.count >= 40 && trimmed.isAlphanumeric && !trimmed.contains(" ") {
+ return true
+ }
+ 
+ return false
 }
 
 extension String {
-    var isBase64Like: Bool {
-        let base64Chars = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
-        return CharacterSet(charactersIn: self).isSubset(of: base64Chars)
-    }
-    
-    var isAlphanumeric: Bool {
-        return CharacterSet.alphanumerics.isSuperset(of: CharacterSet(charactersIn: self))
-    }
+ var isBase64Like: Bool {
+ let base64Chars = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
+ return CharacterSet(charactersIn: self).isSubset(of: base64Chars)
+ }
+ 
+ var isAlphanumeric: Bool {
+ return CharacterSet.alphanumerics.isSuperset(of: CharacterSet(charactersIn: self))
+ }
 }
 ```
 
@@ -362,16 +362,16 @@ extension String {
 
 ```swift
 func isPrivateKey(_ text: String) -> Bool {
-    let markers = [
-        "BEGIN RSA PRIVATE KEY",
-        "BEGIN PRIVATE KEY",
-        "BEGIN OPENSSH PRIVATE KEY",
-        "BEGIN EC PRIVATE KEY",
-        "BEGIN DSA PRIVATE KEY",
-        "BEGIN PGP PRIVATE KEY",
-    ]
-    
-    return markers.contains { text.contains($0) }
+ let markers = [
+ "BEGIN RSA PRIVATE KEY",
+ "BEGIN PRIVATE KEY",
+ "BEGIN OPENSSH PRIVATE KEY",
+ "BEGIN EC PRIVATE KEY",
+ "BEGIN DSA PRIVATE KEY",
+ "BEGIN PGP PRIVATE KEY",
+ ]
+ 
+ return markers.contains { text.contains($0) }
 }
 ```
 
@@ -381,28 +381,28 @@ func isPrivateKey(_ text: String) -> Bool {
 
 ```swift
 func isSSN(_ text: String) -> Bool {
-    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    
-    // Pattern with dashes
-    let patternWithDashes = "^\\d{3}-\\d{2}-\\d{4}$"
-    
-    // Pattern without dashes
-    let patternNoDashes = "^\\d{9}$"
-    
-    let regexWithDashes = try? NSRegularExpression(pattern: patternWithDashes)
-    let regexNoDashes = try? NSRegularExpression(pattern: patternNoDashes)
-    
-    let range = NSRange(trimmed.startIndex..., in: trimmed)
-    
-    if regexWithDashes?.firstMatch(in: trimmed, range: range) != nil {
-        return true
-    }
-    
-    if regexNoDashes?.firstMatch(in: trimmed, range: range) != nil {
-        return true
-    }
-    
-    return false
+ let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+ 
+ // Pattern with dashes
+ let patternWithDashes = "^\\d{3}-\\d{2}-\\d{4}$"
+ 
+ // Pattern without dashes
+ let patternNoDashes = "^\\d{9}$"
+ 
+ let regexWithDashes = try? NSRegularExpression(pattern: patternWithDashes)
+ let regexNoDashes = try? NSRegularExpression(pattern: patternNoDashes)
+ 
+ let range = NSRange(trimmed.startIndex..., in: trimmed)
+ 
+ if regexWithDashes?.firstMatch(in: trimmed, range: range) != nil {
+ return true
+ }
+ 
+ if regexNoDashes?.firstMatch(in: trimmed, range: range) != nil {
+ return true
+ }
+ 
+ return false
 }
 ```
 
@@ -423,11 +423,11 @@ func isSSN(_ text: String) -> Bool {
 
 **Setting UI:**
 ```
-☑ Ignore confidential content
-    Automatically filters passwords, credit cards, 
-    API keys, and other sensitive data.
-    
-    [Learn more...]
+ Ignore confidential content
+ Automatically filters passwords, credit cards, 
+ API keys, and other sensitive data.
+ 
+ [Learn more...]
 ```
 
 ---
@@ -447,18 +447,18 @@ Some clipboard content is ephemeral and not useful in history:
 
 ```swift
 func isTransient(_ snapshot: PasteboardSnapshot) -> Bool {
-    let transientUTIs = [
-        "com.apple.pasteboard.promised-file-url",  // File promise (drag-drop)
-        "com.apple.pasteboard.promised-file-content-type",
-        "dyn.age",  // Dynamic UTI often used for temp data
-    ]
-    
-    // If only transient types present, skip
-    let nonTransientTypes = snapshot.types.filter { uti in
-        !transientUTIs.contains(uti.rawValue)
-    }
-    
-    return nonTransientTypes.isEmpty
+ let transientUTIs = [
+ "com.apple.pasteboard.promised-file-url", // File promise (drag-drop)
+ "com.apple.pasteboard.promised-file-content-type",
+ "dyn.age", // Dynamic UTI often used for temp data
+ ]
+ 
+ // If only transient types present, skip
+ let nonTransientTypes = snapshot.types.filter { uti in
+ !transientUTIs.contains(uti.rawValue)
+ }
+ 
+ return nonTransientTypes.isEmpty
 }
 ```
 
@@ -489,46 +489,46 @@ Fetch and display rich previews for copied URLs (title, icon, image).
 import LinkPresentation
 
 class LinkPreviewFetcher {
-    private let provider = LPMetadataProvider()
-    var isEnabled: Bool = true
-    
-    func fetchPreview(for url: URL) async throws -> LinkPreview {
-        guard isEnabled else {
-            throw PreviewError.disabled
-        }
-        
-        let metadata = try await provider.startFetchingMetadata(for: url)
-        
-        var preview = LinkPreview()
-        preview.url = url.absoluteString
-        preview.title = metadata.title
-        preview.summary = metadata.summary
-        preview.siteName = metadata.siteName
-        
-        // Fetch image
-        if let imageProvider = metadata.imageProvider {
-            let image = try await fetchImage(from: imageProvider)
-            preview.imageData = image.pngData()
-        }
-        
-        preview.fetchedAt = Date()
-        
-        return preview
-    }
-    
-    private func fetchImage(from provider: NSItemProvider) async throws -> NSImage {
-        return try await withCheckedThrowingContinuation { continuation in
-            provider.loadObject(ofClass: NSImage.self) { image, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let image = image as? NSImage {
-                    continuation.resume(returning: image)
-                } else {
-                    continuation.resume(throwing: PreviewError.invalidImage)
-                }
-            }
-        }
-    }
+ private let provider = LPMetadataProvider()
+ var isEnabled: Bool = true
+ 
+ func fetchPreview(for url: URL) async throws -> LinkPreview {
+ guard isEnabled else {
+ throw PreviewError.disabled
+ }
+ 
+ let metadata = try await provider.startFetchingMetadata(for: url)
+ 
+ var preview = LinkPreview()
+ preview.url = url.absoluteString
+ preview.title = metadata.title
+ preview.summary = metadata.summary
+ preview.siteName = metadata.siteName
+ 
+ // Fetch image
+ if let imageProvider = metadata.imageProvider {
+ let image = try await fetchImage(from: imageProvider)
+ preview.imageData = image.pngData()
+ }
+ 
+ preview.fetchedAt = Date()
+ 
+ return preview
+ }
+ 
+ private func fetchImage(from provider: NSItemProvider) async throws -> NSImage {
+ return try await withCheckedThrowingContinuation { continuation in
+ provider.loadObject(ofClass: NSImage.self) { image, error in
+ if let error = error {
+ continuation.resume(throwing: error)
+ } else if let image = image as? NSImage {
+ continuation.resume(returning: image)
+ } else {
+ continuation.resume(throwing: PreviewError.invalidImage)
+ }
+ }
+ }
+ }
 }
 ```
 
@@ -548,7 +548,7 @@ class LinkPreviewFetcher {
 ```
 Settings > Privacy > Generate link previews
 
-☑ Generate link previews
+ Generate link previews
 
 When enabled, Paste will fetch metadata from 
 websites you copy. This requires sending the URL 
@@ -601,24 +601,24 @@ Hide the overlay UI during screen sharing to protect clipboard history from view
 
 ```swift
 class ScreenSharingManager: ObservableObject {
-    @Published var isScreenSharingModeActive = false
-    @AppStorage("showDuringScreenSharing") private var showDuringScreenSharing = true
-    
-    var shouldShowOverlay: Bool {
-        if !showDuringScreenSharing && isScreenSharingModeActive {
-            return false
-        }
-        return true
-    }
-    
-    func toggleScreenSharingMode() {
-        isScreenSharingModeActive.toggle()
-        
-        if isScreenSharingModeActive {
-            // Hide overlay immediately
-            NotificationCenter.default.post(name: .hideOverlay, object: nil)
-        }
-    }
+ @Published var isScreenSharingModeActive = false
+ @AppStorage("showDuringScreenSharing") private var showDuringScreenSharing = true
+ 
+ var shouldShowOverlay: Bool {
+ if !showDuringScreenSharing && isScreenSharingModeActive {
+ return false
+ }
+ return true
+ }
+ 
+ func toggleScreenSharingMode() {
+ isScreenSharingModeActive.toggle()
+ 
+ if isScreenSharingModeActive {
+ // Hide overlay immediately
+ NotificationCenter.default.post(name: .hideOverlay, object: nil)
+ }
+ }
 }
 ```
 
@@ -631,7 +631,7 @@ class ScreenSharingManager: ObservableObject {
 
 **Quick Toggle:**
 - Menu bar: "Screen Sharing Mode" checkbox
-- Keyboard: ⇧⌘P (configurable)
+- Keyboard: P (configurable)
 
 ---
 
@@ -648,59 +648,59 @@ class ScreenSharingManager: ObservableObject {
 import Security
 
 class KeychainManager {
-    func storeEncryptionKey(_ key: Data) throws {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: "paste-encryption-key",
-            kSecValueData as String: key,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
-        ]
-        
-        let status = SecItemAdd(query as CFDictionary, nil)
-        
-        guard status == errSecSuccess else {
-            throw KeychainError.saveFailed(status)
-        }
-    }
-    
-    func retrieveEncryptionKey() throws -> Data {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: "paste-encryption-key",
-            kSecReturnData as String: true,
-        ]
-        
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
-        guard status == errSecSuccess, let data = result as? Data else {
-            throw KeychainError.retrieveFailed(status)
-        }
-        
-        return data
-    }
+ func storeEncryptionKey(_ key: Data) throws {
+ let query: [String: Any] = [
+ kSecClass as String: kSecClassGenericPassword,
+ kSecAttrAccount as String: "paste-encryption-key",
+ kSecValueData as String: key,
+ kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
+ ]
+ 
+ let status = SecItemAdd(query as CFDictionary, nil)
+ 
+ guard status == errSecSuccess else {
+ throw KeychainError.saveFailed(status)
+ }
+ }
+ 
+ func retrieveEncryptionKey() throws -> Data {
+ let query: [String: Any] = [
+ kSecClass as String: kSecClassGenericPassword,
+ kSecAttrAccount as String: "paste-encryption-key",
+ kSecReturnData as String: true,
+ ]
+ 
+ var result: AnyObject?
+ let status = SecItemCopyMatching(query as CFDictionary, &result)
+ 
+ guard status == errSecSuccess, let data = result as? Data else {
+ throw KeychainError.retrieveFailed(status)
+ }
+ 
+ return data
+ }
 }
 ```
 
 **Encrypted Field Example:**
 ```swift
 extension ClipItem {
-    var encryptedPrimaryText: Data? {
-        guard let text = primaryText,
-              let key = try? keychainManager.retrieveEncryptionKey() else {
-            return nil
-        }
-        
-        return try? encrypt(text, with: key)
-    }
+ var encryptedPrimaryText: Data? {
+ guard let text = primaryText,
+ let key = try? keychainManager.retrieveEncryptionKey() else {
+ return nil
+ }
+ 
+ return try? encrypt(text, with: key)
+ }
 }
 
 func encrypt(_ text: String, with key: Data) throws -> Data {
-    // Use CryptoKit for encryption
-    let textData = text.data(using: .utf8)!
-    let symmetricKey = SymmetricKey(data: key)
-    let sealedBox = try AES.GCM.seal(textData, using: symmetricKey)
-    return sealedBox.combined!
+ // Use CryptoKit for encryption
+ let textData = text.data(using: .utf8)!
+ let symmetricKey = SymmetricKey(data: key)
+ let sealedBox = try AES.GCM.seal(textData, using: symmetricKey)
+ return sealedBox.combined!
 }
 ```
 
@@ -726,7 +726,7 @@ func encrypt(_ text: String, with key: Data) throws -> Data {
 
 **Settings UI:**
 ```
-☑ iCloud Sync
+ iCloud Sync
 
 Sync your clipboard history across all your 
 devices using iCloud.
@@ -793,8 +793,8 @@ your data.
 Data Used to Track You: None
 
 Data Linked to You:
-  - User Content (if iCloud sync enabled)
-  
+ - User Content (if iCloud sync enabled)
+ 
 Data Not Linked to You: None
 ```
 
@@ -887,9 +887,9 @@ Content:
 ClipboardCore/BusinessRules/
 ├── IgnoredAppsManager.swift
 ├── Classifiers/
-│   ├── ContentClassifier.swift (protocol)
-│   ├── ConfidentialContentClassifier.swift
-│   └── TransientContentClassifier.swift
+│ ├── ContentClassifier.swift (protocol)
+│ ├── ConfidentialContentClassifier.swift
+│ └── TransientContentClassifier.swift
 ├── LinkPreviewFetcher.swift
 └── ScreenSharingManager.swift
 
@@ -940,26 +940,26 @@ docs/
 
 ```swift
 func testPasswordDetection() {
-    let classifier = ConfidentialContentClassifier()
-    
-    // True positives
-    XCTAssertEqual(classifier.classify("aB3$xY9!mN2@"), .sensitive(.password))
-    XCTAssertEqual(classifier.classify("MyP@ssw0rd!123"), .sensitive(.password))
-    
-    // False negatives (should be safe)
-    XCTAssertEqual(classifier.classify("https://example.com"), .safe)
-    XCTAssertEqual(classifier.classify("user@example.com"), .safe)
-    XCTAssertEqual(classifier.classify("Hello, world!"), .safe)
+ let classifier = ConfidentialContentClassifier()
+ 
+ // True positives
+ XCTAssertEqual(classifier.classify("aB3$xY9!mN2@"), .sensitive(.password))
+ XCTAssertEqual(classifier.classify("MyP@ssw0rd!123"), .sensitive(.password))
+ 
+ // False negatives (should be safe)
+ XCTAssertEqual(classifier.classify("https://example.com"), .safe)
+ XCTAssertEqual(classifier.classify("user@example.com"), .safe)
+ XCTAssertEqual(classifier.classify("Hello, world!"), .safe)
 }
 
 func testCreditCardDetection() {
-    let classifier = ConfidentialContentClassifier()
-    
-    // Valid credit card (test number)
-    XCTAssertEqual(classifier.classify("4532015112830366"), .sensitive(.creditCard))
-    
-    // Invalid (failed Luhn check)
-    XCTAssertEqual(classifier.classify("4532015112830367"), .safe)
+ let classifier = ConfidentialContentClassifier()
+ 
+ // Valid credit card (test number)
+ XCTAssertEqual(classifier.classify("4532015112830366"), .sensitive(.creditCard))
+ 
+ // Invalid (failed Luhn check)
+ XCTAssertEqual(classifier.classify("4532015112830367"), .safe)
 }
 ```
 
@@ -989,18 +989,18 @@ func testCreditCardDetection() {
 
 ### 12.3 Manual Testing Checklist
 
-- [ ] Copy password from 1Password → Not captured
-- [ ] Copy 6-digit OTP → Not captured
-- [ ] Copy credit card number → Not captured
-- [ ] Copy API key (JWT format) → Not captured
-- [ ] Copy private key (PEM format) → Not captured
-- [ ] Copy normal text → Captured
-- [ ] Add app to ignored list → Subsequent copies from that app not captured
-- [ ] Enable screen sharing mode → Overlay does not appear
-- [ ] Disable screen sharing mode → Overlay works normally
-- [ ] Enable link previews → URLs show rich preview
-- [ ] Disable link previews → URLs show as plain text
-- [ ] Disable iCloud sync → No network traffic to Apple servers (verify with network monitor)
+- [ ] Copy password from 1Password Not captured
+- [ ] Copy 6-digit OTP Not captured
+- [ ] Copy credit card number Not captured
+- [ ] Copy API key (JWT format) Not captured
+- [ ] Copy private key (PEM format) Not captured
+- [ ] Copy normal text Captured
+- [ ] Add app to ignored list Subsequent copies from that app not captured
+- [ ] Enable screen sharing mode Overlay does not appear
+- [ ] Disable screen sharing mode Overlay works normally
+- [ ] Enable link previews URLs show rich preview
+- [ ] Disable link previews URLs show as plain text
+- [ ] Disable iCloud sync No network traffic to Apple servers (verify with network monitor)
 
 ---
 

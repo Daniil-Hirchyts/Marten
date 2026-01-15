@@ -5,14 +5,14 @@
 
 ## Document Metadata
 
-- **Version:** 1.0.0
-- **Last Updated:** 2026-01-09
+- **Version:** 1.1.0
+- **Last Updated:** 2026-01-14
 - **Status:** Draft
 - **Owner:** Engineering Team
 - **Dependencies:** 
-  - `Architecture-Overview.md` (parent)
-  - `Data-Model-Spec.md` (data persistence)
-  - `UI-Contract-Spec.md` (UI integration)
+ - `Architecture-Overview.md` (parent)
+ - `Data-Model-Spec.md` (data persistence)
+ - `UI-Contract-Spec.md` (UI integration)
 
 ---
 
@@ -49,22 +49,22 @@ This document defines all macOS-specific system integrations and services for th
 
 ```swift
 class PasteboardMonitor: ObservableObject {
-    private let pasteboard = NSPasteboard.general
-    private var lastChangeCount: Int = 0
-    private var timer: Timer?
-    private var isMonitoring = false
-    
-    // Settings
-    var pollInterval: TimeInterval = 0.5  // 500ms default
-    var isEnabled: Bool = true
-    
-    // Callbacks
-    var onClipboardChange: ((NSPasteboard) -> Void)?
-    
-    func start()
-    func stop()
-    func pause()
-    func resume()
+ private let pasteboard = NSPasteboard.general
+ private var lastChangeCount: Int = 0
+ private var timer: Timer?
+ private var isMonitoring = false
+ 
+ // Settings
+ var pollInterval: TimeInterval = 0.5 // 500ms default
+ var isEnabled: Bool = true
+ 
+ // Callbacks
+ var onClipboardChange: ((NSPasteboard) -> Void)?
+ 
+ func start()
+ func stop()
+ func pause()
+ func resume()
 }
 ```
 
@@ -74,38 +74,38 @@ class PasteboardMonitor: ObservableObject {
 
 ```swift
 func start() {
-    guard !isMonitoring else { return }
-    
-    lastChangeCount = pasteboard.changeCount
-    isMonitoring = true
-    
-    timer = Timer.scheduledTimer(
-        withTimeInterval: pollInterval,
-        repeats: true
-    ) { [weak self] _ in
-        self?.checkForChanges()
-    }
-    
-    // Use RunLoop.common to work during modal dialogs
-    RunLoop.current.add(timer!, forMode: .common)
+ guard !isMonitoring else { return }
+ 
+ lastChangeCount = pasteboard.changeCount
+ isMonitoring = true
+ 
+ timer = Timer.scheduledTimer(
+ withTimeInterval: pollInterval,
+ repeats: true
+ ) { [weak self] _ in
+ self?.checkForChanges()
+ }
+ 
+ // Use RunLoop.common to work during modal dialogs
+ RunLoop.current.add(timer!, forMode: .common)
 }
 
 private func checkForChanges() {
-    let currentCount = pasteboard.changeCount
-    
-    guard currentCount != lastChangeCount else {
-        return  // No change
-    }
-    
-    lastChangeCount = currentCount
-    
-    // Ignore changes made by this app
-    if ignoreNextChange {
-        ignoreNextChange = false
-        return
-    }
-    
-    onClipboardChange?(pasteboard)
+ let currentCount = pasteboard.changeCount
+ 
+ guard currentCount != lastChangeCount else {
+ return // No change
+ }
+ 
+ lastChangeCount = currentCount
+ 
+ // Ignore changes made by this app
+ if ignoreNextChange {
+ ignoreNextChange = false
+ return
+ }
+ 
+ onClipboardChange?(pasteboard)
 }
 ```
 
@@ -115,66 +115,66 @@ private func checkForChanges() {
 
 ```swift
 enum PollState {
-    case active    // 250ms - recent activity
-    case moderate  // 500ms - some activity
-    case idle      // 1000ms - no activity
+ case active // 250ms - recent activity
+ case moderate // 500ms - some activity
+ case idle // 1000ms - no activity
 }
 
 private var pollState: PollState = .active
 private var lastActivityTime: Date = Date()
-private let activityThreshold: TimeInterval = 30.0  // 30 seconds
+private let activityThreshold: TimeInterval = 30.0 // 30 seconds
 
 func checkForChanges() {
-    let currentCount = pasteboard.changeCount
-    
-    if currentCount != lastChangeCount {
-        // Activity detected
-        lastActivityTime = Date()
-        updatePollState(.active)
-        
-        lastChangeCount = currentCount
-        processClipboardChange()
-    } else {
-        // No activity - adjust polling
-        let timeSinceActivity = Date().timeIntervalSince(lastActivityTime)
-        
-        if timeSinceActivity > 300 {  // 5 minutes
-            updatePollState(.idle)
-        } else if timeSinceActivity > activityThreshold {
-            updatePollState(.moderate)
-        }
-    }
+ let currentCount = pasteboard.changeCount
+ 
+ if currentCount != lastChangeCount {
+ // Activity detected
+ lastActivityTime = Date()
+ updatePollState(.active)
+ 
+ lastChangeCount = currentCount
+ processClipboardChange()
+ } else {
+ // No activity - adjust polling
+ let timeSinceActivity = Date().timeIntervalSince(lastActivityTime)
+ 
+ if timeSinceActivity > 300 { // 5 minutes
+ updatePollState(.idle)
+ } else if timeSinceActivity > activityThreshold {
+ updatePollState(.moderate)
+ }
+ }
 }
 
 func updatePollState(_ newState: PollState) {
-    guard newState != pollState else { return }
-    
-    pollState = newState
-    
-    // Restart timer with new interval
-    timer?.invalidate()
-    
-    let interval: TimeInterval
-    switch newState {
-    case .active: interval = 0.25
-    case .moderate: interval = 0.5
-    case .idle: interval = 1.0
-    }
-    
-    timer = Timer.scheduledTimer(
-        withTimeInterval: interval,
-        repeats: true
-    ) { [weak self] _ in
-        self?.checkForChanges()
-    }
-    
-    RunLoop.current.add(timer!, forMode: .common)
+ guard newState != pollState else { return }
+ 
+ pollState = newState
+ 
+ // Restart timer with new interval
+ timer?.invalidate()
+ 
+ let interval: TimeInterval
+ switch newState {
+ case .active: interval = 0.25
+ case .moderate: interval = 0.5
+ case .idle: interval = 1.0
+ }
+ 
+ timer = Timer.scheduledTimer(
+ withTimeInterval: interval,
+ repeats: true
+ ) { [weak self] _ in
+ self?.checkForChanges()
+ }
+ 
+ RunLoop.current.add(timer!, forMode: .common)
 }
 ```
 
 ### 2.4 Feedback Loop Prevention
 
-**Problem:** App writes to pasteboard → Monitor detects "change" → Infinite loop
+**Problem:** App writes to pasteboard Monitor detects "change" Infinite loop
 
 **Solution:** Flag self-initiated changes
 
@@ -182,12 +182,12 @@ func updatePollState(_ newState: PollState) {
 private var ignoreNextChange = false
 
 func writeToPasteboard(_ item: ClipItem) {
-    ignoreNextChange = true
-    
-    pasteboard.clearContents()
-    pasteboard.writeObjects([item.toPasteboardItem()])
-    
-    lastChangeCount = pasteboard.changeCount
+ ignoreNextChange = true
+ 
+ pasteboard.clearContents()
+ pasteboard.writeObjects([item.toPasteboardItem()])
+ 
+ lastChangeCount = pasteboard.changeCount
 }
 ```
 
@@ -197,22 +197,22 @@ func writeToPasteboard(_ item: ClipItem) {
 private var lastWrittenHash: String?
 
 func writeToPasteboard(_ item: ClipItem) {
-    lastWrittenHash = item.contentHash
-    
-    pasteboard.clearContents()
-    pasteboard.writeObjects([item.toPasteboardItem()])
+ lastWrittenHash = item.contentHash
+ 
+ pasteboard.clearContents()
+ pasteboard.writeObjects([item.toPasteboardItem()])
 }
 
 func checkForChanges() {
-    // ... change detected ...
-    
-    let currentHash = computeHash(from: pasteboard)
-    
-    if currentHash == lastWrittenHash {
-        return  // Ignore, we just wrote this
-    }
-    
-    processClipboardChange()
+ // ... change detected ...
+ 
+ let currentHash = computeHash(from: pasteboard)
+ 
+ if currentHash == lastWrittenHash {
+ return // Ignore, we just wrote this
+ }
+ 
+ processClipboardChange()
 }
 ```
 
@@ -220,34 +220,34 @@ func checkForChanges() {
 
 ```swift
 func processClipboardChange() {
-    Task.detached(priority: .userInitiated) {
-        do {
-            let snapshot = try await self.capturePasteboardSnapshot()
-            let item = try await self.normalizeToClipItem(snapshot)
-            
-            // Apply filters
-            guard try await self.shouldCaptureItem(item) else {
-                return
-            }
-            
-            // Persist
-            try await self.persistenceController.saveClipItem(item)
-            
-            // Trigger sync
-            await self.syncCoordinator.enqueueChange(item)
-            
-            // Notify UI
-            await MainActor.run {
-                NotificationCenter.default.post(
-                    name: .clipboardItemCaptured,
-                    object: item
-                )
-            }
-            
-        } catch {
-            os_log("Failed to capture clipboard: %@", log: .capture, type: .error, error.localizedDescription)
-        }
-    }
+ Task.detached(priority: .userInitiated) {
+ do {
+ let snapshot = try await self.capturePasteboardSnapshot()
+ let item = try await self.normalizeToClipItem(snapshot)
+ 
+ // Apply filters
+ guard try await self.shouldCaptureItem(item) else {
+ return
+ }
+ 
+ // Persist
+ try await self.persistenceController.saveClipItem(item)
+ 
+ // Trigger sync
+ await self.syncCoordinator.enqueueChange(item)
+ 
+ // Notify UI
+ await MainActor.run {
+ NotificationCenter.default.post(
+ name: .clipboardItemCaptured,
+ object: item
+ )
+ }
+ 
+ } catch {
+ os_log("Failed to capture clipboard: %@", log: .capture, type: .error, error.localizedDescription)
+ }
+ }
 }
 ```
 
@@ -255,37 +255,37 @@ func processClipboardChange() {
 
 ```swift
 struct PasteboardSnapshot {
-    var items: [NSPasteboardItem]
-    var types: Set<NSPasteboard.PasteboardType>
-    var strings: [String]?
-    var urls: [URL]?
-    var images: [NSImage]?
-    var sourceApp: NSRunningApplication?
+ var items: [NSPasteboardItem]
+ var types: Set<NSPasteboard.PasteboardType>
+ var strings: [String]?
+ var urls: [URL]?
+ var images: [NSImage]?
+ var sourceApp: NSRunningApplication?
 }
 
 func capturePasteboardSnapshot() async throws -> PasteboardSnapshot {
-    return try await MainActor.run {
-        guard let items = pasteboard.pasteboardItems, !items.isEmpty else {
-            throw CaptureError.emptyPasteboard
-        }
-        
-        var snapshot = PasteboardSnapshot(items: items, types: [])
-        
-        // Extract types
-        for item in items {
-            snapshot.types.formUnion(item.types)
-        }
-        
-        // Extract common types
-        snapshot.strings = pasteboard.string(forType: .string).map { [$0] }
-        snapshot.urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL]
-        snapshot.images = pasteboard.readObjects(forClasses: [NSImage.self]) as? [NSImage]
-        
-        // Get source app (best-effort)
-        snapshot.sourceApp = NSWorkspace.shared.frontmostApplication
-        
-        return snapshot
-    }
+ return try await MainActor.run {
+ guard let items = pasteboard.pasteboardItems, !items.isEmpty else {
+ throw CaptureError.emptyPasteboard
+ }
+ 
+ var snapshot = PasteboardSnapshot(items: items, types: [])
+ 
+ // Extract types
+ for item in items {
+ snapshot.types.formUnion(item.types)
+ }
+ 
+ // Extract common types
+ snapshot.strings = pasteboard.string(forType: .string).map { [$0] }
+ snapshot.urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL]
+ snapshot.images = pasteboard.readObjects(forClasses: [NSImage.self]) as? [NSImage]
+ 
+ // Get source app (best-effort)
+ snapshot.sourceApp = NSWorkspace.shared.frontmostApplication
+ 
+ return snapshot
+ }
 }
 ```
 
@@ -297,45 +297,45 @@ func capturePasteboardSnapshot() async throws -> PasteboardSnapshot {
 
 ```swift
 enum ItemType: Int16 {
-    case text = 0
-    case richText = 1
-    case image = 2
-    case file = 3
-    case url = 4
-    case code = 5
-    case mixed = 99
+ case text = 0
+ case richText = 1
+ case image = 2
+ case file = 3
+ case url = 4
+ case code = 5
+ case mixed = 99
 }
 
 func detectItemType(_ snapshot: PasteboardSnapshot) -> ItemType {
-    // Priority order (most specific first)
-    
-    if snapshot.types.contains(.fileURL) {
-        return .file
-    }
-    
-    if snapshot.types.contains(.tiff) || snapshot.types.contains(.png) {
-        return .image
-    }
-    
-    if let string = snapshot.strings?.first {
-        if string.isValidURL {
-            return .url
-        }
-        
-        if string.looksLikeCode {
-            return .code
-        }
-    }
-    
-    if snapshot.types.contains(.rtf) || snapshot.types.contains(.html) {
-        return .richText
-    }
-    
-    if snapshot.types.contains(.string) {
-        return .text
-    }
-    
-    return .mixed
+ // Priority order (most specific first)
+ 
+ if snapshot.types.contains(.fileURL) {
+ return .file
+ }
+ 
+ if snapshot.types.contains(.tiff) || snapshot.types.contains(.png) {
+ return .image
+ }
+ 
+ if let string = snapshot.strings?.first {
+ if string.isValidURL {
+ return .url
+ }
+ 
+ if string.looksLikeCode {
+ return .code
+ }
+ }
+ 
+ if snapshot.types.contains(.rtf) || snapshot.types.contains(.html) {
+ return .richText
+ }
+ 
+ if snapshot.types.contains(.string) {
+ return .text
+ }
+ 
+ return .mixed
 }
 ```
 
@@ -343,38 +343,38 @@ func detectItemType(_ snapshot: PasteboardSnapshot) -> ItemType {
 
 ```swift
 extension String {
-    var looksLikeCode: Bool {
-        let codeIndicators = [
-            contains("func "),
-            contains("class "),
-            contains("import "),
-            contains("const "),
-            contains("function "),
-            contains("public "),
-            contains("#include"),
-            contains("def "),
-            contains("<html"),
-            contains("SELECT "),
-        ]
-        
-        let indicatorCount = codeIndicators.filter { $0 }.count
-        
-        // If 2+ indicators, likely code
-        if indicatorCount >= 2 {
-            return true
-        }
-        
-        // Check for typical code structure
-        let lines = components(separatedBy: .newlines)
-        let indentedLines = lines.filter { $0.hasPrefix("    ") || $0.hasPrefix("\t") }
-        let bracketCount = filter { $0 == "{" || $0 == "}" }.count
-        
-        if indentedLines.count > 3 && bracketCount > 2 {
-            return true
-        }
-        
-        return false
-    }
+ var looksLikeCode: Bool {
+ let codeIndicators = [
+ contains("func "),
+ contains("class "),
+ contains("import "),
+ contains("const "),
+ contains("function "),
+ contains("public "),
+ contains("#include"),
+ contains("def "),
+ contains("<html"),
+ contains("SELECT "),
+ ]
+ 
+ let indicatorCount = codeIndicators.filter { $0 }.count
+ 
+ // If 2+ indicators, likely code
+ if indicatorCount >= 2 {
+ return true
+ }
+ 
+ // Check for typical code structure
+ let lines = components(separatedBy: .newlines)
+ let indentedLines = lines.filter { $0.hasPrefix(" ") || $0.hasPrefix("\t") }
+ let bracketCount = filter { $0 == "{" || $0 == "}" }.count
+ 
+ if indentedLines.count > 3 && bracketCount > 2 {
+ return true
+ }
+ 
+ return false
+ }
 }
 ```
 
@@ -382,89 +382,89 @@ extension String {
 
 ```swift
 func extractRepresentations(_ snapshot: PasteboardSnapshot) async throws -> [ClipRepresentation] {
-    var representations: [ClipRepresentation] = []
-    var order: Int16 = 0
-    
-    // Plain text (highest priority for preview)
-    if let string = snapshot.strings?.first {
-        let rep = ClipRepresentation(context: context)
-        rep.uti = "public.utf8-plain-text"
-        rep.kind = .plainText
-        rep.textData = string.data(using: .utf8)
-        rep.displayOrder = order
-        representations.append(rep)
-        order += 1
-    }
-    
-    // RTF
-    if let rtfData = pasteboard.data(forType: .rtf) {
-        let rep = ClipRepresentation(context: context)
-        rep.uti = "public.rtf"
-        rep.kind = .rtf
-        rep.textData = rtfData
-        rep.displayOrder = order
-        representations.append(rep)
-        order += 1
-    }
-    
-    // HTML
-    if let htmlData = pasteboard.data(forType: .html) {
-        let rep = ClipRepresentation(context: context)
-        rep.uti = "public.html"
-        rep.kind = .html
-        rep.textData = htmlData
-        rep.displayOrder = order
-        representations.append(rep)
-        order += 1
-    }
-    
-    // Images
-    if let image = snapshot.images?.first {
-        let rep = try await createImageRepresentation(image, order: order)
-        representations.append(rep)
-        order += 1
-    }
-    
-    // File URLs
-    if let urls = snapshot.urls {
-        for url in urls {
-            let rep = createFileRepresentation(url, order: order)
-            representations.append(rep)
-            order += 1
-        }
-    }
-    
-    return representations
+ var representations: [ClipRepresentation] = []
+ var order: Int16 = 0
+ 
+ // Plain text (highest priority for preview)
+ if let string = snapshot.strings?.first {
+ let rep = ClipRepresentation(context: context)
+ rep.uti = "public.utf8-plain-text"
+ rep.kind = .plainText
+ rep.textData = string.data(using: .utf8)
+ rep.displayOrder = order
+ representations.append(rep)
+ order += 1
+ }
+ 
+ // RTF
+ if let rtfData = pasteboard.data(forType: .rtf) {
+ let rep = ClipRepresentation(context: context)
+ rep.uti = "public.rtf"
+ rep.kind = .rtf
+ rep.textData = rtfData
+ rep.displayOrder = order
+ representations.append(rep)
+ order += 1
+ }
+ 
+ // HTML
+ if let htmlData = pasteboard.data(forType: .html) {
+ let rep = ClipRepresentation(context: context)
+ rep.uti = "public.html"
+ rep.kind = .html
+ rep.textData = htmlData
+ rep.displayOrder = order
+ representations.append(rep)
+ order += 1
+ }
+ 
+ // Images
+ if let image = snapshot.images?.first {
+ let rep = try await createImageRepresentation(image, order: order)
+ representations.append(rep)
+ order += 1
+ }
+ 
+ // File URLs
+ if let urls = snapshot.urls {
+ for url in urls {
+ let rep = createFileRepresentation(url, order: order)
+ representations.append(rep)
+ order += 1
+ }
+ }
+ 
+ return representations
 }
 
 func createImageRepresentation(_ image: NSImage, order: Int16) async throws -> ClipRepresentation {
-    let rep = ClipRepresentation(context: context)
-    rep.uti = "public.png"
-    rep.kind = .png
-    rep.displayOrder = order
-    
-    // Convert to PNG
-    guard let tiff = image.tiffRepresentation,
-          let bitmap = NSBitmapImageRep(data: tiff),
-          let pngData = bitmap.representation(using: .png, properties: [:]) else {
-        throw CaptureError.imageConversionFailed
-    }
-    
-    // If large, write to file
-    if pngData.count > 1_000_000 {  // 1 MB
-        let assetRef = UUID()
-        let path = "Assets/\(assetRef.uuidString).png"
-        let url = assetManager.assetURL(for: path)
-        
-        try pngData.write(to: url)
-        rep.assetRef = assetRef
-        rep.byteCount = Int64(pngData.count)
-    } else {
-        rep.binaryData = pngData
-        rep.byteCount = Int64(pngData.count)
-    }
-    
-    return rep
+ let rep = ClipRepresentation(context: context)
+ rep.uti = "public.png"
+ rep.kind = .png
+ rep.displayOrder = order
+ 
+ // Convert to PNG
+ guard let tiff = image.tiffRepresentation,
+ let bitmap = NSBitmapImageRep(data: tiff),
+ let pngData = bitmap.representation(using: .png, properties: [:]) else {
+ throw CaptureError.imageConversionFailed
+ }
+ 
+ // If large, write to file
+ if pngData.count > 1_000_000 { // 1 MB
+ let assetRef = UUID()
+ let path = "Assets/\(assetRef.uuidString).png"
+ let url = assetManager.assetURL(for: path)
+ 
+ try pngData.write(to: url)
+ rep.assetRef = assetRef
+ rep.byteCount = Int64(pngData.count)
+ } else {
+ rep.binaryData = pngData
+ rep.byteCount = Int64(pngData.count)
+ }
+ 
+ return rep
 }
 ```
 
@@ -476,13 +476,13 @@ func createImageRepresentation(_ image: NSImage, order: Int16) async throws -> C
 
 ```swift
 enum PasteMode {
-    case toActiveApp      // Paste into previously active app
-    case toClipboard      // Write to clipboard only
+ case toActiveApp // Paste into previously active app
+ case toClipboard // Write to clipboard only
 }
 
 enum PasteFormat {
-    case preserved        // Keep rich formatting
-    case plainText        // Strip all formatting
+ case preserved // Keep rich formatting
+ case plainText // Strip all formatting
 }
 ```
 
@@ -490,25 +490,25 @@ enum PasteFormat {
 
 ```swift
 class ActiveAppTracker {
-    private(set) var recordedApp: NSRunningApplication?
-    
-    func recordFrontmostApp() {
-        recordedApp = NSWorkspace.shared.frontmostApplication
-        
-        os_log("Recorded frontmost app: %@", 
-               log: .paste, 
-               type: .info, 
-               recordedApp?.bundleIdentifier ?? "unknown")
-    }
-    
-    func reactivateRecordedApp() {
-        guard let app = recordedApp else {
-            os_log("No recorded app to reactivate", log: .paste, type: .error)
-            return
-        }
-        
-        app.activate(options: .activateIgnoringOtherApps)
-    }
+ private(set) var recordedApp: NSRunningApplication?
+ 
+ func recordFrontmostApp() {
+ recordedApp = NSWorkspace.shared.frontmostApplication
+ 
+ os_log("Recorded frontmost app: %@", 
+ log: .paste, 
+ type: .info, 
+ recordedApp?.bundleIdentifier ?? "unknown")
+ }
+ 
+ func reactivateRecordedApp() {
+ guard let app = recordedApp else {
+ os_log("No recorded app to reactivate", log: .paste, type: .error)
+ return
+ }
+ 
+ app.activate(options: .activateIgnoringOtherApps)
+ }
 }
 ```
 
@@ -526,71 +526,71 @@ class ActiveAppTracker {
 
 ```swift
 func pasteToActiveApp(_ item: ClipItem, format: PasteFormat) async throws {
-    // 1. Write to pasteboard
-    await writeToPasteboard(item, format: format)
-    
-    // 2. Reactivate app
-    await MainActor.run {
-        activeAppTracker.reactivateRecordedApp()
-    }
-    
-    // 3. Small delay for app activation
-    try await Task.sleep(nanoseconds: 50_000_000)  // 50ms
-    
-    // 4. Send Command+V
-    try await sendPasteKeystroke()
-    
-    // 5. Close overlay
-    await MainActor.run {
-        overlayWindow.close()
-    }
+ // 1. Write to pasteboard
+ await writeToPasteboard(item, format: format)
+ 
+ // 2. Reactivate app
+ await MainActor.run {
+ activeAppTracker.reactivateRecordedApp()
+ }
+ 
+ // 3. Small delay for app activation
+ try await Task.sleep(nanoseconds: 50_000_000) // 50ms
+ 
+ // 4. Send Command+V
+ try await sendPasteKeystroke()
+ 
+ // 5. Close overlay
+ await MainActor.run {
+ overlayWindow.close()
+ }
 }
 
 func sendPasteKeystroke() async throws {
-    // Check Accessibility permission
-    guard AXIsProcessTrusted() else {
-        throw PasteError.accessibilityPermissionDenied
-    }
-    
-    // Create Command+V event
-    let source = CGEventSource(stateID: .hidSystemState)
-    
-    // Key down for Command
-    let cmdDown = CGEvent(
-        keyboardEventSource: source,
-        virtualKey: CGKeyCode(kVK_Command),
-        keyDown: true
-    )
-    cmdDown?.flags = .maskCommand
-    
-    // Key down for V
-    let vDown = CGEvent(
-        keyboardEventSource: source,
-        virtualKey: CGKeyCode(kVK_ANSI_V),
-        keyDown: true
-    )
-    vDown?.flags = .maskCommand
-    
-    // Key up for V
-    let vUp = CGEvent(
-        keyboardEventSource: source,
-        virtualKey: CGKeyCode(kVK_ANSI_V),
-        keyDown: false
-    )
-    vUp?.flags = .maskCommand
-    
-    // Key up for Command
-    let cmdUp = CGEvent(
-        keyboardEventSource: source,
-        virtualKey: CGKeyCode(kVK_Command),
-        keyDown: false
-    )
-    
-    // Post events
-    cmdDown?.post(tap: .cghidEventTap)
-    vDown?.post(tap: .cghidEventTap)
-    vUp?.post(tap: .cghidEventTap)
-    cmdUp?.post(tap: .cghidEventTap)
+ // Check Accessibility permission
+ guard AXIsProcessTrusted() else {
+ throw PasteError.accessibilityPermissionDenied
+ }
+ 
+ // Create Command+V event
+ let source = CGEventSource(stateID: .hidSystemState)
+ 
+ // Key down for Command
+ let cmdDown = CGEvent(
+ keyboardEventSource: source,
+ virtualKey: CGKeyCode(kVK_Command),
+ keyDown: true
+ )
+ cmdDown?.flags = .maskCommand
+ 
+ // Key down for V
+ let vDown = CGEvent(
+ keyboardEventSource: source,
+ virtualKey: CGKeyCode(kVK_ANSI_V),
+ keyDown: true
+ )
+ vDown?.flags = .maskCommand
+ 
+ // Key up for V
+ let vUp = CGEvent(
+ keyboardEventSource: source,
+ virtualKey: CGKeyCode(kVK_ANSI_V),
+ keyDown: false
+ )
+ vUp?.flags = .maskCommand
+ 
+ // Key up for Command
+ let cmdUp = CGEvent(
+ keyboardEventSource: source,
+ virtualKey: CGKeyCode(kVK_Command),
+ keyDown: false
+ )
+ 
+ // Post events
+ cmdDown?.post(tap: .cghidEventTap)
+ vDown?.post(tap: .cghidEventTap)
+ vUp?.post(tap: .cghidEventTap)
+ cmdUp?.post(tap: .cghidEventTap)
 }
 ```
 
@@ -598,29 +598,29 @@ func sendPasteKeystroke() async throws {
 
 ```swift
 func pasteUsingAccessibility(_ item: ClipItem) throws {
-    guard let app = activeAppTracker.recordedApp,
-          let element = AXUIElementCreateApplication(app.processIdentifier) else {
-        throw PasteError.noActiveApp
-    }
-    
-    // Get focused element
-    var focusedElement: CFTypeRef?
-    let result = AXUIElementCopyAttributeValue(
-        element,
-        kAXFocusedUIElementAttribute as CFString,
-        &focusedElement
-    )
-    
-    guard result == .success,
-          let focused = focusedElement else {
-        throw PasteError.noFocusedElement
-    }
-    
-    // Perform paste action
-    AXUIElementPerformAction(
-        focused as! AXUIElement,
-        kAXPasteAction as CFString
-    )
+ guard let app = activeAppTracker.recordedApp,
+ let element = AXUIElementCreateApplication(app.processIdentifier) else {
+ throw PasteError.noActiveApp
+ }
+ 
+ // Get focused element
+ var focusedElement: CFTypeRef?
+ let result = AXUIElementCopyAttributeValue(
+ element,
+ kAXFocusedUIElementAttribute as CFString,
+ &focusedElement
+ )
+ 
+ guard result == .success,
+ let focused = focusedElement else {
+ throw PasteError.noFocusedElement
+ }
+ 
+ // Perform paste action
+ AXUIElementPerformAction(
+ focused as! AXUIElement,
+ kAXPasteAction as CFString
+ )
 }
 ```
 
@@ -628,54 +628,54 @@ func pasteUsingAccessibility(_ item: ClipItem) throws {
 
 ```swift
 func writeToPasteboard(_ item: ClipItem, format: PasteFormat) async {
-    await MainActor.run {
-        pasteboard.clearContents()
-        
-        switch format {
-        case .preserved:
-            // Write all representations
-            writeAllRepresentations(item)
-            
-        case .plainText:
-            // Write plain text only
-            if let plainText = item.plainTextContent {
-                pasteboard.setString(plainText, forType: .string)
-            }
-        }
-        
-        ignoreNextChange = true
-        lastChangeCount = pasteboard.changeCount
-    }
+ await MainActor.run {
+ pasteboard.clearContents()
+ 
+ switch format {
+ case .preserved:
+ // Write all representations
+ writeAllRepresentations(item)
+ 
+ case .plainText:
+ // Write plain text only
+ if let plainText = item.plainTextContent {
+ pasteboard.setString(plainText, forType: .string)
+ }
+ }
+ 
+ ignoreNextChange = true
+ lastChangeCount = pasteboard.changeCount
+ }
 }
 
 extension ClipItem {
-    var plainTextContent: String? {
-        // Priority: explicit plain text rep > derived from rich > URL
-        
-        if let plainRep = representations?.first(where: { $0.kind == .plainText }),
-           let data = plainRep.textData,
-           let string = String(data: data, encoding: .utf8) {
-            return string
-        }
-        
-        if let rtfRep = representations?.first(where: { $0.kind == .rtf }),
-           let data = rtfRep.textData,
-           let attributed = NSAttributedString(rtf: data, documentAttributes: nil) {
-            return attributed.string
-        }
-        
-        if let htmlRep = representations?.first(where: { $0.kind == .html }),
-           let data = htmlRep.textData,
-           let attributed = NSAttributedString(html: data, documentAttributes: nil) {
-            return attributed.string
-        }
-        
-        if itemType == .url {
-            return primaryText  // URL string
-        }
-        
-        return primaryText
-    }
+ var plainTextContent: String? {
+ // Priority: explicit plain text rep > derived from rich > URL
+ 
+ if let plainRep = representations?.first(where: { $0.kind == .plainText }),
+ let data = plainRep.textData,
+ let string = String(data: data, encoding: .utf8) {
+ return string
+ }
+ 
+ if let rtfRep = representations?.first(where: { $0.kind == .rtf }),
+ let data = rtfRep.textData,
+ let attributed = NSAttributedString(rtf: data, documentAttributes: nil) {
+ return attributed.string
+ }
+ 
+ if let htmlRep = representations?.first(where: { $0.kind == .html }),
+ let data = htmlRep.textData,
+ let attributed = NSAttributedString(html: data, documentAttributes: nil) {
+ return attributed.string
+ }
+ 
+ if itemType == .url {
+ return primaryText // URL string
+ }
+ 
+ return primaryText
+ }
 }
 ```
 
@@ -685,54 +685,54 @@ extension ClipItem {
 
 ```swift
 func pasteStack(_ session: StackSession) async throws {
-    let entries = session.entries?.sorted(by: { $0.position < $1.position }) ?? []
-    
-    guard !entries.isEmpty else {
-        throw PasteError.emptyStack
-    }
-    
-    // Record app
-    activeAppTracker.recordFrontmostApp()
-    
-    // Reactivate
-    activeAppTracker.reactivateRecordedApp()
-    try await Task.sleep(nanoseconds: 50_000_000)  // 50ms
-    
-    for (index, entry) in entries.enumerated() {
-        guard let item = entry.clipItem else { continue }
-        
-        // Write to pasteboard
-        await writeToPasteboard(item, format: .preserved)
-        
-        // Paste
-        try await sendPasteKeystroke()
-        
-        // Separator handling
-        if index < entries.count - 1 {
-            // Optionally insert separator
-            if session.mode == .combined {
-                await insertSeparator(session.separator)
-            }
-            
-            // Delay before next paste
-            try await Task.sleep(nanoseconds: 150_000_000)  // 150ms
-        }
-    }
-    
-    // Close overlay
-    await MainActor.run {
-        overlayWindow.close()
-    }
+ let entries = session.entries?.sorted(by: { $0.position < $1.position }) ?? []
+ 
+ guard !entries.isEmpty else {
+ throw PasteError.emptyStack
+ }
+ 
+ // Record app
+ activeAppTracker.recordFrontmostApp()
+ 
+ // Reactivate
+ activeAppTracker.reactivateRecordedApp()
+ try await Task.sleep(nanoseconds: 50_000_000) // 50ms
+ 
+ for (index, entry) in entries.enumerated() {
+ guard let item = entry.clipItem else { continue }
+ 
+ // Write to pasteboard
+ await writeToPasteboard(item, format: .preserved)
+ 
+ // Paste
+ try await sendPasteKeystroke()
+ 
+ // Separator handling
+ if index < entries.count - 1 {
+ // Optionally insert separator
+ if session.mode == .combined {
+ await insertSeparator(session.separator)
+ }
+ 
+ // Delay before next paste
+ try await Task.sleep(nanoseconds: 150_000_000) // 150ms
+ }
+ }
+ 
+ // Close overlay
+ await MainActor.run {
+ overlayWindow.close()
+ }
 }
 
 func insertSeparator(_ separator: String) async {
-    await MainActor.run {
-        pasteboard.clearContents()
-        pasteboard.setString(separator, forType: .string)
-        ignoreNextChange = true
-    }
-    
-    try? await sendPasteKeystroke()
+ await MainActor.run {
+ pasteboard.clearContents()
+ pasteboard.setString(separator, forType: .string)
+ ignoreNextChange = true
+ }
+ 
+ try? await sendPasteKeystroke()
 }
 ```
 
@@ -750,20 +750,20 @@ func insertSeparator(_ separator: String) async {
 
 ```swift
 class HotkeyManager: ObservableObject {
-    struct Hotkey: Codable {
-        var keyCode: UInt16
-        var modifiers: NSEvent.ModifierFlags
-        var action: String  // Identifier
-    }
-    
-    private var eventTap: CFMachPort?
-    private var hotkeys: [String: Hotkey] = [:]
-    private var handlers: [String: () -> Void] = [:]
-    
-    func register(action: String, hotkey: Hotkey, handler: @escaping () -> Void)
-    func unregister(action: String)
-    func start()
-    func stop()
+ struct Hotkey: Codable {
+ var keyCode: UInt16
+ var modifiers: NSEvent.ModifierFlags
+ var action: String // Identifier
+ }
+ 
+ private var eventTap: CFMachPort?
+ private var hotkeys: [String: Hotkey] = [:]
+ private var handlers: [String: () -> Void] = [:]
+ 
+ func register(action: String, hotkey: Hotkey, handler: @escaping () -> Void)
+ func unregister(action: String)
+ func start()
+ func stop()
 }
 ```
 
@@ -771,61 +771,61 @@ class HotkeyManager: ObservableObject {
 
 ```swift
 func start() {
-    guard eventTap == nil else { return }
-    
-    // Create event tap
-    let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
-    
-    guard let tap = CGEvent.tapCreate(
-        tap: .cgSessionEventTap,
-        place: .headInsertEventTap,
-        options: .defaultTap,
-        eventsOfInterest: mask,
-        callback: { proxy, type, event, refcon in
-            let manager = Unmanaged<HotkeyManager>
-                .fromOpaque(refcon!)
-                .takeUnretainedValue()
-            
-            return manager.handleEvent(proxy: proxy, type: type, event: event)
-        },
-        userInfo: Unmanaged.passUnretained(self).toOpaque()
-    ) else {
-        os_log("Failed to create event tap", log: .hotkey, type: .error)
-        return
-    }
-    
-    eventTap = tap
-    
-    let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-    CGEvent.tapEnable(tap: tap, enable: true)
-    
-    os_log("Hotkey event tap started", log: .hotkey, type: .info)
+ guard eventTap == nil else { return }
+ 
+ // Create event tap
+ let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+ 
+ guard let tap = CGEvent.tapCreate(
+ tap: .cgSessionEventTap,
+ place: .headInsertEventTap,
+ options: .defaultTap,
+ eventsOfInterest: mask,
+ callback: { proxy, type, event, refcon in
+ let manager = Unmanaged<HotkeyManager>
+ .fromOpaque(refcon!)
+ .takeUnretainedValue()
+ 
+ return manager.handleEvent(proxy: proxy, type: type, event: event)
+ },
+ userInfo: Unmanaged.passUnretained(self).toOpaque()
+ ) else {
+ os_log("Failed to create event tap", log: .hotkey, type: .error)
+ return
+ }
+ 
+ eventTap = tap
+ 
+ let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+ CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
+ CGEvent.tapEnable(tap: tap, enable: true)
+ 
+ os_log("Hotkey event tap started", log: .hotkey, type: .info)
 }
 
 func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-    guard type == .keyDown else {
-        return Unmanaged.passUnretained(event)
-    }
-    
-    let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-    let flags = NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
-    
-    // Check if matches any registered hotkey
-    for (action, hotkey) in hotkeys {
-        if keyCode == hotkey.keyCode && flags.contains(hotkey.modifiers) {
-            // Execute handler on main thread
-            DispatchQueue.main.async {
-                self.handlers[action]?()
-            }
-            
-            // Consume event (don't pass to other apps)
-            return nil
-        }
-    }
-    
-    // Pass through
-    return Unmanaged.passUnretained(event)
+ guard type == .keyDown else {
+ return Unmanaged.passUnretained(event)
+ }
+ 
+ let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+ let flags = NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
+ 
+ // Check if matches any registered hotkey
+ for (action, hotkey) in hotkeys {
+ if keyCode == hotkey.keyCode && flags.contains(hotkey.modifiers) {
+ // Execute handler on main thread
+ DispatchQueue.main.async {
+ self.handlers[action]?()
+ }
+ 
+ // Consume event (don't pass to other apps)
+ return nil
+ }
+ }
+ 
+ // Pass through
+ return Unmanaged.passUnretained(event)
 }
 ```
 
@@ -833,43 +833,43 @@ func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> U
 
 ```swift
 enum DefaultHotkey {
-    static let activatePaste = Hotkey(
-        keyCode: UInt16(kVK_ANSI_V),
-        modifiers: [.command, .shift],
-        action: "activatePaste"
-    )
-    
-    static let activatePasteStack = Hotkey(
-        keyCode: UInt16(kVK_ANSI_C),
-        modifiers: [.command, .shift],
-        action: "activatePasteStack"
-    )
-    
-    static let nextPinboard = Hotkey(
-        keyCode: UInt16(kVK_RightArrow),
-        modifiers: [.command],
-        action: "nextPinboard"
-    )
-    
-    static let previousPinboard = Hotkey(
-        keyCode: UInt16(kVK_LeftArrow),
-        modifiers: [.command],
-        action: "previousPinboard"
-    )
-    
-    static func quickPaste(_ number: Int) -> Hotkey {
-        let keyCodes: [UInt16] = [
-            UInt16(kVK_ANSI_1), UInt16(kVK_ANSI_2), UInt16(kVK_ANSI_3),
-            UInt16(kVK_ANSI_4), UInt16(kVK_ANSI_5), UInt16(kVK_ANSI_6),
-            UInt16(kVK_ANSI_7), UInt16(kVK_ANSI_8), UInt16(kVK_ANSI_9)
-        ]
-        
-        return Hotkey(
-            keyCode: keyCodes[number - 1],
-            modifiers: [.command],
-            action: "quickPaste\(number)"
-        )
-    }
+ static let activatePaste = Hotkey(
+ keyCode: UInt16(kVK_ANSI_V),
+ modifiers: [.command, .shift],
+ action: "activatePaste"
+ )
+ 
+ static let activatePasteStack = Hotkey(
+ keyCode: UInt16(kVK_ANSI_C),
+ modifiers: [.command, .shift],
+ action: "activatePasteStack"
+ )
+ 
+ static let nextPinboard = Hotkey(
+ keyCode: UInt16(kVK_RightArrow),
+ modifiers: [.command],
+ action: "nextPinboard"
+ )
+ 
+ static let previousPinboard = Hotkey(
+ keyCode: UInt16(kVK_LeftArrow),
+ modifiers: [.command],
+ action: "previousPinboard"
+ )
+ 
+ static func quickPaste(_ number: Int) -> Hotkey {
+ let keyCodes: [UInt16] = [
+ UInt16(kVK_ANSI_1), UInt16(kVK_ANSI_2), UInt16(kVK_ANSI_3),
+ UInt16(kVK_ANSI_4), UInt16(kVK_ANSI_5), UInt16(kVK_ANSI_6),
+ UInt16(kVK_ANSI_7), UInt16(kVK_ANSI_8), UInt16(kVK_ANSI_9)
+ ]
+ 
+ return Hotkey(
+ keyCode: keyCodes[number - 1],
+ modifiers: [.command],
+ action: "quickPaste\(number)"
+ )
+ }
 }
 ```
 
@@ -877,18 +877,26 @@ enum DefaultHotkey {
 
 ```swift
 func checkInputMonitoringPermission() -> Bool {
-    // Check if app has Input Monitoring permission
-    // Required for global hotkeys
-    
-    let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
-    return AXIsProcessTrustedWithOptions(options)
+ // Check if app has Input Monitoring permission
+ // Required for global hotkeys
+ 
+ let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
+ return AXIsProcessTrustedWithOptions(options)
 }
 
 func requestInputMonitoringPermission() {
-    let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-    _ = AXIsProcessTrustedWithOptions(options)
+ let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+ _ = AXIsProcessTrustedWithOptions(options)
 }
 ```
+
+### 5.6 Modifier Key Monitoring
+**Purpose:** Detect Shift key state for "Paste as Plain Text"
+
+**Implementation:**
+- Uses `NSEvent.addLocalMonitorForEvents` for modifier flags
+- Updates `OverlayViewModel` state in real-time
+- Visual indicator in footer toggles when Shift is held
 
 ---
 
@@ -907,27 +915,27 @@ func requestInputMonitoringPermission() {
 import ServiceManagement
 
 class LoginItemManager {
-    private let service = SMAppService.mainApp
-    
-    var isEnabled: Bool {
-        return service.status == .enabled
-    }
-    
-    func enable() throws {
-        guard service.status != .enabled else { return }
-        
-        try service.register()
-        
-        os_log("Login item enabled", log: .lifecycle, type: .info)
-    }
-    
-    func disable() throws {
-        guard service.status == .enabled else { return }
-        
-        try service.unregister()
-        
-        os_log("Login item disabled", log: .lifecycle, type: .info)
-    }
+ private let service = SMAppService.mainApp
+ 
+ var isEnabled: Bool {
+ return service.status == .enabled
+ }
+ 
+ func enable() throws {
+ guard service.status != .enabled else { return }
+ 
+ try service.register()
+ 
+ os_log("Login item enabled", log: .lifecycle, type: .info)
+ }
+ 
+ func disable() throws {
+ guard service.status == .enabled else { return }
+ 
+ try service.unregister()
+ 
+ os_log("Login item disabled", log: .lifecycle, type: .info)
+ }
 }
 ```
 
@@ -940,8 +948,8 @@ class LoginItemManager {
 import ServiceManagement
 
 func enableLoginItemLegacy() -> Bool {
-    let identifier = "com.yourcompany.PasteHelper" as CFString
-    return SMLoginItemSetEnabled(identifier, true)
+ let identifier = "com.yourcompany.PasteHelper" as CFString
+ return SMLoginItemSetEnabled(identifier, true)
 }
 #endif
 ```
@@ -956,46 +964,46 @@ func enableLoginItemLegacy() -> Bool {
 import AVFoundation
 
 class SoundEffectPlayer {
-    private var players: [String: AVAudioPlayer] = [:]
-    var isEnabled: Bool = true
-    
-    enum Sound: String {
-        case capture = "capture.wav"
-        case paste = "paste.wav"
-        case delete = "delete.wav"
-    }
-    
-    init() {
-        preloadSounds()
-    }
-    
-    func preloadSounds() {
-        for sound in [Sound.capture, Sound.paste, Sound.delete] {
-            guard let url = Bundle.main.url(forResource: sound.rawValue, withExtension: nil) else {
-                continue
-            }
-            
-            do {
-                let player = try AVAudioPlayer(contentsOf: url)
-                player.prepareToPlay()
-                players[sound.rawValue] = player
-            } catch {
-                os_log("Failed to load sound: %@", log: .audio, type: .error, sound.rawValue)
-            }
-        }
-    }
-    
-    func play(_ sound: Sound, volume: Float = 1.0) {
-        guard isEnabled else { return }
-        
-        guard let player = players[sound.rawValue] else {
-            os_log("Sound not found: %@", log: .audio, type: .error, sound.rawValue)
-            return
-        }
-        
-        player.volume = volume
-        player.play()
-    }
+ private var players: [String: AVAudioPlayer] = [:]
+ var isEnabled: Bool = true
+ 
+ enum Sound: String {
+ case capture = "capture.wav"
+ case paste = "paste.wav"
+ case delete = "delete.wav"
+ }
+ 
+ init() {
+ preloadSounds()
+ }
+ 
+ func preloadSounds() {
+ for sound in [Sound.capture, Sound.paste, Sound.delete] {
+ guard let url = Bundle.main.url(forResource: sound.rawValue, withExtension: nil) else {
+ continue
+ }
+ 
+ do {
+ let player = try AVAudioPlayer(contentsOf: url)
+ player.prepareToPlay()
+ players[sound.rawValue] = player
+ } catch {
+ os_log("Failed to load sound: %@", log: .audio, type: .error, sound.rawValue)
+ }
+ }
+ }
+ 
+ func play(_ sound: Sound, volume: Float = 1.0) {
+ guard isEnabled else { return }
+ 
+ guard let player = players[sound.rawValue] else {
+ os_log("Sound not found: %@", log: .audio, type: .error, sound.rawValue)
+ return
+ }
+ 
+ player.volume = volume
+ player.play()
+ }
 }
 ```
 
@@ -1016,6 +1024,13 @@ extension SoundEffectPlayer {
     }
 }
 ```
+
+### 7.3 Implemented Sounds
+
+- **Pop** (Selection/Action)
+- **Submarine** (Error/Limit)
+- **Glass** (Success/Paste)
+- Uses `NSSound` (System sounds) rather than custom WAV files for native integration.
 
 ---
 
@@ -1040,37 +1055,37 @@ For dynamic toggling, ship two configurations or use a helper app.
 ```swift
 @main
 struct PasteApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var pasteboardMonitor = PasteboardMonitor()
-    
-    var body: some Scene {
-        MenuBarExtra("Paste", systemImage: "doc.on.clipboard") {
-            MenuBarView()
-        }
-        .menuBarExtraStyle(.menu)
-        
-        Settings {
-            SettingsView()
-        }
-    }
+ @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+ @StateObject private var pasteboardMonitor = PasteboardMonitor()
+ 
+ var body: some Scene {
+ MenuBarExtra("Paste", systemImage: "doc.on.clipboard") {
+ MenuBarView()
+ }
+ .menuBarExtraStyle(.menu)
+ 
+ Settings {
+ SettingsView()
+ }
+ }
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        // Start monitoring
-        pasteboardMonitor.start()
-        
-        // Register hotkeys
-        hotkeyManager.start()
-        
-        // Check permissions
-        checkPermissions()
-    }
-    
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        // Keep running in background
-        return false
-    }
+ func applicationDidFinishLaunching(_ notification: Notification) {
+ // Start monitoring
+ pasteboardMonitor.start()
+ 
+ // Register hotkeys
+ hotkeyManager.start()
+ 
+ // Check permissions
+ checkPermissions()
+ }
+ 
+ func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+ // Keep running in background
+ return false
+ }
 }
 ```
 
@@ -1092,28 +1107,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 ```swift
 class PermissionManager: ObservableObject {
-    @Published var hasAccessibility = false
-    @Published var hasInputMonitoring = false
-    
-    func checkAccessibility() -> Bool {
-        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
-        return AXIsProcessTrustedWithOptions(options)
-    }
-    
-    func requestAccessibility() {
-        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-        _ = AXIsProcessTrustedWithOptions(options)
-        
-        // Open System Settings manually (more reliable)
-        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-        NSWorkspace.shared.open(url)
-    }
-    
-    func startMonitoring() {
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.hasAccessibility = self?.checkAccessibility() ?? false
-        }
-    }
+ @Published var hasAccessibility = false
+ @Published var hasInputMonitoring = false
+ 
+ func checkAccessibility() -> Bool {
+ let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
+ return AXIsProcessTrustedWithOptions(options)
+ }
+ 
+ func requestAccessibility() {
+ let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+ _ = AXIsProcessTrustedWithOptions(options)
+ 
+ // Open System Settings manually (more reliable)
+ let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+ NSWorkspace.shared.open(url)
+ }
+ 
+ func startMonitoring() {
+ Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+ self?.hasAccessibility = self?.checkAccessibility() ?? false
+ }
+ }
 }
 ```
 
@@ -1123,7 +1138,7 @@ class PermissionManager: ObservableObject {
 
 **Flow:**
 1. Welcome
-2. **Permission request screen** ← Services integration
+2. **Permission request screen** Services integration
 3. How to use
 4. Complete
 
@@ -1181,7 +1196,9 @@ class PermissionManager: ObservableObject {
 - [x] Add paste delays and separator handling
 - [x] Implement `HotkeyManager` with event tap
 - [x] Register default hotkeys
-- [x] Add Quick Paste (⌘1-9) handlers
+- [x] Add Quick Paste (1-9) handlers
+- [x] Implement system sound integration
+- [x] Add modifier key monitoring for plain text mode
 - [ ] Test hotkeys globally
 
 **Success Criteria:**
@@ -1190,6 +1207,11 @@ class PermissionManager: ObservableObject {
 - Paste stack handles 20+ items
 - Hotkeys respond instantly
 - No hotkey conflicts with system
+
+**Status Notes:**
+- Phase 3 core features implemented (Paste Engine, Hotkeys, Paste Stack).
+- "Copy to Clipboard" available via context menu; global preference pending Phase 4.
+- Validation pending for broad app compatibility and hotkey reliability.
 
 ---
 
@@ -1243,34 +1265,34 @@ class PermissionManager: ObservableObject {
 
 ```swift
 func testFeedbackLoopPrevention() {
-    let monitor = PasteboardMonitor()
-    let pasteboard = NSPasteboard.general
-    
-    monitor.start()
-    
-    let initialCount = pasteboard.changeCount
-    
-    // Write using monitor (should be ignored)
-    monitor.writeToPasteboard(testItem)
-    
-    // Simulate check
-    monitor.checkForChanges()
-    
-    // Handler should NOT be called
-    XCTAssertFalse(handlerCalled)
+ let monitor = PasteboardMonitor()
+ let pasteboard = NSPasteboard.general
+ 
+ monitor.start()
+ 
+ let initialCount = pasteboard.changeCount
+ 
+ // Write using monitor (should be ignored)
+ monitor.writeToPasteboard(testItem)
+ 
+ // Simulate check
+ monitor.checkForChanges()
+ 
+ // Handler should NOT be called
+ XCTAssertFalse(handlerCalled)
 }
 
 func testAdaptivePolling() {
-    let monitor = PasteboardMonitor()
-    
-    // Simulate activity
-    monitor.checkForChanges()  // Change detected
-    XCTAssertEqual(monitor.pollState, .active)
-    
-    // Simulate idle
-    monitor.lastActivityTime = Date().addingTimeInterval(-400)
-    monitor.checkForChanges()  // No change
-    XCTAssertEqual(monitor.pollState, .idle)
+ let monitor = PasteboardMonitor()
+ 
+ // Simulate activity
+ monitor.checkForChanges() // Change detected
+ XCTAssertEqual(monitor.pollState, .active)
+ 
+ // Simulate idle
+ monitor.lastActivityTime = Date().addingTimeInterval(-400)
+ monitor.checkForChanges() // No change
+ XCTAssertEqual(monitor.pollState, .idle)
 }
 ```
 
@@ -1288,19 +1310,19 @@ func testAdaptivePolling() {
 
 ### 11.3 Manual Testing Checklist
 
-- [ ] Copy text from 10 different apps → All captured
-- [ ] Copy images → Captured with thumbnail
-- [ ] Copy files → Captured with icons
-- [ ] Copy code → Detected as code type
-- [ ] Paste into TextEdit → Works
-- [ ] Paste into Xcode → Works
-- [ ] Paste into browser → Works
-- [ ] Paste into password field → Respects privacy (if implemented)
-- [ ] Quick paste ⌘1 → Instant
-- [ ] Paste stack with 5 items → Sequential paste works
-- [ ] Restart Mac → Login item launches app
-- [ ] Pause monitoring → No captures
-- [ ] Resume monitoring → Captures resume
+- [ ] Copy text from 10 different apps All captured
+- [ ] Copy images Captured with thumbnail
+- [ ] Copy files Captured with icons
+- [ ] Copy code Detected as code type
+- [ ] Paste into TextEdit Works
+- [ ] Paste into Xcode Works
+- [ ] Paste into browser Works
+- [ ] Paste into password field Respects privacy (if implemented)
+- [ ] Quick paste 1 Instant
+- [ ] Paste stack with 5 items Sequential paste works
+- [ ] Restart Mac Login item launches app
+- [ ] Pause monitoring No captures
+- [ ] Resume monitoring Captures resume
 
 ---
 
@@ -1337,16 +1359,16 @@ func testAdaptivePolling() {
 ### 13.1 Decisions Needed
 
 1. **Paste fallback when app doesn't accept synthetic events?**
-   - **Recommendation:** Show notification "Item copied, paste manually"
-   - **Alternative:** Use Accessibility API paste (less reliable)
+ - **Recommendation:** Show notification "Item copied, paste manually"
+ - **Alternative:** Use Accessibility API paste (less reliable)
 
 2. **Should we monitor when screen is locked?**
-   - **Recommendation:** Pause monitoring (privacy + battery)
-   - **Alternative:** Continue monitoring (completeness)
+ - **Recommendation:** Pause monitoring (privacy + battery)
+ - **Alternative:** Continue monitoring (completeness)
 
 3. **Hotkey conflict resolution?**
-   - **Recommendation:** Detect conflicts, warn user, offer alternatives
-   - **Alternative:** Override system hotkeys (not recommended)
+ - **Recommendation:** Detect conflicts, warn user, offer alternatives
+ - **Alternative:** Override system hotkeys (not recommended)
 
 ---
 

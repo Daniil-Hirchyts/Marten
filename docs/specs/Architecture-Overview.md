@@ -5,8 +5,8 @@
 
 ## Document Metadata
 
-- **Version:** 1.0.0
-- **Last Updated:** 2026-01-09
+- **Version:** 1.1.0
+- **Last Updated:** 2026-01-14
 - **Status:** Draft
 - **Owner:** Engineering Team
 - **Related Specs:** All specifications depend on this document
@@ -33,35 +33,35 @@ This document defines the high-level system architecture for the Paste Clipboard
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Application Layer                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │ ClipboardMac │  │ ClipboardiOS │  │ClipboardWatch│  │
-│  │   (macOS)    │  │   (Future)   │  │   (Future)   │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
+│ Application Layer │
+│ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ │
+│ │ ClipboardMac │ │ ClipboardiOS │ │ClipboardWatch│ │
+│ │ (macOS) │ │ (Future) │ │ (Future) │ │
+│ └──────────────┘ └──────────────┘ └──────────────┘ │
 └─────────────────────────────────────────────────────────┘
-                            │
+ │
 ┌─────────────────────────────────────────────────────────┐
-│                  ClipboardCore (Swift Package)           │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │ Data Model & Persistence                           │ │
-│  ├────────────────────────────────────────────────────┤ │
-│  │ Search & Indexing Engine                           │ │
-│  ├────────────────────────────────────────────────────┤ │
-│  │ Sync Coordinator (CloudKit)                        │ │
-│  ├────────────────────────────────────────────────────┤ │
-│  │ Business Rules (Dedupe, Retention, Privacy)        │ │
-│  ├────────────────────────────────────────────────────┤ │
-│  │ Asset Management                                   │ │
-│  └────────────────────────────────────────────────────┘ │
+│ ClipboardCore (Swift Package) │
+│ ┌────────────────────────────────────────────────────┐ │
+│ │ Data Model & Persistence │ │
+│ ├────────────────────────────────────────────────────┤ │
+│ │ Search & Indexing Engine │ │
+│ ├────────────────────────────────────────────────────┤ │
+│ │ Sync Coordinator (CloudKit) │ │
+│ ├────────────────────────────────────────────────────┤ │
+│ │ Business Rules (Dedupe, Retention, Privacy) │ │
+│ ├────────────────────────────────────────────────────┤ │
+│ │ Asset Management │ │
+│ └────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────┘
-                            │
+ │
 ┌─────────────────────────────────────────────────────────┐
-│                  Platform Services                       │
-│  • Core Data / SQLite                                   │
-│  • CloudKit                                             │
-│  • FileManager (Asset Storage)                          │
-│  • NSPasteboard / UIPasteboard                          │
-│  • Keychain Services                                    │
+│ Platform Services │
+│ • Core Data / SQLite │
+│ • CloudKit │
+│ • FileManager (Asset Storage) │
+│ • NSPasteboard / UIPasteboard │
+│ • Keychain Services │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -76,36 +76,36 @@ This document defines the high-level system architecture for the Paste Clipboard
 **Sub-modules:**
 
 1. **DataModel**
-   - Core Data entities and relationships
-   - See: `Data-Model-Spec.md`
+ - Core Data entities and relationships
+ - See: `Data-Model-Spec.md`
 
 2. **PersistenceLayer**
-   - Core Data stack management
-   - Migration coordination
-   - Transaction handling
+ - Core Data stack management
+ - Migration coordination
+ - Transaction handling
 
 3. **SyncEngine**
-   - CloudKit integration
-   - Conflict resolution
-   - Change token management
-   - See: `Cloud-Schema-Spec.md`
+ - CloudKit integration
+ - Conflict resolution
+ - Change token management
+ - See: `Cloud-Schema-Spec.md`
 
 4. **BusinessRules**
-   - Deduplication logic
-   - Retention policy enforcement
-   - Privacy filtering
-   - Content classification
+ - Deduplication logic
+ - Retention policy enforcement
+ - Privacy filtering
+ - Content classification
 
 5. **SearchIndex**
-   - Full-text search indexing
-   - Query processing
-   - Relevance ranking
+ - Full-text search indexing
+ - Query processing
+ - Relevance ranking
 
 6. **AssetManager**
-   - File-based asset storage
-   - Thumbnail generation
-   - Cache management
-   - Orphan cleanup
+ - File-based asset storage
+ - Thumbnail generation
+ - Cache management
+ - Orphan cleanup
 
 ### 3.2 ClipboardMacServices (macOS Services Module)
 
@@ -114,25 +114,25 @@ This document defines the high-level system architecture for the Paste Clipboard
 **Components:**
 
 1. **PasteboardMonitor**
-   - NSPasteboard polling
-   - Change detection
-   - See: `macOS-Services-Spec.md`
+ - NSPasteboard polling
+ - Change detection
+ - See: `macOS-Services-Spec.md`
 
 2. **PasteboardExtractor**
-   - Representation extraction (text/RTF/HTML/images/URLs)
-   - Type detection
-   - See: `macOS-Services-Spec.md`
+ - Representation extraction (text/RTF/HTML/images/URLs)
+ - Type detection
+ - See: `macOS-Services-Spec.md`
 
 3. **HotkeyManager**
-   - Global hotkey registration (Carbon)
-   - See: `macOS-Services-Spec.md`
+ - Global hotkey registration (Carbon)
+ - See: `macOS-Services-Spec.md`
 
 4. **ThumbnailGenerator**
-   - Image thumbnail generation for previews
-   - See: `macOS-Services-Spec.md`
+ - Image thumbnail generation for previews
+ - See: `macOS-Services-Spec.md`
 
 5. **Loggers**
-   - App, pasteboard, hotkey, retention log channels
+ - App, pasteboard, hotkey, retention log channels
 
 ### 3.3 ClipboardMac (macOS App Target)
 
@@ -141,31 +141,31 @@ This document defines the high-level system architecture for the Paste Clipboard
 **Components:**
 
 1. **OverlayWindow**
-   - Custom NSPanel management
-   - Keyboard navigation
-   - Focus handling
-   - See: `UI-Contract-Spec.md`
+ - Custom NSPanel management
+ - Keyboard navigation
+ - Focus handling
+ - See: `UI-Contract-Spec.md`
 
 2. **PasteEngine**
-   - Active app tracking
-   - Synthetic paste injection
-   - Accessibility integration
-   - See: `macOS-Services-Spec.md`
+ - Active app tracking
+ - Synthetic paste injection
+ - Accessibility integration
+ - See: `macOS-Services-Spec.md`
 
 3. **SettingsUI**
-   - SwiftUI-based preferences
-   - Shortcut recorder
-   - App picker for ignore list
+ - SwiftUI-based preferences
+ - Shortcut recorder
+ - App picker for ignore list
 
 4. **MenuBarApp**
-   - NSStatusItem management
-   - Quick actions menu
-   - Status indicators
+ - NSStatusItem management
+ - Quick actions menu
+ - Status indicators
 
 6. **HotkeyManager**
-   - Global hotkey registration
-   - Event monitoring
-   - Action dispatch
+ - Global hotkey registration
+ - Event monitoring
+ - Action dispatch
 
 ### 3.3 Future: ClipboardiOS & ClipboardWatch
 
@@ -180,27 +180,27 @@ This document defines the high-level system architecture for the Paste Clipboard
 
 ```
 NSPasteboard Change
-        ↓
+ 
 PasteboardMonitor detects (polling)
-        ↓
+ 
 Extract available UTIs
-        ↓
+ 
 Normalize to ClipItem candidate
-        ↓
+ 
 Apply Privacy Filters
-        ↓
+ 
 Compute canonical hash
-        ↓
+ 
 Check for duplicates
-        ↓
+ 
 Persist to Core Data
-        ↓
+ 
 Store assets to filesystem
-        ↓
+ 
 Update search index
-        ↓
+ 
 Enqueue for sync (if enabled)
-        ↓
+ 
 Notify UI observers
 ```
 
@@ -208,21 +208,21 @@ Notify UI observers
 
 ```
 User selects item in overlay
-        ↓
+ 
 Retrieve ClipItem and representations
-        ↓
+ 
 Apply Plain Text mode (if active)
-        ↓
+ 
 Write to NSPasteboard.general
-        ↓
+ 
 [If paste-to-active-app mode:]
-        ↓
+ 
 Re-activate recorded frontmost app
-        ↓
+ 
 Send synthetic Command+V
-        ↓
+ 
 Close overlay
-        ↓
+ 
 Play sound effect (if enabled)
 ```
 
@@ -230,23 +230,23 @@ Play sound effect (if enabled)
 
 ```
 Local change occurs
-        ↓
+ 
 SyncCoordinator observes
-        ↓
+ 
 Batch changes (debounce 2s)
-        ↓
+ 
 [Outbound:]
 Upload CKRecords + CKAssets
-        ↓
+ 
 [Inbound:]
 Fetch zone changes with token
-        ↓
+ 
 Apply conflict resolution
-        ↓
+ 
 Merge into local store
-        ↓
+ 
 Download assets (on-demand or eager)
-        ↓
+ 
 Update UI
 ```
 
@@ -280,8 +280,8 @@ Update UI
 
 ## 6. Phase Roadmap
 
-### Phase 1: Core Foundation ✓ Spec Complete
-**Target:** Weeks 1-3  
+### Phase 1: Core Foundation Spec Complete
+**Target:** Weeks 1-3 
 **Deliverables:**
 - [x] `ClipboardCore` Swift package structure
 - [x] Core Data model implementation (see Data-Model-Spec.md)
@@ -303,8 +303,8 @@ Update UI
 
 ---
 
-### Phase 2: Full Capture & UI Parity ✓ Implemented
-**Target:** Weeks 4-6  
+### Phase 2: Full Capture & UI Parity Implemented
+**Target:** Weeks 4-6 
 **Deliverables:**
 - [x] Rich text (RTF, HTML) capture
 - [x] Image capture with thumbnail generation
@@ -333,8 +333,8 @@ Update UI
 
 ---
 
-### Phase 3: Paste Behaviors ✅ Implemented
-**Target:** Weeks 7-8  
+### Phase 3: Paste Behaviors Implemented
+**Target:** Weeks 7-8 
 **Deliverables:**
 - [x] Frontmost app tracking
 - [x] Accessibility-based paste injection
@@ -342,6 +342,8 @@ Update UI
 - [x] Quick Paste (Cmd+1-9) mapping
 - [x] Paste Stack data model
 - [x] Paste Stack sequential paste logic
+- [x] System sound integration
+- [x] Modifier key monitoring
 - [ ] Copy-to-clipboard mode (alternative to paste)
 
 **Success Criteria:**
@@ -361,8 +363,8 @@ Update UI
 
 ---
 
-### Phase 4: Privacy & Settings 🔒 Spec Pending
-**Target:** Weeks 9-10  
+### Phase 4: Privacy & Settings Spec Pending
+**Target:** Weeks 9-10 
 **Deliverables:**
 - [ ] Settings window with 4 tabs (General/Privacy/Shortcuts/Purchase)
 - [ ] Ignore apps list with picker
@@ -385,8 +387,8 @@ Update UI
 
 ---
 
-### Phase 5: CloudKit Sync 🌐 Spec Pending
-**Target:** Weeks 11-14  
+### Phase 5: CloudKit Sync Spec Pending
+**Target:** Weeks 11-14 
 **Deliverables:**
 - [ ] CloudKit container and custom zone setup
 - [ ] Cloud schema deployment (CKClipItem, CKClipRepresentation, CKPinboard, etc.)
@@ -412,8 +414,8 @@ Update UI
 
 ---
 
-### Phase 6: Hardening & Performance 🚀 Spec Pending
-**Target:** Weeks 15-16  
+### Phase 6: Hardening & Performance Spec Pending
+**Target:** Weeks 15-16 
 **Deliverables:**
 - [ ] Performance profiling (Instruments)
 - [ ] Database indexing optimization
@@ -423,7 +425,7 @@ Update UI
 - [ ] Crash reporting integration
 - [ ] Data integrity checks on startup
 - [ ] Automated UI tests
-- [ ] CloudKit development → production migration
+- [ ] CloudKit development production migration
 
 **Success Criteria:**
 - 10,000 items load in <500ms
@@ -446,10 +448,10 @@ Update UI
 3. **Critical errors:** Preserve data, log to file, prompt user to report
 
 **Error Categories:**
-- Pasteboard read failures → Skip, log, continue
-- Core Data save failures → Rollback, alert user
-- CloudKit errors → Queue for retry, show sync status
-- Accessibility permission denied → Show onboarding again
+- Pasteboard read failures Skip, log, continue
+- Core Data save failures Rollback, alert user
+- CloudKit errors Queue for retry, show sync status
+- Accessibility permission denied Show onboarding again
 
 ### 7.2 Performance Budgets
 
@@ -503,38 +505,38 @@ See: `Privacy-Security-Spec.md`
 ```
 Paste/
 ├── Paste.xcworkspace
-├── ClipboardCore/              # Swift Package
-│   ├── Sources/
-│   │   ├── DataModel/
-│   │   ├── Persistence/
-│   │   ├── Sync/
-│   │   ├── BusinessRules/
-│   │   ├── Search/
-│   │   └── Assets/
-│   └── Tests/
-├── ClipboardMac/               # macOS App Target
-│   ├── Sources/
-│   │   ├── ClipboardMacApp/
-│   │   │   ├── App/
-│   │   │   └── UI/
-│   │   │       ├── Overlay/
-│   │   │       ├── Settings/
-│   │   │       └── Components/
-│   │   ├── ClipboardMacServices/
-│   │   │   └── Services/
-│   │   │       ├── Logging/
-│   │   │       ├── PasteboardMonitor/
-│   │   │       ├── Thumbnails/
-│   │   │       └── HotkeyManager/
-│   │   └── ClipboardMacValidation/
-│   │   └── Resources/
-│   └── Tests/
-├── ClipboardiOS/               # Future
-├── ClipboardWatch/             # Future
+├── ClipboardCore/ # Swift Package
+│ ├── Sources/
+│ │ ├── DataModel/
+│ │ ├── Persistence/
+│ │ ├── Sync/
+│ │ ├── BusinessRules/
+│ │ ├── Search/
+│ │ └── Assets/
+│ └── Tests/
+├── ClipboardMac/ # macOS App Target
+│ ├── Sources/
+│ │ ├── ClipboardMacApp/
+│ │ │ ├── App/
+│ │ │ └── UI/
+│ │ │ ├── Overlay/
+│ │ │ ├── Settings/
+│ │ │ └── Components/
+│ │ ├── ClipboardMacServices/
+│ │ │ └── Services/
+│ │ │ ├── Logging/
+│ │ │ ├── PasteboardMonitor/
+│ │ │ ├── Thumbnails/
+│ │ │ └── HotkeyManager/
+│ │ └── ClipboardMacValidation/
+│ │ └── Resources/
+│ └── Tests/
+├── ClipboardiOS/ # Future
+├── ClipboardWatch/ # Future
 └── docs/
-    ├── specs/                  # Engineering specs (this file)
-    ├── api/                    # API documentation
-    └── decisions/              # Architecture decision records
+ ├── specs/ # Engineering specs (this file)
+ ├── api/ # API documentation
+ └── decisions/ # Architecture decision records
 ```
 
 ### 8.3 Build Configurations
@@ -549,18 +551,18 @@ Paste/
 
 ```
 Architecture-Overview.md (this file)
-    ├── Data-Model-Spec.md
-    │   └── Required by: All phases
-    ├── Cloud-Schema-Spec.md
-    │   └── Required by: Phase 5
-    ├── UI-Contract-Spec.md
-    │   └── Required by: Phase 2, 3, 4
-    ├── macOS-Services-Spec.md
-    │   └── Required by: Phase 1, 3
-    ├── Privacy-Security-Spec.md
-    │   └── Required by: Phase 4
-    └── Testing-Strategy.md
-        └── Required by: Phase 6
+ ├── Data-Model-Spec.md
+ │ └── Required by: All phases
+ ├── Cloud-Schema-Spec.md
+ │ └── Required by: Phase 5
+ ├── UI-Contract-Spec.md
+ │ └── Required by: Phase 2, 3, 4
+ ├── macOS-Services-Spec.md
+ │ └── Required by: Phase 1, 3
+ ├── Privacy-Security-Spec.md
+ │ └── Required by: Phase 4
+ └── Testing-Strategy.md
+ └── Required by: Phase 6
 ```
 
 ---
@@ -570,17 +572,17 @@ Architecture-Overview.md (this file)
 ### 10.1 High-Priority Decisions Needed
 
 1. **Core Data vs Custom SQLite?**
-   - **Recommendation:** Core Data for CloudKit integration
-   - **Risk:** Learning curve for team, migration complexity
+ - **Recommendation:** Core Data for CloudKit integration
+ - **Risk:** Learning curve for team, migration complexity
 
 2. **Asset Storage Strategy?**
-   - **Recommendation:** Filesystem with Core Data references
-   - **Risk:** Orphan management, backup/restore
+ - **Recommendation:** Filesystem with Core Data references
+ - **Risk:** Orphan management, backup/restore
 
 3. **Search Technology?**
-   - **Recommendation:** Core Data + in-memory index
-   - **Alternative:** Core Spotlight integration
-   - **Risk:** Performance with 10k+ items
+ - **Recommendation:** Core Data + in-memory index
+ - **Alternative:** Core Spotlight integration
+ - **Risk:** Performance with 10k+ items
 
 ### 10.2 Known Risks
 
@@ -620,9 +622,9 @@ Architecture-Overview.md (this file)
 4. Begin Phase 2 implementation
 
 **Related Documents:**
-- [Data Model Spec](./Data-Model-Spec.md) - ✅ Complete
-- [Cloud Schema Spec](./Cloud-Schema-Spec.md) - ✅ Complete
-- [UI Contract Spec](./UI-Contract-Spec.md) - ✅ Complete
-- [macOS Services Spec](./macOS-Services-Spec.md) - ✅ Complete
-- [Privacy & Security Spec](./Privacy-Security-Spec.md) - ✅ Complete
-- [Testing Strategy](./Testing-Strategy.md) - ✅ Complete
+- [Data Model Spec](./Data-Model-Spec.md) - Complete
+- [Cloud Schema Spec](./Cloud-Schema-Spec.md) - Complete
+- [UI Contract Spec](./UI-Contract-Spec.md) - Complete
+- [macOS Services Spec](./macOS-Services-Spec.md) - Complete
+- [Privacy & Security Spec](./Privacy-Security-Spec.md) - Complete
+- [Testing Strategy](./Testing-Strategy.md) - Complete

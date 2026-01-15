@@ -4,6 +4,38 @@ import ClipboardMacServices
 import OSLog
 import SwiftUI
 
+// Approximate equality for CGRect to handle floating-point precision issues
+// Using higher tolerance (5.0) to prevent layout jitter from triggering updates
+private func overlayFramesApproximatelyEqual(
+    _ lhs: [NSManagedObjectID: CGRect],
+    _ rhs: [NSManagedObjectID: CGRect],
+    tolerance: CGFloat = 5.0
+) -> Bool {
+    guard lhs.count == rhs.count else { return false }
+    for (key, lhsRect) in lhs {
+        guard let rhsRect = rhs[key] else { return false }
+        if abs(lhsRect.origin.x - rhsRect.origin.x) > tolerance ||
+           abs(lhsRect.origin.y - rhsRect.origin.y) > tolerance ||
+           abs(lhsRect.size.width - rhsRect.size.width) > tolerance ||
+           abs(lhsRect.size.height - rhsRect.size.height) > tolerance {
+            return false
+        }
+    }
+    return true
+}
+
+private func overlayRectApproximatelyEqual(
+    _ lhs: CGRect?,
+    _ rhs: CGRect?,
+    tolerance: CGFloat = 5.0
+) -> Bool {
+    guard let lhs = lhs, let rhs = rhs else { return lhs == nil && rhs == nil }
+    return abs(lhs.origin.x - rhs.origin.x) <= tolerance &&
+           abs(lhs.origin.y - rhs.origin.y) <= tolerance &&
+           abs(lhs.size.width - rhs.size.width) <= tolerance &&
+           abs(lhs.size.height - rhs.size.height) <= tolerance
+}
+
 struct OverlayRootView: View {
     @EnvironmentObject private var viewModel: OverlayViewModel
     @State private var searchText = ""
@@ -26,9 +58,15 @@ struct OverlayRootView: View {
     @State private var pinboardEditorFrame: CGRect?
     @State private var searchFieldFrame: CGRect?
     @State private var dragPreviewData: DragPreviewData?
+    
+    // Non-reactive storage for drop target detection during drag
+    // Captured when shouldReportFrames is true, then adjusted by scroll delta
+    static var capturedPinboardFrames: [NSManagedObjectID: CGRect] = [:]
+    static var capturedAllPinboardFrame: CGRect?
+    static var capturedScrollOffset: CGFloat = 0
     @State private var dragPreviewWindow: DragPreviewWindow?
     @State private var isFilterPopoverPresented = false
-
+    
     private let store = ClipItemStore()
     private let overlayCoordinateSpaceName = "OverlaySpace"
     private let headerButtonSize: CGFloat = 30
@@ -43,13 +81,13 @@ struct OverlayRootView: View {
             NSSortDescriptor(key: "createdAt", ascending: false)
         ],
         predicate: NSPredicate(format: "isTransient == NO"),
-        animation: .easeInOut
+        animation: .default
     )
     private var items: FetchedResults<ClipItem>
 
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(key: "sortOrder", ascending: true)],
-        animation: .easeInOut
+        animation: .default
     )
     private var pinboards: FetchedResults<Pinboard>
 
@@ -86,11 +124,11 @@ struct OverlayRootView: View {
     }
 
     private var isDragEnabled: Bool {
-        viewModel.mode == .browse && !isSearchActive
+        viewModel.mode == .browse
     }
 
     private var isReorderingEnabled: Bool {
-        isDragEnabled && selectedPinboardID != nil
+        isDragEnabled && selectedPinboardID != nil && !isSearchActive
     }
 
     var body: some View {
@@ -108,6 +146,7 @@ struct OverlayRootView: View {
                         isCreating: $isCreatingPinboard,
                         draftName: $renamePinboardName,
                         draftColor: $renamePinboardColor,
+                        isGlobalDragActive: dragPreviewData != nil,
                         onSelect: { id in
                             closeSearchIfEmpty()
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -158,16 +197,36 @@ struct OverlayRootView: View {
                     .padding(.horizontal, headerSideWidth)
                     .frame(height: headerButtonSize, alignment: .center)
                     .onPreferenceChange(PinboardFrameKey.self) { frames in
-                        pinboardFrames = frames
+                        // ALWAYS capture for static storage (used by ItemCardRow during drag)
+                        Self.capturedPinboardFrames = frames
+                        // Skip reactive state updates during drag to prevent re-render loops
+                        guard dragPreviewData == nil else { return }
+                        // Use approximate equality to avoid floating-point precision issues
+                        if !overlayFramesApproximatelyEqual(frames, pinboardFrames) {
+                            pinboardFrames = frames
+                        }
                     }
                     .onPreferenceChange(PinboardAllFrameKey.self) { frame in
-                        allPinboardFrame = frame
+                        // ALWAYS capture for static storage (used by ItemCardRow during drag)
+                        Self.capturedAllPinboardFrame = frame
+                        Self.capturedScrollOffset = PinboardTabBar.currentScrollOffset
+                        // Skip reactive state updates during drag
+                        guard dragPreviewData == nil else { return }
+                        if !overlayRectApproximatelyEqual(frame, allPinboardFrame) {
+                            allPinboardFrame = frame
+                        }
                     }
                     .onPreferenceChange(PinboardEditorFrameKey.self) { frame in
-                        pinboardEditorFrame = frame
+                        guard dragPreviewData == nil else { return }
+                        if !overlayRectApproximatelyEqual(frame, pinboardEditorFrame) {
+                            pinboardEditorFrame = frame
+                        }
                     }
                     .onPreferenceChange(SearchFieldFrameKey.self) { frame in
-                        searchFieldFrame = frame
+                        guard dragPreviewData == nil else { return }
+                        if !overlayRectApproximatelyEqual(frame, searchFieldFrame) {
+                            searchFieldFrame = frame
+                        }
                     }
 
                     // Left: Search
@@ -305,7 +364,11 @@ struct OverlayRootView: View {
                             pinboardFrames: pinboardFrames,
                             allPinboardFrame: allPinboardFrame,
                             window: window,
-                            dragPreviewData: $dragPreviewData
+                            dragPreviewData: $dragPreviewData,
+                            onPreviewUpdate: { data in
+                                // Direct preview update - bypasses SwiftUI state for better performance
+                                updateDragPreviewWindow(data)
+                            }
                         )
                         .frame(maxHeight: .infinity, alignment: .topLeading)
                     }
@@ -614,7 +677,6 @@ struct OverlayRootView: View {
         
         do {
             let pinboard = try store.createPinboard(name: trimmedName, colorHex: renamePinboardColor)
-            // selectedPinboardID = pinboard.id // User requested no redirect
             if let pendingPinboardItem {
                 try? store.moveItem(objectID: pendingPinboardItem.objectID, toPinboard: pinboard.objectID)
             }
@@ -852,6 +914,10 @@ struct OverlayRootView: View {
         do {
             try store.moveItem(objectID: item.objectID, toPinboard: pinboardID)
             viewModel.clearSelection()
+            // Update search results if search is active to reflect the change
+            if isSearchTextActive {
+                updateSearchResults()
+            }
         } catch {
             Logger.app.error("Failed to move item to pinboard: \(error.localizedDescription)")
         }
@@ -940,8 +1006,6 @@ struct OverlayRootView: View {
     }
 
     private func openSettings() {
-        // Placeholder for Phase 4 Settings implementation
-        // If the App delegate responds to showSettingsWindow:, it will be called.
         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
     

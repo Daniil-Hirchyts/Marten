@@ -3,7 +3,9 @@
     "allow": [
       "Bash(swift build:*)",
       "Bash(find:*)",
-      "Bash(xcodebuild:*)"
+      "Bash(xcodebuild:*)",
+      "Bash(git checkout:*)",
+      "Bash(git rm:*)"
     ]
   }
 }
