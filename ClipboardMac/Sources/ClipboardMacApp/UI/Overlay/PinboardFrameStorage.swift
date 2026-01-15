@@ -2,9 +2,9 @@ import ClipboardCore
 import CoreData
 import SwiftUI
 
-/// Manages frame storage with intelligent publishing to avoid unnecessary re-renders
-/// Only publishes changes when frame count or keys change, not on every frame update
-final class PinboardFrameStorage: ObservableObject {
+/// Comprehensive frame manager that handles frame storage, caching, and computation
+/// Encapsulates all frame-related logic to reduce complexity in the main view
+final class PinboardFrameManager: ObservableObject {
     // MARK: - Published Properties (trigger re-renders only when needed)
 
     /// Content-space frames - published only when count/keys change
@@ -27,22 +27,35 @@ final class PinboardFrameStorage: ObservableObject {
     /// Latest scroll offset (always current, doesn't trigger re-renders)
     private(set) var scrollOffset: CGFloat = 0
 
+    // MARK: - Cached Ordered Frames
+
+    /// Cached ordered frames (content-space) to avoid repeated sorting during drag
+    private(set) var cachedOrderedFrames: [(item: Pinboard, frame: CGRect)]?
+
+    /// Cached local-space ordered frames for placeholder rendering during drag
+    private(set) var cachedLocalOrderedFrames: [(item: Pinboard, frame: CGRect)]?
+
     // MARK: - State Flags
 
     /// Whether updates should be suppressed (e.g., during drag)
     var suppressUpdates: Bool = false
 
+    /// Whether frame reporting is needed
+    var shouldReportFrames: Bool = true
+
     // MARK: - Update Methods
 
-    /// Updates content-space frames
+    /// Updates content-space frames and invalidates caches if needed
     /// - Parameter frames: New frame dictionary
     /// - Parameter tabSpacing: Spacing between tabs for width calculation
-    func updateTabFrames(_ frames: [NSManagedObjectID: CGRect], tabSpacing: CGFloat) {
+    /// - Returns: True if caches were invalidated
+    @discardableResult
+    func updateTabFrames(_ frames: [NSManagedObjectID: CGRect], tabSpacing: CGFloat) -> Bool {
         // Always store latest (no re-render)
         latestTabFrames = frames
 
         // Skip reactive updates if suppressed
-        guard !suppressUpdates else { return }
+        guard !suppressUpdates else { return false }
 
         // Only publish if count or keys changed
         let countChanged = frames.count != tabFrames.count
@@ -51,17 +64,23 @@ final class PinboardFrameStorage: ObservableObject {
         if countChanged || keysChanged {
             tabFrames = frames
             updateContentWidth(from: frames, countChanged: countChanged)
+            invalidateCaches()
+            return true
         }
+
+        return false
     }
 
-    /// Updates local-space frames
+    /// Updates local-space frames and invalidates caches if needed
     /// - Parameter frames: New frame dictionary
-    func updateLocalTabFrames(_ frames: [NSManagedObjectID: CGRect]) {
+    /// - Returns: True if caches were invalidated
+    @discardableResult
+    func updateLocalTabFrames(_ frames: [NSManagedObjectID: CGRect]) -> Bool {
         // Always store latest (no re-render)
         latestLocalTabFrames = frames
 
         // Skip reactive updates if suppressed
-        guard !suppressUpdates else { return }
+        guard !suppressUpdates else { return false }
 
         // Only publish if count or keys changed
         let countChanged = frames.count != localTabFrames.count
@@ -69,13 +88,50 @@ final class PinboardFrameStorage: ObservableObject {
 
         if countChanged || keysChanged {
             localTabFrames = frames
+            invalidateLocalCache()
+            return true
         }
+
+        return false
     }
 
     /// Updates scroll offset (never published)
     /// - Parameter offset: New scroll offset
     func updateScrollOffset(_ offset: CGFloat) {
         scrollOffset = offset
+
+        // Turn off frame reporting after initial capture
+        if shouldReportFrames {
+            shouldReportFrames = false
+        }
+    }
+
+    // MARK: - Cache Management
+
+    /// Sets cached ordered frames (used during drag initialization)
+    func setCachedFrames(
+        orderedFrames: [(item: Pinboard, frame: CGRect)],
+        localOrderedFrames: [(item: Pinboard, frame: CGRect)]
+    ) {
+        cachedOrderedFrames = orderedFrames
+        cachedLocalOrderedFrames = localOrderedFrames
+    }
+
+    /// Invalidates all cached ordered frames
+    func invalidateCaches() {
+        cachedOrderedFrames = nil
+        cachedLocalOrderedFrames = nil
+    }
+
+    /// Invalidates only local cached frames
+    func invalidateLocalCache() {
+        cachedLocalOrderedFrames = nil
+    }
+
+    /// Clears cached frames (called after drag ends)
+    func clearCaches() {
+        cachedOrderedFrames = nil
+        cachedLocalOrderedFrames = nil
     }
 
     /// Updates content width based on frames
@@ -97,7 +153,7 @@ final class PinboardFrameStorage: ObservableObject {
         }
     }
 
-    /// Resets all cached frames
+    /// Resets all state
     func reset() {
         tabFrames = [:]
         localTabFrames = [:]
@@ -105,5 +161,9 @@ final class PinboardFrameStorage: ObservableObject {
         latestLocalTabFrames = [:]
         contentWidth = 0
         scrollOffset = 0
+        cachedOrderedFrames = nil
+        cachedLocalOrderedFrames = nil
+        suppressUpdates = false
+        shouldReportFrames = true
     }
 }
