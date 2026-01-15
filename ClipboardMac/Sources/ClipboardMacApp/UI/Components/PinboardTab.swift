@@ -16,7 +16,7 @@ struct PinboardTab: View {
             HStack(spacing: 6) {
                 if let iconName {
                     Image(systemName: iconName)
-                        .font(.system(size: 13, weight: .medium)) // Slightly larger than text
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.white)
                 } else if let colorHex {
                     Circle()
