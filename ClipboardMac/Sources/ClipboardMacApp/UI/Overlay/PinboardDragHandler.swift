@@ -1,16 +1,8 @@
 import ClipboardCore
+import ClipboardMacServices
 import CoreData
+import OSLog
 import SwiftUI
-
-// Debug flag - set to true to see logs in terminal
-private let DEBUG_DRAG = false
-
-private func debugLog(_ message: String) {
-    if DEBUG_DRAG {
-        print("[PinboardDragHandler] \(message)")
-        fflush(stdout)
-    }
-}
 
 /// Result from beginning a drag operation
 struct DragBeginResult {
@@ -53,7 +45,7 @@ struct PinboardDragHandler {
 
         let cachedOrderedFrames = computeOrderedFrames(from: tabFrames)
 
-        debugLog("Drag started: item=\(pinboard.name)")
+        Logger.drag.debug("Drag started: item=\(pinboard.name)")
 
         let dragState = PinboardTabDragState(
             itemID: pinboard.objectID,
@@ -94,7 +86,7 @@ struct PinboardDragHandler {
         state: PinboardTabDragState,
         cachedLocalOrderedFrames: [(item: Pinboard, frame: CGRect)]
     ) -> DragEndResult? {
-        debugLog("Drag ended")
+        Logger.drag.debug("Drag ended")
 
         guard
             let target = computeDropTarget(
@@ -107,7 +99,7 @@ struct PinboardDragHandler {
             return nil
         }
 
-        debugLog(
+        Logger.drag.debug(
             "Reorder: \(draggedItem.name) -> \(target.item.name), insertBefore=\(target.insertBefore)"
         )
 

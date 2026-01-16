@@ -227,11 +227,12 @@ struct ItemCard: View {
 
     @State private var lastTapTime: Date?
     @State private var editTitle: String = ""
+    @State private var cachedProps: CachedItemProperties?
     @FocusState private var isFocused: Bool
 
     /// Cached properties to avoid recalculating on every render
     private var cached: CachedItemProperties {
-        CachedItemProperties(item: item)
+        cachedProps ?? CachedItemProperties(item: item)
     }
 
     var body: some View {
@@ -347,6 +348,20 @@ struct ItemCard: View {
                     .transition(.scale.combined(with: .opacity))
             }
 
+        }
+        .onAppear {
+            cachedProps = CachedItemProperties(item: item)
+        }
+        .onChange(
+            of: item.objectID,
+            perform: { _ in
+                cachedProps = CachedItemProperties(item: item)
+            }
+        )
+        .onReceive(item.objectWillChange) { _ in
+            DispatchQueue.main.async {
+                cachedProps = CachedItemProperties(item: item)
+            }
         }
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)

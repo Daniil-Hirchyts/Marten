@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class ThumbnailGeneratorTests: XCTestCase {
-    func testGenerateThumbnailReturnsPNGData() {
+    func testGenerateThumbnailReturnsPNGData() throws {
         let image = NSImage(size: NSSize(width: 200, height: 120))
         image.lockFocus()
         NSColor.systemBlue.setFill()
@@ -17,7 +17,21 @@ final class ThumbnailGeneratorTests: XCTestCase {
         XCTAssertNotNil(pngData)
 
         let generator = ThumbnailGenerator(maxPixelSize: 80)
-        let thumbnail = generator.generateThumbnail(from: pngData!)
-        XCTAssertNotNil(thumbnail)
+        let thumbnail = try generator.generateThumbnail(from: pngData!).get()
+        XCTAssertFalse(thumbnail.isEmpty)
+    }
+
+    func testGenerateThumbnailWithInvalidDataReturnsError() {
+        let generator = ThumbnailGenerator()
+        let invalidData = Data([0x00, 0x01, 0x02, 0x03])
+        
+        let result = generator.generateThumbnail(from: invalidData)
+        
+        switch result {
+        case .success:
+            XCTFail("Expected failure for invalid image data")
+        case .failure(let error):
+            XCTAssertEqual(error, .invalidImageData)
+        }
     }
 }

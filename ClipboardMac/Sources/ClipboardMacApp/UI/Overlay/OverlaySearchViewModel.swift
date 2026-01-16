@@ -16,11 +16,19 @@ final class OverlaySearchViewModel: ObservableObject {
     @Published var typeFilters: Set<ItemType> = []
     @Published var appFilters: Set<String> = []
 
+    @Published var selectedPinboardID: UUID? {
+        didSet {
+            guard oldValue != selectedPinboardID else { return }
+            if isSearchTextActive {
+                scheduleSearch(immediate: true)
+            }
+        }
+    }
+
     @Published private(set) var searchResults: [ClipItem] = []
     @Published private(set) var appOptions: [AppFilterOption] = []
 
     private let store: ClipItemStore
-    private var selectedPinboardID: UUID?
     private var searchTask: Task<Void, Never>?
     private var searchGeneration: Int = 0
     private let debounceNanoseconds: UInt64
@@ -29,6 +37,12 @@ final class OverlaySearchViewModel: ObservableObject {
     init(store: ClipItemStore = ClipItemStore(), debounceNanoseconds: UInt64 = 250_000_000) {
         self.store = store
         self.debounceNanoseconds = debounceNanoseconds
+        self.selectedPinboardID = nil
+    }
+
+    @MainActor
+    convenience init(services: any AppServiceProviding, debounceNanoseconds: UInt64 = 250_000_000) {
+        self.init(store: services.clipItemStore, debounceNanoseconds: debounceNanoseconds)
     }
 
     var isSearchTextActive: Bool {
@@ -41,13 +55,6 @@ final class OverlaySearchViewModel: ObservableObject {
 
     var isSearchActive: Bool {
         isSearchTextActive || hasActiveFilters
-    }
-
-    func setSelectedPinboardID(_ id: UUID?) {
-        selectedPinboardID = id
-        if isSearchTextActive {
-            scheduleSearch(immediate: true)
-        }
     }
 
     func clearFilters() {
@@ -79,7 +86,8 @@ final class OverlaySearchViewModel: ObservableObject {
         }
     }
 
-    func updateAppOptions(from allItems: [ClipItem], selectedPinboardID: UUID?) {
+    func updateAppOptions(from allItems: [ClipItem]) {
+        let selectedPinboardID = self.selectedPinboardID
         var signature = selectedPinboardID?.hashValue ?? 0
         var signatureCount = 0
 

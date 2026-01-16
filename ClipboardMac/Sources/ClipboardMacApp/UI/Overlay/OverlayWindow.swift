@@ -11,15 +11,18 @@ final class OverlayWindowController {
     private var outsideClickMonitor: Any?
     private var activationObservers: [NSObjectProtocol] = []
     private weak var hotkeyManager: HotkeyManager?
+    private let eventBroadcaster: ClipboardEventBroadcaster
 
     init(
         persistence: PersistenceController = OverlayWindowController.defaultPersistence(),
         pasteEngine: PasteEngine = PasteEngine(),
         permissionManager: PermissionManager = PermissionManager(),
         hotkeyManager: HotkeyManager? = nil,
+        eventBroadcaster: ClipboardEventBroadcaster = ClipboardEventBroadcasterImpl(),
         rootView: AnyView? = nil
     ) {
         self.hotkeyManager = hotkeyManager
+        self.eventBroadcaster = eventBroadcaster
         let initialFrame = NSRect(x: 0, y: 0, width: 800, height: 320)
         panel = OverlayPanel(
             contentRect: initialFrame,
@@ -65,6 +68,7 @@ final class OverlayWindowController {
             let contentView = AnyView(
                 OverlayRootView()
                     .environment(\.managedObjectContext, persistence.viewContext)
+                    .environment(\.clipboardEventBroadcaster, eventBroadcaster)
                     .environmentObject(model)
             )
             panel.contentView = NSHostingView(rootView: contentView)
@@ -124,7 +128,7 @@ final class OverlayWindowController {
         }
 
         isVisible = true
-        NotificationCenter.default.post(name: .overlayDidShow, object: nil)
+        eventBroadcaster.publish(.overlayDidShow)
     }
 
     func hideForPaste(completion: (() -> Void)? = nil) {
@@ -148,12 +152,15 @@ final class OverlayWindowController {
         } completionHandler: { [weak self] in
             guard let self else { return }
             self.panel.orderOut(nil)
-            if resetState {
-                self.viewModel?.resetState()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if resetState {
+                    self.viewModel?.resetState()
+                }
+                self.stopOutsideClickMonitor()
+                self.stopActivationObservers()
+                completion?()
             }
-            self.stopOutsideClickMonitor()
-            self.stopActivationObservers()
-            completion?()
         }
     }
 
@@ -162,15 +169,15 @@ final class OverlayWindowController {
         let horizontalMargin: CGFloat = 8
         let bottomMargin: CGFloat = 8
         let width = max(visible.width - (horizontalMargin * 2), 320)
-        
+
         let savedHeight = UserDefaults.standard.double(forKey: "OverlayHeight")
         let preferredHeight = savedHeight > 0 ? CGFloat(savedHeight) : 320
-        
+
         let maxAllowedHeight = min(visible.height - 50, 400)
         let minAllowedHeight: CGFloat = 280
-        
+
         let height = min(max(minAllowedHeight, preferredHeight), maxAllowedHeight)
-        
+
         let x = visible.minX + horizontalMargin
         let y = visible.minY + bottomMargin
         return NSRect(x: x, y: y, width: width, height: height)
@@ -178,7 +185,9 @@ final class OverlayWindowController {
 
     private func startOutsideClickMonitor() {
         guard outsideClickMonitor == nil else { return }
-        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [
+            .leftMouseDown, .rightMouseDown,
+        ]) { [weak self] _ in
             guard let self else { return }
             let location = NSEvent.mouseLocation
             if self.isVisible, !self.panel.frame.contains(location) {
@@ -206,9 +215,14 @@ final class OverlayWindowController {
         let currentPID = ProcessInfo.processInfo.processIdentifier
 
         activationObservers.append(
-            workspaceNC.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] notification in
+            workspaceNC.addObserver(
+                forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+            ) { [weak self] notification in
                 guard let self else { return }
-                guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else {
+                guard
+                    let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                        as? NSRunningApplication
+                else {
                     return
                 }
                 if app.processIdentifier != currentPID {
@@ -222,7 +236,9 @@ final class OverlayWindowController {
         )
 
         activationObservers.append(
-            nc.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            nc.addObserver(
+                forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+            ) { [weak self] _ in
                 guard let self else { return }
                 Task { @MainActor in
                     if self.isVisible {

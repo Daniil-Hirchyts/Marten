@@ -5,48 +5,6 @@ import CoreData
 import OSLog
 import SwiftUI
 
-// Debug flag - set to true to see logs in terminal
-private let DEBUG_DRAG = false
-
-private func debugLog(_ message: String) {
-    if DEBUG_DRAG {
-        print("[ItemCardRow] \(message)")
-        fflush(stdout)
-    }
-}
-
-// Approximate equality for CGRect to handle floating-point precision issues
-// Using higher tolerance (5.0) to prevent layout jitter from triggering updates
-private func itemFramesApproximatelyEqual(
-    _ lhs: [NSManagedObjectID: CGRect],
-    _ rhs: [NSManagedObjectID: CGRect],
-    tolerance: CGFloat = 5.0
-) -> Bool {
-    guard lhs.count == rhs.count else { return false }
-    for (key, lhsRect) in lhs {
-        guard let rhsRect = rhs[key] else { return false }
-        if abs(lhsRect.origin.x - rhsRect.origin.x) > tolerance ||
-           abs(lhsRect.origin.y - rhsRect.origin.y) > tolerance ||
-           abs(lhsRect.size.width - rhsRect.size.width) > tolerance ||
-           abs(lhsRect.size.height - rhsRect.size.height) > tolerance {
-            return false
-        }
-    }
-    return true
-}
-
-private func rectApproximatelyEqual(
-    _ lhs: CGRect?,
-    _ rhs: CGRect?,
-    tolerance: CGFloat = 5.0
-) -> Bool {
-    guard let lhs = lhs, let rhs = rhs else { return lhs == nil && rhs == nil }
-    return abs(lhs.origin.x - rhs.origin.x) <= tolerance &&
-           abs(lhs.origin.y - rhs.origin.y) <= tolerance &&
-           abs(lhs.size.width - rhs.size.width) <= tolerance &&
-           abs(lhs.size.height - rhs.size.height) <= tolerance
-}
-
 struct ItemCardRow: View {
     private let cardSpacing: CGFloat = 12
     private let placeholderWidth: CGFloat = 3
@@ -83,6 +41,8 @@ struct ItemCardRow: View {
     @Binding var dragPreviewData: DragPreviewData?
     var onPreviewUpdate: ((DragPreviewData?) -> Void)? = nil  // Direct preview update, bypasses state
 
+    @EnvironmentObject private var frameCoordinator: FrameCoordinator
+
     @State private var itemFrames: [NSManagedObjectID: CGRect] = [:]
     @State private var rowFrame: CGRect = .zero
     @State private var dragState: DragState?
@@ -90,11 +50,9 @@ struct ItemCardRow: View {
     @State private var centeringTimer: Timer?
     @State private var dropTarget: DropTarget?
     @State private var pinboardDropTarget: PinboardDropTarget?
-    
-    // Non-reactive storage - doesn't trigger re-renders
-    private static var latestItemFrames: [NSManagedObjectID: CGRect] = [:]
-    private static var latestRowFrame: CGRect = .zero
-    private static var dragCenteringOffset: CGSize = .zero  // Non-reactive for timer animation
+    @State private var loadedItemCount: Int = 0
+    @State private var lastVisibleIndex: Int = 0
+    @State private var currentPage: Int = 0
 
     var body: some View {
         GeometryReader { geometry in
@@ -102,12 +60,18 @@ struct ItemCardRow: View {
             // Add side margin (14) to the placeholder allowance so cards start aligned with header
             let sideMargin: CGFloat = 14
             let placeholderInset = sideMargin + (placeholderWidth / 2)
+            let paginationEnabled = ItemCardRowPagination.isEnabled(
+                totalCount: items.count, isReorderingEnabled: isReorderingEnabled)
+            let initialLoadedCount = ItemCardRowPagination.initialLoadedCount(
+                total: items.count, isEnabled: paginationEnabled)
+            let effectiveLoadedCount = min(max(loadedItemCount, initialLoadedCount), items.count)
+            let visibleItems = Array(items.prefix(effectiveLoadedCount))
 
             if #available(macOS 14.0, *) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ScrollViewReader { proxy in
                         LazyHStack(alignment: .top, spacing: cardSpacing) {
-                            cardViews(size: cardSize, proxy: proxy)
+                            cardViews(size: cardSize, proxy: proxy, items: visibleItems)
                         }
                         .scrollTargetLayout()
                     }
@@ -118,7 +82,7 @@ struct ItemCardRow: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ScrollViewReader { proxy in
                         LazyHStack(alignment: .top, spacing: cardSpacing) {
-                            cardViews(size: cardSize, proxy: proxy)
+                            cardViews(size: cardSize, proxy: proxy, items: visibleItems)
                         }
                         .padding(.horizontal, placeholderInset)
                     }
@@ -138,12 +102,11 @@ struct ItemCardRow: View {
             placeholderView()
         }
         .onPreferenceChange(ItemFrameKey.self) { frames in
-            // Always store in non-reactive storage
-            Self.latestItemFrames = frames
-            
+            frameCoordinator.updateLatestItemFrames(frames)
+
             // Skip reactive updates during drag
             guard dragState == nil else { return }
-            
+
             // Update if count changed OR keys changed (different items after filter)
             let countChanged = frames.count != itemFrames.count
             let keysChanged = Set(frames.keys) != Set(itemFrames.keys)
@@ -152,12 +115,11 @@ struct ItemCardRow: View {
             }
         }
         .onPreferenceChange(ItemRowFrameKey.self) { frame in
-            // Always store in non-reactive storage
-            Self.latestRowFrame = frame
+            frameCoordinator.updateLatestItemRowFrame(frame)
             // Skip reactive updates during drag
             guard dragState == nil else { return }
             // Only update if significantly changed
-            if !rectApproximatelyEqual(frame, rowFrame) {
+            if !rectsApproximatelyEqual(frame, rowFrame) {
                 rowFrame = frame
             }
         }
@@ -170,13 +132,33 @@ struct ItemCardRow: View {
             let newIDSet = Set(newIDs)
             if currentIDs != newIDSet {
                 itemFrames = [:]
-                Self.latestItemFrames = [:]
+                frameCoordinator.clearLatestItemFrames()
             }
+
+            let paginationEnabled = ItemCardRowPagination.isEnabled(
+                totalCount: items.count, isReorderingEnabled: isReorderingEnabled)
+            let initialLoadedCount = ItemCardRowPagination.initialLoadedCount(
+                total: items.count, isEnabled: paginationEnabled)
+            if loadedItemCount == 0 {
+                loadedItemCount = initialLoadedCount
+            } else {
+                loadedItemCount = min(max(loadedItemCount, initialLoadedCount), items.count)
+            }
+            lastVisibleIndex = min(lastVisibleIndex, max(0, items.count - 1))
+            currentPage = ItemCardRowPagination.page(for: lastVisibleIndex)
+        }
+        .onAppear {
+            let paginationEnabled = ItemCardRowPagination.isEnabled(
+                totalCount: items.count, isReorderingEnabled: isReorderingEnabled)
+            loadedItemCount = ItemCardRowPagination.initialLoadedCount(
+                total: items.count, isEnabled: paginationEnabled)
+            lastVisibleIndex = 0
+            currentPage = 0
         }
     }
 
     @ViewBuilder
-    private func cardViews(size: CGFloat, proxy: ScrollViewProxy?) -> some View {
+    private func cardViews(size: CGFloat, proxy: ScrollViewProxy?, items: [ClipItem]) -> some View {
         ForEach(Array(items.enumerated()), id: \.element.objectID) { index, item in
             let isDragging = dragState?.itemIDs.contains(item.objectID) ?? false
 
@@ -217,6 +199,26 @@ struct ItemCardRow: View {
                     )
                 }
             )
+            .onAppear {
+                lastVisibleIndex = max(lastVisibleIndex, index)
+                currentPage = ItemCardRowPagination.page(for: lastVisibleIndex)
+
+                let paginationEnabled = ItemCardRowPagination.isEnabled(
+                    totalCount: self.items.count, isReorderingEnabled: isReorderingEnabled)
+                let initialLoadedCount = ItemCardRowPagination.initialLoadedCount(
+                    total: self.items.count, isEnabled: paginationEnabled)
+                let currentLoadedCount = min(
+                    max(loadedItemCount, initialLoadedCount), self.items.count)
+                let nextLoadedCount = ItemCardRowPagination.nextLoadedCount(
+                    currentLoadedCount: currentLoadedCount,
+                    visibleIndex: index,
+                    totalCount: self.items.count,
+                    isEnabled: paginationEnabled
+                )
+                if nextLoadedCount != loadedItemCount {
+                    loadedItemCount = nextLoadedCount
+                }
+            }
 
             if isDragEnabled {
                 base.simultaneousGesture(dragGesture(for: item))
@@ -251,14 +253,14 @@ struct ItemCardRow: View {
 
         if dragState == nil {
             // Use latest frames from non-reactive storage
-            guard let frame = Self.latestItemFrames[item.objectID] else {
-                debugLog("Drag start failed: no frame for item")
+            guard let frame = frameCoordinator.latestItemFrames[item.objectID] else {
+                Logger.drag.debug("Drag start failed: no frame for item")
                 return
             }
-            
+
             // Sync reactive state with latest frames
-            itemFrames = Self.latestItemFrames
-            rowFrame = Self.latestRowFrame
+            itemFrames = frameCoordinator.latestItemFrames
+            rowFrame = frameCoordinator.latestItemRowFrame
 
             let draggedID = item.objectID
             let itemIDs: [NSManagedObjectID]
@@ -269,7 +271,8 @@ struct ItemCardRow: View {
                 itemIDs = [draggedID]
             }
 
-            debugLog("Drag started: \(itemIDs.count) items, frame=\(frame)")
+            Logger.drag.debug(
+                "Drag started: \(itemIDs.count) items, frame=\(String(describing: frame))")
 
             dragState = DragState(
                 itemIDs: itemIDs,
@@ -279,35 +282,39 @@ struct ItemCardRow: View {
                 translation: .zero
             )
             dragOpacity = 1
-            
+
             // Initial preview update (still uses binding to trigger parent state for first render)
             updateDragPreview(useCallback: false)
-            
+
             // Set initial centering offset (will animate to zero) - stored non-reactively
-            Self.dragCenteringOffset = CGSize(
-                width: value.startLocation.x - frame.midX,
-                height: value.startLocation.y - frame.midY
+            frameCoordinator.setDragCenteringOffset(
+                CGSize(
+                    width: value.startLocation.x - frame.midX,
+                    height: value.startLocation.y - frame.midY
+                )
             )
 
             // Start centering animation timer - updates non-reactive offset and preview window directly
             centeringTimer?.invalidate()
-            centeringTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
-                let easing: CGFloat = 0.2
-                let current = Self.dragCenteringOffset
-                let nextX = current.width * (1 - easing)
-                let nextY = current.height * (1 - easing)
+            centeringTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) {
+                [self] timer in
+                Task { @MainActor [self] in
+                    let easing: CGFloat = 0.2
+                    let current = frameCoordinator.dragCenteringOffset
+                    let nextX = current.width * (1 - easing)
+                    let nextY = current.height * (1 - easing)
 
-                if abs(nextX) < 0.5 && abs(nextY) < 0.5 {
-                    Self.dragCenteringOffset = .zero
-                    timer.invalidate()
-                    centeringTimer = nil
-                } else {
-                    Self.dragCenteringOffset = CGSize(width: nextX, height: nextY)
+                    if abs(nextX) < 0.5 && abs(nextY) < 0.5 {
+                        frameCoordinator.setDragCenteringOffset(.zero)
+                        timer.invalidate()
+                        centeringTimer = nil
+                    } else {
+                        frameCoordinator.setDragCenteringOffset(CGSize(width: nextX, height: nextY))
+                    }
+                    updateDragPreview(useCallback: true)
                 }
-                // Update preview window directly using callback (bypasses SwiftUI state)
-                updateDragPreview(useCallback: true)
             }
-            
+
         } else if var state = dragState {
             state.pointerLocation = overlayPointer
             state.translation = value.translation
@@ -322,7 +329,8 @@ struct ItemCardRow: View {
             dropTarget = nil
         } else if isReorderingEnabled {
             pinboardDropTarget = nil
-            let target = computeDropTarget(location: localPointer, draggedIDs: dragState?.itemIDs ?? [item.objectID])
+            let target = computeDropTarget(
+                location: localPointer, draggedIDs: dragState?.itemIDs ?? [item.objectID])
             dropTarget = target
         } else {
             dropTarget = nil
@@ -331,8 +339,9 @@ struct ItemCardRow: View {
 
     private func handleDragEnded(item: ClipItem, value: DragGesture.Value) {
         guard isDragEnabled,
-              let dragState,
-              dragState.primaryItemID == item.objectID else {
+            let dragState,
+            dragState.primaryItemID == item.objectID
+        else {
             return
         }
 
@@ -361,7 +370,9 @@ struct ItemCardRow: View {
             }
             handled = true
         } else if isReorderingEnabled,
-                  let target = computeDropTarget(location: localPointerLocation(from: overlayPointer), draggedIDs: dragState.itemIDs) {
+            let target = computeDropTarget(
+                location: localPointerLocation(from: overlayPointer), draggedIDs: dragState.itemIDs)
+        {
             onReorder(dragState.itemIDs, target.item, target.insertBefore)
             onReorderEnd()
             handled = true
@@ -380,7 +391,7 @@ struct ItemCardRow: View {
 
         centeringTimer?.invalidate()
         centeringTimer = nil
-        
+
         endDrag(for: dragState.primaryItemID)
     }
 
@@ -388,11 +399,12 @@ struct ItemCardRow: View {
         // Stop centering timer
         centeringTimer?.invalidate()
         centeringTimer = nil
-        
+        frameCoordinator.setDragCenteringOffset(.zero)
+
         dropTarget = nil
         pinboardDropTarget = nil
         dragOpacity = 0
-        
+
         // Clear preview using callback (no parent re-render)
         updateDragPreview(useCallback: true)
 
@@ -403,15 +415,18 @@ struct ItemCardRow: View {
         }
     }
 
-    private func computeDropTarget(location: CGPoint, draggedIDs: [NSManagedObjectID]) -> DropTarget? {
+    private func computeDropTarget(location: CGPoint, draggedIDs: [NSManagedObjectID])
+        -> DropTarget?
+    {
         let allOrdered = orderedFrames()
         let ordered = allOrdered.filter { frame in
             !draggedIDs.contains(frame.item.objectID)
         }
 
         guard !ordered.isEmpty,
-              let first = ordered.first,
-              let last = ordered.last else {
+            let first = ordered.first,
+            let last = ordered.last
+        else {
             return nil
         }
 
@@ -422,16 +437,24 @@ struct ItemCardRow: View {
             let placeholderX = placeholderX(for: ordered, targetIndex: 0, insertBefore: true)
             candidate = DropTarget(item: first.item, insertBefore: true, placeholderX: placeholderX)
         } else if locationX > last.frame.maxX {
-            let placeholderX = placeholderX(for: ordered, targetIndex: ordered.count - 1, insertBefore: false)
+            let placeholderX = placeholderX(
+                for: ordered, targetIndex: ordered.count - 1, insertBefore: false)
             candidate = DropTarget(item: last.item, insertBefore: false, placeholderX: placeholderX)
-        } else if let hit = ordered.first(where: { $0.frame.minX <= locationX && locationX <= $0.frame.maxX }) {
+        } else if let hit = ordered.first(where: {
+            $0.frame.minX <= locationX && locationX <= $0.frame.maxX
+        }) {
             let insertBefore = locationX < hit.frame.midX
-            let targetIndex = ordered.firstIndex(where: { $0.item.objectID == hit.item.objectID }) ?? 0
-            let placeholderX = placeholderX(for: ordered, targetIndex: targetIndex, insertBefore: insertBefore)
-            candidate = DropTarget(item: hit.item, insertBefore: insertBefore, placeholderX: placeholderX)
+            let targetIndex =
+                ordered.firstIndex(where: { $0.item.objectID == hit.item.objectID }) ?? 0
+            let placeholderX = placeholderX(
+                for: ordered, targetIndex: targetIndex, insertBefore: insertBefore)
+            candidate = DropTarget(
+                item: hit.item, insertBefore: insertBefore, placeholderX: placeholderX)
         } else if let next = ordered.first(where: { locationX < $0.frame.minX }) {
-            let targetIndex = ordered.firstIndex(where: { $0.item.objectID == next.item.objectID }) ?? 0
-            let placeholderX = placeholderX(for: ordered, targetIndex: targetIndex, insertBefore: true)
+            let targetIndex =
+                ordered.firstIndex(where: { $0.item.objectID == next.item.objectID }) ?? 0
+            let placeholderX = placeholderX(
+                for: ordered, targetIndex: targetIndex, insertBefore: true)
             candidate = DropTarget(item: next.item, insertBefore: true, placeholderX: placeholderX)
         } else {
             candidate = nil
@@ -440,7 +463,9 @@ struct ItemCardRow: View {
         return candidate
     }
 
-    private func placeholderX(for ordered: [(item: ClipItem, frame: CGRect)], targetIndex: Int, insertBefore: Bool) -> CGFloat {
+    private func placeholderX(
+        for ordered: [(item: ClipItem, frame: CGRect)], targetIndex: Int, insertBefore: Bool
+    ) -> CGFloat {
         if insertBefore {
             if targetIndex > 0 {
                 let previous = ordered[targetIndex - 1].frame
@@ -460,16 +485,15 @@ struct ItemCardRow: View {
     }
 
     private func computePinboardDropTarget(overlayLocation: CGPoint) -> PinboardDropTarget? {
-        // Use captured frames from OverlayRootView, adjusted by scroll delta
-        let capturedAllFrame = OverlayRootView.capturedAllPinboardFrame
-        let capturedFrames = OverlayRootView.capturedPinboardFrames
-        let capturedOffset = OverlayRootView.capturedScrollOffset
-        let currentOffset = PinboardTabBar.currentScrollOffset
-        
+        // Use captured frames from the shared coordinator, adjusted by scroll delta
+        let capturedAllFrame = frameCoordinator.capturedAllPinboardFrame
+        let capturedFrames = frameCoordinator.capturedPinboardFrames
+        let capturedOffset = frameCoordinator.capturedPinboardScrollOffset
+        let currentOffset = frameCoordinator.currentPinboardScrollOffset
+
         // Calculate scroll delta (positive = scrolled right, frames moved left)
         let scrollDelta = currentOffset - capturedOffset
-        
-        
+
         // If captured frames exist, use them with scroll adjustment
         if !capturedFrames.isEmpty || capturedAllFrame != nil {
             // Check "All" tab (adjusted for scroll)
@@ -494,7 +518,7 @@ struct ItemCardRow: View {
             if let allPinboardFrame, allPinboardFrame.contains(overlayLocation) {
                 return .all
             }
-            
+
             for (pinboardID, frame) in pinboardFrames {
                 if frame.contains(overlayLocation) {
                     return .pinboard(pinboardID)
@@ -517,7 +541,7 @@ struct ItemCardRow: View {
     private func localPointerLocation(from overlayPointer: CGPoint) -> CGPoint {
         CGPoint(x: overlayPointer.x - rowFrame.minX, y: overlayPointer.y - rowFrame.minY)
     }
-    
+
     private func overlayPointerLocation(from window: NSWindow) -> CGPoint? {
         let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
         let layout = window.contentLayoutRect
@@ -535,7 +559,6 @@ struct ItemCardRow: View {
         }
         .sorted { $0.frame.minX < $1.frame.minX }
     }
-
 
     @ViewBuilder
     private func placeholderView() -> some View {
@@ -577,8 +600,10 @@ struct ItemCardRow: View {
         let cardSize = itemFrames[dragState.primaryItemID]?.width ?? 0
 
         let previewPosition = CGPoint(
-            x: dragState.baseCenter.x + dragState.translation.width + rowFrame.minX + Self.dragCenteringOffset.width,
-            y: dragState.baseCenter.y + dragState.translation.height + rowFrame.minY + Self.dragCenteringOffset.height
+            x: dragState.baseCenter.x + dragState.translation.width + rowFrame.minX
+                + frameCoordinator.dragCenteringOffset.width,
+            y: dragState.baseCenter.y + dragState.translation.height + rowFrame.minY
+                + frameCoordinator.dragCenteringOffset.height
         )
 
         let data = DragPreviewData(
@@ -588,7 +613,7 @@ struct ItemCardRow: View {
             position: previewPosition,
             opacity: dragOpacity
         )
-        
+
         // Use callback to update preview directly (bypasses SwiftUI state, no re-renders)
         if useCallback, let callback = onPreviewUpdate {
             callback(data)
@@ -599,15 +624,17 @@ struct ItemCardRow: View {
 }
 
 private struct ItemFrameKey: PreferenceKey {
-    static var defaultValue: [NSManagedObjectID: CGRect] = [:]
+    static var defaultValue: [NSManagedObjectID: CGRect] { [:] }
 
-    static func reduce(value: inout [NSManagedObjectID: CGRect], nextValue: () -> [NSManagedObjectID: CGRect]) {
+    static func reduce(
+        value: inout [NSManagedObjectID: CGRect], nextValue: () -> [NSManagedObjectID: CGRect]
+    ) {
         value.merge(nextValue(), uniquingKeysWith: { $1 })
     }
 }
 
 private struct ItemRowFrameKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
+    static var defaultValue: CGRect { .zero }
 
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         value = nextValue()
@@ -622,11 +649,10 @@ struct DragPreviewData: Equatable {
     let opacity: Double
 
     static func == (lhs: DragPreviewData, rhs: DragPreviewData) -> Bool {
-        lhs.items.map { $0.objectID } == rhs.items.map { $0.objectID } &&
-        lhs.pinboards.map { $0.objectID } == rhs.pinboards.map { $0.objectID } &&
-        lhs.cardSize == rhs.cardSize &&
-        lhs.position == rhs.position &&
-        lhs.opacity == rhs.opacity
+        lhs.items.map { $0.objectID } == rhs.items.map { $0.objectID }
+            && lhs.pinboards.map { $0.objectID } == rhs.pinboards.map { $0.objectID }
+            && lhs.cardSize == rhs.cardSize && lhs.position == rhs.position
+            && lhs.opacity == rhs.opacity
     }
 }
 
@@ -644,9 +670,8 @@ private struct DropTarget: Equatable {
     let placeholderX: CGFloat
 
     static func == (lhs: DropTarget, rhs: DropTarget) -> Bool {
-        lhs.item.objectID == rhs.item.objectID &&
-            lhs.insertBefore == rhs.insertBefore &&
-            lhs.placeholderX == rhs.placeholderX
+        lhs.item.objectID == rhs.item.objectID && lhs.insertBefore == rhs.insertBefore
+            && lhs.placeholderX == rhs.placeholderX
     }
 }
 
@@ -697,7 +722,8 @@ struct MultiItemCardDragPreview: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            ForEach(Array(items.prefix(maxVisibleCards).enumerated()), id: \.offset) { index, item in
+            ForEach(Array(items.prefix(maxVisibleCards).enumerated()), id: \.offset) {
+                index, item in
                 ItemCard(
                     item: item,
                     pinboards: pinboards,
@@ -743,5 +769,34 @@ struct MultiItemCardDragPreview: View {
         }
         .scaleEffect(0.96)
         .allowsHitTesting(false)
+    }
+}
+
+struct ItemCardRowPagination {
+    static let thresholdCount: Int = 100
+    static let batchSize: Int = 50
+    static let preloadBuffer: Int = 10
+
+    static func isEnabled(totalCount: Int, isReorderingEnabled: Bool) -> Bool {
+        totalCount > thresholdCount && !isReorderingEnabled
+    }
+
+    static func initialLoadedCount(total: Int, isEnabled: Bool) -> Int {
+        guard isEnabled else { return total }
+        return min(batchSize, total)
+    }
+
+    static func nextLoadedCount(
+        currentLoadedCount: Int, visibleIndex: Int, totalCount: Int, isEnabled: Bool
+    ) -> Int {
+        guard isEnabled else { return totalCount }
+        let preloadStartIndex = max(0, currentLoadedCount - preloadBuffer)
+        guard visibleIndex >= preloadStartIndex else { return currentLoadedCount }
+        return min(currentLoadedCount + batchSize, totalCount)
+    }
+
+    static func page(for index: Int) -> Int {
+        guard index >= 0 else { return 0 }
+        return index / batchSize
     }
 }

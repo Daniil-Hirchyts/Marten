@@ -43,4 +43,4 @@
 
 ## Architecture & Specs
 - Start with `docs/INDEX.md` and `docs/specs/Architecture-Overview.md`.
-- Phase status and checklists live in `docs/phase-2-plan.md` and `docs/INDEX.md`.
+- Phase status lives in `docs/INDEX.md`; Phase 3 validation checklist is in `docs/phase-3-plan.md`.

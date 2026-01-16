@@ -39,6 +39,7 @@ struct PinboardTabBar: View {
 
     private static let allTabObjectID = NSManagedObjectID()
 
+    @EnvironmentObject private var frameCoordinator: FrameCoordinator
     @FocusState private var isFocused: Bool
 
     private enum CommitState {
@@ -55,11 +56,6 @@ struct PinboardTabBar: View {
     @State private var dropTarget: PinboardTabDropTarget?
     @State private var commitState: CommitState = .none
     @State private var trailingTabWidth: CGFloat = 40
-
-    static var currentScrollOffset: CGFloat {
-        _currentScrollOffset
-    }
-    private static var _currentScrollOffset: CGFloat = 0
 
     private var canReorder: Bool {
         editingID == nil && !isCreating
@@ -166,7 +162,7 @@ struct PinboardTabBar: View {
                 frameManager.updateTabFrames(layout.tabFrames)
             }
             if let offset = layout.scrollOffset {
-                Self._currentScrollOffset = offset
+                frameCoordinator.updateCurrentPinboardScrollOffset(offset)
             }
             if let w = layout.editorOverlayFrame?.width {
                 trailingTabWidth = w

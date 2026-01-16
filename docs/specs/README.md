@@ -30,7 +30,7 @@ This directory contains the complete versioned engineering documentation for the
 
 ---
 
-### 2. [Data Model Specification](./Data-Model-Spec.md) ️
+### 2. [Data Model Specification](./Data-Model-Spec.md)
 **Status:** Complete 
 **Purpose:** Complete local data model using Core Data
 
@@ -47,7 +47,7 @@ This directory contains the complete versioned engineering documentation for the
 
 ---
 
-### 3. [Cloud Schema Specification](./Cloud-Schema-Spec.md) ️
+### 3. [Cloud Schema Specification](./Cloud-Schema-Spec.md)
 **Status:** Complete 
 **Purpose:** CloudKit synchronization architecture
 
@@ -84,7 +84,7 @@ This directory contains the complete versioned engineering documentation for the
 
 ---
 
-### 5. [macOS Services Specification](./macOS-Services-Spec.md) ️
+### 5. [macOS Services Specification](./macOS-Services-Spec.md)
 **Status:** Complete 
 **Purpose:** macOS-specific system integrations
 
@@ -188,7 +188,7 @@ This directory contains the complete versioned engineering documentation for the
 - Paste stack sequential logic
 - Global hotkeys
 
-**Status:** Ready to start (Phase 2 complete; Accessibility permission flow pending)
+**Status:** Implemented (manual validation across apps + reliability checks pending)
 
 ---
 
@@ -433,9 +433,9 @@ Total: ~330 KB, ~7,750 lines of technical documentation
 
 ---
 
-**Status:** **All specifications complete; Phase 1 implemented with notes in the index!**
+**Status:** **All specifications complete; Phases 1-3 implemented (Phase 3 complete, validation moved to Phase 4).**
 
 Next steps:
-1. Review Phase 1 notes and validation gaps
-2. Review the Phase 2 execution plan (`docs/phase-2-plan.md`)
-3. Decide Phase 2 scope/timeline and assign owners
+1. Review phase status in `docs/INDEX.md`
+2. Review Phase 3 testing status and Phase 4 validation checklist in `docs/specs/Testing-Strategy.md`
+3. Start Phase 4 by implementing Privacy & Settings deliverables

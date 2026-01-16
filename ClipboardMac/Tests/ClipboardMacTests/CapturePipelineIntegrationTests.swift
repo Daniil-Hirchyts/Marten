@@ -43,11 +43,8 @@ final class CapturePipelineIntegrationTests: XCTestCase {
         let store = ClipItemStore(persistence: persistence, assetStore: assetStore)
         let item = try store.createItem(payload: payload)
 
-        let thumbnailData = ThumbnailGenerator().generateThumbnail(from: pngData!)
-        XCTAssertNotNil(thumbnailData)
-        if let thumbnailData {
-            try store.updateThumbnail(objectID: item.objectID, data: thumbnailData)
-        }
+        let thumbnailData = try ThumbnailGenerator().generateThumbnail(from: pngData!).get()
+        try store.updateThumbnail(objectID: item.objectID, data: thumbnailData)
 
         let refreshed = try persistence.viewContext.existingObject(with: item.objectID) as? ClipItem
         XCTAssertEqual(refreshed?.itemTypeValue, .image)

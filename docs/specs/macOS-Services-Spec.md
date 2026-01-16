@@ -1219,15 +1219,16 @@ class PermissionManager: ObservableObject {
 
 **Services Tasks:**
 - [ ] Implement login item management (`SMAppService`)
-- [ ] Add sound effect player
 - [ ] Create onboarding flow with permission requests
-- [ ] Implement permission checking/monitoring
+- [x] Implement sound effect player (`SoundEffectPlayer`)
+- [ ] Add sound effects toggle + persistence
+- [x] Implement permission checking surface (`PermissionManager`)
 - [ ] Add "Pause" functionality to monitor
 - [ ] Test all permission scenarios
 
 **Success Criteria:**
 - Login item works reliably
-- Sound effects play without delay
+- Sound effects toggle works and persists
 - Onboarding guides user successfully
 - Permissions are requested gracefully
 

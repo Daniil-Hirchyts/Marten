@@ -9,7 +9,7 @@ let package = Package(
     ],
     products: [
         .executable(name: "ClipboardMac", targets: ["ClipboardMac"]),
-        .executable(name: "ClipboardMacValidation", targets: ["ClipboardMacValidation"])
+        .executable(name: "ClipboardMacValidation", targets: ["ClipboardMacValidation"]),
     ],
     dependencies: [
         .package(path: "../ClipboardCore")
@@ -37,8 +37,8 @@ let package = Package(
         ),
         .testTarget(
             name: "ClipboardMacAppTests",
-            dependencies: ["ClipboardMac"],
+            dependencies: ["ClipboardMac", "ClipboardCore", "ClipboardMacServices"],
             path: "Tests/ClipboardMacAppTests"
-        )
+        ),
     ]
 )

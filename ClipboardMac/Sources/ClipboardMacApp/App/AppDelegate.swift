@@ -1,28 +1,45 @@
 import AppKit
 import ClipboardCore
 import ClipboardMacServices
+import Combine
 import Foundation
 import OSLog
 
-@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let persistence = PersistenceController.shared
-    private lazy var clipItemStore = ClipItemStore(persistence: persistence)
-    private let pasteboardMonitor = PasteboardMonitor()
-    private let pasteboardExtractor = PasteboardExtractor()
-    private let thumbnailGenerator = ThumbnailGenerator()
-    private let hotkeyManager = HotkeyManager()
-    private let permissionManager = PermissionManager()
-    private let activeAppTracker = ActiveAppTracker()
-    private lazy var pasteEngine = PasteEngine(
-        activeAppTracker: activeAppTracker,
-        permissionManager: permissionManager
-    )
+    private let services: AppServiceProviding
     private var overlayController: OverlayWindowController?
     private var menuBarController: MenuBarController?
     private var retentionTimer: Timer?
     private var hotkeyRetryTimer: Timer?
+    private var cancellables: Set<AnyCancellable> = []
 
+    private let captureQueue = DispatchQueue(label: "paste.app.capture", qos: .utility)
+
+    @MainActor private var persistence: PersistenceController { services.persistence }
+    @MainActor private var clipItemStore: ClipItemStore { services.clipItemStore }
+    @MainActor private var pasteboardMonitor: PasteboardMonitor { services.pasteboardMonitor }
+    @MainActor private var pasteboardExtractor: PasteboardExtractor { services.pasteboardExtractor }
+    @MainActor private var thumbnailGenerator: ThumbnailGenerator { services.thumbnailGenerator }
+    @MainActor private var hotkeyManager: HotkeyManager { services.hotkeyManager }
+    @MainActor private var permissionManager: PermissionManager { services.permissionManager }
+    @MainActor private var pasteEngine: PasteEngine { services.pasteEngine }
+    @MainActor private var eventBroadcaster: any ClipboardEventBroadcaster {
+        services.eventBroadcaster
+    }
+
+    @MainActor
+    override init() {
+        self.services = AppServiceContainer()
+        super.init()
+    }
+
+    @MainActor
+    init(services: AppServiceProviding) {
+        self.services = services
+        super.init()
+    }
+
+    @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
 
@@ -30,40 +47,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             persistence: persistence,
             pasteEngine: pasteEngine,
             permissionManager: permissionManager,
-            hotkeyManager: hotkeyManager
+            hotkeyManager: hotkeyManager,
+            eventBroadcaster: eventBroadcaster
         )
 
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleClipboardWillWrite),
-            name: .clipboardWillWrite,
-            object: nil
-        )
+        eventBroadcaster.events
+            .receive(on: RunLoop.main)
+            .sink { [weak self] event in
+                guard event == .clipboardWillWrite else { return }
+                self?.pasteboardMonitor.suppressNextChange()
+            }
+            .store(in: &cancellables)
 
         pasteboardMonitor.onClipboardChange = { [weak self] pasteboard in
-            self?.handlePasteboardChange(pasteboard)
+            Task { @MainActor in
+                self?.handlePasteboardChange(pasteboard)
+            }
         }
         pasteboardMonitor.start()
 
-        hotkeyManager.register(action: "toggleOverlay", hotkey: DefaultHotkey.activatePaste) { [weak self] _ in
-            self?.toggleOverlay(mode: .browse)
+        hotkeyManager.register(action: "toggleOverlay", hotkey: DefaultHotkey.activatePaste) {
+            [weak self] _ in
+            Task { @MainActor in
+                self?.toggleOverlay(mode: .browse)
+            }
         }
-        hotkeyManager.register(action: "togglePasteStack", hotkey: DefaultHotkey.activatePasteStack) { [weak self] _ in
-            self?.toggleOverlay(mode: .pasteStack)
+        hotkeyManager.register(action: "togglePasteStack", hotkey: DefaultHotkey.activatePasteStack)
+        { [weak self] _ in
+            Task { @MainActor in
+                self?.toggleOverlay(mode: .pasteStack)
+            }
         }
         for index in 1...9 {
-            hotkeyManager.register(action: "quickPaste\(index)", hotkey: DefaultHotkey.quickPaste(index)) { [weak self] flags in
-                self?.quickPaste(index: index, flags: flags)
+            hotkeyManager.register(
+                action: "quickPaste\(index)", hotkey: DefaultHotkey.quickPaste(index)
+            ) { [weak self] flags in
+                Task { @MainActor in
+                    self?.quickPaste(index: index, flags: flags)
+                }
             }
         }
         hotkeyManager.start()
 
         menuBarController = MenuBarController(
             toggleHandler: { [weak self] in
-                self?.toggleOverlay(mode: .browse)
+                Task { @MainActor in
+                    self?.toggleOverlay(mode: .browse)
+                }
             },
             pasteStackHandler: { [weak self] in
-                self?.toggleOverlay(mode: .pasteStack)
+                Task { @MainActor in
+                    self?.toggleOverlay(mode: .pasteStack)
+                }
             }
         )
 
@@ -79,6 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Logger.app.info("ClipboardMac finished launching")
     }
 
+    @MainActor
     func applicationWillTerminate(_ notification: Notification) {
         pasteboardMonitor.stop()
         hotkeyManager.stop()
@@ -88,43 +124,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         retentionTimer?.invalidate()
     }
 
+    @MainActor
     private func handlePasteboardChange(_ pasteboard: NSPasteboard) {
         let frontmost = NSWorkspace.shared.frontmostApplication
-        let source = SourceAppInfo(bundleID: frontmost?.bundleIdentifier, name: frontmost?.localizedName)
+        let source = SourceAppInfo(
+            bundleID: frontmost?.bundleIdentifier, name: frontmost?.localizedName)
 
         guard let payload = pasteboardExtractor.extract(from: pasteboard) else {
             return
         }
 
-        do {
-            let item = try clipItemStore.createItem(payload: payload, sourceApp: source)
-            if let thumbnailData = thumbnailData(from: payload) {
-                try? clipItemStore.updateThumbnail(objectID: item.objectID, data: thumbnailData)
+        let clipItemStore = clipItemStore
+        let thumbnailGenerator = thumbnailGenerator
+        captureQueue.async {
+            do {
+                let item = try clipItemStore.createItem(payload: payload, sourceApp: source)
+                if let thumbnailData = Self.thumbnailData(
+                    from: payload, thumbnailGenerator: thumbnailGenerator)
+                {
+                    try? clipItemStore.updateThumbnail(objectID: item.objectID, data: thumbnailData)
+                }
+                Logger.pasteboard.info("Captured clipboard item")
+            } catch {
+                Logger.pasteboard.error(
+                    "Failed to capture clipboard item: \(error.localizedDescription)")
             }
-            Logger.pasteboard.info("Captured clipboard item")
-        } catch {
-            Logger.pasteboard.error("Failed to capture clipboard item: \(error.localizedDescription)")
         }
     }
 
-    @objc private func handleClipboardWillWrite() {
-        pasteboardMonitor.suppressNextChange()
-    }
-
-    private func thumbnailData(from payload: ClipItemPayload) -> Data? {
+    private static func thumbnailData(
+        from payload: ClipItemPayload, thumbnailGenerator: ThumbnailGenerator
+    ) -> Data? {
         let imageKinds: Set<RepresentationKind> = [.png, .jpeg, .tiff, .pdf]
         guard let imageRep = payload.representations.first(where: { imageKinds.contains($0.kind) }),
-              let data = imageRep.data else {
+            let data = imageRep.data
+        else {
             return nil
         }
-        return thumbnailGenerator.generateThumbnail(from: data)
+        return try? thumbnailGenerator.generateThumbnail(from: data).get()
     }
 
+    @MainActor
     private func toggleOverlay(mode: OverlayMode) {
         pasteEngine.recordFrontmostApp()
         overlayController?.toggle(mode: mode)
     }
 
+    @MainActor
     private func quickPaste(index: Int, flags: NSEvent.ModifierFlags) {
         let isPlainText = flags.contains(.shift)
         do {
@@ -137,7 +183,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.pasteEngine.recordFrontmostApp()
                 Task {
                     do {
-                        try await self.pasteEngine.pasteItem(item, format: isPlainText ? .plainText : .preserved)
+                        try await self.pasteEngine.pasteItem(
+                            item, format: isPlainText ? .plainText : .preserved)
                     } catch PasteEngineError.accessibilityPermissionDenied {
                         self.permissionManager.requestAccessibility()
                     } catch {
@@ -150,9 +197,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @MainActor
     private func scheduleRetentionCleanup() {
         runRetentionCleanup()
-        retentionTimer = Timer.scheduledTimer(withTimeInterval: 6 * 60 * 60, repeats: true) { [weak self] _ in
+        retentionTimer = Timer.scheduledTimer(withTimeInterval: 6 * 60 * 60, repeats: true) {
+            [weak self] _ in
             Task { @MainActor in
                 self?.runRetentionCleanup()
             }
@@ -162,6 +211,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @MainActor
     private func runRetentionCleanup() {
         do {
             let deleted = try clipItemStore.cleanupExpiredItems(policy: .month)
@@ -173,13 +223,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @MainActor
     private func requestInputMonitoringIfNeeded() {
         if permissionManager.checkInputMonitoring(prompt: true) {
             return
         }
 
         hotkeyRetryTimer?.invalidate()
-        hotkeyRetryTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+        hotkeyRetryTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
+            [weak self] timer in
             Task { @MainActor in
                 guard let self else { return }
                 if self.permissionManager.checkInputMonitoring(prompt: false) {
