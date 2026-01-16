@@ -7,20 +7,20 @@ struct ShortcutsTab: View {
         Form {
             Section("Global Shortcuts") {
                 HotkeyRecorder(
-                    title: "Toggle Overlay",
-                    identifier: "settings.hotkey.toggleOverlay",
-                    value: $model.toggleOverlay
-                )
-                HotkeyRecorder(
-                    title: "Paste Stack",
-                    identifier: "settings.hotkey.pasteStack",
-                    value: $model.togglePasteStack
+                    title: "Show Clipboard",
+                    identifier: "settings.hotkey.showClipboard",
+                    value: $model.showClipboard
                 )
             }
 
             Section("Quick Paste") {
-                Text("Use Cmd+1 through Cmd+9 to quickly paste items from your history.")
-                    .foregroundStyle(.secondary)
+                ForEach(1...9, id: \.self) { index in
+                    HotkeyRecorder(
+                        title: "Quick Paste \(index)",
+                        identifier: "settings.hotkey.quickPaste\(index)",
+                        value: quickPasteBinding(index)
+                    )
+                }
             }
 
             Section("Modifiers") {
@@ -39,11 +39,24 @@ struct ShortcutsTab: View {
         }
         .formStyle(.grouped)
         .padding()
-        .onChange(of: model.toggleOverlay) { _ in
+        .onChange(of: model.showClipboard) { _ in
             model.save()
         }
-        .onChange(of: model.togglePasteStack) { _ in
-            model.save()
-        }
+        .onChange(of: model.quickPaste1) { _ in model.save() }
+        .onChange(of: model.quickPaste2) { _ in model.save() }
+        .onChange(of: model.quickPaste3) { _ in model.save() }
+        .onChange(of: model.quickPaste4) { _ in model.save() }
+        .onChange(of: model.quickPaste5) { _ in model.save() }
+        .onChange(of: model.quickPaste6) { _ in model.save() }
+        .onChange(of: model.quickPaste7) { _ in model.save() }
+        .onChange(of: model.quickPaste8) { _ in model.save() }
+        .onChange(of: model.quickPaste9) { _ in model.save() }
+    }
+
+    private func quickPasteBinding(_ index: Int) -> Binding<HotkeyPreference> {
+        Binding(
+            get: { model.quickPaste(index) },
+            set: { model.setQuickPaste(index, $0) }
+        )
     }
 }

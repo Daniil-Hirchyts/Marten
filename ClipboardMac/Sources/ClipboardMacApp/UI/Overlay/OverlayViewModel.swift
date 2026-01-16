@@ -11,7 +11,6 @@ final class OverlayViewModel: ObservableObject {
     @MainActor @Published var isPasting = false
     @MainActor @Published var syncError: Error?
 
-    private let stackStore: StackSessionStore
     private let clipItemStore: ClipItemStore
     private let pasteEngine: any PasteEngineProtocol
     private let permissionManager: PermissionManager
@@ -21,16 +20,8 @@ final class OverlayViewModel: ObservableObject {
 
     private let userDefaults = UserDefaults.standard
 
-    private let stackSyncQueue = DispatchQueue(
-        label: "paste.overlay.stackSync", qos: .userInitiated)
-    private let stackSyncDebounce: TimeInterval = 0.02
-    private var pendingStackSyncWorkItem: DispatchWorkItem?
-    private var lastRequestedStackSync:
-        (sessionID: NSManagedObjectID, orderedClipItemIDs: [NSManagedObjectID])?
     private let shouldProfileSelectionLatency =
         ProcessInfo.processInfo.environment["PASTE_PROFILE_SELECTION_LATENCY"] == "1"
-
-    private var stackSession: StackSession?
 
     init(
         persistence: PersistenceController,
@@ -38,7 +29,6 @@ final class OverlayViewModel: ObservableObject {
         permissionManager: PermissionManager,
         closeOverlayForPaste: @escaping (@escaping () -> Void) -> Void
     ) {
-        self.stackStore = StackSessionStore(persistence: persistence)
         self.clipItemStore = ClipItemStore(persistence: persistence)
         self.pasteEngine = pasteEngine
         self.permissionManager = permissionManager
@@ -59,36 +49,8 @@ final class OverlayViewModel: ObservableObject {
     }
 
     @MainActor
-    func setMode(_ mode: OverlayMode) {
-        guard self.mode != mode else { return }
-        self.mode = mode
-        selectedItemIDs.removeAll()
-        cancelPendingStackSync()
-        switch mode {
-        case .browse:
-            if let stackSession {
-                let sessionID = stackSession.objectID
-                stackSyncQueue.async { [stackStore] in
-                    try? stackStore.deleteSession(sessionID: sessionID)
-                }
-            }
-            stackSession = nil
-        case .pasteStack:
-            stackSession = try? stackStore.createSession()
-        }
-    }
-
-    @MainActor
     func resetState() {
         selectedItemIDs.removeAll()
-        cancelPendingStackSync()
-        if let stackSession {
-            let sessionID = stackSession.objectID
-            stackSyncQueue.async { [stackStore] in
-                try? stackStore.deleteSession(sessionID: sessionID)
-            }
-        }
-        stackSession = nil
         mode = .browse
     }
 
@@ -114,45 +76,22 @@ final class OverlayViewModel: ObservableObject {
             let elapsedMs = (CFAbsoluteTimeGetCurrent() - startedAt) * 1000
             Logger.paste.debug("Selection update took \(elapsedMs, privacy: .public)ms")
         }
-
-        if mode == .pasteStack {
-            scheduleStackSync(using: orderedItems)
-        }
-    }
-
-    @MainActor
-    func selectAll(in orderedItems: [ClipItem]) {
-        guard mode == .pasteStack else { return }
-        let startedAt = CFAbsoluteTimeGetCurrent()
-        selectedItemIDs = Set(orderedItems.map { $0.objectID })
-        if shouldProfileSelectionLatency {
-            let elapsedMs = (CFAbsoluteTimeGetCurrent() - startedAt) * 1000
-            Logger.paste.debug("Selection update (selectAll) took \(elapsedMs, privacy: .public)ms")
-        }
-        scheduleStackSync(using: orderedItems)
     }
 
     @MainActor
     func clearSelection() {
         selectedItemIDs.removeAll()
-        guard mode == .pasteStack else { return }
-        scheduleStackSyncToEmptySelection()
     }
 
     @MainActor
     func restoreSelection(_ ids: Set<NSManagedObjectID>, in orderedItems: [ClipItem]) {
         selectedItemIDs = ids
-        if mode == .pasteStack {
-            scheduleStackSync(using: orderedItems)
-        }
     }
 
     @MainActor
     func paste(item: ClipItem, plainText: Bool) {
         guard !isPasting else { return }
         isPasting = true
-        let shouldPasteToActiveApp =
-            userDefaults.object(forKey: "pasteToActiveApp") as? Bool ?? true
         let effectivePlainText = plainText || userDefaults.bool(forKey: "alwaysPastePlainText")
         Task {
             await waitForOverlayToHide()
@@ -162,13 +101,8 @@ final class OverlayViewModel: ObservableObject {
             }
             try? clipItemStore.markItemUsed(objectID: item.objectID)
             do {
-                if shouldPasteToActiveApp {
-                    try await pasteEngine.pasteItem(
-                        item, format: effectivePlainText ? .plainText : .preserved)
-                } else {
-                    try await pasteEngine.copyItemToClipboard(
-                        item, format: effectivePlainText ? .plainText : .preserved)
-                }
+                try await pasteEngine.pasteItem(
+                    item, format: effectivePlainText ? .plainText : .preserved)
                 soundPlayer.play(.paste)
             } catch PasteEngineError.accessibilityPermissionDenied {
                 showAccessibilityAlert = true
@@ -179,37 +113,34 @@ final class OverlayViewModel: ObservableObject {
     }
 
     @MainActor
-    func pasteStack(plainText: Bool) {
-        guard let stackSession else { return }
-        guard !isPasting else { return }
+    func pasteMultipleItemsAsPlainText(_ items: [ClipItem]) {
+        guard !isPasting, !items.isEmpty else { return }
         isPasting = true
-        let shouldPasteToActiveApp =
-            userDefaults.object(forKey: "pasteToActiveApp") as? Bool ?? true
-        let effectivePlainText = plainText || userDefaults.bool(forKey: "alwaysPastePlainText")
         Task {
             await waitForOverlayToHide()
-            await flushPendingStackSync()
             defer {
                 isPasting = false
                 resetState()
             }
-            let orderedIDs =
-                stackSession.entries?
-                .sorted { $0.position < $1.position }
-                .compactMap { $0.clipItem?.objectID } ?? []
-            try? clipItemStore.markItemsUsed(objectIDs: orderedIDs)
+            let objectIDs = items.map { $0.objectID }
+            try? clipItemStore.markItemsUsed(objectIDs: objectIDs)
+
+            // Join plain text content with newlines
+            let joinedText = items.compactMap { $0.plainTextContent ?? $0.primaryText }
+                .joined(separator: "\n")
+
+            guard !joinedText.isEmpty else {
+                Logger.paste.warning("No plain text content available to paste")
+                return
+            }
+
             do {
-                if shouldPasteToActiveApp {
-                    _ = try await pasteEngine.pasteStack(
-                        stackSession, format: effectivePlainText ? .plainText : .preserved)
-                } else {
-                    try await pasteEngine.copyStackToClipboard(stackSession)
-                }
+                try await pasteEngine.pastePlainText(joinedText)
                 soundPlayer.play(.paste)
             } catch PasteEngineError.accessibilityPermissionDenied {
                 showAccessibilityAlert = true
             } catch {
-                Logger.paste.error("Paste stack failed: \(error.localizedDescription)")
+                Logger.paste.error("Multi-paste failed: \(error.localizedDescription)")
             }
         }
     }
@@ -223,97 +154,6 @@ final class OverlayViewModel: ObservableObject {
     private func waitForOverlayToHide() async {
         await withCheckedContinuation { continuation in
             closeOverlayForPaste {
-                continuation.resume()
-            }
-        }
-    }
-
-    @MainActor
-    private func scheduleStackSync(using orderedItems: [ClipItem]) {
-        guard mode == .pasteStack, let stackSession else { return }
-
-        let sessionID = stackSession.objectID
-        let selectionSnapshot = selectedItemIDs
-        let orderedIDs =
-            orderedItems
-            .filter { selectionSnapshot.contains($0.objectID) }
-            .map { $0.objectID }
-
-        lastRequestedStackSync = (sessionID: sessionID, orderedClipItemIDs: orderedIDs)
-
-        pendingStackSyncWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.performStackSync(sessionID: sessionID, orderedClipItemIDs: orderedIDs)
-        }
-        pendingStackSyncWorkItem = workItem
-        stackSyncQueue.asyncAfter(deadline: .now() + stackSyncDebounce, execute: workItem)
-    }
-
-    @MainActor
-    private func scheduleStackSyncToEmptySelection() {
-        guard let stackSession else { return }
-        let sessionID = stackSession.objectID
-        lastRequestedStackSync = (sessionID: sessionID, orderedClipItemIDs: [])
-
-        pendingStackSyncWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.performStackSync(sessionID: sessionID, orderedClipItemIDs: [])
-        }
-        pendingStackSyncWorkItem = workItem
-        stackSyncQueue.asyncAfter(deadline: .now() + stackSyncDebounce, execute: workItem)
-    }
-
-    private func performStackSync(
-        sessionID: NSManagedObjectID, orderedClipItemIDs: [NSManagedObjectID]
-    ) {
-        let startedAt = CFAbsoluteTimeGetCurrent()
-        var syncSucceeded = false
-        var capturedError: Error?
-        do {
-            try stackStore.setEntries(sessionID: sessionID, clipItemIDs: orderedClipItemIDs)
-            syncSucceeded = true
-        } catch {
-            capturedError = error
-        }
-
-        if shouldProfileSelectionLatency {
-            let elapsedMs = (CFAbsoluteTimeGetCurrent() - startedAt) * 1000
-            Logger.paste.debug(
-                "Stack selection sync took \(elapsedMs, privacy: .public)ms for \(orderedClipItemIDs.count, privacy: .public) items"
-            )
-        }
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            guard self.stackSession?.objectID == sessionID else { return }
-            if syncSucceeded {
-                self.syncError = nil
-            } else {
-                self.syncError = capturedError
-                if let capturedError {
-                    Logger.paste.error(
-                        "Failed to sync stack entries: \(capturedError.localizedDescription)")
-                }
-            }
-        }
-    }
-
-    @MainActor
-    private func cancelPendingStackSync() {
-        pendingStackSyncWorkItem?.cancel()
-        pendingStackSyncWorkItem = nil
-        lastRequestedStackSync = nil
-    }
-
-    @MainActor
-    private func flushPendingStackSync() async {
-        pendingStackSyncWorkItem?.cancel()
-        pendingStackSyncWorkItem = nil
-        guard let request = lastRequestedStackSync else { return }
-        await withCheckedContinuation { continuation in
-            stackSyncQueue.async { [weak self] in
-                self?.performStackSync(
-                    sessionID: request.sessionID, orderedClipItemIDs: request.orderedClipItemIDs)
                 continuation.resume()
             }
         }

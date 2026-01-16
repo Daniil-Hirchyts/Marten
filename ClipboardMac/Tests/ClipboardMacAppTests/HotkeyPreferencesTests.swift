@@ -11,15 +11,17 @@ final class HotkeyPreferencesTests: XCTestCase {
         defaults.removePersistentDomain(forName: suite)
 
         let store = HotkeyPreferencesStore(userDefaults: defaults)
-        store.toggleOverlay = HotkeyPreference(
+        store.showClipboard = HotkeyPreference(
             keyCode: UInt16(kVK_ANSI_K), modifiers: [.command, .shift])
-        store.togglePasteStack = HotkeyPreference(
-            keyCode: UInt16(kVK_ANSI_P), modifiers: [.command])
+        store.setQuickPaste(
+            1,
+            HotkeyPreference(
+                keyCode: UInt16(kVK_ANSI_P), modifiers: [.command]))
         store.save()
 
         let store2 = HotkeyPreferencesStore(userDefaults: defaults)
-        XCTAssertEqual(store2.toggleOverlay, store.toggleOverlay)
-        XCTAssertEqual(store2.togglePasteStack, store.togglePasteStack)
+        XCTAssertEqual(store2.showClipboard, store.showClipboard)
+        XCTAssertEqual(store2.quickPaste(1), store.quickPaste(1))
     }
 
     func testEffectiveHotkeyUsesDefaultWhenUnset() {
@@ -28,10 +30,29 @@ final class HotkeyPreferencesTests: XCTestCase {
         defaults.removePersistentDomain(forName: suite)
 
         let hotkey = HotkeyPreferencesStore.effectiveHotkey(
-            for: .toggleOverlay, userDefaults: defaults)
+            for: .showClipboard, userDefaults: defaults)
+
+        XCTAssertNotNil(hotkey)
+        guard let hotkey else { return }
+
         XCTAssertEqual(hotkey.keyCode, UInt16(kVK_ANSI_V))
         XCTAssertTrue(hotkey.modifiers.contains(.command))
         XCTAssertTrue(hotkey.modifiers.contains(.shift))
+    }
+
+    func testEffectiveHotkeyUsesDefaultForQuickPaste() {
+        let suite = "test.hotkeys.quickpaste.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let hotkey = HotkeyPreferencesStore.effectiveHotkey(
+            for: .quickPaste(1), userDefaults: defaults)
+
+        XCTAssertNotNil(hotkey)
+        guard let hotkey else { return }
+
+        XCTAssertEqual(hotkey.keyCode, UInt16(kVK_ANSI_1))
+        XCTAssertTrue(hotkey.modifiers.contains(.command))
     }
 
     func testResetToDefaultsClearsSavedValues() {
@@ -40,16 +61,16 @@ final class HotkeyPreferencesTests: XCTestCase {
         defaults.removePersistentDomain(forName: suite)
 
         let store = HotkeyPreferencesStore(userDefaults: defaults)
-        store.toggleOverlay = HotkeyPreference(
+        store.showClipboard = HotkeyPreference(
             keyCode: UInt16(kVK_ANSI_K), modifiers: [.command, .shift])
         store.save()
-        XCTAssertNotNil(defaults.data(forKey: HotkeyPreferenceKey.toggleOverlay.rawValue))
+        XCTAssertNotNil(defaults.data(forKey: HotkeyPreferenceKey.showClipboard.rawValue))
 
         store.resetToDefaults()
         store.save()
 
-        XCTAssertNil(defaults.data(forKey: HotkeyPreferenceKey.toggleOverlay.rawValue))
-        XCTAssertEqual(store.toggleOverlay.keyCode, UInt16(kVK_ANSI_V))
+        XCTAssertNil(defaults.data(forKey: HotkeyPreferenceKey.showClipboard.rawValue))
+        XCTAssertEqual(store.showClipboard.keyCode, UInt16(kVK_ANSI_V))
     }
 
     func testDisplayStringIncludesModifiersAndKey() {

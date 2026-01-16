@@ -12,6 +12,8 @@ final class TestPasteEngine: PasteEngineProtocol {
         case pasteStack(sessionID: URL, format: PasteFormat)
         case copyItem(objectID: URL, format: PasteFormat)
         case copyStack(sessionID: URL)
+        case pastePlainText(text: String)
+        case copyPlainText(text: String)
     }
 
     private(set) var actions: [Action] = []
@@ -19,6 +21,8 @@ final class TestPasteEngine: PasteEngineProtocol {
     var pasteStackError: Error?
     var copyItemError: Error?
     var copyStackError: Error?
+    var pastePlainTextError: Error?
+    var copyPlainTextError: Error?
     var pasteStackResult: PasteStackResult = PasteStackResult(successCount: 0, skippedEntries: [])
 
     func recordFrontmostApp() {
@@ -53,6 +57,20 @@ final class TestPasteEngine: PasteEngineProtocol {
             throw copyStackError
         }
     }
+
+    func pastePlainText(_ text: String) async throws {
+        actions.append(.pastePlainText(text: text))
+        if let pastePlainTextError {
+            throw pastePlainTextError
+        }
+    }
+
+    func copyPlainTextToClipboard(_ text: String) async throws {
+        actions.append(.copyPlainText(text: text))
+        if let copyPlainTextError {
+            throw copyPlainTextError
+        }
+    }
 }
 
 func spinRunLoop(for interval: TimeInterval) {
@@ -77,6 +95,7 @@ final class TestAppServices: AppServiceProviding {
     let eventBroadcaster: any ClipboardEventBroadcaster
     let pasteEngine: PasteEngine
     let screenSharingManager: ScreenSharingManager
+    let syncCoordinator: SyncCoordinator?
 
     init(
         persistence: PersistenceController,
@@ -97,5 +116,6 @@ final class TestAppServices: AppServiceProviding {
         self.eventBroadcaster = eventBroadcaster
         self.pasteEngine = pasteEngine
         self.screenSharingManager = ScreenSharingManager()
+        self.syncCoordinator = nil
     }
 }

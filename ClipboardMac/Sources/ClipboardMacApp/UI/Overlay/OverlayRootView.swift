@@ -72,7 +72,7 @@ struct OverlayRootView: View {
     }
 
     private var isDragEnabled: Bool {
-        viewModel.mode == .browse
+        true
     }
 
     private var isReorderingEnabled: Bool {
@@ -281,12 +281,6 @@ struct OverlayRootView: View {
                 .frame(height: headerButtonSize)
                 .zIndex(1)
 
-                if viewModel.mode == .pasteStack {
-                    Text("Paste Stack")
-                        .font(.system(size: 14, weight: .semibold))
-                        .padding(.horizontal, 14 + 4)
-                }
-
                 Group {
                     if filteredItems.isEmpty {
                         emptyStateView
@@ -357,18 +351,6 @@ struct OverlayRootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
                 Spacer(minLength: 0)
-
-                if viewModel.mode == .pasteStack {
-                    PasteStackFooterBar(
-                        selectionCount: viewModel.selectedItemIDs.count,
-                        isPlainText: modifierMonitor.isShiftPressed,
-                        isPasting: viewModel.isPasting,
-                        onClear: viewModel.clearSelection,
-                        onPaste: { viewModel.pasteStack(plainText: modifierMonitor.isShiftPressed) }
-                    )
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 14)
-                }
             }
             .padding(.top, 14)
             .padding(.bottom, 0)
@@ -694,7 +676,7 @@ struct OverlayRootView: View {
     private func reorderItems(
         _ draggedIDs: [NSManagedObjectID], _ target: ClipItem, insertBefore: Bool
     ) {
-        guard viewModel.mode == .browse, !isSearchActive else { return }
+        guard !isSearchActive else { return }
 
         var ordered = filteredItems
 
@@ -761,9 +743,7 @@ struct OverlayRootView: View {
 
     private func handleCardDoubleTap(_ item: ClipItem) {
         closeSearchIfEmpty()
-        if viewModel.mode == .browse {
-            viewModel.paste(item: item, plainText: modifierMonitor.isShiftPressed)
-        }
+        viewModel.paste(item: item, plainText: modifierMonitor.isShiftPressed)
     }
 
     /// Closes search only if it's expanded AND the search text is empty
@@ -779,6 +759,7 @@ struct OverlayRootView: View {
     }
 
     private func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 
@@ -813,75 +794,6 @@ private struct SearchFieldFrameKey: PreferenceKey {
 
     static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
         value = nextValue() ?? value
-    }
-}
-
-private struct PasteStackFooterBar: View {
-    let selectionCount: Int
-    let isPlainText: Bool
-    let isPasting: Bool
-    let onClear: () -> Void
-    let onPaste: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Text(selectionLabel)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
-            Button("Clear") {
-                onClear()
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("overlay.pasteStack.clear")
-            .accessibilityLabel("Clear selection")
-            .accessibilityValue(selectionLabel)
-            .accessibilityHint("Deselects all items")
-
-            Button(pasteTitle) {
-                onPaste()
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(selectionCount == 0 || isPasting)
-            .accessibilityIdentifier("overlay.pasteStack.paste")
-            .accessibilityLabel(pasteAccessibilityLabel)
-            .accessibilityValue(selectionLabel)
-            .accessibilityHint(pasteAccessibilityHint)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.08))
-        .cornerRadius(10)
-    }
-
-    private var selectionLabel: String {
-        if selectionCount == 1 {
-            return "1 item selected"
-        }
-        return "\(selectionCount) items selected"
-    }
-
-    private var pasteTitle: String {
-        if isPasting {
-            return "Pasting..."
-        }
-        return isPlainText ? "Paste Plain Text" : "Paste"
-    }
-
-    private var pasteAccessibilityLabel: String {
-        if isPasting {
-            return "Pasting"
-        }
-        return isPlainText ? "Paste plain text" : "Paste"
-    }
-
-    private var pasteAccessibilityHint: String {
-        if isPasting {
-            return "Paste in progress"
-        }
-        return "Pastes the selected items"
     }
 }
 

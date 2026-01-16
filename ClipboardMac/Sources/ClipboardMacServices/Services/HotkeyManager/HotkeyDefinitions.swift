@@ -2,13 +2,8 @@ import Carbon.HIToolbox
 import Foundation
 
 public enum DefaultHotkey {
-    public static let activatePaste = HotkeyManager.Hotkey(
+    public static let showClipboard = HotkeyManager.Hotkey(
         keyCode: UInt16(kVK_ANSI_V),
-        modifiers: [.command, .shift]
-    )
-
-    public static let activatePasteStack = HotkeyManager.Hotkey(
-        keyCode: UInt16(kVK_ANSI_C),
         modifiers: [.command, .shift]
     )
 

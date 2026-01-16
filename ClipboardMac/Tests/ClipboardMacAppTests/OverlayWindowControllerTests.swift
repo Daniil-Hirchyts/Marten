@@ -9,11 +9,11 @@ final class OverlayWindowControllerTests: XCTestCase {
         _ = NSApplication.shared
         let controller = OverlayWindowController(rootView: AnyView(Text("Test")))
 
-        controller.toggle(mode: .browse)
+        controller.toggle()
         spinRunLoop(for: 0.3)
         XCTAssertTrue(controller.isVisibleForTesting)
 
-        controller.toggle(mode: .browse)
+        controller.toggle()
         spinRunLoop(for: 0.3)
         XCTAssertFalse(controller.isVisibleForTesting)
     }

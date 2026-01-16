@@ -10,6 +10,8 @@ public protocol PasteEngineProtocol: AnyObject {
     func pasteStack(_ session: StackSession, format: PasteFormat) async throws -> PasteStackResult
     func copyItemToClipboard(_ item: ClipItem, format: PasteFormat) async throws
     func copyStackToClipboard(_ session: StackSession) async throws
+    func pastePlainText(_ text: String) async throws
+    func copyPlainTextToClipboard(_ text: String) async throws
 }
 
 public protocol ActiveAppTracking: AnyObject {
@@ -292,6 +294,33 @@ public final class PasteEngine {
             eventBroadcaster.publish(.clipboardWillWrite)
             pasteboard.clearContents()
             pasteboard.setString(joined, forType: .string)
+        }
+    }
+
+    public func pastePlainText(_ text: String) async throws {
+        Logger.paste.info("Starting plain text paste operation")
+        await writePlainTextToPasteboard(text)
+        await MainActor.run {
+            activeAppTracker.reactivateRecordedApp()
+        }
+        let activated = await ensureTargetActivation()
+        guard activated else {
+            Logger.paste.error("Target activation failed during pastePlainText")
+            throw PasteEngineError.targetActivationFailed
+        }
+        try await sendPasteKeystroke()
+        Logger.paste.info("Plain text paste operation completed successfully")
+    }
+
+    public func copyPlainTextToClipboard(_ text: String) async throws {
+        await writePlainTextToPasteboard(text)
+    }
+
+    private func writePlainTextToPasteboard(_ text: String) async {
+        await MainActor.run {
+            eventBroadcaster.publish(.clipboardWillWrite)
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
         }
     }
 

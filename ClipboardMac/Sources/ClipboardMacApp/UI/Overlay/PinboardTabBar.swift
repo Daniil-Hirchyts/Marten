@@ -56,27 +56,23 @@ struct PinboardTabBar: View {
     @State private var dropTarget: PinboardTabDropTarget?
     @State private var commitState: CommitState = .none
     @State private var trailingTabWidth: CGFloat = 40
+    @State private var autoScrollTimer: Timer?
+    @State private var scrollViewBounds: CGRect = .zero
+    @State private var currentScrollProxy: ScrollViewProxy?
+
+    private let autoScrollEdgeInset: CGFloat = 40
+    private let autoScrollSpeed: CGFloat = 4
 
     private var canReorder: Bool {
         editingID == nil && !isCreating
     }
 
-    private let maxScrollableWidthRatio: CGFloat = 1
-    private let estimatedTabWidth: CGFloat = 90
     private let scrollContentPadding: CGFloat = 20
 
-    private var estimatedContentWidth: CGFloat {
-        let count = CGFloat(pinboards.count + 1)
-        if count == 0 { return 0 }
-        return (count * estimatedTabWidth) + ((count - 1) * tabSpacing)
-    }
-
-    private var actualContentWidth: CGFloat {
-        frameManager.contentWidth > 0 ? frameManager.contentWidth : estimatedContentWidth
-    }
-
-    private func maxAllowedScrollWidth(parentWidth: CGFloat) -> CGFloat {
-        parentWidth * maxScrollableWidthRatio
+    /// Calculates the minimum width needed for all tabs, without estimation.
+    /// Uses actual content measurements when available.
+    private var measuredContentWidth: CGFloat {
+        frameManager.contentWidth
     }
 
     private func availableScrollWidth(parentWidth: CGFloat) -> CGFloat {
@@ -91,23 +87,47 @@ struct PinboardTabBar: View {
         proxy.frame(in: .named(localCoordinateSpaceName))
     }
 
+    /// Returns scroll view width that exactly fits content, clamped to available space.
+    /// Uses measured content width for stability once frames are available.
     private func scrollViewWidth(parentWidth: CGFloat) -> CGFloat {
-        let contentWithPadding = actualContentWidth + (scrollContentPadding * 2)
-        let maxWidth = maxAllowedScrollWidth(parentWidth: parentWidth)
         let availableWidth = availableScrollWidth(parentWidth: parentWidth)
-        return min(contentWithPadding, maxWidth, availableWidth)
+
+        // If we have measured content, use it; otherwise fill available space
+        if measuredContentWidth > 0 {
+            let contentWithPadding = measuredContentWidth + (scrollContentPadding * 2)
+            return min(contentWithPadding, availableWidth)
+        }
+
+        // Before first measurement, use available width (content will constrain itself)
+        return availableWidth
     }
 
     var body: some View {
         GeometryReader { proxy in
             HStack(spacing: tabSpacing) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    pinboardsContent(isMeasuring: false)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .padding(.horizontal, scrollContentPadding)
+                ScrollViewReader { scrollProxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        pinboardsContent(isMeasuring: false)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .padding(.horizontal, scrollContentPadding)
+                    }
+                    .coordinateSpace(name: scrollSpaceName)
+                    .frame(width: scrollViewWidth(parentWidth: proxy.size.width))
+                    .background(
+                        GeometryReader { scrollGeo in
+                            Color.clear.onAppear {
+                                scrollViewBounds = scrollGeo.frame(in: .named(localCoordinateSpaceName))
+                                currentScrollProxy = scrollProxy
+                            }
+                            .onChange(of: scrollGeo.frame(in: .named(localCoordinateSpaceName))) { newFrame in
+                                scrollViewBounds = newFrame
+                            }
+                        }
+                    )
+                    .onChange(of: dragState) { newDragState in
+                        handleAutoScrollStateChange(newDragState, scrollProxy: scrollProxy)
+                    }
                 }
-                .coordinateSpace(name: scrollSpaceName)
-                .frame(width: scrollViewWidth(parentWidth: proxy.size.width))
                 .mask(
                     LinearGradient(
                         gradient: Gradient(stops: [
@@ -191,6 +211,7 @@ struct PinboardTabBar: View {
             ) {
                 onSelect(nil)
             }
+            .id("all")
             .accessibilityIdentifier("overlay.pinboard.all")
             .accessibilityLabel("All items")
             .accessibilityValue(selectedID == nil ? "Selected" : "Not selected")
@@ -319,6 +340,7 @@ struct PinboardTabBar: View {
         ) {
             onSelect(pinboard.id)
         }
+        .id(pinboard.id)
         .accessibilityIdentifier("overlay.pinboard.\(pinboard.id.uuidString)")
         .accessibilityLabel(pinboard.name)
         .accessibilityValue(selectedID == pinboard.id ? "Selected" : "Not selected")
@@ -432,6 +454,11 @@ struct PinboardTabBar: View {
 
             dragState = result.dragState
             dropTarget = result.dropTarget
+
+            // Check for auto-scroll near edges
+            if let scrollProxy = currentScrollProxy {
+                checkAutoScroll(at: localPointer, scrollProxy: scrollProxy)
+            }
         }
     }
 
@@ -454,6 +481,8 @@ struct PinboardTabBar: View {
     }
 
     private func endDrag(for itemID: NSManagedObjectID) {
+        stopAutoScroll()
+
         withAnimation(.easeOut(duration: 0.1)) {
             dropTarget = nil
             dragOpacity = 0
@@ -539,6 +568,97 @@ struct PinboardTabBar: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
+    }
+
+    // MARK: - Auto-Scroll
+
+    private func handleAutoScrollStateChange(_ newState: PinboardTabDragState?, scrollProxy: ScrollViewProxy) {
+        if newState == nil {
+            stopAutoScroll()
+        }
+    }
+
+    private func startAutoScroll(direction: AutoScrollDirection, scrollProxy: ScrollViewProxy) {
+        stopAutoScroll()
+
+        autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] _ in
+            guard let dragState = dragState else {
+                stopAutoScroll()
+                return
+            }
+
+            // Find the target pinboard to scroll to based on direction
+            let sortedPinboards = pinboards.sorted { lhs, rhs in
+                let lhsFrame = frameManager.latestTabFrames[lhs.objectID] ?? .zero
+                let rhsFrame = frameManager.latestTabFrames[rhs.objectID] ?? .zero
+                return lhsFrame.minX < rhsFrame.minX
+            }
+
+            guard !sortedPinboards.isEmpty else { return }
+
+            let currentX = dragState.pointerLocation.x
+
+            switch direction {
+            case .leading:
+                // Find the first pinboard to the left of current position
+                if let targetPinboard = sortedPinboards.last(where: {
+                    guard let frame = frameManager.latestTabFrames[$0.objectID] else { return false }
+                    return frame.minX < currentX - autoScrollEdgeInset
+                }) {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        scrollProxy.scrollTo(targetPinboard.id, anchor: .leading)
+                    }
+                } else {
+                    // Scroll to "All" tab
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        scrollProxy.scrollTo("all", anchor: .leading)
+                    }
+                }
+            case .trailing:
+                // Find the first pinboard to the right of current position
+                if let targetPinboard = sortedPinboards.first(where: {
+                    guard let frame = frameManager.latestTabFrames[$0.objectID] else { return false }
+                    return frame.maxX > currentX + autoScrollEdgeInset
+                }) {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        scrollProxy.scrollTo(targetPinboard.id, anchor: .trailing)
+                    }
+                }
+            }
+        }
+    }
+
+    private func stopAutoScroll() {
+        autoScrollTimer?.invalidate()
+        autoScrollTimer = nil
+    }
+
+    private func checkAutoScroll(at location: CGPoint, scrollProxy: ScrollViewProxy) {
+        guard dragState != nil, !scrollViewBounds.isEmpty else {
+            stopAutoScroll()
+            return
+        }
+
+        let relativeX = location.x - scrollViewBounds.minX
+
+        if relativeX < autoScrollEdgeInset {
+            // Near leading edge
+            if autoScrollTimer == nil {
+                startAutoScroll(direction: .leading, scrollProxy: scrollProxy)
+            }
+        } else if relativeX > scrollViewBounds.width - autoScrollEdgeInset {
+            // Near trailing edge
+            if autoScrollTimer == nil {
+                startAutoScroll(direction: .trailing, scrollProxy: scrollProxy)
+            }
+        } else {
+            stopAutoScroll()
+        }
+    }
+
+    private enum AutoScrollDirection {
+        case leading
+        case trailing
     }
 }
 

@@ -4,13 +4,10 @@ import Foundation
 
 @MainActor
 protocol OverlayPasting: AnyObject {
-    var mode: OverlayMode { get }
     var selectedItemIDs: Set<NSManagedObjectID> { get }
 
-    func setMode(_ mode: OverlayMode)
-    func restoreSelection(_ ids: Set<NSManagedObjectID>, in orderedItems: [ClipItem])
     func paste(item: ClipItem, plainText: Bool)
-    func pasteStack(plainText: Bool)
+    func pasteMultipleItemsAsPlainText(_ items: [ClipItem])
 }
 
 extension OverlayViewModel: OverlayPasting {}
@@ -26,7 +23,6 @@ final class PasteStackManager {
     ) {
         if selectedItemIDs.count > 1 && selectedItemIDs.contains(item.objectID) {
             pasteSelection(
-                plainText: plainText,
                 selectedItemIDs: selectedItemIDs,
                 orderedItems: orderedItems,
                 viewModel: viewModel
@@ -51,17 +47,12 @@ final class PasteStackManager {
             if draggedItems.count == 1 {
                 viewModel.paste(item: firstItem, plainText: plainText)
             } else {
-                if viewModel.mode == .browse {
-                    viewModel.setMode(.pasteStack)
-                    viewModel.restoreSelection(Set(itemIDs), in: draggedItems)
-                }
-                viewModel.pasteStack(plainText: plainText)
+                viewModel.pasteMultipleItemsAsPlainText(draggedItems)
             }
         }
     }
 
     private func pasteSelection(
-        plainText: Bool,
         selectedItemIDs: Set<NSManagedObjectID>,
         orderedItems: [ClipItem],
         viewModel: any OverlayPasting
@@ -71,14 +62,9 @@ final class PasteStackManager {
         guard let firstItem = selectedItems.first else { return }
 
         if selectedItems.count == 1 {
-            viewModel.paste(item: firstItem, plainText: plainText)
+            viewModel.paste(item: firstItem, plainText: true)
         } else {
-            if viewModel.mode == .browse {
-                let selectedIDs = viewModel.selectedItemIDs
-                viewModel.setMode(.pasteStack)
-                viewModel.restoreSelection(selectedIDs, in: orderedItems)
-            }
-            viewModel.pasteStack(plainText: plainText)
+            viewModel.pasteMultipleItemsAsPlainText(selectedItems)
         }
     }
 }

@@ -16,14 +16,14 @@ final class PerformanceBenchmarks: XCTestCase {
         options.invocationOptions = [.manuallyStart, .manuallyStop]
         measure(metrics: [XCTClockMetric()], options: options) {
             if controller.isVisibleForTesting {
-                controller.toggle(mode: .browse)
+                controller.toggle()
                 spinRunLoop(for: hideDuration)
             }
 
             startMeasuring()
-            controller.toggle(mode: .browse)
+            controller.toggle()
             spinRunLoop(for: showDuration)
-            controller.toggle(mode: .browse)
+            controller.toggle()
             spinRunLoop(for: hideDuration)
             stopMeasuring()
         }

@@ -32,6 +32,14 @@ struct HotkeyRecorder: View {
                 }
                 .accessibilityIdentifier("\(identifier).recordButton")
                 .accessibilityLabel(isRecording ? "Stop recording \(title) shortcut" : "Record \(title) shortcut")
+
+                Button("Clear") {
+                    value = value.cleared()
+                    stopRecording()
+                }
+                .accessibilityIdentifier("\(identifier).clearButton")
+                .accessibilityLabel("Clear \(title) shortcut")
+                .disabled(!value.isEnabled)
             }
         }
         .accessibilityIdentifier(identifier)

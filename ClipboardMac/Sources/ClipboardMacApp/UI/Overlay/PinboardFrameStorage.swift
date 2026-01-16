@@ -76,22 +76,26 @@ final class PinboardFrameManager: ObservableObject {
         cachedOrderedFrames = nil
     }
 
-    /// Updates content width based on frames
+    /// Updates content width based on frames deterministically.
+    /// Measures actual content width from frame bounds.
     /// - Parameter frames: Frame dictionary to measure
     /// - Parameter countChanged: Whether frame count changed
     private func updateContentWidth(from frames: [NSManagedObjectID: CGRect], countChanged: Bool) {
-        if !frames.isEmpty {
-            let minX = frames.values.map { $0.minX }.min() ?? 0
-            let maxX = frames.values.map { $0.maxX }.max() ?? 0
-            let measuredWidth = maxX - minX
-
-            // Always update if count changed, otherwise only if significant change
-            if measuredWidth > 0 && (countChanged || abs(contentWidth - measuredWidth) > 10) {
-                contentWidth = measuredWidth
-            }
-        } else {
-            // Reset content width when there are no frames
+        guard !frames.isEmpty else {
             contentWidth = 0
+            return
+        }
+
+        let minX = frames.values.map { $0.minX }.min() ?? 0
+        let maxX = frames.values.map { $0.maxX }.max() ?? 0
+        let measuredWidth = maxX - minX
+
+        guard measuredWidth > 0 else { return }
+
+        // Always update on count change (pinboard added/removed)
+        // Otherwise update only when width actually differs (deterministic)
+        if countChanged || contentWidth == 0 || contentWidth != measuredWidth {
+            contentWidth = measuredWidth
         }
     }
 

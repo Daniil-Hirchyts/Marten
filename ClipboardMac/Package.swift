@@ -8,6 +8,7 @@ let package = Package(
         .macOS(.v13)
     ],
     products: [
+        .library(name: "ClipboardMacServices", targets: ["ClipboardMacServices"]),
         .executable(name: "ClipboardMac", targets: ["ClipboardMac"]),
         .executable(name: "ClipboardMacValidation", targets: ["ClipboardMacValidation"]),
     ],

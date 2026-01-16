@@ -7,7 +7,7 @@ import OSLog
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let services: AppServiceProviding
+    let services: AppServiceProviding
     private var overlayController: OverlayWindowController?
     private var menuBarController: MenuBarController?
     private var retentionTimer: Timer?
@@ -95,12 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarController = MenuBarController(
             toggleHandler: { [weak self] in
                 Task { @MainActor in
-                    self?.toggleOverlay(mode: .browse)
-                }
-            },
-            pasteStackHandler: { [weak self] in
-                Task { @MainActor in
-                    self?.toggleOverlay(mode: .pasteStack)
+                    self?.toggleOverlay()
                 }
             },
             screenSharingManager: screenSharingManager
@@ -108,7 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if ProcessInfo.processInfo.environment["PASTE_AUTOSHOW_OVERLAY"] == "1" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                self?.toggleOverlay(mode: .browse)
+                self?.toggleOverlay()
             }
         }
 
@@ -116,7 +111,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissionManager.startMonitoring()
         requestInputMonitoringIfNeeded()
         performStartupIntegrityCheck()
+
+        if services.syncCoordinator != nil {
+            NSApp.registerForRemoteNotifications()
+        }
+
         Logger.app.info("ClipboardMac finished launching")
+    }
+
+    func application(
+        _ application: NSApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Logger.app.info("Registered for remote notifications")
+    }
+
+    func application(
+        _ application: NSApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        Logger.app.error(
+            "Failed to register for remote notifications: \(error.localizedDescription)"
+        )
+    }
+
+    func application(
+        _ application: NSApplication,
+        didReceiveRemoteNotification userInfo: [String: Any]
+    ) {
+        guard let syncCoordinator = services.syncCoordinator else { return }
+
+        Task {
+            await syncCoordinator.handlePushNotification()
+        }
     }
 
     @MainActor
@@ -151,30 +178,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func registerHotkeys() {
         hotkeyManager.unregisterAll()
 
-        hotkeyManager.register(
-            action: "toggleOverlay",
-            hotkey: HotkeyPreferencesStore.effectiveHotkey(for: .toggleOverlay)
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.toggleOverlay(mode: .browse)
-            }
-        }
-
-        hotkeyManager.register(
-            action: "togglePasteStack",
-            hotkey: HotkeyPreferencesStore.effectiveHotkey(for: .togglePasteStack)
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.toggleOverlay(mode: .pasteStack)
+        if let hotkey = HotkeyPreferencesStore.effectiveHotkey(for: .showClipboard) {
+            hotkeyManager.register(
+                action: "showClipboard",
+                hotkey: hotkey
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    self?.toggleOverlay()
+                }
             }
         }
 
         for index in 1...9 {
-            hotkeyManager.register(
-                action: "quickPaste\(index)", hotkey: DefaultHotkey.quickPaste(index)
-            ) { [weak self] flags in
-                Task { @MainActor in
-                    self?.quickPaste(index: index, flags: flags)
+            if let hotkey = HotkeyPreferencesStore.effectiveHotkey(for: .quickPaste(index)) {
+                hotkeyManager.register(
+                    action: "quickPaste\(index)",
+                    hotkey: hotkey
+                ) { [weak self] flags in
+                    Task { @MainActor in
+                        self?.quickPaste(index: index, flags: flags)
+                    }
                 }
             }
         }
@@ -185,6 +208,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     private func reloadHotkeys() {
         registerHotkeys()
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
     }
 
     @MainActor
@@ -317,17 +344,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor
-    private func toggleOverlay(mode: OverlayMode) {
+    private func toggleOverlay() {
         pasteEngine.recordFrontmostApp()
-        overlayController?.toggle(mode: mode)
+        overlayController?.toggle()
     }
 
     @MainActor
     private func quickPaste(index: Int, flags: NSEvent.ModifierFlags) {
         let alwaysPlainText = UserDefaults.standard.bool(forKey: "alwaysPastePlainText")
         let isPlainText = flags.contains(.shift) || alwaysPlainText
-        let shouldPasteToActiveApp =
-            UserDefaults.standard.object(forKey: "pasteToActiveApp") as? Bool ?? true
         do {
             let items = try clipItemStore.fetchRecentItems(limit: index)
             guard items.count >= index else { return }
@@ -338,13 +363,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.pasteEngine.recordFrontmostApp()
                 Task {
                     do {
-                        if shouldPasteToActiveApp {
-                            try await self.pasteEngine.pasteItem(
-                                item, format: isPlainText ? .plainText : .preserved)
-                        } else {
-                            try await self.pasteEngine.copyItemToClipboard(
-                                item, format: isPlainText ? .plainText : .preserved)
-                        }
+                        try await self.pasteEngine.pasteItem(
+                            item, format: isPlainText ? .plainText : .preserved)
                     } catch PasteEngineError.accessibilityPermissionDenied {
                         self.permissionManager.requestAccessibility()
                     } catch {

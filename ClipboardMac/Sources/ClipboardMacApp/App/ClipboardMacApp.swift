@@ -1,3 +1,4 @@
+import ClipboardCore
 import SwiftUI
 
 @main
@@ -8,7 +9,7 @@ struct ClipboardMacApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView()
+            SettingsView(syncCoordinator: appDelegate.services.syncCoordinator)
         }
 
         Window("Welcome to Paste", id: "onboarding") {

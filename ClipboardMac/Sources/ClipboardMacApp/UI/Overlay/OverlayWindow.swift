@@ -90,24 +90,11 @@ final class OverlayWindowController {
             .store(in: &cancellables)
     }
 
-    func toggle(mode: OverlayMode) {
-        guard let viewModel else {
-            if isVisible {
-                hide()
-            } else {
-                show(mode: mode)
-            }
-            return
-        }
-
+    func toggle() {
         if isVisible {
-            if viewModel.mode != mode {
-                viewModel.setMode(mode)
-            } else {
-                hide()
-            }
+            hide()
         } else {
-            show(mode: mode)
+            show()
         }
     }
 
@@ -115,10 +102,9 @@ final class OverlayWindowController {
         isVisible
     }
 
-    private func show(mode: OverlayMode) {
+    private func show() {
         guard !isVisible else { return }
         guard screenSharingManager.shouldShowOverlay else { return }
-        viewModel?.setMode(mode)
         guard let screen = NSScreen.main else { return }
         let targetFrame = frame(for: screen)
         let startFrame = targetFrame.offsetBy(dx: 0, dy: -24)

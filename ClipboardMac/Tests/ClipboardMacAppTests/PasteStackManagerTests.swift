@@ -7,34 +7,21 @@ import XCTest
 final class PasteStackManagerTests: XCTestCase {
     private final class SpyOverlayViewModel: OverlayPasting {
         enum Call: Equatable {
-            case setMode(OverlayMode)
-            case restoreSelection(Set<URL>, orderedCount: Int)
             case paste(URL, plainText: Bool)
-            case pasteStack(plainText: Bool)
+            case pasteMultiple(itemCount: Int)
         }
 
-        var mode: OverlayMode = .browse
         var selectedItemIDs: Set<NSManagedObjectID> = []
         private(set) var calls: [Call] = []
-
-        func setMode(_ mode: OverlayMode) {
-            self.mode = mode
-            calls.append(.setMode(mode))
-        }
-
-        func restoreSelection(_ ids: Set<NSManagedObjectID>, in orderedItems: [ClipItem]) {
-            selectedItemIDs = ids
-            calls.append(
-                .restoreSelection(
-                    Set(ids.map { $0.uriRepresentation() }), orderedCount: orderedItems.count))
-        }
+        private(set) var lastPastedItems: [ClipItem] = []
 
         func paste(item: ClipItem, plainText: Bool) {
             calls.append(.paste(item.objectID.uriRepresentation(), plainText: plainText))
         }
 
-        func pasteStack(plainText: Bool) {
-            calls.append(.pasteStack(plainText: plainText))
+        func pasteMultipleItemsAsPlainText(_ items: [ClipItem]) {
+            lastPastedItems = items
+            calls.append(.pasteMultiple(itemCount: items.count))
         }
     }
 
@@ -59,7 +46,9 @@ final class PasteStackManagerTests: XCTestCase {
         XCTAssertEqual(viewModel.calls, [.paste(b.objectID.uriRepresentation(), plainText: false)])
     }
 
-    func testPasteItemOrSelectionPastesStackWhenMultiSelectionIncludesTappedItem() throws {
+    func testPasteItemOrSelectionPastesMultipleAsPlainTextWhenMultiSelectionIncludesTappedItem()
+        throws
+    {
         let persistence = PersistenceController(inMemory: true)
         let store = ClipItemStore(persistence: persistence)
         let a = try store.createTextItem(text: "a")
@@ -77,19 +66,11 @@ final class PasteStackManagerTests: XCTestCase {
             viewModel: viewModel
         )
 
-        XCTAssertEqual(
-            viewModel.calls,
-            [
-                .setMode(.pasteStack),
-                .restoreSelection(
-                    Set([a.objectID.uriRepresentation(), b.objectID.uriRepresentation()]),
-                    orderedCount: 2),
-                .pasteStack(plainText: true),
-            ]
-        )
+        XCTAssertEqual(viewModel.calls, [.pasteMultiple(itemCount: 2)])
+        XCTAssertEqual(viewModel.lastPastedItems.count, 2)
     }
 
-    func testPasteOutsideSwitchesToPasteStackAndPastesAfterDelay() throws {
+    func testPasteOutsidePastesMultipleAsPlainTextAfterDelay() throws {
         let persistence = PersistenceController(inMemory: true)
         let store = ClipItemStore(persistence: persistence)
         let a = try store.createTextItem(text: "a")
@@ -105,15 +86,24 @@ final class PasteStackManagerTests: XCTestCase {
         )
 
         spinRunLoop(for: 0.2)
-        XCTAssertEqual(
-            viewModel.calls,
-            [
-                .setMode(.pasteStack),
-                .restoreSelection(
-                    Set([a.objectID.uriRepresentation(), b.objectID.uriRepresentation()]),
-                    orderedCount: 2),
-                .pasteStack(plainText: true),
-            ]
+        XCTAssertEqual(viewModel.calls, [.pasteMultiple(itemCount: 2)])
+    }
+
+    func testPasteOutsidePastesSingleItemDirectly() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let a = try store.createTextItem(text: "a")
+
+        let viewModel = SpyOverlayViewModel()
+        let manager = PasteStackManager()
+        manager.pasteOutside(
+            itemIDs: [a.objectID],
+            plainText: false,
+            orderedItems: [a],
+            viewModel: viewModel
         )
+
+        spinRunLoop(for: 0.2)
+        XCTAssertEqual(viewModel.calls, [.paste(a.objectID.uriRepresentation(), plainText: false)])
     }
 }
