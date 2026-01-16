@@ -4,6 +4,7 @@ import AppKit
 import Combine
 import Foundation
 import OSLog
+import Security
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -109,11 +110,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         scheduleRetentionCleanup()
         permissionManager.startMonitoring()
-        requestInputMonitoringIfNeeded()
+        requestAccessibilityForHotkeysIfNeeded()
         performStartupIntegrityCheck()
 
-        if services.syncCoordinator != nil {
+        let hasSync = services.syncCoordinator != nil
+        if hasSync, hasPushNotificationEntitlement {
             NSApp.registerForRemoteNotifications()
+        } else if hasSync {
+            Logger.app.debug(
+                "Skipping remote notifications registration (missing Push entitlement)")
         }
 
         Logger.app.info("ClipboardMac finished launching")
@@ -202,7 +207,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        hotkeyManager.start()
+        guard permissionManager.checkAccessibility(prompt: false) else {
+            return
+        }
+
+        if !hotkeyManager.start() {
+            scheduleHotkeyStartRetry()
+        }
     }
 
     @MainActor
@@ -408,19 +419,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor
-    private func requestInputMonitoringIfNeeded() {
-        if permissionManager.checkInputMonitoring(prompt: true) {
+    private func requestAccessibilityForHotkeysIfNeeded() {
+        if permissionManager.checkAccessibility(prompt: true) {
             return
         }
 
+        scheduleHotkeyStartRetry()
+    }
+
+    @MainActor
+    private func scheduleHotkeyStartRetry() {
         hotkeyRetryTimer?.invalidate()
         hotkeyRetryTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
             [weak self] timer in
             Task { @MainActor in
                 guard let self else { return }
-                if self.permissionManager.checkInputMonitoring(prompt: false) {
-                    self.hotkeyManager.start()
-                    timer.invalidate()
+                if self.permissionManager.checkAccessibility(prompt: false) {
+                    if self.hotkeyManager.start() {
+                        timer.invalidate()
+                    }
                 }
             }
         }
@@ -428,6 +445,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let timer = hotkeyRetryTimer {
             RunLoop.main.add(timer, forMode: .common)
         }
+    }
+
+    private var hasPushNotificationEntitlement: Bool {
+        guard let task = SecTaskCreateFromSelf(nil) else { return false }
+        let entitlement = "com.apple.developer.aps-environment" as CFString
+        return SecTaskCopyValueForEntitlement(task, entitlement, nil) != nil
     }
 }
 

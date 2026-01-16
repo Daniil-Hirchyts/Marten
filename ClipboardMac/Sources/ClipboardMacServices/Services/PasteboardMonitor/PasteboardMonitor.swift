@@ -14,6 +14,7 @@ public final class PasteboardMonitor: ObservableObject {
     private var changeCountAtSuppression: Int?
     private var lastActivity: Date?
     private var currentInterval: TimeInterval?
+    private var isIdle = false
 
     public var pollInterval: TimeInterval = 0.4
     public var adaptivePollingEnabled = true
@@ -93,13 +94,16 @@ public final class PasteboardMonitor: ObservableObject {
         // Only suppress if we have a token and this is the immediate next change
         // (changeCount is exactly one more than when suppression was requested)
         if let suppressionCount = changeCountAtSuppression,
-           currentCount == suppressionCount + 1 {
-            Logger.pasteboard.info("Suppressing change detection (token: \(String(describing: self.suppressToken), privacy: .public))")
+            currentCount == suppressionCount + 1
+        {
+            Logger.pasteboard.info(
+                "Suppressing change detection (token: \(String(describing: self.suppressToken), privacy: .public))"
+            )
             suppressToken = nil
             changeCountAtSuppression = nil
             return
         }
-        
+
         // Clear stale suppression tokens (if change count has moved beyond expected)
         if suppressToken != nil {
             Logger.pasteboard.warning("Clearing stale suppression token")
@@ -109,12 +113,15 @@ public final class PasteboardMonitor: ObservableObject {
 
         activeAppTracker.recordFrontmostApp()
         if let bundleID = activeAppTracker.recordedBundleID,
-           ignoredAppsManager.isIgnored(bundleIdentifier: bundleID) {
-            Logger.pasteboard.info("Skipping capture from ignored app: \(bundleID, privacy: .public)")
+            ignoredAppsManager.isIgnored(bundleIdentifier: bundleID)
+        {
+            Logger.pasteboard.info(
+                "Skipping capture from ignored app: \(bundleID, privacy: .public)")
             return
         }
 
         lastActivity = Date()
+        isIdle = false
         if adaptivePollingEnabled {
             applyIntervalIfNeeded(fastPollInterval)
         }
@@ -126,7 +133,8 @@ public final class PasteboardMonitor: ObservableObject {
     private func handleIdleTransition() {
         guard adaptivePollingEnabled else { return }
         guard let lastActivity else { return }
-        if Date().timeIntervalSince(lastActivity) >= idleThreshold {
+        if Date().timeIntervalSince(lastActivity) >= idleThreshold, !isIdle {
+            isIdle = true
             Logger.pasteboard.debug("Idle transition detected")
             applyIntervalIfNeeded(idlePollInterval)
         }

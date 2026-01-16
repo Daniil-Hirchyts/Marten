@@ -33,7 +33,8 @@ final class MenuBarController: NSObject {
         let showClipboardItem = NSMenuItem(
             title: "Show Clipboard", action: #selector(showClipboard), keyEquivalent: "v")
         showClipboardItem.target = self
-        showClipboardItem.image = NSImage(systemSymbolName: "clipboard", accessibilityDescription: nil)
+        showClipboardItem.image = NSImage(
+            systemSymbolName: "clipboard", accessibilityDescription: nil)
         menu.addItem(showClipboardItem)
 
         let settingsItem = NSMenuItem(
@@ -52,7 +53,8 @@ final class MenuBarController: NSObject {
         screenSharingItem.keyEquivalentModifierMask = [.command, .shift]
         screenSharingItem.target = self
         screenSharingItem.state = screenSharingManager.isScreenSharingModeActive ? .on : .off
-        screenSharingItem.image = NSImage(systemSymbolName: "rectangle.inset.filled.on.rectangle", accessibilityDescription: nil)
+        screenSharingItem.image = NSImage(
+            systemSymbolName: "rectangle.inset.filled.on.rectangle", accessibilityDescription: nil)
         menu.addItem(screenSharingItem)
         screenSharingMenuItem = screenSharingItem
 

@@ -64,6 +64,7 @@ public final class HotkeyManager {
     private var runLoopSource: CFRunLoopSource?
     private var hotkeys: [String: Hotkey] = [:]
     private var handlers: [String: (NSEvent.ModifierFlags) -> Void] = [:]
+    private var hasLoggedTapCreateFailure = false
 
     public init() {}
 
@@ -91,8 +92,9 @@ public final class HotkeyManager {
     ///
     /// - Note: If the tap fails to create (usually due to missing permissions),
     ///   an error is logged but no exception is thrown.
-    public func start() {
-        guard eventTap == nil else { return }
+    @discardableResult
+    public func start() -> Bool {
+        guard eventTap == nil else { return true }
 
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
 
@@ -128,8 +130,11 @@ public final class HotkeyManager {
             // 1. The app doesn't have Accessibility permissions
             // 2. The system is under heavy load
             // 3. Too many event taps are already registered
-            Logger.hotkey.error("Failed to create event tap - check Accessibility permissions")
-            return
+            if !hasLoggedTapCreateFailure {
+                Logger.hotkey.error("Failed to create event tap - check Accessibility permissions")
+                hasLoggedTapCreateFailure = true
+            }
+            return false
         }
 
         eventTap = tap
@@ -138,6 +143,8 @@ public final class HotkeyManager {
         CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         Logger.hotkey.info("Hotkey event tap started")
+        hasLoggedTapCreateFailure = false
+        return true
     }
 
     public func stop() {

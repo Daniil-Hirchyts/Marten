@@ -217,7 +217,8 @@ struct OverlayRootView: View {
                                     .buttonStyle(.plain)
                                     .accessibilityIdentifier("overlay.search.clear")
                                     .accessibilityLabel("Clear search")
-                                    .accessibilityHint("Clears search text and collapses search field")
+                                    .accessibilityHint(
+                                        "Clears search text and collapses search field")
                                 }
                                 .padding(.leading, 6)
                                 .padding(.trailing, 6)
@@ -260,17 +261,23 @@ struct OverlayRootView: View {
                     // Right: Settings
                     HStack {
                         Spacer()
-                        Button(action: openSettings) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.system(size: headerButtonIconSize, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: headerButtonSize, height: headerButtonSize)
-                                .background(
-                                    Circle()
-                                        .fill(Color.white.opacity(0.1))
-                                )
+                        Group {
+                            if #available(macOS 14.0, *) {
+                                SettingsLink {
+                                    settingsIcon
+                                }
+                            } else {
+                                Button(action: openSettingsLegacy) {
+                                    settingsIcon
+                                }
+                            }
                         }
                         .buttonStyle(.plain)
+                        .simultaneousGesture(
+                            TapGesture().onEnded {
+                                NSApp.activate(ignoringOtherApps: true)
+                            }
+                        )
                         .accessibilityIdentifier("overlay.settings")
                         .accessibilityLabel("Settings")
                         .accessibilityHint("Opens settings")
@@ -758,7 +765,18 @@ struct OverlayRootView: View {
         }
     }
 
-    private func openSettings() {
+    private var settingsIcon: some View {
+        Image(systemName: "gearshape.fill")
+            .font(.system(size: headerButtonIconSize, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .frame(width: headerButtonSize, height: headerButtonSize)
+            .background(
+                Circle()
+                    .fill(Color.white.opacity(0.1))
+            )
+    }
+
+    private func openSettingsLegacy() {
         NSApp.activate(ignoringOtherApps: true)
         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
