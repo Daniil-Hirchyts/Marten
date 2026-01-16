@@ -14,10 +14,11 @@ private func overlayFramesApproximatelyEqual(
     guard lhs.count == rhs.count else { return false }
     for (key, lhsRect) in lhs {
         guard let rhsRect = rhs[key] else { return false }
-        if abs(lhsRect.origin.x - rhsRect.origin.x) > tolerance ||
-           abs(lhsRect.origin.y - rhsRect.origin.y) > tolerance ||
-           abs(lhsRect.size.width - rhsRect.size.width) > tolerance ||
-           abs(lhsRect.size.height - rhsRect.size.height) > tolerance {
+        if abs(lhsRect.origin.x - rhsRect.origin.x) > tolerance
+            || abs(lhsRect.origin.y - rhsRect.origin.y) > tolerance
+            || abs(lhsRect.size.width - rhsRect.size.width) > tolerance
+            || abs(lhsRect.size.height - rhsRect.size.height) > tolerance
+        {
             return false
         }
     }
@@ -30,10 +31,10 @@ private func overlayRectApproximatelyEqual(
     tolerance: CGFloat = 5.0
 ) -> Bool {
     guard let lhs = lhs, let rhs = rhs else { return lhs == nil && rhs == nil }
-    return abs(lhs.origin.x - rhs.origin.x) <= tolerance &&
-           abs(lhs.origin.y - rhs.origin.y) <= tolerance &&
-           abs(lhs.size.width - rhs.size.width) <= tolerance &&
-           abs(lhs.size.height - rhs.size.height) <= tolerance
+    return abs(lhs.origin.x - rhs.origin.x) <= tolerance
+        && abs(lhs.origin.y - rhs.origin.y) <= tolerance
+        && abs(lhs.size.width - rhs.size.width) <= tolerance
+        && abs(lhs.size.height - rhs.size.height) <= tolerance
 }
 
 struct OverlayRootView: View {
@@ -58,7 +59,7 @@ struct OverlayRootView: View {
     @State private var pinboardEditorFrame: CGRect?
     @State private var searchFieldFrame: CGRect?
     @State private var dragPreviewData: DragPreviewData?
-    
+
     // Non-reactive storage for drop target detection during drag
     // Captured when shouldReportFrames is true, then adjusted by scroll delta
     static var capturedPinboardFrames: [NSManagedObjectID: CGRect] = [:]
@@ -66,7 +67,7 @@ struct OverlayRootView: View {
     static var capturedScrollOffset: CGFloat = 0
     @State private var dragPreviewWindow: DragPreviewWindow?
     @State private var isFilterPopoverPresented = false
-    
+
     private let store = ClipItemStore()
     private let overlayCoordinateSpaceName = "OverlaySpace"
     private let headerButtonSize: CGFloat = 30
@@ -78,7 +79,7 @@ struct OverlayRootView: View {
     @FetchRequest(
         sortDescriptors: [
             NSSortDescriptor(key: "displayOrder", ascending: false),
-            NSSortDescriptor(key: "createdAt", ascending: false)
+            NSSortDescriptor(key: "createdAt", ascending: false),
         ],
         predicate: NSPredicate(format: "isTransient == NO"),
         animation: .default
@@ -157,9 +158,13 @@ struct OverlayRootView: View {
                             closeSearchIfEmpty()
                             // Smart Color Selection
                             let usedColors = Set(pinboards.map { $0.colorHex })
-                            let availableColors = PinboardPalette.colors.filter { !usedColors.contains($0) }
-                            renamePinboardColor = availableColors.first ?? PinboardPalette.colors.randomElement() ?? PinboardPalette.defaultHex
-                            
+                            let availableColors = PinboardPalette.colors.filter {
+                                !usedColors.contains($0)
+                            }
+                            renamePinboardColor =
+                                availableColors.first ?? PinboardPalette.colors.randomElement()
+                                ?? PinboardPalette.defaultHex
+
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                 isCreatingPinboard = true
                             }
@@ -196,30 +201,27 @@ struct OverlayRootView: View {
                     )
                     .padding(.horizontal, headerSideWidth)
                     .frame(height: headerButtonSize, alignment: .center)
-                    .onPreferenceChange(PinboardFrameKey.self) { frames in
-                        // ALWAYS capture for static storage (used by ItemCardRow during drag)
-                        Self.capturedPinboardFrames = frames
-                        // Skip reactive state updates during drag to prevent re-render loops
-                        guard dragPreviewData == nil else { return }
-                        // Use approximate equality to avoid floating-point precision issues
-                        if !overlayFramesApproximatelyEqual(frames, pinboardFrames) {
-                            pinboardFrames = frames
+                    .onPreferenceChange(PinboardLayoutInfoKey.self) { layout in
+                        Self.capturedPinboardFrames = layout.overlayPinboardFrames
+                        Self.capturedAllPinboardFrame = layout.allOverlayFrame
+                        if let scrollOffset = layout.scrollOffset {
+                            Self.capturedScrollOffset = scrollOffset
                         }
-                    }
-                    .onPreferenceChange(PinboardAllFrameKey.self) { frame in
-                        // ALWAYS capture for static storage (used by ItemCardRow during drag)
-                        Self.capturedAllPinboardFrame = frame
-                        Self.capturedScrollOffset = PinboardTabBar.currentScrollOffset
-                        // Skip reactive state updates during drag
+
                         guard dragPreviewData == nil else { return }
-                        if !overlayRectApproximatelyEqual(frame, allPinboardFrame) {
-                            allPinboardFrame = frame
+                        if !overlayFramesApproximatelyEqual(
+                            layout.overlayPinboardFrames, pinboardFrames)
+                        {
+                            pinboardFrames = layout.overlayPinboardFrames
                         }
-                    }
-                    .onPreferenceChange(PinboardEditorFrameKey.self) { frame in
-                        guard dragPreviewData == nil else { return }
-                        if !overlayRectApproximatelyEqual(frame, pinboardEditorFrame) {
-                            pinboardEditorFrame = frame
+                        if !overlayRectApproximatelyEqual(layout.allOverlayFrame, allPinboardFrame)
+                        {
+                            allPinboardFrame = layout.allOverlayFrame
+                        }
+                        if !overlayRectApproximatelyEqual(
+                            layout.editorOverlayFrame, pinboardEditorFrame)
+                        {
+                            pinboardEditorFrame = layout.editorOverlayFrame
                         }
                     }
                     .onPreferenceChange(SearchFieldFrameKey.self) { frame in
@@ -247,11 +249,12 @@ struct OverlayRootView: View {
                                         .tint(.white)
                                         .focused($searchFocused)
                                         .frame(height: headerButtonSize)
-                                    
+
                                     // Close search button (on the right)
                                     Button(action: {
                                         isFilterPopoverPresented = false
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8))
+                                        {
                                             isSearchExpanded = false
                                             searchText = ""
                                             searchFocused = false
@@ -277,14 +280,17 @@ struct OverlayRootView: View {
                         )
                         .overlay(
                             Capsule()
-                                .stroke(Color.white.opacity(isSearchExpanded ? 0.3 : 0), lineWidth: 1)
+                                .stroke(
+                                    Color.white.opacity(isSearchExpanded ? 0.3 : 0), lineWidth: 1)
                         )
                         .frame(
                             width: isSearchExpanded ? searchExpandedWidth : searchCollapsedWidth,
                             height: headerButtonSize,
                             alignment: .leading
                         )
-                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSearchExpanded)
+                        .animation(
+                            .spring(response: 0.3, dampingFraction: 0.8), value: isSearchExpanded
+                        )
                         .background(
                             GeometryReader { proxy in
                                 Color.clear.preference(
@@ -299,7 +305,7 @@ struct OverlayRootView: View {
                     }
                     .frame(width: headerSideWidth, alignment: .leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 4) // Adjust padding
+                    .padding(.leading, 4)  // Adjust padding
 
                     // Right: Settings
                     HStack {
@@ -413,7 +419,8 @@ struct OverlayRootView: View {
         .onChange(of: dragPreviewData) { newData in
             updateDragPreviewWindow(newData)
         }
-        .alert("Accessibility Permission Required", isPresented: $viewModel.showAccessibilityAlert) {
+        .alert("Accessibility Permission Required", isPresented: $viewModel.showAccessibilityAlert)
+        {
             Button("Open System Settings") {
                 viewModel.requestAccessibility()
             }
@@ -434,7 +441,9 @@ struct OverlayRootView: View {
         }
         .onChange(of: searchFocused) { focused in
             // Close empty search when focus is lost
-            if !focused && isSearchExpanded && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if !focused && isSearchExpanded
+                && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
                 withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
                     isSearchExpanded = false
                 }
@@ -456,14 +465,14 @@ struct OverlayRootView: View {
             // Cleanup drag preview window
             dragPreviewWindow?.orderOut(nil)
             dragPreviewWindow = nil
-            
+
             // Close search on overlay close only if empty
             if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 isSearchExpanded = false
                 searchFocused = false
             }
             isFilterPopoverPresented = false
-            
+
             // Allow clean state for next time
             isCreatingPinboard = false
             renamePinboardID = nil
@@ -481,7 +490,7 @@ struct OverlayRootView: View {
             Image(systemName: emptyStateIcon)
                 .font(.system(size: 32, weight: .light))
                 .foregroundStyle(.tertiary)
-            
+
             Text(emptyStateTitle)
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.secondary)
@@ -524,7 +533,8 @@ struct OverlayRootView: View {
     }
 
     private func copyItem(_ item: ClipItem) {
-        if viewModel.selectedItemIDs.count > 1 && viewModel.selectedItemIDs.contains(item.objectID) {
+        if viewModel.selectedItemIDs.count > 1 && viewModel.selectedItemIDs.contains(item.objectID)
+        {
             copySelectedItems()
         } else {
             guard let text = item.primaryText, !text.isEmpty else { return }
@@ -536,7 +546,8 @@ struct OverlayRootView: View {
     }
 
     private func deleteItem(_ item: ClipItem) {
-        if viewModel.selectedItemIDs.count > 1 && viewModel.selectedItemIDs.contains(item.objectID) {
+        if viewModel.selectedItemIDs.count > 1 && viewModel.selectedItemIDs.contains(item.objectID)
+        {
             deleteSelectedItems()
         } else {
             do {
@@ -571,7 +582,8 @@ struct OverlayRootView: View {
     }
 
     private func pasteItem(_ item: ClipItem, plainText: Bool) {
-        if viewModel.selectedItemIDs.count > 1 && viewModel.selectedItemIDs.contains(item.objectID) {
+        if viewModel.selectedItemIDs.count > 1 && viewModel.selectedItemIDs.contains(item.objectID)
+        {
             pasteSelectedItems(plainText: plainText)
         } else {
             viewModel.paste(item: item, plainText: plainText)
@@ -665,7 +677,8 @@ struct OverlayRootView: View {
         let trimmedName = renamePinboardName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
         do {
-            try store.renamePinboard(objectID: objectID, name: trimmedName, colorHex: renamePinboardColor)
+            try store.renamePinboard(
+                objectID: objectID, name: trimmedName, colorHex: renamePinboardColor)
         } catch {
             Logger.app.error("Failed to rename pinboard: \(error.localizedDescription)")
         }
@@ -674,11 +687,13 @@ struct OverlayRootView: View {
     private func commitPinboardCreate() {
         let trimmedName = renamePinboardName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
-        
+
         do {
-            let pinboard = try store.createPinboard(name: trimmedName, colorHex: renamePinboardColor)
+            let pinboard = try store.createPinboard(
+                name: trimmedName, colorHex: renamePinboardColor)
             if let pendingPinboardItem {
-                try? store.moveItem(objectID: pendingPinboardItem.objectID, toPinboard: pinboard.objectID)
+                try? store.moveItem(
+                    objectID: pendingPinboardItem.objectID, toPinboard: pinboard.objectID)
             }
             pendingPinboardItem = nil
         } catch {
@@ -693,7 +708,8 @@ struct OverlayRootView: View {
             return
         }
         do {
-            searchResults = try store.searchItems(query: trimmed, limit: 100, pinboardID: selectedPinboardID)
+            searchResults = try store.searchItems(
+                query: trimmed, limit: 100, pinboardID: selectedPinboardID)
         } catch {
             Logger.app.error("Search failed: \(error.localizedDescription)")
             searchResults = []
@@ -759,13 +775,15 @@ struct OverlayRootView: View {
                 let bundleID = item.sourceAppBundleID
                 var icon: NSImage?
                 if let bundleID,
-                   let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+                    let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+                {
                     icon = NSWorkspace.shared.icon(forFile: url.path)
                 }
                 options[key] = AppFilterOption(id: key, name: name, bundleID: bundleID, icon: icon)
             }
         }
-        return options
+        return
+            options
             .map(\.value)
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
@@ -820,18 +838,21 @@ struct OverlayRootView: View {
 
     private func ensureValidSelection() {
         guard let selectedPinboardID,
-              let selected = pinboards.first(where: { $0.id == selectedPinboardID }),
-              selected.isSystemClipboard else { return }
+            let selected = pinboards.first(where: { $0.id == selectedPinboardID }),
+            selected.isSystemClipboard
+        else { return }
         self.selectedPinboardID = nil
     }
 
     private func beginPinboardCreate(for item: ClipItem?) {
         pendingPinboardItem = item
-        
+
         let usedColors = Set(pinboards.map { $0.colorHex })
         let availableColors = PinboardPalette.colors.filter { !usedColors.contains($0) }
-        renamePinboardColor = availableColors.first ?? PinboardPalette.colors.randomElement() ?? PinboardPalette.defaultHex
-        
+        renamePinboardColor =
+            availableColors.first ?? PinboardPalette.colors.randomElement()
+            ?? PinboardPalette.defaultHex
+
         renamePinboardName = ""
         isCreatingPinboard = true
     }
@@ -862,7 +883,9 @@ struct OverlayRootView: View {
         }
     }
 
-    private func reorderItems(_ draggedIDs: [NSManagedObjectID], _ target: ClipItem, insertBefore: Bool) {
+    private func reorderItems(
+        _ draggedIDs: [NSManagedObjectID], _ target: ClipItem, insertBefore: Bool
+    ) {
         guard viewModel.mode == .browse, !isSearchActive else { return }
 
         var ordered = filteredItems
@@ -898,11 +921,13 @@ struct OverlayRootView: View {
             item.displayOrder = baseOrder - Int64(index)
         }
     }
-    
+
     private func moveItemToPinboard(_ pinboard: Pinboard, _ idString: String) {
         guard let url = URL(string: idString),
-              let objectID = PersistenceController.shared.container.persistentStoreCoordinator.managedObjectID(forURIRepresentation: url) else { return }
-        
+            let objectID = PersistenceController.shared.container.persistentStoreCoordinator
+                .managedObjectID(forURIRepresentation: url)
+        else { return }
+
         do {
             try store.moveItem(objectID: objectID, toPinboard: pinboard.objectID)
         } catch {
@@ -925,7 +950,8 @@ struct OverlayRootView: View {
 
     private func handleDropToAll(_ item: ClipItem) {
         guard let selectedPinboardID,
-              let pinboard = pinboards.first(where: { $0.id == selectedPinboardID }) else {
+            let pinboard = pinboards.first(where: { $0.id == selectedPinboardID })
+        else {
             return
         }
 
@@ -942,8 +968,9 @@ struct OverlayRootView: View {
 
         var ordered = visiblePinboards
         guard let fromIndex = ordered.firstIndex(where: { $0.objectID == dragged.objectID }),
-              var toIndex = ordered.firstIndex(where: { $0.objectID == target.objectID }),
-              fromIndex != toIndex else { return }
+            var toIndex = ordered.firstIndex(where: { $0.objectID == target.objectID }),
+            fromIndex != toIndex
+        else { return }
 
         // If inserting after, adjust target index
         if !insertBefore {
@@ -969,7 +996,7 @@ struct OverlayRootView: View {
             pinboard.sortOrder = Int16(index)
         }
     }
-    
+
     private func finalizeReorder() {
         do {
             try store.saveChanges()
@@ -994,10 +1021,11 @@ struct OverlayRootView: View {
             viewModel.paste(item: item, plainText: modifierMonitor.isShiftPressed)
         }
     }
-    
+
     /// Closes search only if it's expanded AND the search text is empty
     private func closeSearchIfEmpty() {
-        guard isSearchExpanded, searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard isSearchExpanded, searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return }
         isFilterPopoverPresented = false
         withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
             isSearchExpanded = false
@@ -1008,10 +1036,11 @@ struct OverlayRootView: View {
     private func openSettings() {
         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
-    
+
     private func changePinboardColor(_ pinboard: Pinboard, hex: String) {
         do {
-            try store.renamePinboard(objectID: pinboard.objectID, name: pinboard.name, colorHex: hex)
+            try store.renamePinboard(
+                objectID: pinboard.objectID, name: pinboard.name, colorHex: hex)
         } catch {
             Logger.app.error("Failed to change pinboard color: \(error.localizedDescription)")
         }
@@ -1019,14 +1048,16 @@ struct OverlayRootView: View {
 
     private func handleOverlayTap(at location: CGPoint) {
         if isSearchExpanded,
-           let searchFieldFrame,
-           !searchFieldFrame.contains(location) {
+            let searchFieldFrame,
+            !searchFieldFrame.contains(location)
+        {
             closeSearchIfEmpty()
         }
 
-        guard (isCreatingPinboard || renamePinboardID != nil),
-              let pinboardEditorFrame,
-              !pinboardEditorFrame.contains(location) else { return }
+        guard isCreatingPinboard || renamePinboardID != nil,
+            let pinboardEditorFrame,
+            !pinboardEditorFrame.contains(location)
+        else { return }
 
         if isCreatingPinboard {
             commitPinboardCreate()
@@ -1041,7 +1072,8 @@ struct OverlayRootView: View {
 
     private func updateDragPreviewWindow(_ data: DragPreviewData?) {
         guard let dragPreviewWindow = dragPreviewWindow,
-              window != nil else { return }
+            window != nil
+        else { return }
 
         if let data = data {
             // Get actual mouse location in screen coordinates
@@ -1163,7 +1195,9 @@ private struct FilterPopoverView: View {
                         .foregroundStyle(.tertiary)
                 } else {
                     ScrollView(.vertical, showsIndicators: false) {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8
+                        ) {
                             ForEach(appOptions) { option in
                                 AppFilterChip(
                                     option: option,
@@ -1222,7 +1256,9 @@ private struct FilterPopoverView: View {
         }
     }
 
-    private func filterSection<Content: View>(title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
+    private func filterSection<Content: View>(
+        title: String, icon: String, @ViewBuilder content: () -> Content
+    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
@@ -1280,7 +1316,8 @@ private struct FilterChip: View {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(isSelected ? Color.black.opacity(0.9) : Color.white.opacity(0.7))
+                    .foregroundStyle(
+                        isSelected ? Color.black.opacity(0.9) : Color.white.opacity(0.7))
                 Text(title)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(isSelected ? Color.black : Color.white)
@@ -1339,7 +1376,6 @@ private struct AppFilterChip: View {
         .buttonStyle(.plain)
     }
 }
-
 
 private struct PasteStackFooterBar: View {
     let selectionCount: Int
@@ -1437,7 +1473,7 @@ private struct RenameOverlayView: View {
                 .buttonStyle(.plain)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
-                
+
                 Button("Save") {
                     onSave()
                 }
@@ -1467,11 +1503,11 @@ private struct RenameOverlayView: View {
 private struct ResizeHandleView: View {
     let window: NSWindow?
     @State private var isDragging = false
-    
+
     // Resize State
     @State private var anchorY: CGFloat = 0
     @State private var clickOffsetY: CGFloat = 0
-    
+
     var body: some View {
         VStack {
             ZStack {
@@ -1483,30 +1519,30 @@ private struct ResizeHandleView: View {
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
                         guard let window = window else { return }
-                        
+
                         // Initialize state on first drag event
                         if !isDragging {
                             isDragging = true
-                            
+
                             // Capture the "Bottom" of the window (Anchor)
                             anchorY = window.frame.minY
-                            
+
                             // Capture where the mouse is relative to the "Top" of the window
                             let currentTopY = window.frame.maxY
                             let mouseScreenY = NSEvent.mouseLocation.y
                             clickOffsetY = currentTopY - mouseScreenY
                         }
-                        
+
                         let mouseScreenY = NSEvent.mouseLocation.y
                         let targetTopY = mouseScreenY + clickOffsetY
                         let newHeight = targetTopY - anchorY
-                        
+
                         // Clamp
                         let screenHeight = window.screen?.visibleFrame.height ?? 800
                         let maxHeight = min(screenHeight - 50, 450)
                         let minHeight: CGFloat = 280
                         let clamped = min(max(minHeight, newHeight), maxHeight)
-                        
+
                         var frame = window.frame
                         if frame.size.height != clamped {
                             frame.size.height = clamped

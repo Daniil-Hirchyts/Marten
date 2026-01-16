@@ -5,7 +5,8 @@
       "Bash(find:*)",
       "Bash(xcodebuild:*)",
       "Bash(git checkout:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(wc:*)"
     ]
   }
 }

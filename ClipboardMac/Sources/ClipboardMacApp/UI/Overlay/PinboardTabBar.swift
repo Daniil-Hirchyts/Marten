@@ -4,8 +4,6 @@ import CoreData
 import OSLog
 import SwiftUI
 
-
-
 struct PinboardTabBar: View {
     private let tabSpacing: CGFloat = 12
     private let placeholderWidth: CGFloat = 3
@@ -39,6 +37,8 @@ struct PinboardTabBar: View {
     let onCancel: () -> Void
     let coordinateSpaceName: String
 
+    private static let allTabObjectID = NSManagedObjectID()
+
     @FocusState private var isFocused: Bool
 
     private enum CommitState {
@@ -48,38 +48,33 @@ struct PinboardTabBar: View {
         case suppress
     }
 
-    // Unified frame manager - handles all frame storage, caching, and computation
     @StateObject private var frameManager = PinboardFrameManager()
 
     @State private var dragState: PinboardTabDragState?
     @State private var dragOpacity: Double = 0
     @State private var dropTarget: PinboardTabDropTarget?
     @State private var commitState: CommitState = .none
-    @State private var trailingTabWidth: CGFloat = 40 // Default or estimated
+    @State private var trailingTabWidth: CGFloat = 40
 
-    // Public accessor for OverlayRootView to capture scroll offset
     static var currentScrollOffset: CGFloat {
         _currentScrollOffset
     }
     private static var _currentScrollOffset: CGFloat = 0
 
-    private let contentSpaceName = "PinboardContentSpace"
     private var canReorder: Bool {
         editingID == nil && !isCreating
     }
 
-    private let maxScrollableWidthRatio: CGFloat = 1 // Maximum width as percentage of overlay width
-    private let estimatedTabWidth: CGFloat = 90 // Estimated average tab width
-    private let scrollContentPadding: CGFloat = 20 // Padding on each side inside scroll
-    
-    // Computed property for estimated content width based on number of pinboards (including All)
+    private let maxScrollableWidthRatio: CGFloat = 1
+    private let estimatedTabWidth: CGFloat = 90
+    private let scrollContentPadding: CGFloat = 20
+
     private var estimatedContentWidth: CGFloat {
-        let count = CGFloat(pinboards.count + 1) // +1 for "All" tab
+        let count = CGFloat(pinboards.count + 1)
         if count == 0 { return 0 }
         return (count * estimatedTabWidth) + ((count - 1) * tabSpacing)
     }
 
-    // Use actual measured width if available, otherwise estimate
     private var actualContentWidth: CGFloat {
         frameManager.contentWidth > 0 ? frameManager.contentWidth : estimatedContentWidth
     }
@@ -96,10 +91,6 @@ struct PinboardTabBar: View {
         proxy.frame(in: .named(coordinateSpaceName))
     }
 
-    private func contentFrame(from proxy: GeometryProxy) -> CGRect {
-        proxy.frame(in: .named(contentSpaceName))
-    }
-
     private func localFrame(from proxy: GeometryProxy) -> CGRect {
         proxy.frame(in: .named(localCoordinateSpaceName))
     }
@@ -114,11 +105,10 @@ struct PinboardTabBar: View {
     var body: some View {
         GeometryReader { proxy in
             HStack(spacing: tabSpacing) {
-                // Scrollable Pinboards (including "All" tab) - adapts to content width up to max
                 ScrollView(.horizontal, showsIndicators: false) {
                     pinboardsContent(isMeasuring: false)
+                        .fixedSize(horizontal: true, vertical: false)
                         .padding(.horizontal, scrollContentPadding)
-                        .coordinateSpace(name: contentSpaceName)
                 }
                 .coordinateSpace(name: scrollSpaceName)
                 .frame(width: scrollViewWidth(parentWidth: proxy.size.width))
@@ -128,14 +118,13 @@ struct PinboardTabBar: View {
                             .init(color: .clear, location: 0),
                             .init(color: .black, location: 0.025),
                             .init(color: .black, location: 0.975),
-                            .init(color: .clear, location: 1)
+                            .init(color: .clear, location: 1),
                         ]),
                         startPoint: .leading,
                         endPoint: .trailing
                     )
                 )
 
-                // Fixed Creation View
                 ZStack(alignment: .leading) {
                     if isCreating {
                         editorView(pinboard: nil)
@@ -155,13 +144,13 @@ struct PinboardTabBar: View {
                 .background(
                     GeometryReader { proxy in
                         Color.clear.preference(
-                            key: PinboardEditorFrameKey.self,
-                            value: overlayFrame(from: proxy)
+                            key: PinboardLayoutInfoKey.self,
+                            value: PinboardLayoutInfo(editorOverlayFrame: overlayFrame(from: proxy))
                         )
                     }
                 )
             }
-            .fixedSize(horizontal: true, vertical: false) // Let HStack take only the width it needs
+            .fixedSize(horizontal: true, vertical: false)
             .coordinateSpace(name: localCoordinateSpaceName)
             .overlay(alignment: .topLeading) {
                 placeholderView()
@@ -169,25 +158,19 @@ struct PinboardTabBar: View {
             .overlay(alignment: .topLeading) {
                 dragPreviewView()
             }
-            .frame(maxWidth: .infinity, alignment: .center) // Center the whole bar
+            .frame(maxWidth: .infinity, alignment: .center)
         }
-        .onPreferenceChange(TabFrameKey.self) { frames in
-            // Suppress updates during drag to prevent re-render loops
+        .onPreferenceChange(PinboardLayoutInfoKey.self) { layout in
             frameManager.suppressUpdates = (dragState != nil || isGlobalDragActive)
-            frameManager.updateTabFrames(frames, tabSpacing: tabSpacing)
-        }
-        .onPreferenceChange(LocalTabFrameKey.self) { frames in
-            // Suppress updates during drag to prevent re-render loops
-            frameManager.suppressUpdates = (dragState != nil || isGlobalDragActive)
-            frameManager.updateLocalTabFrames(frames)
-        }
-        .onPreferenceChange(ScrollOffsetKey.self) { offset in
-            // Store scroll offset and update static accessor
-            frameManager.updateScrollOffset(offset)
-            Self._currentScrollOffset = offset
-        }
-        .onPreferenceChange(PinboardEditorFrameKey.self) { rect in
-             if let w = rect?.width { trailingTabWidth = w }
+            if !layout.tabFrames.isEmpty {
+                frameManager.updateTabFrames(layout.tabFrames)
+            }
+            if let offset = layout.scrollOffset {
+                Self._currentScrollOffset = offset
+            }
+            if let w = layout.editorOverlayFrame?.width {
+                trailingTabWidth = w
+            }
         }
         .onChange(of: draftName) { newValue in
             let clamped = String(newValue.prefix(maxPinboardNameLength))
@@ -196,7 +179,6 @@ struct PinboardTabBar: View {
             }
         }
         .onChange(of: pinboards.count) { _ in
-            // Re-enable frame reporting when pinboards change
             frameManager.shouldReportFrames = true
         }
     }
@@ -204,8 +186,10 @@ struct PinboardTabBar: View {
     @ViewBuilder
     private func pinboardsContent(isMeasuring: Bool) -> some View {
         HStack(spacing: tabSpacing) {
-            // "All" tab as first item in the list
-            PinboardTab(title: "All", iconName: "tray", colorHex: nil, isSelected: selectedID == nil, minWidth: 60, maxWidth: maxTabWidth) {
+            PinboardTab(
+                title: "All", iconName: "tray", colorHex: nil, isSelected: selectedID == nil,
+                minWidth: 60, maxWidth: maxTabWidth
+            ) {
                 onSelect(nil)
             }
             .background(
@@ -213,34 +197,34 @@ struct PinboardTabBar: View {
                     if !isMeasuring {
                         let overlayFrame = overlayFrame(from: proxy)
                         let minX = proxy.frame(in: .named(scrollSpaceName)).minX
-                        
-                        // Always report overlay frame and scroll offset (for card drop detection)
-                        // Only report internal frames when needed (for pinboard reordering)
+
                         if frameManager.shouldReportFrames {
-                            let contentFrame = contentFrame(from: proxy)
                             let barLocalFrame = localFrame(from: proxy)
-                            
-                            Color.clear
-                                .preference(key: TabFrameKey.self, value: [NSManagedObjectID(): contentFrame])
-                                .preference(key: LocalTabFrameKey.self, value: [NSManagedObjectID(): barLocalFrame])
-                                .preference(key: PinboardAllFrameKey.self, value: overlayFrame)
-                                .preference(key: ScrollOffsetKey.self, value: minX)
+
+                            Color.clear.preference(
+                                key: PinboardLayoutInfoKey.self,
+                                value: PinboardLayoutInfo(
+                                    tabFrames: [Self.allTabObjectID: barLocalFrame],
+                                    allOverlayFrame: overlayFrame,
+                                    scrollOffset: minX
+                                )
+                            )
                         } else {
-                            // Always report overlay frame and scroll offset (stored non-reactively)
-                            Color.clear
-                                .preference(key: PinboardAllFrameKey.self, value: overlayFrame)
-                                .preference(key: ScrollOffsetKey.self, value: minX)
+                            Color.clear.preference(
+                                key: PinboardLayoutInfoKey.self,
+                                value: PinboardLayoutInfo(
+                                    allOverlayFrame: overlayFrame, scrollOffset: minX)
+                            )
                         }
                     }
                 }
             )
-            
-            // Other pinboards
+
             ForEach(Array(pinboards.enumerated()), id: \.element.objectID) { index, pinboard in
                 if editingID == pinboard.objectID {
                     editorView(pinboard: pinboard)
                 } else {
-                    pinboardView(pinboard: pinboard, index: index + 1, isMeasuring: isMeasuring) // +1 because "All" is index 0
+                    pinboardView(pinboard: pinboard, index: index + 1, isMeasuring: isMeasuring)
                 }
             }
         }
@@ -261,7 +245,6 @@ struct PinboardTabBar: View {
             }
 
             ZStack(alignment: .leading) {
-                // Auto-sizing hidden text
                 Text(draftName.isEmpty ? "Name" : draftName)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.clear)
@@ -286,7 +269,6 @@ struct PinboardTabBar: View {
                 .foregroundColor(.white)
                 .accentColor(.white)
                 .focused($isFocused)
-                // Ensure focus on appear
                 .onAppear {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                         isFocused = true
@@ -300,56 +282,62 @@ struct PinboardTabBar: View {
         .padding(.horizontal, tabHorizontalPadding)
         .background(Color.white.opacity(0.15))
         .clipShape(Capsule())
-        // Focus border
         .overlay(
-             Capsule()
-                 .stroke(Color.white.opacity(isFocused ? 0.3 : 0), lineWidth: 1)
+            Capsule()
+                .stroke(Color.white.opacity(isFocused ? 0.3 : 0), lineWidth: 1)
         )
-        // Fixed height, dynamic width
         .fixedSize(horizontal: true, vertical: false)
         .frame(maxWidth: maxTabWidth, alignment: .leading)
         .frame(height: headerButtonSize)
         .background(
             GeometryReader { proxy in
                 Color.clear.preference(
-                    key: PinboardEditorFrameKey.self,
-                    value: overlayFrame(from: proxy)
+                    key: PinboardLayoutInfoKey.self,
+                    value: PinboardLayoutInfo(editorOverlayFrame: overlayFrame(from: proxy))
                 )
             }
         )
     }
 
     @ViewBuilder
-    private func pinboardView(pinboard: Pinboard, index: Int, isMeasuring: Bool = false) -> some View {
+    private func pinboardView(pinboard: Pinboard, index: Int, isMeasuring: Bool = false)
+        -> some View
+    {
         let isDragging = dragState?.itemID == pinboard.objectID
-        
-        let base = PinboardTab(title: pinboard.name, colorHex: pinboard.colorHex, isSelected: selectedID == pinboard.id, maxWidth: maxTabWidth) {
+
+        let base = PinboardTab(
+            title: pinboard.name, colorHex: pinboard.colorHex,
+            isSelected: selectedID == pinboard.id, maxWidth: maxTabWidth
+        ) {
             onSelect(pinboard.id)
         }
         .opacity(isDragging ? 0.25 : 1)
         .background(
-             GeometryReader { proxy in
-                  if !isMeasuring {
-                      let overlayFrame = overlayFrame(from: proxy)
-                      
-                      // Always report overlay frame (for card drop detection)
-                      // Only report internal frames when needed (for pinboard reordering)
-                      if frameManager.shouldReportFrames {
-                          let contentFrame = contentFrame(from: proxy)
-                          let localFrame = localFrame(from: proxy)
-                          
-                          Color.clear
-                             .preference(key: TabFrameKey.self, value: [pinboard.objectID: contentFrame])
-                             .preference(key: LocalTabFrameKey.self, value: [pinboard.objectID: localFrame])
-                             .preference(key: PinboardFrameKey.self, value: [pinboard.objectID: overlayFrame])
-                      } else {
-                          // Always report overlay frame (stored non-reactively for card drops)
-                          Color.clear
-                             .preference(key: PinboardFrameKey.self, value: [pinboard.objectID: overlayFrame])
-                      }
-                  }
-             }
-         )
+            GeometryReader { proxy in
+                if !isMeasuring {
+                    let overlayFrame = overlayFrame(from: proxy)
+
+                    if frameManager.shouldReportFrames {
+                        let localFrame = localFrame(from: proxy)
+
+                        Color.clear.preference(
+                            key: PinboardLayoutInfoKey.self,
+                            value: PinboardLayoutInfo(
+                                tabFrames: [pinboard.objectID: localFrame],
+                                overlayPinboardFrames: [pinboard.objectID: overlayFrame]
+                            )
+                        )
+                    } else {
+                        Color.clear.preference(
+                            key: PinboardLayoutInfoKey.self,
+                            value: PinboardLayoutInfo(overlayPinboardFrames: [
+                                pinboard.objectID: overlayFrame
+                            ])
+                        )
+                    }
+                }
+            }
+        )
         .contextMenu {
             PinboardContextMenu(
                 canEdit: !pinboard.isSystemClipboard,
@@ -367,7 +355,6 @@ struct PinboardTabBar: View {
     }
 
     private func dragGesture(for pinboard: Pinboard, index: Int) -> some Gesture {
-        // Use local coordinate space for stable positioning during scroll
         DragGesture(minimumDistance: 2, coordinateSpace: .named(localCoordinateSpaceName))
             .onChanged { value in
                 handleDragChanged(pinboard: pinboard, value: value)
@@ -384,42 +371,33 @@ struct PinboardTabBar: View {
             return
         }
 
-        // Current pointer location in local coordinate space
         let localPointer = CGPoint(
             x: value.startLocation.x + value.translation.width,
             y: value.startLocation.y + value.translation.height
         )
 
         if dragState == nil {
-            // Get frames from non-reactive storage (always up to date)
-            guard let localFrame = frameManager.latestLocalTabFrames[pinboard.objectID],
-                  let contentFrame = frameManager.latestTabFrames[pinboard.objectID] else {
+            guard let localFrame = frameManager.latestTabFrames[pinboard.objectID] else {
                 return
             }
 
-            // Use handler to begin drag
             let handler = PinboardDragHandler(pinboards: pinboards, tabSpacing: tabSpacing)
-            guard let result = handler.beginDrag(
-                pinboard: pinboard,
-                at: localPointer,
-                localFrame: localFrame,
-                contentFrame: contentFrame,
-                scrollOffset: frameManager.scrollOffset,
-                tabFrames: frameManager.latestTabFrames,
-                localTabFrames: frameManager.latestLocalTabFrames
-            ) else {
+            guard
+                let result = handler.beginDrag(
+                    pinboard: pinboard,
+                    at: localPointer,
+                    localFrame: localFrame,
+                    tabFrames: frameManager.latestTabFrames
+                )
+            else {
                 return
             }
 
             dragState = result.dragState
-            frameManager.setCachedFrames(
-                orderedFrames: result.cachedOrderedFrames,
-                localOrderedFrames: result.cachedLocalOrderedFrames
-            )
+            frameManager.setCachedOrderedFrames(result.cachedOrderedFrames)
             dragOpacity = 1
 
-            // Compute initial drop target
-            if let cachedLocal = frameManager.cachedLocalOrderedFrames {
+            if let cachedLocal = frameManager.cachedOrderedFrames {
                 dropTarget = handler.computeDropTarget(
                     location: localPointer,
                     draggedID: pinboard.objectID,
@@ -427,15 +405,14 @@ struct PinboardTabBar: View {
                 )
             }
         } else {
-            // Use handler to update drag
             guard let currentDragState = dragState,
-                  let cachedLocal = frameManager.cachedLocalOrderedFrames else { return }
+                let cachedLocal = frameManager.cachedOrderedFrames
+            else { return }
             let handler = PinboardDragHandler(pinboards: pinboards, tabSpacing: tabSpacing)
             let result = handler.updateDrag(
                 currentState: currentDragState,
                 translation: value.translation,
                 newLocation: localPointer,
-                localTabFrames: frameManager.localTabFrames,
                 cachedLocalOrderedFrames: cachedLocal
             )
 
@@ -443,16 +420,16 @@ struct PinboardTabBar: View {
             dropTarget = result.dropTarget
         }
     }
-    
+
     private func handleDragEnded(pinboard: Pinboard, value: DragGesture.Value) {
         guard canReorder,
-              let dragState,
-              dragState.itemID == pinboard.objectID,
-              let cachedLocal = frameManager.cachedLocalOrderedFrames else {
+            let dragState,
+            dragState.itemID == pinboard.objectID,
+            let cachedLocal = frameManager.cachedOrderedFrames
+        else {
             return
         }
 
-        // Use handler to end drag
         let handler = PinboardDragHandler(pinboards: pinboards, tabSpacing: tabSpacing)
         if let result = handler.endDrag(state: dragState, cachedLocalOrderedFrames: cachedLocal) {
             onReorder(result.draggedItem, result.targetItem, result.insertBefore)
@@ -463,7 +440,6 @@ struct PinboardTabBar: View {
     }
 
     private func endDrag(for itemID: NSManagedObjectID) {
-        // Animate out
         withAnimation(.easeOut(duration: 0.1)) {
             dropTarget = nil
             dragOpacity = 0
@@ -494,9 +470,7 @@ struct PinboardTabBar: View {
             case .none:
                 break
             }
-            
-            // Only commit if the user clicked elsewhere in the active window.
-            // If the window is not visible or not key, we assume the overlay is closing/inactive, so we cancel.
+
             if let window = NSApp.windows.first(where: { $0.isKeyWindow }), window.isVisible {
                 onCommit()
             } else {
@@ -514,9 +488,9 @@ struct PinboardTabBar: View {
     @ViewBuilder
     private func placeholderView() -> some View {
         if let dropTarget,
-           let localFrame = frameManager.latestLocalTabFrames[dropTarget.item.objectID] {
+            let localFrame = frameManager.latestTabFrames[dropTarget.item.objectID]
+        {
             let height = max(0, localFrame.height)
-            // placeholderX is now calculated directly in local-space
             RoundedRectangle(cornerRadius: 2)
                 .fill(Color.white.opacity(0.5))
                 .frame(width: placeholderWidth, height: height)
@@ -528,12 +502,12 @@ struct PinboardTabBar: View {
     @ViewBuilder
     private func dragPreviewView() -> some View {
         if let dragState,
-           let draggedItem = pinboards.first(where: { $0.objectID == dragState.itemID }),
-           let localFrame = frameManager.latestLocalTabFrames[draggedItem.objectID] {
+            let draggedItem = pinboards.first(where: { $0.objectID == dragState.itemID }),
+            let localFrame = frameManager.latestTabFrames[draggedItem.objectID]
+        {
             PinboardTabPreview(title: draggedItem.name, colorHex: draggedItem.colorHex)
                 .frame(width: localFrame.width, height: localFrame.height)
                 .position(
-                    // Position at cursor minus the initial offset from cursor to center
                     x: dragState.pointerLocation.x - dragState.cursorOffset.width,
                     y: dragState.pointerLocation.y - dragState.cursorOffset.height
                 )
@@ -541,78 +515,6 @@ struct PinboardTabBar: View {
                 .animation(.easeOut(duration: 0.1), value: dragOpacity)
                 .allowsHitTesting(false)
         }
-    }
-}
-
-struct TabFrameKey: PreferenceKey {
-    static var defaultValue: [NSManagedObjectID: CGRect] = [:]
-
-    static func reduce(value: inout [NSManagedObjectID: CGRect], nextValue: () -> [NSManagedObjectID: CGRect]) {
-        value.merge(nextValue(), uniquingKeysWith: { $1 })
-    }
-}
-
-private struct LocalTabFrameKey: PreferenceKey {
-    static var defaultValue: [NSManagedObjectID: CGRect] = [:]
-
-    static func reduce(value: inout [NSManagedObjectID: CGRect], nextValue: () -> [NSManagedObjectID: CGRect]) {
-        value.merge(nextValue(), uniquingKeysWith: { $1 })
-    }
-}
-
-struct PinboardFrameKey: PreferenceKey {
-    static var defaultValue: [NSManagedObjectID: CGRect] = [:]
-
-    static func reduce(value: inout [NSManagedObjectID: CGRect], nextValue: () -> [NSManagedObjectID: CGRect]) {
-        value.merge(nextValue(), uniquingKeysWith: { $1 })
-    }
-}
-
-struct PinboardAllFrameKey: PreferenceKey {
-    static var defaultValue: CGRect? = nil
-
-    static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
-        value = nextValue() ?? value
-    }
-}
-
-struct PinboardEditorFrameKey: PreferenceKey {
-    static var defaultValue: CGRect? = nil
-
-    static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
-        value = nextValue() ?? value
-    }
-}
-
-private struct DragState: Equatable {
-    let itemID: NSManagedObjectID
-    var pointerLocation: CGPoint
-    // Local-space center for stable drag preview positioning
-    let localBaseCenter: CGPoint
-    // Content-space center for drop target calculations
-    let contentBaseCenter: CGPoint
-    // Scroll offset when drag started (frozen during drag)
-    let initialScrollOffset: CGFloat
-    var translation: CGSize
-    // Offset from cursor to item center at drag start
-    let cursorOffset: CGSize
-    
-    static func == (lhs: DragState, rhs: DragState) -> Bool {
-        lhs.itemID == rhs.itemID &&
-        lhs.pointerLocation == rhs.pointerLocation &&
-        lhs.translation == rhs.translation
-    }
-}
-
-private struct DropTarget: Equatable {
-    let item: Pinboard
-    let insertBefore: Bool
-    let placeholderX: CGFloat
-
-    static func == (lhs: DropTarget, rhs: DropTarget) -> Bool {
-        lhs.item.objectID == rhs.item.objectID &&
-            lhs.insertBefore == rhs.insertBefore &&
-            lhs.placeholderX == rhs.placeholderX
     }
 }
 
@@ -667,20 +569,5 @@ private struct PinboardTabPreview: View {
         .allowsHitTesting(false)
         .opacity(0.9)
         .scaleEffect(0.96)
-    }
-}
-
-private struct ScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 20 // Default to scrollContentPadding
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        // Take the actual value from "All" tab (only item that reports)
-        value = nextValue()
-    }
-}
-
-private struct ContentWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }
