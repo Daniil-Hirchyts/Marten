@@ -39,21 +39,17 @@ private func overlayRectApproximatelyEqual(
 
 struct OverlayRootView: View {
     @EnvironmentObject private var viewModel: OverlayViewModel
-    @State private var searchText = ""
     @State private var renamePinboardID: NSManagedObjectID?
     @State private var renamePinboardName = ""
     @State private var renamePinboardColor = PinboardPalette.defaultHex
     @State private var isCreatingPinboard = false
     @State private var pendingPinboardItem: ClipItem?
     @State private var renameItemID: NSManagedObjectID?
-    @State private var searchResults: [ClipItem] = []
     @FocusState private var searchFocused: Bool
     @StateObject private var modifierMonitor = ModifierKeyMonitor()
+    @StateObject private var searchModel = OverlaySearchViewModel()
     @State private var window: NSWindow?
     @State private var isSearchExpanded = false
-    @State private var searchDateFilter: SearchDateFilter = .any
-    @State private var searchTypeFilters: Set<ItemType> = []
-    @State private var searchAppFilters: Set<String> = []
     @State private var pinboardFrames: [NSManagedObjectID: CGRect] = [:]
     @State private var allPinboardFrame: CGRect?
     @State private var pinboardEditorFrame: CGRect?
@@ -99,21 +95,13 @@ struct OverlayRootView: View {
             guard let selectedPinboardID else { return true }
             return item.pinboards?.contains(where: { $0.id == selectedPinboardID }) ?? false
         }
-        let baseList = isSearchTextActive ? searchResults : Array(baseItems)
-        let filtered = applySearchFilters(to: baseList)
+        let baseList = searchModel.isSearchTextActive ? searchModel.searchResults : Array(baseItems)
+        let filtered = searchModel.applyFilters(to: baseList)
         return sortItems(filtered)
     }
 
     private var isSearchActive: Bool {
-        isSearchTextActive || hasActiveFilters
-    }
-
-    private var isSearchTextActive: Bool {
-        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var hasActiveFilters: Bool {
-        searchDateFilter != .any || !searchTypeFilters.isEmpty || !searchAppFilters.isEmpty
+        searchModel.isSearchActive
     }
 
     private var visiblePinboards: [Pinboard] {
@@ -242,7 +230,7 @@ struct OverlayRootView: View {
 
                             if isSearchExpanded {
                                 HStack(spacing: 6) {
-                                    TextField("Search", text: $searchText)
+                                    TextField("Search", text: $searchModel.searchText)
                                         .textFieldStyle(.plain)
                                         .font(.system(size: 13))
                                         .foregroundStyle(.white)
@@ -256,7 +244,7 @@ struct OverlayRootView: View {
                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8))
                                         {
                                             isSearchExpanded = false
-                                            searchText = ""
+                                            searchModel.searchText = ""
                                             searchFocused = false
                                         }
                                     }) {
@@ -428,11 +416,11 @@ struct OverlayRootView: View {
         } message: {
             Text("Paste needs Accessibility permission to paste into other apps.")
         }
-        .onChange(of: searchText) { _ in
-            updateSearchResults()
-        }
-        .onChange(of: selectedPinboardID) { _ in
-            updateSearchResults()
+        .onChange(of: selectedPinboardID) { newValue in
+            searchModel.setSelectedPinboardID(newValue)
+            if isFilterPopoverPresented {
+                searchModel.updateAppOptions(from: Array(items), selectedPinboardID: newValue)
+            }
         }
         .onChange(of: isSearchExpanded) { expanded in
             if !expanded {
@@ -442,7 +430,7 @@ struct OverlayRootView: View {
         .onChange(of: searchFocused) { focused in
             // Close empty search when focus is lost
             if !focused && isSearchExpanded
-                && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && searchModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
                 withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
                     isSearchExpanded = false
@@ -453,6 +441,7 @@ struct OverlayRootView: View {
             searchFocused = true
             modifierMonitor.start()
             ensureValidSelection()
+            searchModel.setSelectedPinboardID(selectedPinboardID)
 
             // Initialize drag preview window
             if dragPreviewWindow == nil {
@@ -467,7 +456,7 @@ struct OverlayRootView: View {
             dragPreviewWindow = nil
 
             // Close search on overlay close only if empty
-            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if searchModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 isSearchExpanded = false
                 searchFocused = false
             }
@@ -479,6 +468,12 @@ struct OverlayRootView: View {
         }
         .onChange(of: pinboards.count) { _ in
             ensureValidSelection()
+        }
+        .onChange(of: items.count) { _ in
+            if isFilterPopoverPresented {
+                searchModel.updateAppOptions(
+                    from: Array(items), selectedPinboardID: selectedPinboardID)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .overlayDidShow)) { _ in
             searchFocused = true
@@ -521,8 +516,8 @@ struct OverlayRootView: View {
 
     private var emptyStateText: String {
         if isSearchActive {
-            if isSearchTextActive {
-                return "No results for \"\(searchText)\". Try another keyword."
+            if searchModel.isSearchTextActive {
+                return "No results for \"\(searchModel.searchText)\". Try another keyword."
             }
             return "No results for the current filters."
         }
@@ -701,93 +696,6 @@ struct OverlayRootView: View {
         }
     }
 
-    private func updateSearchResults() {
-        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            searchResults = []
-            return
-        }
-        do {
-            searchResults = try store.searchItems(
-                query: trimmed, limit: 100, pinboardID: selectedPinboardID)
-        } catch {
-            Logger.app.error("Search failed: \(error.localizedDescription)")
-            searchResults = []
-        }
-    }
-
-    private func applySearchFilters(to items: [ClipItem]) -> [ClipItem] {
-        guard hasActiveFilters else { return items }
-        return items.filter { item in
-            if !matchesDateFilter(item) {
-                return false
-            }
-            if !searchTypeFilters.isEmpty, !searchTypeFilters.contains(item.itemTypeValue) {
-                return false
-            }
-            if !searchAppFilters.isEmpty {
-                guard let key = appFilterKey(for: item) else { return false }
-                if !searchAppFilters.contains(key) {
-                    return false
-                }
-            }
-            return true
-        }
-    }
-
-    private func matchesDateFilter(_ item: ClipItem) -> Bool {
-        switch searchDateFilter {
-        case .any:
-            return true
-        case .today:
-            return Calendar.current.isDateInToday(item.createdAt)
-        case .last7Days:
-            return item.createdAt >= dateCutoff(days: 7)
-        case .last30Days:
-            return item.createdAt >= dateCutoff(days: 30)
-        }
-    }
-
-    private func dateCutoff(days: Int) -> Date {
-        Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date.distantPast
-    }
-
-    private func appFilterKey(for item: ClipItem) -> String? {
-        if let bundleID = item.sourceAppBundleID, !bundleID.isEmpty {
-            return bundleID
-        }
-        if let name = item.sourceAppName, !name.isEmpty {
-            return name
-        }
-        return nil
-    }
-
-    private var appFilterOptions: [AppFilterOption] {
-        let baseItems = items.filter { item in
-            guard let selectedPinboardID else { return true }
-            return item.pinboards?.contains(where: { $0.id == selectedPinboardID }) ?? false
-        }
-        var options: [String: AppFilterOption] = [:]
-        for item in baseItems {
-            guard let key = appFilterKey(for: item) else { continue }
-            let name = item.sourceAppName?.isEmpty == false ? item.sourceAppName! : key
-            if options[key] == nil {
-                let bundleID = item.sourceAppBundleID
-                var icon: NSImage?
-                if let bundleID,
-                    let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
-                {
-                    icon = NSWorkspace.shared.icon(forFile: url.path)
-                }
-                options[key] = AppFilterOption(id: key, name: name, bundleID: bundleID, icon: icon)
-            }
-        }
-        return
-            options
-            .map(\.value)
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-    }
-
     private var searchIcon: some View {
         ZStack {
             Circle()
@@ -799,7 +707,7 @@ struct OverlayRootView: View {
                 .font(.system(size: headerButtonIconSize, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            if hasActiveFilters {
+            if searchModel.hasActiveFilters {
                 Circle()
                     .fill(Color.white.opacity(0.9))
                     .frame(width: 6, height: 6)
@@ -811,16 +719,20 @@ struct OverlayRootView: View {
 
     private var searchFilterPopover: some View {
         FilterPopoverView(
-            dateFilter: $searchDateFilter,
-            typeFilters: $searchTypeFilters,
-            appFilters: $searchAppFilters,
-            appOptions: appFilterOptions,
-            onClear: clearSearchFilters
+            dateFilter: $searchModel.dateFilter,
+            typeFilters: $searchModel.typeFilters,
+            appFilters: $searchModel.appFilters,
+            appOptions: searchModel.appOptions,
+            onClear: searchModel.clearFilters
         )
     }
 
     private func handleSearchButtonTap() {
         if isSearchExpanded {
+            if !isFilterPopoverPresented {
+                searchModel.updateAppOptions(
+                    from: Array(items), selectedPinboardID: selectedPinboardID)
+            }
             isFilterPopoverPresented.toggle()
         } else {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -828,12 +740,6 @@ struct OverlayRootView: View {
                 searchFocused = true
             }
         }
-    }
-
-    private func clearSearchFilters() {
-        searchDateFilter = .any
-        searchTypeFilters.removeAll()
-        searchAppFilters.removeAll()
     }
 
     private func ensureValidSelection() {
@@ -940,8 +846,8 @@ struct OverlayRootView: View {
             try store.moveItem(objectID: item.objectID, toPinboard: pinboardID)
             viewModel.clearSelection()
             // Update search results if search is active to reflect the change
-            if isSearchTextActive {
-                updateSearchResults()
+            if searchModel.isSearchTextActive {
+                searchModel.refreshSearchNow()
             }
         } catch {
             Logger.app.error("Failed to move item to pinboard: \(error.localizedDescription)")
@@ -1024,7 +930,8 @@ struct OverlayRootView: View {
 
     /// Closes search only if it's expanded AND the search text is empty
     private func closeSearchIfEmpty() {
-        guard isSearchExpanded, searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard isSearchExpanded,
+            searchModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return }
         isFilterPopoverPresented = false
         withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
@@ -1101,279 +1008,6 @@ private struct SearchFieldFrameKey: PreferenceKey {
 
     static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
         value = nextValue() ?? value
-    }
-}
-
-private enum SearchDateFilter: String, CaseIterable, Identifiable {
-    case any
-    case today
-    case last7Days
-    case last30Days
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .any:
-            return "Any time"
-        case .today:
-            return "Today"
-        case .last7Days:
-            return "Last 7 days"
-        case .last30Days:
-            return "Last 30 days"
-        }
-    }
-}
-
-private struct AppFilterOption: Identifiable {
-    let id: String
-    let name: String
-    let bundleID: String?
-    let icon: NSImage?
-}
-
-private struct FilterPopoverView: View {
-    @Binding var dateFilter: SearchDateFilter
-    @Binding var typeFilters: Set<ItemType>
-    @Binding var appFilters: Set<String>
-    let appOptions: [AppFilterOption]
-    let onClear: () -> Void
-
-    private let popoverWidth: CGFloat = 360
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Text("Filters")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.primary)
-
-                Spacer()
-
-                Button("Clear all") {
-                    onClear()
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(hasActiveFilters ? .secondary : .tertiary)
-                .disabled(!hasActiveFilters)
-            }
-
-            filterSection(title: "Date", icon: "calendar") {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
-                    ForEach(SearchDateFilter.allCases) { filter in
-                        FilterChip(
-                            title: filter.title,
-                            icon: dateIcon(for: filter),
-                            isSelected: dateFilter == filter
-                        ) {
-                            dateFilter = filter
-                        }
-                    }
-                }
-            }
-
-            filterSection(title: "Type", icon: "square.3.layers.3d") {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
-                    ForEach(ItemType.allCases, id: \.self) { type in
-                        FilterChip(
-                            title: itemTypeLabel(type),
-                            icon: itemTypeIcon(type),
-                            isSelected: typeFilters.contains(type)
-                        ) {
-                            toggleType(type)
-                        }
-                    }
-                }
-            }
-
-            filterSection(title: "App", icon: "app.dashed") {
-                if appOptions.isEmpty {
-                    Text("No apps found")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                } else {
-                    ScrollView(.vertical, showsIndicators: false) {
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8
-                        ) {
-                            ForEach(appOptions) { option in
-                                AppFilterChip(
-                                    option: option,
-                                    isSelected: appFilters.contains(option.id)
-                                ) {
-                                    toggleApp(option.id)
-                                }
-                            }
-                        }
-                        .padding(.vertical, 2)
-                    }
-                    .frame(maxHeight: 160)
-                }
-            }
-        }
-        .padding(16)
-        .frame(width: popoverWidth)
-    }
-
-    private var hasActiveFilters: Bool {
-        dateFilter != .any || !typeFilters.isEmpty || !appFilters.isEmpty
-    }
-
-    private func toggleType(_ type: ItemType) {
-        if typeFilters.contains(type) {
-            typeFilters.remove(type)
-        } else {
-            typeFilters.insert(type)
-        }
-    }
-
-    private func toggleApp(_ id: String) {
-        if appFilters.contains(id) {
-            appFilters.remove(id)
-        } else {
-            appFilters.insert(id)
-        }
-    }
-
-    private func itemTypeLabel(_ type: ItemType) -> String {
-        switch type {
-        case .text:
-            return "Text"
-        case .richText:
-            return "Rich Text"
-        case .image:
-            return "Image"
-        case .file:
-            return "File"
-        case .url:
-            return "URL"
-        case .code:
-            return "Code"
-        case .mixed:
-            return "Mixed"
-        }
-    }
-
-    private func filterSection<Content: View>(
-        title: String, icon: String, @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-            content()
-        }
-    }
-
-    private func dateIcon(for filter: SearchDateFilter) -> String {
-        switch filter {
-        case .any:
-            return "clock"
-        case .today:
-            return "sun.max"
-        case .last7Days:
-            return "7.circle"
-        case .last30Days:
-            return "calendar"
-        }
-    }
-
-    private func itemTypeIcon(_ type: ItemType) -> String {
-        switch type {
-        case .text:
-            return "text.alignleft"
-        case .richText:
-            return "textformat"
-        case .image:
-            return "photo"
-        case .file:
-            return "doc"
-        case .url:
-            return "link"
-        case .code:
-            return "chevron.left.slash.chevron.right"
-        case .mixed:
-            return "square.stack.3d.up"
-        }
-    }
-}
-
-private struct FilterChip: View {
-    let title: String
-    let icon: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(
-                        isSelected ? Color.black.opacity(0.9) : Color.white.opacity(0.7))
-                Text(title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isSelected ? Color.black : Color.white)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(isSelected ? Color.white.opacity(0.9) : Color.white.opacity(0.12))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .strokeBorder(Color.white.opacity(isSelected ? 0.2 : 0.08), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct AppFilterChip: View {
-    let option: AppFilterOption
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                if let icon = option.icon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 16, height: 16)
-                } else {
-                    Image(systemName: "app")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-                Text(option.name)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isSelected ? Color.black : Color.white)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.white.opacity(0.9) : Color.white.opacity(0.12))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.white.opacity(isSelected ? 0.2 : 0.08), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
     }
 }
 
