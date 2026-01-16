@@ -41,13 +41,17 @@ public final class ThumbnailGenerator {
 
     public func generateThumbnail(from data: Data) -> Result<Data, ThumbnailError> {
         guard let image = NSImage(data: data) else {
-            Logger.thumbnails.warning("Thumbnail generation failed: \(ThumbnailError.invalidImageData.description)")
+            Logger.thumbnails.warning(
+                "Thumbnail generation failed: \(ThumbnailError.invalidImageData.description)")
             return .failure(.invalidImageData)
         }
 
         var proposedRect = NSRect(origin: .zero, size: image.size)
-        guard let cgImage = image.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) else {
-            Logger.thumbnails.warning("Thumbnail generation failed: \(ThumbnailError.cgImageConversionFailed.description)")
+        guard let cgImage = image.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil)
+        else {
+            Logger.thumbnails.warning(
+                "Thumbnail generation failed: \(ThumbnailError.cgImageConversionFailed.description)"
+            )
             return .failure(.cgImageConversionFailed)
         }
 
@@ -55,7 +59,8 @@ public final class ThumbnailGenerator {
         let height = cgImage.height
         let maxDimension = max(width, height)
         guard maxDimension > 0 else {
-            Logger.thumbnails.warning("Thumbnail generation failed: \(ThumbnailError.invalidDimensions.description)")
+            Logger.thumbnails.warning(
+                "Thumbnail generation failed: \(ThumbnailError.invalidDimensions.description)")
             return .failure(.invalidDimensions)
         }
 
@@ -64,20 +69,24 @@ public final class ThumbnailGenerator {
         let targetHeight = max(1, Int(CGFloat(height) * scale))
 
         guard let colorSpace = cgImage.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB) else {
-            Logger.thumbnails.warning("Thumbnail generation failed: \(ThumbnailError.colorSpaceUnavailable.description)")
+            Logger.thumbnails.warning(
+                "Thumbnail generation failed: \(ThumbnailError.colorSpaceUnavailable.description)")
             return .failure(.colorSpaceUnavailable)
         }
 
-        guard let context = CGContext(
-            data: nil,
-            width: targetWidth,
-            height: targetHeight,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else {
-            Logger.thumbnails.warning("Thumbnail generation failed: \(ThumbnailError.contextCreationFailed.description)")
+        guard
+            let context = CGContext(
+                data: nil,
+                width: targetWidth,
+                height: targetHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+        else {
+            Logger.thumbnails.warning(
+                "Thumbnail generation failed: \(ThumbnailError.contextCreationFailed.description)")
             return .failure(.contextCreationFailed)
         }
 
@@ -85,16 +94,20 @@ public final class ThumbnailGenerator {
         context.draw(cgImage, in: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
 
         guard let resizedImage = context.makeImage() else {
-            Logger.thumbnails.warning("Thumbnail generation failed: \(ThumbnailError.resizeFailed.description)")
+            Logger.thumbnails.warning(
+                "Thumbnail generation failed: \(ThumbnailError.resizeFailed.description)")
             return .failure(.resizeFailed)
         }
 
         let rep = NSBitmapImageRep(cgImage: resizedImage)
         guard let pngData = rep.representation(using: .png, properties: [:]) else {
-            Logger.thumbnails.warning("Thumbnail generation failed: \(ThumbnailError.encodingFailed.description)")
+            Logger.thumbnails.warning(
+                "Thumbnail generation failed: \(ThumbnailError.encodingFailed.description)")
             return .failure(.encodingFailed)
         }
 
         return .success(pngData)
     }
 }
+
+extension ThumbnailGenerator: @unchecked Sendable {}

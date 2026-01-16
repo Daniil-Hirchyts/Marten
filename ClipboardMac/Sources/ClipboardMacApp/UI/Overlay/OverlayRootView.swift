@@ -178,6 +178,10 @@ struct OverlayRootView: View {
                                 searchIcon
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("overlay.search.toggle")
+                            .accessibilityLabel(searchButtonAccessibilityLabel)
+                            .accessibilityValue(searchButtonAccessibilityValue)
+                            .accessibilityHint(searchButtonAccessibilityHint)
 
                             if isSearchExpanded {
                                 HStack(spacing: 6) {
@@ -188,6 +192,10 @@ struct OverlayRootView: View {
                                         .tint(.white)
                                         .focused($searchFocused)
                                         .frame(height: headerButtonSize)
+                                        .accessibilityIdentifier("overlay.search.field")
+                                        .accessibilityLabel("Search")
+                                        .accessibilityValue(searchFieldAccessibilityValue)
+                                        .accessibilityHint("Type to filter items")
 
                                     // Close search button (on the right)
                                     Button(action: {
@@ -207,6 +215,9 @@ struct OverlayRootView: View {
                                             .clipShape(Circle())
                                     }
                                     .buttonStyle(.plain)
+                                    .accessibilityIdentifier("overlay.search.clear")
+                                    .accessibilityLabel("Clear search")
+                                    .accessibilityHint("Clears search text and collapses search field")
                                 }
                                 .padding(.leading, 6)
                                 .padding(.trailing, 6)
@@ -260,6 +271,9 @@ struct OverlayRootView: View {
                                 )
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("overlay.settings")
+                        .accessibilityLabel("Settings")
+                        .accessibilityHint("Opens settings")
                     }
                     .padding(.trailing, 4)
                 }
@@ -442,6 +456,7 @@ struct OverlayRootView: View {
         .onReceive(eventBroadcaster.events) { event in
             if event == .overlayDidShow {
                 searchFocused = true
+                announceOverlayItemCount()
             }
         }
         .environmentObject(frameCoordinator)
@@ -552,6 +567,31 @@ struct OverlayRootView: View {
         }
     }
 
+    private var searchButtonAccessibilityLabel: String {
+        isSearchExpanded ? "Search filters" : "Search"
+    }
+
+    private var searchButtonAccessibilityValue: String {
+        var parts: [String] = []
+        parts.append(isSearchExpanded ? "Expanded" : "Collapsed")
+        if searchModel.hasActiveFilters {
+            parts.append("Filters active")
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    private var searchButtonAccessibilityHint: String {
+        if isSearchExpanded {
+            return isFilterPopoverPresented ? "Hide search filters" : "Show search filters"
+        }
+        return "Expand search field"
+    }
+
+    private var searchFieldAccessibilityValue: String {
+        let trimmed = searchModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Empty" : trimmed
+    }
+
     private var searchIcon: some View {
         ZStack {
             Circle()
@@ -580,6 +620,21 @@ struct OverlayRootView: View {
             appFilters: $searchModel.appFilters,
             appOptions: searchModel.appOptions,
             onClear: searchModel.clearFilters
+        )
+    }
+
+    private func announceOverlayItemCount() {
+        let announcement = "Paste, \(filteredItems.count) items"
+        let element: Any
+        if let window {
+            element = window
+        } else {
+            element = NSApp ?? NSApplication.shared
+        }
+        NSAccessibility.post(
+            element: element,
+            notification: .announcementRequested,
+            userInfo: [.announcement: announcement]
         )
     }
 
@@ -780,12 +835,20 @@ private struct PasteStackFooterBar: View {
                 onClear()
             }
             .buttonStyle(.bordered)
+            .accessibilityIdentifier("overlay.pasteStack.clear")
+            .accessibilityLabel("Clear selection")
+            .accessibilityValue(selectionLabel)
+            .accessibilityHint("Deselects all items")
 
             Button(pasteTitle) {
                 onPaste()
             }
             .buttonStyle(.borderedProminent)
             .disabled(selectionCount == 0 || isPasting)
+            .accessibilityIdentifier("overlay.pasteStack.paste")
+            .accessibilityLabel(pasteAccessibilityLabel)
+            .accessibilityValue(selectionLabel)
+            .accessibilityHint(pasteAccessibilityHint)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -805,6 +868,20 @@ private struct PasteStackFooterBar: View {
             return "Pasting..."
         }
         return isPlainText ? "Paste Plain Text" : "Paste"
+    }
+
+    private var pasteAccessibilityLabel: String {
+        if isPasting {
+            return "Pasting"
+        }
+        return isPlainText ? "Paste plain text" : "Paste"
+    }
+
+    private var pasteAccessibilityHint: String {
+        if isPasting {
+            return "Paste in progress"
+        }
+        return "Pastes the selected items"
     }
 }
 
@@ -848,6 +925,10 @@ private struct RenameOverlayView: View {
                 .onSubmit {
                     onSave()
                 }
+                .accessibilityIdentifier("overlay.rename.title")
+                .accessibilityLabel("Title")
+                .accessibilityValue(title.isEmpty ? "Empty" : title)
+                .accessibilityHint("Enter a new title")
 
             HStack(spacing: 12) {
                 Spacer()
@@ -857,6 +938,9 @@ private struct RenameOverlayView: View {
                 .buttonStyle(.plain)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
+                .accessibilityIdentifier("overlay.rename.cancel")
+                .accessibilityLabel("Cancel")
+                .accessibilityHint("Dismisses without saving")
 
                 Button("Save") {
                     onSave()
@@ -865,6 +949,9 @@ private struct RenameOverlayView: View {
                 .tint(.blue)
                 .controlSize(.small)
                 .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("overlay.rename.save")
+                .accessibilityLabel("Save")
+                .accessibilityHint("Saves the new title")
             }
         }
         .padding(20)
@@ -899,6 +986,9 @@ private struct ResizeHandleView: View {
             }
             .frame(height: 12)
             .contentShape(Rectangle())
+            .accessibilityIdentifier("overlay.resizeHandle")
+            .accessibilityLabel("Resize overlay")
+            .accessibilityHint("Drag up or down to resize")
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in

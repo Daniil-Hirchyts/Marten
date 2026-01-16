@@ -1,9 +1,12 @@
 import AppKit
+import ClipboardCore
 import Foundation
 import OSLog
 
 public final class PasteboardMonitor: ObservableObject {
     private let pasteboard = NSPasteboard.general
+    private let ignoredAppsManager: IgnoredAppsManager
+    private let activeAppTracker: ActiveAppTracker
     private var lastChangeCount = 0
     private var timer: Timer?
     private var isMonitoring = false
@@ -20,7 +23,13 @@ public final class PasteboardMonitor: ObservableObject {
     public var isEnabled = true
     public var onClipboardChange: ((NSPasteboard) -> Void)?
 
-    public init() {}
+    public init(
+        activeAppTracker: ActiveAppTracker = ActiveAppTracker(),
+        ignoredAppsManager: IgnoredAppsManager = IgnoredAppsManager()
+    ) {
+        self.activeAppTracker = activeAppTracker
+        self.ignoredAppsManager = ignoredAppsManager
+    }
 
     public func start() {
         guard !isMonitoring else { return }
@@ -85,6 +94,7 @@ public final class PasteboardMonitor: ObservableObject {
         // (changeCount is exactly one more than when suppression was requested)
         if let suppressionCount = changeCountAtSuppression,
            currentCount == suppressionCount + 1 {
+            Logger.pasteboard.info("Suppressing change detection (token: \(String(describing: self.suppressToken), privacy: .public))")
             suppressToken = nil
             changeCountAtSuppression = nil
             return
@@ -92,8 +102,16 @@ public final class PasteboardMonitor: ObservableObject {
         
         // Clear stale suppression tokens (if change count has moved beyond expected)
         if suppressToken != nil {
+            Logger.pasteboard.warning("Clearing stale suppression token")
             suppressToken = nil
             changeCountAtSuppression = nil
+        }
+
+        activeAppTracker.recordFrontmostApp()
+        if let bundleID = activeAppTracker.recordedBundleID,
+           ignoredAppsManager.isIgnored(bundleIdentifier: bundleID) {
+            Logger.pasteboard.info("Skipping capture from ignored app: \(bundleID, privacy: .public)")
+            return
         }
 
         lastActivity = Date()
@@ -101,6 +119,7 @@ public final class PasteboardMonitor: ObservableObject {
             applyIntervalIfNeeded(fastPollInterval)
         }
 
+        Logger.pasteboard.info("Pasteboard change detected, changeCount: \(currentCount)")
         onClipboardChange?(pasteboard)
     }
 
@@ -108,12 +127,14 @@ public final class PasteboardMonitor: ObservableObject {
         guard adaptivePollingEnabled else { return }
         guard let lastActivity else { return }
         if Date().timeIntervalSince(lastActivity) >= idleThreshold {
+            Logger.pasteboard.debug("Idle transition detected")
             applyIntervalIfNeeded(idlePollInterval)
         }
     }
 
     private func applyIntervalIfNeeded(_ interval: TimeInterval) {
         guard currentInterval != interval else { return }
+        Logger.pasteboard.debug("Updating poll interval to \(interval)")
         scheduleTimer(interval: interval)
     }
 

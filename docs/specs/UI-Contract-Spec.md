@@ -524,7 +524,8 @@ Try different keywords
 1. General
 2. Privacy
 3. Shortcuts
-4. Purchase (or License)
+
+Purchase / licensing UI is tracked as a later phase (see roadmap), not part of the baseline settings window.
 
 ### 8.3 General Tab
 
@@ -611,8 +612,6 @@ Applications to ignore:
 ```
 Activate Paste: [ V ]
 Activate Paste Stack: [ C ]
-Show next Pinboard: [ ]
-Show previous Pinboard: [ ]
 Quick Paste: [ 1..9 ]
 Plain Text mode: [ Hold ]
 
@@ -625,38 +624,6 @@ Plain Text mode: [ Hold ]
 - Style: Rounded rect, `.tertiarySystemFill` background
 - Interaction: Click to record, type new shortcut, Enter to confirm
 - Validation: Prevent conflicts, show warning if conflict detected
-
-### 8.6 Purchase Tab
-
-**Layout:** Centered content
-
-**For Paid App (already purchased):**
-```
- Paste Pro
-
-Thank you for your purchase!
-You have full access to all features.
-
-Receipt: [email@example.com]
-Purchase Date: January 5, 2026
-
-[Restore Purchases] button (if IAP model)
-```
-
-**For IAP Model (not purchased):**
-```
-Paste Pro
-
-Unlock unlimited clipboard history,
-iCloud sync, and all features.
-
-$4.99 one-time purchase
-
-[Purchase] button (prominent)
-[Restore Purchases] button (text only)
-
-Terms of Service | Privacy Policy
-```
 
 ---
 
@@ -1123,7 +1090,7 @@ ClipboardMac/UI/
 - [ ] Implement General tab (all controls)
 - [ ] Implement Privacy tab (all controls)
 - [ ] Implement Shortcuts tab with shortcut recorders
-- [ ] Implement Purchase tab
+- [ ] Implement Purchase / licensing UI in a later phase
 - [ ] Create app picker for ignored apps
 - [ ] Add sync status indicator
 - [ ] Create onboarding flow (4 screens)

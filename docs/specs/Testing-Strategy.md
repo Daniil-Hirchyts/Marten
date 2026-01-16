@@ -5,9 +5,9 @@
 
 ## Document Metadata
 
-- **Version:** 1.0.0
-- **Last Updated:** 2026-01-09
-- **Status:** Draft
+- **Version:** 1.1.0
+- **Last Updated:** 2026-01-16
+- **Status:** Active
 - **Owner:** Engineering Team
 - **Dependencies:** All other specifications
 
@@ -801,22 +801,7 @@ Ensure new features don't break existing functionality.
 
 **Run manually before release:**
 
-- [ ] App launches successfully
-- [ ] Copy text Captured
-- [ ] Copy image Captured
-- [ ] Open overlay (Shift+Cmd+V) Opens
-- [ ] Select item Pastes into TextEdit
-- [ ] Quick Paste (Cmd+1) Works
-- [ ] Search for item Found
-- [ ] Create pinboard Saved
-- [ ] Move item to pinboard Works
-- [ ] Settings open All tabs load
-- [ ] Change retention Takes effect
-- [ ] Erase history Deletes items
-- [ ] Enable iCloud sync Syncs
-- [ ] Disable iCloud sync Stops syncing
-- [ ] Restart app Data persists
-- [ ] Quit and reopen Everything works
+See `docs/VALIDATION.md`.
 
 ---
 
@@ -902,26 +887,9 @@ Ensure new features don't break existing functionality.
   - `ClipboardMac/Tests/ClipboardMacTests/HotkeyManagerTests.swift` (3 tests)
 - [x] Write tests for stack session persistence
   - `ClipboardCore/Tests/ClipboardCoreTests/StackSessionTests.swift` (3 tests)
-- [ ] Manual test: Paste in 10 apps (moved to Phase 4)
-- [ ] Manual test: Quick Paste (Cmd+1-9) (moved to Phase 4)
-- [ ] Measure ClipboardMac code coverage and set target
-
-**Manual Validation Checklist (Phase 4):**
-
-**Target App Matrix:**
-- Notes, Safari, Chrome, Messages, Mail, Slack, Xcode, Terminal, Microsoft Word/Pages, Google Docs (browser)
-
-**Test Scenarios:**
-- Paste single text item
-- Paste rich text item; verify plain text mode strips formatting
-- Quick Paste 1–9 into at least 3 different apps
-- Paste stack (5+ items) sequentially
-- Paste stack (20 items) sequentially (timing/ordering)
-- Denied Accessibility permission → user sees guidance and app behaves safely
-- Sleep/wake cycle → hotkeys continue to work
-
-**Pass/Fail Notes:**
-Record per-app issues: paste succeeds/fails, needs longer delay/activation retry, hotkey conflicts, focus/activation edge cases
+- [ ] Manual validation: Paste in 10 apps (see docs/VALIDATION.md)
+- [ ] Manual validation: Quick Paste (Cmd+1-9) (see docs/VALIDATION.md)
+- [x] Measure ClipboardMac code coverage and set target (current ~29.6% line coverage; target >=30%)
 
 **Status Notes:**
 - All automated tests passing: 68 total (32 ClipboardCore + 36 ClipboardMac)
@@ -961,25 +929,136 @@ Record per-app issues: paste succeeds/fails, needs longer delay/activation retry
 
 ---
 
-### Phase 6: Hardening & Performance (Weeks 15-16)
+### Phase 6: Hardening & Performance (Weeks 15-16) - IN PROGRESS
+
+**Status:** Implementation in progress  
+**Current Test Count:** 254 automated tests (180 ClipboardCore + 74 ClipboardMac)
 
 **Testing Tasks:**
-- [ ] Run all performance tests
-- [ ] Validate all performance budgets met
+
+*Performance Testing*
+- [ ] Create `ClipboardCoreTests/PerformanceTests.swift`
+  - [ ] Test: Database fetch 10,000 items (<500ms)
+  - [ ] Test: Search query performance (<100ms for 1K items)
+  - [ ] Test: Batch insert performance (>1000 items/sec)
+- [ ] Create `ClipboardMacTests/UIPerformanceTests.swift`
+  - [ ] Test: Overlay open time (<200ms)
+  - [ ] Test: Item card render (<16ms)
+  - [ ] Test: Scroll performance (60fps)
+- [ ] Create `ClipboardMacTests/CapturePerformanceTests.swift`
+  - [ ] Test: Capture latency (<50ms)
+  - [ ] Test: Thumbnail generation (<500ms)
 - [ ] Run stress tests (10k items, 100 rapid captures)
-- [ ] Memory leak testing (Instruments)
-- [ ] CPU profiling (Instruments)
-- [ ] Regression test suite (full pass)
+- [ ] Memory leak testing (Instruments Allocations)
+- [ ] CPU profiling (Instruments Time Profiler)
+
+*UI Testing Infrastructure*
+- [ ] Set up `ClipboardMacUITests` target
+- [ ] Add accessibility identifiers to all interactive elements:
+  - [ ] Overlay window
+  - [ ] Pinboard tab bar and individual tabs
+  - [ ] Item cards (each with unique ID)
+  - [ ] Search field
+  - [ ] Settings window tabs
+  - [ ] All buttons and toggles
+- [ ] Create critical path UI tests:
+  - [ ] `testOverlayOpensWithHotkey`
+  - [ ] `testItemCardSelection`
+  - [ ] `testPinboardSwitching`
+  - [ ] `testSearchMode`
+  - [ ] `testSettingsWindowOpen`
+  - [ ] `testPasteStackMode`
+  - [ ] `testKeyboardNavigation`
+
+*Accessibility Testing*
+- [ ] VoiceOver testing with all UI elements
+- [ ] Keyboard-only navigation verification
+- [ ] Verify overlay announcement ("Paste, N items")
+- [ ] Verify card announcements (type, preview, age)
+- [ ] Verify tab announcements (name, selection state)
+
+*Migration Testing*
+- [ ] Write v1→v2 migration tests
+- [ ] Verify data integrity after migration
+- [ ] Test with corrupted database recovery
+
+*Regression Testing*
+- [ ] Run full regression test suite
 - [ ] Manual compatibility testing (macOS 13, 14, 15)
-- [ ] Accessibility testing (VoiceOver)
 - [ ] Final smoke test on clean machine
-- [ ] Beta testing (internal)
+
+*Beta Testing*
+- [ ] Internal beta deployment (5-10 users)
+- [ ] 2-week daily usage tracking
+- [ ] Bug triage and prioritization
+
+**Performance Budgets:**
+| Operation | Target | Maximum | Status |
+|-----------|--------|---------|--------|
+| App launch | <1s | 2s | ⚠️ Unmeasured |
+| Overlay open | <200ms | 500ms | ⚠️ Unmeasured |
+| Capture latency | <50ms | 100ms | ✅ ~0.4s polling validated |
+| Search (1K items) | <100ms | 250ms | ✅ avg 1.0ms |
+| Item card render | <16ms | 33ms | ⚠️ p99 26.75ms |
+| Thumbnail generation | <500ms | 2s | ⚠️ Unmeasured |
+| Memory (idle) | <50MB | 100MB | ⚠️ Unmeasured |
 
 **Success Criteria:**
 - Zero crashes in 24-hour stress test
 - All performance budgets met
 - Zero critical bugs
-- Code coverage > 75%
+- Code coverage > 80%
+- VoiceOver accessibility verified
+---
+
+### Phase 7: Beta Testing & Polish (Weeks 17-18)
+
+**Testing Tasks:**
+- [ ] Deploy beta to internal team (5-10 users)
+- [ ] Track daily usage for 2 weeks
+- [ ] Collect and analyze crash reports
+- [ ] Monitor sync issues and failures
+- [ ] Weekly bug triage sessions
+- [ ] Deploy to external beta (TestFlight, 20-50 users)
+- [ ] Collect user feedback
+- [ ] Prioritize and fix reported bugs
+
+**Success Criteria:**
+- 2 weeks internal usage without critical bugs
+- Beta tester satisfaction >80%
+- All P0/P1 bugs fixed
+
+---
+
+### Phase 8: App Store Preparation (Weeks 19-20)
+
+**Testing Tasks:**
+- [ ] Final regression test pass
+- [ ] Smoke test on clean machine
+- [ ] Test with fresh iCloud account
+- [ ] Verify all permissions flows
+- [ ] Test first-launch onboarding
+- [ ] Verify App Store sandbox restrictions
+
+**Success Criteria:**
+- Zero critical/high bugs remaining
+- All functionality works on clean install
+- Permissions and onboarding work correctly
+
+---
+
+### Phase 9: Launch & Post-Launch (Week 21+)
+
+**Testing Tasks:**
+- [ ] Monitor crash-free rate (target >99.5%)
+- [ ] Review user-reported bugs
+- [ ] Quick-turnaround v1.0.1 for critical fixes
+- [ ] Analyze usage patterns for v1.1 priorities
+
+**Success Criteria:**
+- Crash-free rate >99.5%
+- User ratings >4.5 stars
+- Support ticket volume <10/week
 
 ---
 

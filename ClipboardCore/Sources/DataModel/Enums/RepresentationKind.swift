@@ -1,6 +1,6 @@
 import Foundation
 
-public enum RepresentationKind: Int16, CaseIterable {
+public enum RepresentationKind: Int16, CaseIterable, Sendable {
     case plainText = 0
     case rtf = 1
     case html = 2

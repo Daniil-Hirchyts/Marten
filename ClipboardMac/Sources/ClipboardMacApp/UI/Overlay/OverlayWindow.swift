@@ -1,6 +1,7 @@
 import AppKit
 import ClipboardCore
 import ClipboardMacServices
+import Combine
 import SwiftUI
 
 @MainActor
@@ -12,6 +13,8 @@ final class OverlayWindowController {
     private var activationObservers: [NSObjectProtocol] = []
     private weak var hotkeyManager: HotkeyManager?
     private let eventBroadcaster: ClipboardEventBroadcaster
+    private let screenSharingManager: ScreenSharingManager
+    private var cancellables: Set<AnyCancellable> = []
 
     init(
         persistence: PersistenceController = OverlayWindowController.defaultPersistence(),
@@ -19,10 +22,12 @@ final class OverlayWindowController {
         permissionManager: PermissionManager = PermissionManager(),
         hotkeyManager: HotkeyManager? = nil,
         eventBroadcaster: ClipboardEventBroadcaster = ClipboardEventBroadcasterImpl(),
+        screenSharingManager: ScreenSharingManager = ScreenSharingManager(),
         rootView: AnyView? = nil
     ) {
         self.hotkeyManager = hotkeyManager
         self.eventBroadcaster = eventBroadcaster
+        self.screenSharingManager = screenSharingManager
         let initialFrame = NSRect(x: 0, y: 0, width: 800, height: 320)
         panel = OverlayPanel(
             contentRect: initialFrame,
@@ -73,6 +78,16 @@ final class OverlayWindowController {
             )
             panel.contentView = NSHostingView(rootView: contentView)
         }
+
+        screenSharingManager.$isScreenSharingModeActive
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.isVisible, !self.screenSharingManager.shouldShowOverlay {
+                    self.hide()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     func toggle(mode: OverlayMode) {
@@ -102,6 +117,7 @@ final class OverlayWindowController {
 
     private func show(mode: OverlayMode) {
         guard !isVisible else { return }
+        guard screenSharingManager.shouldShowOverlay else { return }
         viewModel?.setMode(mode)
         guard let screen = NSScreen.main else { return }
         let targetFrame = frame(for: screen)

@@ -8,6 +8,8 @@ public protocol PasteEngineProtocol: AnyObject {
     func recordFrontmostApp()
     func pasteItem(_ item: ClipItem, format: PasteFormat) async throws
     func pasteStack(_ session: StackSession, format: PasteFormat) async throws -> PasteStackResult
+    func copyItemToClipboard(_ item: ClipItem, format: PasteFormat) async throws
+    func copyStackToClipboard(_ session: StackSession) async throws
 }
 
 public protocol ActiveAppTracking: AnyObject {
@@ -267,22 +269,52 @@ public final class PasteEngine {
         activeAppTracker.recordFrontmostApp()
     }
 
+    public func copyItemToClipboard(_ item: ClipItem, format: PasteFormat = .preserved) async throws
+    {
+        try await writeToPasteboard(item, format: format)
+    }
+
+    public func copyStackToClipboard(_ session: StackSession) async throws {
+        let entries = session.entries?.sorted { $0.position < $1.position } ?? []
+        guard !entries.isEmpty else {
+            throw PasteEngineError.emptyStack
+        }
+
+        let separator = session.separator
+        let isCombined = session.modeValue == .combined
+        let chunks = entries.compactMap { $0.clipItem }.map { item in
+            item.plainTextContent ?? item.primaryText ?? ""
+        }
+        let joined =
+            isCombined ? chunks.joined(separator: separator) : chunks.joined(separator: "\n")
+
+        await MainActor.run {
+            eventBroadcaster.publish(.clipboardWillWrite)
+            pasteboard.clearContents()
+            pasteboard.setString(joined, forType: .string)
+        }
+    }
+
     public func pasteItem(_ item: ClipItem, format: PasteFormat = .preserved) async throws {
+        Logger.paste.info("Starting paste operation")
         try await writeToPasteboard(item, format: format)
         await MainActor.run {
             activeAppTracker.reactivateRecordedApp()
         }
         let activated = await ensureTargetActivation()
         guard activated else {
+            Logger.paste.error("Target activation failed during pasteItem")
             throw PasteEngineError.targetActivationFailed
         }
         try await sendPasteKeystroke()
+        Logger.paste.info("Paste operation completed successfully")
     }
 
     @discardableResult
     public func pasteStack(_ session: StackSession, format: PasteFormat = .preserved) async throws
         -> PasteStackResult
     {
+        Logger.paste.info("Starting stack paste operation (entries: \(session.entries?.count ?? 0))")
         let entries = session.entries?.sorted { $0.position < $1.position } ?? []
         guard !entries.isEmpty else {
             throw PasteEngineError.emptyStack
@@ -352,6 +384,7 @@ public final class PasteEngine {
     }
 
     private func writeToPasteboard(_ item: ClipItem, format: PasteFormat) async throws {
+        Logger.paste.debug("Writing item to pasteboard (format: \(String(describing: format)))")
         try await MainActor.run {
             eventBroadcaster.publish(.clipboardWillWrite)
             pasteboard.clearContents()
@@ -426,7 +459,9 @@ public final class PasteEngine {
     }
 
     private func sendPasteKeystroke() async throws {
+        Logger.paste.debug("Sending paste keystroke")
         guard permissionManager.checkAccessibility(prompt: false) else {
+            Logger.paste.error("Paste keystroke failed: Accessibility permission denied")
             await MainActor.run {
                 eventBroadcaster.publish(
                     .pasteEngineValidationFailed(.accessibilityPermissionDenied))
@@ -445,6 +480,7 @@ public final class PasteEngine {
 
     private func ensureTargetActivation() async -> Bool {
         let targetBundleID = await MainActor.run { activeAppTracker.recordedBundleID }
+        Logger.paste.debug("Ensuring target activation for: \(String(describing: targetBundleID), privacy: .public)")
         let attempts = max(configuration.targetActivation.maxAttempts, 1)
         for attempt in 1...attempts {
             let activated = await waitForTargetActivation(

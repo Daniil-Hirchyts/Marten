@@ -15,6 +15,7 @@ protocol AppServiceProviding: AnyObject {
     var activeAppTracker: ActiveAppTracker { get }
     var eventBroadcaster: any ClipboardEventBroadcaster { get }
     var pasteEngine: PasteEngine { get }
+    var screenSharingManager: ScreenSharingManager { get }
 }
 
 @MainActor
@@ -28,6 +29,7 @@ final class AppServiceContainer: AppServiceProviding {
     let activeAppTracker: ActiveAppTracker
     let eventBroadcaster: any ClipboardEventBroadcaster
 
+    lazy var screenSharingManager = ScreenSharingManager()
     lazy var clipItemStore: ClipItemStore = ClipItemStore(persistence: persistence)
     lazy var pasteEngine: PasteEngine = PasteEngine(
         activeAppTracker: activeAppTracker,

@@ -4,6 +4,14 @@ import Foundation
 public final class PersistenceController {
     public static let shared = PersistenceController()
 
+    public static var modelURL: URL? {
+        let bundle = Bundle.module
+        return bundle.url(forResource: "Paste", withExtension: "momd", subdirectory: "DataModel")
+            ?? bundle.url(forResource: "Paste", withExtension: "mom", subdirectory: "DataModel")
+            ?? bundle.url(forResource: "Paste", withExtension: "momd")
+            ?? bundle.url(forResource: "Paste", withExtension: "mom")
+    }
+
     public let container: NSPersistentContainer
 
     public var viewContext: NSManagedObjectContext {
@@ -12,7 +20,8 @@ public final class PersistenceController {
 
     public init(inMemory: Bool = false, storeURL: URL? = nil) {
         let bundle = Bundle.module
-        let modelURL = bundle.url(forResource: "Paste", withExtension: "momd", subdirectory: "DataModel")
+        let modelURL =
+            bundle.url(forResource: "Paste", withExtension: "momd", subdirectory: "DataModel")
             ?? bundle.url(forResource: "Paste", withExtension: "mom", subdirectory: "DataModel")
             ?? bundle.url(forResource: "Paste", withExtension: "momd")
             ?? bundle.url(forResource: "Paste", withExtension: "mom")
@@ -36,9 +45,14 @@ public final class PersistenceController {
             description.url = storeURL ?? Self.defaultStoreURL()
         }
 
+        description.setOption(
+            true as NSNumber, forKey: NSMigratePersistentStoresAutomaticallyOption)
+        description.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)
+
         if !inMemory {
             description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-            description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+            description.setOption(
+                true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
         }
 
         container.persistentStoreDescriptions = [description]
@@ -67,11 +81,13 @@ public final class PersistenceController {
 
     private static func defaultStoreURL() -> URL {
         let fileManager = FileManager.default
-        let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first!
         let appSupportURL = baseURL.appendingPathComponent("Paste", isDirectory: true)
 
         if !fileManager.fileExists(atPath: appSupportURL.path) {
-            try? fileManager.createDirectory(at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
+            try? fileManager.createDirectory(
+                at: appSupportURL, withIntermediateDirectories: true, attributes: nil)
         }
 
         return appSupportURL.appendingPathComponent("ClipboardCore.sqlite")

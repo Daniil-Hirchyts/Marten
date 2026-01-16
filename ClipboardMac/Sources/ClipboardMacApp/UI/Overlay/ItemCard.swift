@@ -81,6 +81,12 @@ struct CachedItemProperties {
             }
             return text.isEmpty ? "File" : text
         case .url:
+            if let previewTitle = item.linkPreview?.title, !previewTitle.isEmpty {
+                return previewTitle
+            }
+            if let siteName = item.linkPreview?.siteName, !siteName.isEmpty {
+                return siteName
+            }
             if let url = URL(string: text), let host = url.host {
                 return host
             }
@@ -114,6 +120,9 @@ struct CachedItemProperties {
             if let text = item.primaryText, let url = URL(string: text) {
                 let host = url.host ?? "URL"
                 let path = url.path.isEmpty ? "/" : url.path
+                if let siteName = item.linkPreview?.siteName, !siteName.isEmpty {
+                    return [siteName, path]
+                }
                 return [host, path]
             }
             return nil
@@ -213,6 +222,7 @@ struct ItemCard: View {
     let isDropTarget: Bool
     let showPinIndicator: Bool
     let allowPinning: Bool
+    let isDragEnabled: Bool
     let onPaste: () -> Void
     let onPastePlainText: () -> Void
     let onCopy: () -> Void
@@ -238,116 +248,19 @@ struct ItemCard: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: 10) {
-                // 1. Header
-                HStack(alignment: .center, spacing: 8) {
-                    if isEditing {
-                        TextField("", text: $editTitle)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .focused($isFocused)
-                            .onSubmit {
-                                onCommitRename(editTitle)
-                            }
-                            .onAppear {
-                                editTitle = item.customTitle ?? cached.typeLabel
-                                isFocused = true
-                            }
-                    } else {
-                        Text(cached.displayTitle)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                    }
-
-                    Spacer()
-
-                    // Right Side Icon
-                    if !cached.pinboardColors.isEmpty {
-                        // Show Pinboard Dots if pinned/organized
-                        HStack(spacing: 3) {
-                            ForEach(Array(cached.pinboardColors.enumerated()), id: \.offset) {
-                                _, color in
-                                Circle()
-                                    .fill(color)
-                                    .frame(width: 8, height: 8)
-                            }
-                        }
-                    } else if item.sourceAppBundleID != nil {
-                        AppIconView(bundleID: item.sourceAppBundleID, size: 16)
-                    }
-
-                    if showPinIndicator, item.isPinned {
-                        Image(systemName: "pin.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.yellow)
-                            .padding(.leading, 4)
-                    }
-                }
-
-                // 2. Content Preview
-                VStack(alignment: .leading, spacing: 4) {
-                    // Show primary text title if it's meaningful (e.g. File Name, URL)
-                    // For plain text, we skip title if it just duplicates preview
-                    if cached.shouldShowPrimaryTitle {
-                        Text(cached.primaryTitle)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                    }
-
-                    if let preview = cached.previewText {
-                        Text(preview)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(5)
-                    } else if let details = cached.detailLines {
-                        ForEach(details, id: \.self) { line in
-                            Text(line)
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-
+                headerView
+                contentPreviewView
                 Spacer(minLength: 0)
-
-                // 3. Footer (Time & Stats)
-                HStack(alignment: .center, spacing: 8) {
-                    Text(timeAgo)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-
-                    Spacer()
-
-                    Text(cached.statsLabel)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
+                footerView
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(isSelected ? Color.white.opacity(0.1) : Color.white.opacity(0.06))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .strokeBorder(
-                                isSelected ? Color.white.opacity(0.3) : Color.white.opacity(0.1),
-                                lineWidth: isSelected ? 2 : 1)
-                    )
-            )
+            .background(cardBackground)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
 
             if isSelected {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(8)
-                    .transition(.scale.combined(with: .opacity))
+                checkmarkOverlay
             }
-
         }
         .onAppear {
             cachedProps = CachedItemProperties(item: item)
@@ -375,8 +288,15 @@ struct ItemCard: View {
                 lastTapTime = now
             }
         }
+        .accessibilityElement(children: isEditing ? .contain : .ignore)
+        .accessibilityIdentifier("overlay.itemCard.\(item.id.uuidString)")
+        .accessibilityLabel(accessibilityLabelText)
+        .accessibilityValue(accessibilityValueText)
+        .accessibilityHint(accessibilityHintText)
+        .accessibilityAddTraits(.isButton)
         .contextMenu {
             CardContextMenu(
+                itemID: item.id,
                 isPinned: item.isPinned,
                 allowPinning: allowPinning,
                 pinboards: pinboards,
@@ -392,12 +312,160 @@ struct ItemCard: View {
         }
     }
 
+    private var headerView: some View {
+        HStack(alignment: .center, spacing: 8) {
+            if isEditing {
+                TextField("", text: $editTitle)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .focused($isFocused)
+                    .onSubmit {
+                        onCommitRename(editTitle)
+                    }
+                    .accessibilityIdentifier("overlay.itemCard.\(item.id.uuidString).title")
+                    .accessibilityLabel("Item title")
+                    .accessibilityValue(editTitle.isEmpty ? "Empty" : editTitle)
+                    .accessibilityHint("Enter a new title")
+                    .onAppear {
+                        editTitle = item.customTitle ?? cached.typeLabel
+                        isFocused = true
+                    }
+            } else {
+                Text(cached.displayTitle)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            if !cached.pinboardColors.isEmpty {
+                HStack(spacing: 3) {
+                    ForEach(Array(cached.pinboardColors.enumerated()), id: \.offset) { _, color in
+                        Circle()
+                            .fill(color)
+                            .frame(width: 8, height: 8)
+                    }
+                }
+            } else if item.sourceAppBundleID != nil {
+                AppIconView(bundleID: item.sourceAppBundleID, size: 16)
+            }
+
+            if showPinIndicator, item.isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.yellow)
+                    .padding(.leading, 4)
+            }
+        }
+    }
+
+    private var contentPreviewView: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if cached.shouldShowPrimaryTitle {
+                Text(cached.primaryTitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+
+            if let preview = cached.previewText {
+                Text(preview)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(5)
+            } else if let details = cached.detailLines {
+                ForEach(details, id: \.self) { line in
+                    Text(line)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+    }
+
+    private var footerView: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Text(timeAgo)
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+
+            Spacer()
+
+            Text(cached.statsLabel)
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(isSelected ? Color.white.opacity(0.1) : Color.white.opacity(0.06))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? Color.white.opacity(0.3) : Color.white.opacity(0.1),
+                        lineWidth: isSelected ? 2 : 1)
+            )
+    }
+
+    private var checkmarkOverlay: some View {
+        Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: 20, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(8)
+            .transition(.scale.combined(with: .opacity))
+    }
+
     // MARK: - Non-cached Properties (need fresh data each render)
 
     private var timeAgo: String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: item.createdAt, relativeTo: Date())
+    }
+
+    private var accessibilityLabelText: String {
+        if let customTitle = item.customTitle, !customTitle.isEmpty {
+            return customTitle
+        }
+        if cached.shouldShowPrimaryTitle {
+            return "\(cached.displayTitle), \(cached.primaryTitle)"
+        }
+        if let snippet = previewSnippet {
+            return "\(cached.displayTitle), \(snippet)"
+        }
+        return cached.displayTitle
+    }
+
+    private var accessibilityValueText: String {
+        var parts: [String] = []
+        parts.append(isSelected ? "Selected" : "Not selected")
+        if item.isPinned {
+            parts.append("Pinned")
+        }
+        parts.append(cached.statsLabel)
+        return parts.joined(separator: ", ")
+    }
+
+    private var accessibilityHintText: String {
+        var parts = ["Press to select"]
+        if isDragEnabled {
+            parts.append("Drag to move or reorder")
+        }
+        return parts.joined(separator: ". ")
+    }
+
+    private var previewSnippet: String? {
+        guard let preview = cached.previewText else { return nil }
+        let trimmed = preview.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.count > 80 {
+            return String(trimmed.prefix(80)) + "..."
+        }
+        return trimmed
     }
 
 }

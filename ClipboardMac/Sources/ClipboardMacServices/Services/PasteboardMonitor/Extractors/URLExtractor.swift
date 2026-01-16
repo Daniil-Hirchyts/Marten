@@ -5,8 +5,40 @@ import UniformTypeIdentifiers
 /// Extracts URLs (both file and web) from the pasteboard
 struct URLExtractor: PasteboardTypeExtractor {
     func extract(from pasteboard: NSPasteboard, displayOrder: Int16) -> ExtractionResult? {
-        guard let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
-              let firstURL = urls.first else {
+        let firstURL: URL? = {
+            if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
+               let first = urls.first {
+                return first
+            }
+
+            let candidates = [
+                pasteboard.string(forType: NSPasteboard.PasteboardType(UTType.url.identifier)),
+                pasteboard.string(forType: NSPasteboard.PasteboardType(UTType.fileURL.identifier)),
+                pasteboard.string(forType: .string)
+            ].compactMap { $0 }
+
+            for string in candidates {
+                if string.hasPrefix("/") {
+                    return URL(fileURLWithPath: string)
+                }
+
+                if string.hasPrefix("file://"), let url = URL(string: string) {
+                    return url
+                }
+
+                if let components = URLComponents(string: string),
+                   let scheme = components.scheme?.lowercased(),
+                   (scheme == "http" || scheme == "https"),
+                   components.host != nil,
+                   let url = components.url {
+                    return url
+                }
+            }
+
+            return nil
+        }()
+
+        guard let firstURL else {
             return nil
         }
         

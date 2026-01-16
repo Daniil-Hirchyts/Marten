@@ -33,10 +33,12 @@ public final class StackSessionStore {
                 }
             }
 
-            guard let session = NSEntityDescription.insertNewObject(
-                forEntityName: "StackSession",
-                into: context
-            ) as? StackSession else {
+            guard
+                let session = NSEntityDescription.insertNewObject(
+                    forEntityName: "StackSession",
+                    into: context
+                ) as? StackSession
+            else {
                 throw StackSessionStoreError.missingSession
             }
 
@@ -99,10 +101,12 @@ public final class StackSessionStore {
                     throw StackSessionStoreError.missingItem
                 }
 
-                guard let entry = NSEntityDescription.insertNewObject(
-                    forEntityName: "StackEntry",
-                    into: context
-                ) as? StackEntry else {
+                guard
+                    let entry = NSEntityDescription.insertNewObject(
+                        forEntityName: "StackEntry",
+                        into: context
+                    ) as? StackEntry
+                else {
                     throw StackSessionStoreError.missingSession
                 }
 
@@ -168,3 +172,5 @@ public final class StackSessionStore {
         }
     }
 }
+
+extension StackSessionStore: @unchecked Sendable {}

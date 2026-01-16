@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ClipRepresentationPayload {
+public struct ClipRepresentationPayload: Sendable {
     public let kind: RepresentationKind
     public let uti: String
     public let text: String?
@@ -24,7 +24,9 @@ public struct ClipRepresentationPayload {
         self.displayOrder = displayOrder
     }
 
-    public static func plainText(_ text: String, displayOrder: Int16 = 0) -> ClipRepresentationPayload {
+    public static func plainText(_ text: String, displayOrder: Int16 = 0)
+        -> ClipRepresentationPayload
+    {
         ClipRepresentationPayload(
             kind: .plainText,
             uti: "public.utf8-plain-text",
@@ -34,21 +36,27 @@ public struct ClipRepresentationPayload {
     }
 }
 
-public struct ClipItemPayload {
+public struct ClipItemPayload: Sendable {
     public let representations: [ClipRepresentationPayload]
     public let primaryText: String?
     public let itemType: ItemType
     public let needsLinkPreview: Bool
+    public let isSensitive: Bool
+    public let isTransient: Bool
 
     public init(
         representations: [ClipRepresentationPayload],
         primaryText: String?,
         itemType: ItemType,
-        needsLinkPreview: Bool = false
+        needsLinkPreview: Bool = false,
+        isSensitive: Bool = false,
+        isTransient: Bool = false
     ) {
         self.representations = representations
         self.primaryText = primaryText
         self.itemType = itemType
         self.needsLinkPreview = needsLinkPreview
+        self.isSensitive = isSensitive
+        self.isTransient = isTransient
     }
 }

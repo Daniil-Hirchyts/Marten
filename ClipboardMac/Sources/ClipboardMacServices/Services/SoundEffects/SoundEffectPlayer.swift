@@ -9,14 +9,20 @@ public final class SoundEffectPlayer {
     }
 
     public var isEnabled = true
+    private let userDefaults: UserDefaults
+    private let userDefaultsKey: String
     private var sounds: [Sound: NSSound] = [:]
 
-    public init() {
+    public init(
+        userDefaults: UserDefaults = .standard, userDefaultsKey: String = "soundEffectsEnabled"
+    ) {
+        self.userDefaults = userDefaults
+        self.userDefaultsKey = userDefaultsKey
         preload()
     }
 
     public func play(_ sound: Sound) {
-        guard isEnabled else { return }
+        guard isEnabled, userDefaults.bool(forKey: userDefaultsKey) else { return }
         if sounds[sound] == nil {
             sounds[sound] = NSSound(named: NSSound.Name(sound.rawValue))
         }
@@ -29,3 +35,5 @@ public final class SoundEffectPlayer {
         }
     }
 }
+
+extension SoundEffectPlayer: @unchecked Sendable {}

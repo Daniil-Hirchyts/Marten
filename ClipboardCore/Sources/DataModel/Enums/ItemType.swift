@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ItemType: Int16, CaseIterable {
+public enum ItemType: Int16, CaseIterable, Sendable {
     case text = 0
     case richText = 1
     case image = 2

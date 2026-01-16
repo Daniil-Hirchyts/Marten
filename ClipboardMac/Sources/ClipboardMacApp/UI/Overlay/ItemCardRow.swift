@@ -171,6 +171,7 @@ struct ItemCardRow: View {
                 isDropTarget: false,
                 showPinIndicator: allowPinning,
                 allowPinning: allowPinning,
+                isDragEnabled: isDragEnabled,
                 onPaste: { onPaste(item) },
                 onPastePlainText: { onPastePlainText(item) },
                 onCopy: { onCopy(item) },
@@ -694,6 +695,7 @@ struct ItemCardDragPreview: View {
             isDropTarget: false,
             showPinIndicator: false,
             allowPinning: false,
+            isDragEnabled: false,
             onPaste: {},
             onPastePlainText: {},
             onCopy: {},
@@ -709,6 +711,7 @@ struct ItemCardDragPreview: View {
         .allowsHitTesting(false)
         .opacity(0.9)
         .scaleEffect(0.96)
+        .accessibilityHidden(true)
     }
 }
 
@@ -733,6 +736,7 @@ struct MultiItemCardDragPreview: View {
                     isDropTarget: false,
                     showPinIndicator: false,
                     allowPinning: false,
+                    isDragEnabled: false,
                     onPaste: {},
                     onPastePlainText: {},
                     onCopy: {},
@@ -769,6 +773,7 @@ struct MultiItemCardDragPreview: View {
         }
         .scaleEffect(0.96)
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

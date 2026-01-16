@@ -1,6 +1,6 @@
 import AppKit
-import ClipboardCore
-import ClipboardMacServices
+@preconcurrency import ClipboardCore
+@preconcurrency import ClipboardMacServices
 import CoreData
 import OSLog
 
@@ -8,6 +8,7 @@ import OSLog
 final class ItemOperationsHandler {
     private let store: ClipItemStore
     private let pasteboard: NSPasteboard
+    private let soundPlayer = SoundEffectPlayer()
 
     init(store: ClipItemStore = ClipItemStore(), pasteboard: NSPasteboard = .general) {
         self.store = store
@@ -41,12 +42,14 @@ final class ItemOperationsHandler {
         onClearSelection: () -> Void
     ) {
         if selectedItemIDs.count > 1 && selectedItemIDs.contains(item.objectID) {
-            deleteSelectedItems(selectedItemIDs: selectedItemIDs, onClearSelection: onClearSelection)
+            deleteSelectedItems(
+                selectedItemIDs: selectedItemIDs, onClearSelection: onClearSelection)
             return
         }
 
         do {
             try store.deleteItem(objectID: item.objectID)
+            soundPlayer.play(.delete)
         } catch {
             Logger.app.error("Failed to delete item: \(error.localizedDescription)")
         }
@@ -64,7 +67,7 @@ final class ItemOperationsHandler {
     func togglePin(_ item: ClipItem, allowPinning: Bool) {
         guard allowPinning else { return }
         let context = item.managedObjectContext
-        context?.perform {
+        context?.performAndWait {
             item.isPinned.toggle()
             if item.isPinned {
                 item.displayOrder = Int64(Date().timeIntervalSince1970 * 1000)
@@ -103,6 +106,9 @@ final class ItemOperationsHandler {
             } catch {
                 Logger.app.error("Failed to delete item: \(error.localizedDescription)")
             }
+        }
+        if !idsToDelete.isEmpty {
+            soundPlayer.play(.delete)
         }
     }
 }

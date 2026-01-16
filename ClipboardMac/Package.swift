@@ -40,5 +40,10 @@ let package = Package(
             dependencies: ["ClipboardMac", "ClipboardCore", "ClipboardMacServices"],
             path: "Tests/ClipboardMacAppTests"
         ),
+        .testTarget(
+            name: "ClipboardMacUITests",
+            dependencies: ["ClipboardMac"],
+            path: "Tests/ClipboardMacUITests"
+        ),
     ]
 )

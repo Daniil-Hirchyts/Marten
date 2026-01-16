@@ -10,11 +10,15 @@ final class TestPasteEngine: PasteEngineProtocol {
         case recordFrontmostApp
         case pasteItem(objectID: URL, format: PasteFormat)
         case pasteStack(sessionID: URL, format: PasteFormat)
+        case copyItem(objectID: URL, format: PasteFormat)
+        case copyStack(sessionID: URL)
     }
 
     private(set) var actions: [Action] = []
     var pasteItemError: Error?
     var pasteStackError: Error?
+    var copyItemError: Error?
+    var copyStackError: Error?
     var pasteStackResult: PasteStackResult = PasteStackResult(successCount: 0, skippedEntries: [])
 
     func recordFrontmostApp() {
@@ -34,6 +38,20 @@ final class TestPasteEngine: PasteEngineProtocol {
             throw pasteStackError
         }
         return pasteStackResult
+    }
+
+    func copyItemToClipboard(_ item: ClipItem, format: PasteFormat) async throws {
+        actions.append(.copyItem(objectID: item.objectID.uriRepresentation(), format: format))
+        if let copyItemError {
+            throw copyItemError
+        }
+    }
+
+    func copyStackToClipboard(_ session: StackSession) async throws {
+        actions.append(.copyStack(sessionID: session.objectID.uriRepresentation()))
+        if let copyStackError {
+            throw copyStackError
+        }
     }
 }
 
@@ -58,6 +76,7 @@ final class TestAppServices: AppServiceProviding {
     let activeAppTracker: ActiveAppTracker
     let eventBroadcaster: any ClipboardEventBroadcaster
     let pasteEngine: PasteEngine
+    let screenSharingManager: ScreenSharingManager
 
     init(
         persistence: PersistenceController,
@@ -77,5 +96,6 @@ final class TestAppServices: AppServiceProviding {
         self.activeAppTracker = activeAppTracker
         self.eventBroadcaster = eventBroadcaster
         self.pasteEngine = pasteEngine
+        self.screenSharingManager = ScreenSharingManager()
     }
 }

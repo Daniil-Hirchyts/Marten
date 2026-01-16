@@ -135,6 +135,9 @@ struct PinboardTabBar: View {
                                 )
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("overlay.pinboard.add")
+                        .accessibilityLabel("Add pinboard")
+                        .accessibilityHint("Creates a new pinboard")
                     }
                 }
                 .background(
@@ -188,6 +191,11 @@ struct PinboardTabBar: View {
             ) {
                 onSelect(nil)
             }
+            .accessibilityIdentifier("overlay.pinboard.all")
+            .accessibilityLabel("All items")
+            .accessibilityValue(selectedID == nil ? "Selected" : "Not selected")
+            .accessibilityHint(pinboardHint(title: "All items", isAll: true))
+            .accessibilityElement(children: .ignore)
             .background(
                 GeometryReader { proxy in
                     if !isMeasuring {
@@ -265,6 +273,10 @@ struct PinboardTabBar: View {
                 .foregroundColor(.white)
                 .accentColor(.white)
                 .focused($isFocused)
+                .accessibilityIdentifier("overlay.pinboard.editor.name")
+                .accessibilityLabel("Pinboard name")
+                .accessibilityValue(draftName.isEmpty ? "Empty" : draftName)
+                .accessibilityHint("Enter a pinboard name")
                 .onAppear {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                         isFocused = true
@@ -307,6 +319,11 @@ struct PinboardTabBar: View {
         ) {
             onSelect(pinboard.id)
         }
+        .accessibilityIdentifier("overlay.pinboard.\(pinboard.id.uuidString)")
+        .accessibilityLabel(pinboard.name)
+        .accessibilityValue(selectedID == pinboard.id ? "Selected" : "Not selected")
+        .accessibilityHint(pinboardHint(title: pinboard.name, isAll: false))
+        .accessibilityElement(children: .ignore)
         .opacity(isDragging ? 0.25 : 1)
         .background(
             GeometryReader { proxy in
@@ -337,6 +354,7 @@ struct PinboardTabBar: View {
         .contextMenu {
             PinboardContextMenu(
                 canEdit: !pinboard.isSystemClipboard,
+                pinboardID: pinboard.id,
                 onRename: { onRename(pinboard) },
                 onColorChange: { color in onColorChange(pinboard, color) },
                 onDelete: { onDelete(pinboard) }
@@ -481,6 +499,15 @@ struct PinboardTabBar: View {
         isFocused = false
     }
 
+    private func pinboardHint(title: String, isAll: Bool) -> String {
+        var parts: [String] = []
+        parts.append(isAll ? "Shows all items" : "Shows items in \(title)")
+        if !isAll && canReorder {
+            parts.append("Drag to reorder pinboards")
+        }
+        return parts.joined(separator: ". ")
+    }
+
     @ViewBuilder
     private func placeholderView() -> some View {
         if let dropTarget,
@@ -510,6 +537,7 @@ struct PinboardTabBar: View {
                 .opacity(dragOpacity)
                 .animation(.easeOut(duration: 0.1), value: dragOpacity)
                 .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
     }
 }
@@ -529,6 +557,7 @@ private struct ColorPicker: View {
                         Text(color.name)
                     }
                 }
+                .accessibilityIdentifier("overlay.pinboard.editor.color.\(color.hex)")
             }
         } label: {
             Image(nsImage: .colorCircle(hex: selectedHex))
@@ -536,6 +565,14 @@ private struct ColorPicker: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+        .accessibilityIdentifier("overlay.pinboard.editor.color")
+        .accessibilityLabel("Pinboard color")
+        .accessibilityValue(selectedColorName)
+        .accessibilityHint("Choose a pinboard color")
+    }
+
+    private var selectedColorName: String {
+        PinboardPalette.all.first(where: { $0.hex == selectedHex })?.name ?? selectedHex
     }
 }
 

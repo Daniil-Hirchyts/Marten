@@ -1,5 +1,5 @@
-import ClipboardCore
-import ClipboardMacServices
+@preconcurrency import ClipboardCore
+@preconcurrency import ClipboardMacServices
 import CoreData
 import Foundation
 import OSLog
@@ -18,6 +18,8 @@ final class OverlayViewModel: ObservableObject {
     private let closeOverlayForPaste: (@escaping () -> Void) -> Void
     private let soundPlayer = SoundEffectPlayer()
     private let selectionHandler = ItemSelectionHandler()
+
+    private let userDefaults = UserDefaults.standard
 
     private let stackSyncQueue = DispatchQueue(
         label: "paste.overlay.stackSync", qos: .userInitiated)
@@ -149,6 +151,9 @@ final class OverlayViewModel: ObservableObject {
     func paste(item: ClipItem, plainText: Bool) {
         guard !isPasting else { return }
         isPasting = true
+        let shouldPasteToActiveApp =
+            userDefaults.object(forKey: "pasteToActiveApp") as? Bool ?? true
+        let effectivePlainText = plainText || userDefaults.bool(forKey: "alwaysPastePlainText")
         Task {
             await waitForOverlayToHide()
             defer {
@@ -157,7 +162,13 @@ final class OverlayViewModel: ObservableObject {
             }
             try? clipItemStore.markItemUsed(objectID: item.objectID)
             do {
-                try await pasteEngine.pasteItem(item, format: plainText ? .plainText : .preserved)
+                if shouldPasteToActiveApp {
+                    try await pasteEngine.pasteItem(
+                        item, format: effectivePlainText ? .plainText : .preserved)
+                } else {
+                    try await pasteEngine.copyItemToClipboard(
+                        item, format: effectivePlainText ? .plainText : .preserved)
+                }
                 soundPlayer.play(.paste)
             } catch PasteEngineError.accessibilityPermissionDenied {
                 showAccessibilityAlert = true
@@ -172,6 +183,9 @@ final class OverlayViewModel: ObservableObject {
         guard let stackSession else { return }
         guard !isPasting else { return }
         isPasting = true
+        let shouldPasteToActiveApp =
+            userDefaults.object(forKey: "pasteToActiveApp") as? Bool ?? true
+        let effectivePlainText = plainText || userDefaults.bool(forKey: "alwaysPastePlainText")
         Task {
             await waitForOverlayToHide()
             await flushPendingStackSync()
@@ -185,8 +199,12 @@ final class OverlayViewModel: ObservableObject {
                 .compactMap { $0.clipItem?.objectID } ?? []
             try? clipItemStore.markItemsUsed(objectIDs: orderedIDs)
             do {
-                try await pasteEngine.pasteStack(
-                    stackSession, format: plainText ? .plainText : .preserved)
+                if shouldPasteToActiveApp {
+                    _ = try await pasteEngine.pasteStack(
+                        stackSession, format: effectivePlainText ? .plainText : .preserved)
+                } else {
+                    try await pasteEngine.copyStackToClipboard(stackSession)
+                }
                 soundPlayer.play(.paste)
             } catch PasteEngineError.accessibilityPermissionDenied {
                 showAccessibilityAlert = true
@@ -301,3 +319,5 @@ final class OverlayViewModel: ObservableObject {
         }
     }
 }
+
+extension OverlayViewModel: @unchecked Sendable {}

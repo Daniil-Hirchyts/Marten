@@ -18,13 +18,13 @@ let package = Package(
                 "DataModel/Paste.xcdatamodeld"
             ],
             resources: [
-                .process("DataModel/Paste.momd")
+                .copy("DataModel/Paste.momd")
             ]
         ),
         .testTarget(
             name: "ClipboardCoreTests",
             dependencies: ["ClipboardCore"],
             path: "Tests"
-        )
+        ),
     ]
 )

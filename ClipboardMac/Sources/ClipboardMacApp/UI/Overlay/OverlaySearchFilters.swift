@@ -55,6 +55,10 @@ struct FilterPopoverView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(hasActiveFilters ? .secondary : .tertiary)
                 .disabled(!hasActiveFilters)
+                .accessibilityIdentifier("overlay.search.filters.clear")
+                .accessibilityLabel("Clear filters")
+                .accessibilityValue(hasActiveFilters ? "Filters active" : "No filters")
+                .accessibilityHint("Clears all active filters")
             }
 
             filterSection(title: "Date", icon: "calendar") {
@@ -63,7 +67,8 @@ struct FilterPopoverView: View {
                         FilterChip(
                             title: filter.title,
                             icon: dateIcon(for: filter),
-                            isSelected: dateFilter == filter
+                            isSelected: dateFilter == filter,
+                            identifier: "overlay.search.filter.date.\(filter.rawValue)"
                         ) {
                             dateFilter = filter
                         }
@@ -77,7 +82,8 @@ struct FilterPopoverView: View {
                         FilterChip(
                             title: itemTypeLabel(type),
                             icon: itemTypeIcon(type),
-                            isSelected: typeFilters.contains(type)
+                            isSelected: typeFilters.contains(type),
+                            identifier: "overlay.search.filter.type.\(itemTypeIdentifier(type))"
                         ) {
                             toggleType(type)
                         }
@@ -98,7 +104,8 @@ struct FilterPopoverView: View {
                             ForEach(appOptions) { option in
                                 AppFilterChip(
                                     option: option,
-                                    isSelected: appFilters.contains(option.id)
+                                    isSelected: appFilters.contains(option.id),
+                                    identifier: "overlay.search.filter.app.\(appIdentifier(option))"
                                 ) {
                                     toggleApp(option.id)
                                 }
@@ -112,6 +119,7 @@ struct FilterPopoverView: View {
         }
         .padding(16)
         .frame(width: popoverWidth)
+        .accessibilityIdentifier("overlay.search.filters")
     }
 
     private var hasActiveFilters: Bool {
@@ -200,12 +208,37 @@ struct FilterPopoverView: View {
             return "square.stack.3d.up"
         }
     }
+
+    private func itemTypeIdentifier(_ type: ItemType) -> String {
+        switch type {
+        case .text:
+            return "text"
+        case .richText:
+            return "richText"
+        case .image:
+            return "image"
+        case .file:
+            return "file"
+        case .url:
+            return "url"
+        case .code:
+            return "code"
+        case .mixed:
+            return "mixed"
+        }
+    }
+
+    private func appIdentifier(_ option: AppFilterOption) -> String {
+        let base = option.bundleID ?? option.id
+        return base.replacingOccurrences(of: " ", with: "_")
+    }
 }
 
 private struct FilterChip: View {
     let title: String
     let icon: String
     let isSelected: Bool
+    let identifier: String
     let action: () -> Void
 
     var body: some View {
@@ -232,12 +265,17 @@ private struct FilterChip: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel(title)
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityHint("Toggles filter")
     }
 }
 
 private struct AppFilterChip: View {
     let option: AppFilterOption
     let isSelected: Bool
+    let identifier: String
     let action: () -> Void
 
     var body: some View {
@@ -262,5 +300,9 @@ private struct AppFilterChip: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel(option.name)
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityHint("Toggles app filter")
     }
 }

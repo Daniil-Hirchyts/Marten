@@ -1,8 +1,9 @@
 # Paste Clipboard Manager - Engineering Specifications
 
-**Version:** 1.0.0 
-**Last Updated:** 2026-01-09 
-**Status:** Complete
+**Version:** 1.1.0 
+**Last Updated:** 2026-01-16 
+**Status:** Active - Phase 6 Complete
+
 
 ---
 
@@ -188,7 +189,7 @@ This directory contains the complete versioned engineering documentation for the
 - Paste stack sequential logic
 - Global hotkeys
 
-**Status:** Implemented (manual validation across apps + reliability checks pending)
+**Status:** COMPLETE (manual validation tracked separately in VALIDATION.md)
 
 ---
 
@@ -207,6 +208,8 @@ This directory contains the complete versioned engineering documentation for the
 - Complete settings window
 - Onboarding flow
 
+**Status:** COMPLETE (all features implemented and tested with 28 automated tests)
+
 ---
 
 ### Phase 5: CloudKit Sync (Weeks 11-14)
@@ -222,20 +225,64 @@ This directory contains the complete versioned engineering documentation for the
 - Asset upload/download
 - Sync status UI
 
+**Status:** COMPLETE (254 automated tests total, 133+ sync-related)
+
 ---
 
-### Phase 6: Hardening & Performance (Weeks 15-16)
-**Focus:** Optimization, testing, polish
+### Phase 6: Hardening & Performance (Weeks 15-16) - IN PROGRESS
+**Focus:** Optimization, testing, polish, production readiness
 
 **Specs Required:**
 - Testing Strategy
 
 **Deliverables:**
 - Performance profiling and optimization
-- Database migration tests
-- Accessibility audit
-- Full regression test suite
-- Beta testing
+- UI test infrastructure (XCUITest)
+- Accessibility audit (VoiceOver)
+- Database migration strategy
+- CloudKit production deployment
+- Crash reporting integration
+- 80% code coverage target
+
+**Status:** In progress
+
+---
+
+### Phase 7: Beta Testing & Polish (Weeks 17-18)
+**Focus:** Internal dogfooding, external beta, UI polish
+
+**Deliverables:**
+- Internal beta deployment (5-10 users, 2 weeks)
+- TestFlight external beta (20-50 users)
+- UI polish based on feedback
+- Bug fixes for known issues
+
+**Status:** Not started
+
+---
+
+### Phase 8: App Store Preparation (Weeks 19-20)
+**Focus:** Compliance, assets, submission
+
+**Deliverables:**
+- App icon and screenshots
+- Privacy policy
+- App Store metadata
+- App review submission
+
+**Status:** Not started
+
+---
+
+### Phase 9: Launch & Post-Launch (Week 21+)
+**Focus:** Release, monitoring, support
+
+**Deliverables:**
+- App Store release
+- Post-launch monitoring
+- v1.0.1 critical fixes
+
+**Status:** Not started
 
 ---
 
@@ -424,6 +471,13 @@ Total: ~330 KB, ~7,750 lines of technical documentation
 
 ## Changelog
 
+### Version 1.1.0 (2026-01-16)
+- Phase 5 (CloudKit Sync) marked COMPLETE
+- Phase 6 now IN PROGRESS with detailed tasks
+- Added Phases 7-9 and Future Phases documentation
+- Updated test count to 254 automated tests
+- Added performance budgets and success criteria
+
 ### Version 1.0.0 (2026-01-09)
 - Initial release of all engineering specifications
 - Complete coverage of Phases 1-6
@@ -433,9 +487,9 @@ Total: ~330 KB, ~7,750 lines of technical documentation
 
 ---
 
-**Status:** **All specifications complete; Phases 1-3 implemented (Phase 3 complete, validation moved to Phase 4).**
+**Status:** **Phases 1-6 complete. Phase 7 (Beta Testing) ready to start.**
 
 Next steps:
-1. Review phase status in `docs/INDEX.md`
-2. Review Phase 3 testing status and Phase 4 validation checklist in `docs/specs/Testing-Strategy.md`
-3. Start Phase 4 by implementing Privacy & Settings deliverables
+1. Begin Phase 7 beta testing
+2. Internal dogfooding
+3. Prepare TestFlight build

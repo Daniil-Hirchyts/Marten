@@ -1,7 +1,7 @@
 import CoreData
 import Foundation
 
-public struct SourceAppInfo {
+public struct SourceAppInfo: Sendable {
     public let bundleID: String?
     public let name: String?
 
@@ -55,7 +55,8 @@ public final class ClipItemStore {
 
         let now = Date()
         let displayOrder = currentDisplayOrder(reference: now)
-        let hash = try computeContentHash(primaryText: payload.primaryText, representations: payload.representations)
+        let hash = try computeContentHash(
+            primaryText: payload.primaryText, representations: payload.representations)
 
         let context = persistence.newBackgroundContext()
         var createdObjectID: NSManagedObjectID?
@@ -68,7 +69,10 @@ public final class ClipItemStore {
                 return
             }
 
-            guard let item = NSEntityDescription.insertNewObject(forEntityName: "ClipItem", into: context) as? ClipItem else {
+            guard
+                let item = NSEntityDescription.insertNewObject(
+                    forEntityName: "ClipItem", into: context) as? ClipItem
+            else {
                 throw ClipItemStoreError.creationFailed
             }
             item.id = UUID()
@@ -79,19 +83,26 @@ public final class ClipItemStore {
             item.sourceAppName = sourceApp?.name
             item.itemTypeValue = payload.itemType
             item.primaryText = payload.primaryText
-            item.searchableText = deriveSearchableText(primaryText: payload.primaryText, representations: payload.representations)
+            item.searchableText = deriveSearchableText(
+                primaryText: payload.primaryText, representations: payload.representations)
             item.contentHash = hash
             item.needsLinkPreview = payload.needsLinkPreview
+            item.isSensitive = payload.isSensitive
+            item.isTransient = payload.isTransient
             item.isUserCreated = isUserCreated
 
             var totalBytes: Int64 = 0
-            let sortedRepresentations = payload.representations.sorted { $0.displayOrder < $1.displayOrder }
+            let sortedRepresentations = payload.representations.sorted {
+                $0.displayOrder < $1.displayOrder
+            }
 
             for repPayload in sortedRepresentations {
-                guard let representation = NSEntityDescription.insertNewObject(
-                    forEntityName: "ClipRepresentation",
-                    into: context
-                ) as? ClipRepresentation else {
+                guard
+                    let representation = NSEntityDescription.insertNewObject(
+                        forEntityName: "ClipRepresentation",
+                        into: context
+                    ) as? ClipRepresentation
+                else {
                     throw ClipItemStoreError.creationFailed
                 }
                 representation.id = UUID()
@@ -111,7 +122,8 @@ public final class ClipItemStore {
                 if let data = repPayload.data {
                     repBytes += Int64(data.count)
                     if data.count > assetThresholdBytes {
-                        representation.assetRef = try assetStore.store(data: data, fileExtension: repPayload.fileExtension)
+                        representation.assetRef = try assetStore.store(
+                            data: data, fileExtension: repPayload.fileExtension)
                     } else {
                         representation.binaryData = data
                     }
@@ -148,6 +160,31 @@ public final class ClipItemStore {
         return item
     }
 
+    public static func deleteAll() {
+        let store = ClipItemStore()
+        try? store.deleteAllItems()
+    }
+
+    public func deleteAllItems() throws {
+        let context = persistence.newBackgroundContext()
+        try context.performAndWaitThrowing {
+            let request = ClipItem.fetchRequest()
+            let items = try context.fetch(request)
+            for item in items {
+                removeAssets(for: item)
+                context.delete(item)
+            }
+            if context.hasChanges {
+                try context.save()
+            }
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            viewContext.refreshAllObjects()
+        }
+    }
+
     public func fetchRecentItems(limit: Int = 100) throws -> [ClipItem] {
         let context = persistence.viewContext
         var results: [ClipItem] = []
@@ -156,7 +193,7 @@ public final class ClipItemStore {
             request.predicate = NSPredicate(format: "isTransient == NO")
             request.sortDescriptors = [
                 NSSortDescriptor(key: "displayOrder", ascending: false),
-                NSSortDescriptor(key: "createdAt", ascending: false)
+                NSSortDescriptor(key: "createdAt", ascending: false),
             ]
             request.fetchLimit = limit
             request.relationshipKeyPathsForPrefetching = ["representations", "pinboards"]
@@ -176,7 +213,8 @@ public final class ClipItemStore {
         try context.performAndWaitThrowing {
             let request = ClipItem.fetchRequest()
             request.predicate = NSPredicate(
-                format: "createdAt < %@ AND isPinned == NO AND SUBQUERY(pinboards, $p, $p.isSystemClipboard == NO).@count == 0",
+                format:
+                    "createdAt < %@ AND isPinned == NO AND SUBQUERY(pinboards, $p, $p.isSystemClipboard == NO).@count == 0",
                 retentionDate as NSDate
             )
 
@@ -223,7 +261,10 @@ public final class ClipItemStore {
                 rep.textData = Data(trimmedText.utf8)
                 rep.byteCount = Int64(trimmedText.utf8.count)
             } else {
-                guard let representation = NSEntityDescription.insertNewObject(forEntityName: "ClipRepresentation", into: context) as? ClipRepresentation else {
+                guard
+                    let representation = NSEntityDescription.insertNewObject(
+                        forEntityName: "ClipRepresentation", into: context) as? ClipRepresentation
+                else {
                     throw ClipItemStoreError.creationFailed
                 }
                 representation.id = UUID()
@@ -283,11 +324,16 @@ public final class ClipItemStore {
     }
 
     @discardableResult
-    public func createPinboard(name: String, colorHex: String, iconName: String? = nil) throws -> Pinboard {
+    public func createPinboard(name: String, colorHex: String, iconName: String? = nil) throws
+        -> Pinboard
+    {
         let context = persistence.newBackgroundContext()
         var createdObjectID: NSManagedObjectID?
         try context.performAndWaitThrowing {
-            guard let pinboard = NSEntityDescription.insertNewObject(forEntityName: "Pinboard", into: context) as? Pinboard else {
+            guard
+                let pinboard = NSEntityDescription.insertNewObject(
+                    forEntityName: "Pinboard", into: context) as? Pinboard
+            else {
                 throw ClipItemStoreError.creationFailed
             }
             pinboard.id = UUID()
@@ -319,7 +365,9 @@ public final class ClipItemStore {
         return pinboard
     }
 
-    public func renamePinboard(objectID: NSManagedObjectID, name: String, colorHex: String? = nil) throws {
+    public func renamePinboard(objectID: NSManagedObjectID, name: String, colorHex: String? = nil)
+        throws
+    {
         let context = persistence.newBackgroundContext()
         try context.performAndWaitThrowing {
             guard let pinboard = try context.existingObject(with: objectID) as? Pinboard else {
@@ -370,11 +418,14 @@ public final class ClipItemStore {
         }
     }
 
-    public func addItem(objectID: NSManagedObjectID, toPinboard pinboardID: NSManagedObjectID) throws {
+    public func addItem(objectID: NSManagedObjectID, toPinboard pinboardID: NSManagedObjectID)
+        throws
+    {
         let context = persistence.newBackgroundContext()
         try context.performAndWaitThrowing {
             guard let item = try context.existingObject(with: objectID) as? ClipItem,
-                  let pinboard = try context.existingObject(with: pinboardID) as? Pinboard else {
+                let pinboard = try context.existingObject(with: pinboardID) as? Pinboard
+            else {
                 throw ClipItemStoreError.missingItem
             }
             item.addToPinboards(pinboard)
@@ -382,11 +433,14 @@ public final class ClipItemStore {
         }
     }
 
-    public func removeItem(objectID: NSManagedObjectID, fromPinboard pinboardID: NSManagedObjectID) throws {
+    public func removeItem(objectID: NSManagedObjectID, fromPinboard pinboardID: NSManagedObjectID)
+        throws
+    {
         let context = persistence.newBackgroundContext()
         try context.performAndWaitThrowing {
             guard let item = try context.existingObject(with: objectID) as? ClipItem,
-                  let pinboard = try context.existingObject(with: pinboardID) as? Pinboard else {
+                let pinboard = try context.existingObject(with: pinboardID) as? Pinboard
+            else {
                 throw ClipItemStoreError.missingItem
             }
             item.removeFromPinboards(pinboard)
@@ -394,16 +448,20 @@ public final class ClipItemStore {
         }
     }
 
-    public func moveItem(objectID: NSManagedObjectID, toPinboard pinboardID: NSManagedObjectID) throws {
+    public func moveItem(objectID: NSManagedObjectID, toPinboard pinboardID: NSManagedObjectID)
+        throws
+    {
         let context = persistence.newBackgroundContext()
         try context.performAndWaitThrowing {
             guard let item = try context.existingObject(with: objectID) as? ClipItem,
-                  let target = try context.existingObject(with: pinboardID) as? Pinboard else {
+                let target = try context.existingObject(with: pinboardID) as? Pinboard
+            else {
                 throw ClipItemStoreError.missingItem
             }
 
             let existingPinboards = item.pinboards ?? []
-            for pinboard in existingPinboards where !pinboard.isSystemClipboard && pinboard.objectID != target.objectID {
+            for pinboard in existingPinboards
+            where !pinboard.isSystemClipboard && pinboard.objectID != target.objectID {
                 item.removeFromPinboards(pinboard)
             }
 
@@ -419,7 +477,9 @@ public final class ClipItemStore {
         }
     }
 
-    public func updateThumbnail(objectID: NSManagedObjectID, data: Data, fileExtension: String = "png") throws {
+    public func updateThumbnail(
+        objectID: NSManagedObjectID, data: Data, fileExtension: String = "png"
+    ) throws {
         let context = persistence.newBackgroundContext()
         try context.performAndWaitThrowing {
             guard let item = try context.existingObject(with: objectID) as? ClipItem else {
@@ -442,6 +502,121 @@ public final class ClipItemStore {
                 viewContext.refresh(item, mergeChanges: true)
             }
         }
+    }
+
+    public func updateLinkPreview(objectID: NSManagedObjectID, payload: LinkPreviewPayload) throws {
+        let context = persistence.newBackgroundContext()
+        try context.performAndWaitThrowing {
+            guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                throw ClipItemStoreError.missingItem
+            }
+
+            if let existing = item.linkPreview {
+                if let existingImagePath = existing.imagePath {
+                    try? FileManager.default.removeItem(atPath: existingImagePath)
+                }
+                context.delete(existing)
+            }
+
+            guard
+                let preview = NSEntityDescription.insertNewObject(
+                    forEntityName: "LinkPreview", into: context) as? LinkPreview
+            else {
+                throw ClipItemStoreError.creationFailed
+            }
+
+            preview.id = UUID()
+            preview.url = payload.url.absoluteString
+            preview.title = payload.title
+            preview.siteName = payload.siteName
+            preview.summary = payload.summary
+            preview.fetchedAt = payload.fetchedAt
+            preview.fetchFailed = false
+
+            if let imageData = payload.imageData {
+                let assetRef = try assetStore.store(data: imageData, fileExtension: "png")
+                let url = assetStore.urlForAsset(assetRef, fileExtension: "png")
+                preview.imagePath = url.path
+            }
+
+            preview.clipItem = item
+            item.linkPreview = preview
+            item.needsLinkPreview = false
+            try context.save()
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            if let item = try? viewContext.existingObject(with: objectID) as? ClipItem {
+                viewContext.refresh(item, mergeChanges: true)
+            }
+        }
+    }
+
+    public func markLinkPreviewFetchFailed(
+        objectID: NSManagedObjectID, url: URL, fetchedAt: Date = Date()
+    ) throws {
+        let context = persistence.newBackgroundContext()
+        try context.performAndWaitThrowing {
+            guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                throw ClipItemStoreError.missingItem
+            }
+
+            let preview: LinkPreview
+            if let existing = item.linkPreview {
+                preview = existing
+            } else {
+                guard
+                    let created = NSEntityDescription.insertNewObject(
+                        forEntityName: "LinkPreview", into: context) as? LinkPreview
+                else {
+                    throw ClipItemStoreError.creationFailed
+                }
+                created.id = UUID()
+                created.clipItem = item
+                item.linkPreview = created
+                preview = created
+            }
+
+            preview.url = url.absoluteString
+            preview.fetchedAt = fetchedAt
+            preview.fetchFailed = true
+            item.needsLinkPreview = false
+            try context.save()
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            if let item = try? viewContext.existingObject(with: objectID) as? ClipItem {
+                viewContext.refresh(item, mergeChanges: true)
+            }
+        }
+    }
+
+    public func fetchPendingLinkPreviewTargets(limit: Int = 25) throws -> [(
+        objectID: NSManagedObjectID, url: URL
+    )] {
+        let context = persistence.newBackgroundContext()
+        var results: [(NSManagedObjectID, URL)] = []
+        try context.performAndWaitThrowing {
+            let request = ClipItem.fetchRequest()
+            request.predicate = NSPredicate(
+                format: "needsLinkPreview == YES AND linkPreview == nil")
+            request.sortDescriptors = [
+                NSSortDescriptor(key: "createdAt", ascending: false)
+            ]
+            request.fetchLimit = limit
+            let items = try context.fetch(request)
+            for item in items {
+                guard item.itemTypeValue == .url, let text = item.primaryText,
+                    let url = URL(string: text)
+                else {
+                    continue
+                }
+                results.append((item.objectID, url))
+            }
+        }
+        return results
     }
 
     public func markItemUsed(objectID: NSManagedObjectID, now: Date = Date()) throws {
@@ -530,7 +705,9 @@ public final class ClipItemStore {
         }
     }
 
-    public func searchItems(query: String, limit: Int = 50, pinboardID: UUID? = nil) throws -> [ClipItem] {
+    public func searchItems(query: String, limit: Int = 50, pinboardID: UUID? = nil) throws
+        -> [ClipItem]
+    {
         let normalized = query.normalizedForSearch()
         let context = persistence.viewContext
         var results: [ClipItem] = []
@@ -540,12 +717,13 @@ public final class ClipItemStore {
                 NSPredicate(format: "searchableText CONTAINS[cd] %@", normalized)
             ]
             if let pinboardID {
-                predicates.append(NSPredicate(format: "ANY pinboards.id == %@", pinboardID as CVarArg))
+                predicates.append(
+                    NSPredicate(format: "ANY pinboards.id == %@", pinboardID as CVarArg))
             }
             request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
             request.sortDescriptors = [
                 NSSortDescriptor(key: "displayOrder", ascending: false),
-                NSSortDescriptor(key: "createdAt", ascending: false)
+                NSSortDescriptor(key: "createdAt", ascending: false),
             ]
             request.fetchLimit = limit
             request.relationshipKeyPathsForPrefetching = ["representations", "pinboards"]
@@ -587,7 +765,9 @@ public final class ClipItemStore {
         return fallback?.normalizedForSearch()
     }
 
-    private func fetchExistingItem(hash: String, in context: NSManagedObjectContext) throws -> ClipItem? {
+    private func fetchExistingItem(hash: String, in context: NSManagedObjectContext) throws
+        -> ClipItem?
+    {
         let request = ClipItem.fetchRequest()
         request.predicate = NSPredicate(format: "contentHash == %@", hash)
         request.fetchLimit = 1
@@ -608,7 +788,9 @@ public final class ClipItemStore {
         return 0
     }
 
-    private func fetchOrCreateSystemClipboardPinboard(in context: NSManagedObjectContext) throws -> Pinboard {
+    private func fetchOrCreateSystemClipboardPinboard(in context: NSManagedObjectContext) throws
+        -> Pinboard
+    {
         let request = Pinboard.fetchRequest()
         request.predicate = NSPredicate(format: "isSystemClipboard == YES")
         request.fetchLimit = 1
@@ -617,7 +799,10 @@ public final class ClipItemStore {
             return existing
         }
 
-        guard let pinboard = NSEntityDescription.insertNewObject(forEntityName: "Pinboard", into: context) as? Pinboard else {
+        guard
+            let pinboard = NSEntityDescription.insertNewObject(
+                forEntityName: "Pinboard", into: context) as? Pinboard
+        else {
             throw ClipItemStoreError.creationFailed
         }
         pinboard.id = UUID()
@@ -639,9 +824,15 @@ public final class ClipItemStore {
         if let thumbnailPath = item.thumbnailPath {
             try? FileManager.default.removeItem(atPath: thumbnailPath)
         }
+
+        if let previewImagePath = item.linkPreview?.imagePath {
+            try? FileManager.default.removeItem(atPath: previewImagePath)
+        }
     }
 
     public func saveChanges() throws {
         try persistence.saveViewContextIfNeeded()
     }
 }
+
+extension ClipItemStore: @unchecked Sendable {}
