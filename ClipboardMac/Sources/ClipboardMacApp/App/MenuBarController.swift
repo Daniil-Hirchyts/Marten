@@ -103,7 +103,9 @@ final class MenuBarController: NSObject {
     @objc private func openSettings() {
         hideOverlayHandler {
             NSApp.activate(ignoringOtherApps: true)
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "settings" }) {
+                window.makeKeyAndOrderFront(nil)
+            }
         }
     }
 
@@ -116,13 +118,13 @@ final class MenuBarController: NSObject {
 private struct MenuSettingsButton14: View {
     let closeOverlay: (@escaping () -> Void) -> Void
 
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Button {
             closeOverlay {
                 NSApp.activate(ignoringOtherApps: true)
-                openSettings()
+                openWindow(id: "settings")
             }
         } label: {
             HStack(spacing: 8) {
@@ -136,3 +138,4 @@ private struct MenuSettingsButton14: View {
         .buttonStyle(.plain)
     }
 }
+

@@ -814,7 +814,9 @@ struct OverlayRootView: View {
 
     private func openSettingsLegacy() {
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "settings" }) {
+            window.makeKeyAndOrderFront(nil)
+        }
     }
 
     private func handleOverlayTap(at location: CGPoint) {
@@ -870,13 +872,13 @@ private struct OverlaySettingsButton14: View {
     let closeOverlay: (@escaping () -> Void) -> Void
     let label: AnyView
 
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Button {
             closeOverlay {
                 NSApp.activate(ignoringOtherApps: true)
-                openSettings()
+                openWindow(id: "settings")
             }
         } label: {
             label

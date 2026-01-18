@@ -48,99 +48,21 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 struct SettingsView: View {
     var syncCoordinator: SyncCoordinator?
 
-    @State private var selectedTab: SettingsTab = .general
-    @State private var hoveredTab: SettingsTab?
+    @State private var selectedTab: SettingsTab? = .general
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Sidebar
-            sidebar
-                .frame(width: 200)
-
-            // Divider
-            Rectangle()
-                .fill(Color.white.opacity(0.1))
-                .frame(width: 1)
-
-            // Content
-            contentView
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(width: 720, height: 520)
-        .background(SettingsBackgroundView())
-    }
-
-    // MARK: - Sidebar
-
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // Header
-            Text("Settings")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.top, 20)
-                .padding(.bottom, 8)
-
-            // Navigation Items
-            ForEach(SettingsTab.allCases) { tab in
-                SettingsSidebarItem(
-                    tab: tab,
-                    isSelected: selectedTab == tab,
-                    isHovered: hoveredTab == tab
-                )
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        selectedTab = tab
-                    }
-                }
-                .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        hoveredTab = hovering ? tab : nil
-                    }
+        NavigationSplitView {
+            List(selection: $selectedTab) {
+                ForEach(SettingsTab.allCases) { tab in
+                    Label(tab.title, systemImage: tab.icon)
+                        .tag(tab)
                 }
             }
-
-            Spacer()
-
-            // App Info
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Paste")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.primary)
-                Text("Version 1.0.0")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
-        }
-        .frame(maxHeight: .infinity, alignment: .top)
-    }
-
-    // MARK: - Content View
-
-    @ViewBuilder
-    private var contentView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                // Tab Header
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(selectedTab.title)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(.primary)
-
-                    Text(selectedTab.description)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 24)
-                .padding(.bottom, 20)
-
-                // Tab Content
+            .listStyle(.sidebar)
+        } detail: {
+            ScrollView {
                 Group {
-                    switch selectedTab {
+                    switch currentTab {
                     case .general:
                         GeneralSettingsContent()
                     case .shortcuts:
@@ -157,80 +79,19 @@ struct SettingsView: View {
                         SubscriptionSettingsContent()
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 20)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle(currentTab.title)
         }
-    }
-}
-
-// MARK: - Sidebar Item
-
-private struct SettingsSidebarItem: View {
-    let tab: SettingsTab
-    let isSelected: Bool
-    let isHovered: Bool
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: tab.icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(isSelected ? .primary : .secondary)
-                .frame(width: 20)
-
-            Text(tab.title)
-                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                .foregroundStyle(isSelected ? .primary : .secondary)
-
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(itemBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .padding(.horizontal, 8)
-        .accessibilityIdentifier("settings.sidebar.\(tab.rawValue)")
-        .accessibilityLabel(tab.title)
-        .accessibilityValue(isSelected ? "Selected" : "")
+        .toolbar(removing: .sidebarToggle)
+        .frame(width: 720, height: 520)
     }
 
-    @ViewBuilder
-    private var itemBackground: some View {
-        if #available(macOS 26.0, *) {
-            if isSelected {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.clear)
-                    .glassStyle(shape: .roundedRectangle(cornerRadius: 8), isProminent: true)
-            } else if isHovered {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.white.opacity(0.08))
-            } else {
-                Color.clear
-            }
-        } else {
-            if isSelected {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.white.opacity(DesignTokens.Opacity.backgroundStrong))
-            } else if isHovered {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
-            } else {
-                Color.clear
-            }
-        }
-    }
-}
-
-// MARK: - Settings Background
-
-private struct SettingsBackgroundView: View {
-    var body: some View {
-        if #available(macOS 26.0, *) {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-        } else {
-            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-        }
+    private var currentTab: SettingsTab {
+        selectedTab ?? .general
     }
 }
 
@@ -273,11 +134,11 @@ struct SettingsSectionHeader: View {
         HStack(spacing: 6) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
         }
@@ -307,6 +168,7 @@ struct SettingsToggleRow: View {
                     .font(.system(size: 13, weight: .medium))
             }
             .toggleStyle(.switch)
+            .controlSize(.small)
             .accessibilityIdentifier(identifier)
 
             if let description {
