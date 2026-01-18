@@ -125,7 +125,7 @@ struct ItemCardRow: View {
         }
         // Note: All preview updates now happen directly via callback in drag handlers and timer
         // This avoids triggering parent re-renders through the binding
-        .onChange(of: items.map(\.objectID)) { newIDs in
+        .onChange(of: items.map(\.objectID)) { oldIDs, newIDs in
             // Reset item frames when items change (e.g., after search clears or filter changes)
             // This ensures the drag gesture works with fresh frame data
             let currentIDs = Set(itemFrames.keys)
@@ -805,3 +805,4 @@ struct ItemCardRowPagination {
         return index / batchSize
     }
 }
+

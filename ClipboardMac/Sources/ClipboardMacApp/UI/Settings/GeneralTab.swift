@@ -23,7 +23,7 @@ struct GeneralSettingsContent: View {
                         isOn: $openAtLogin,
                         identifier: "settings.toggle.openAtLogin"
                     )
-                    .onChange(of: openAtLogin) { newValue in
+                    .onChange(of: openAtLogin) { newValue, _ in
                         if newValue {
                             try? SMAppService.mainApp.register()
                         } else {

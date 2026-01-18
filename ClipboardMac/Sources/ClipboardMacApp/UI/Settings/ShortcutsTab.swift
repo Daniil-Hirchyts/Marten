@@ -78,16 +78,16 @@ struct ShortcutsSettingsContent: View {
                 .accessibilityIdentifier("settings.button.resetShortcuts")
             }
         }
-        .onChange(of: model.showClipboard) { _ in model.save() }
-        .onChange(of: model.quickPaste1) { _ in model.save() }
-        .onChange(of: model.quickPaste2) { _ in model.save() }
-        .onChange(of: model.quickPaste3) { _ in model.save() }
-        .onChange(of: model.quickPaste4) { _ in model.save() }
-        .onChange(of: model.quickPaste5) { _ in model.save() }
-        .onChange(of: model.quickPaste6) { _ in model.save() }
-        .onChange(of: model.quickPaste7) { _ in model.save() }
-        .onChange(of: model.quickPaste8) { _ in model.save() }
-        .onChange(of: model.quickPaste9) { _ in model.save() }
+        .onChange(of: model.showClipboard) { model.save() }
+        .onChange(of: model.quickPaste1) { model.save() }
+        .onChange(of: model.quickPaste2) { model.save() }
+        .onChange(of: model.quickPaste3) { model.save() }
+        .onChange(of: model.quickPaste4) { model.save() }
+        .onChange(of: model.quickPaste5) { model.save() }
+        .onChange(of: model.quickPaste6) { model.save() }
+        .onChange(of: model.quickPaste7) { model.save() }
+        .onChange(of: model.quickPaste8) { model.save() }
+        .onChange(of: model.quickPaste9) { model.save() }
     }
 
     private func quickPasteBinding(_ index: Int) -> Binding<HotkeyPreference> {

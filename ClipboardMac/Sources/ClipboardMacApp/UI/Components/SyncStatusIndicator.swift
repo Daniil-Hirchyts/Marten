@@ -93,7 +93,7 @@ public struct SyncStatusIndicator<Coordinator: SyncCoordinating & ObservableObje
                     : .default,
                 value: isAnimating
             )
-            .onChange(of: coordinator.status) { newStatus in
+            .onChange(of: coordinator.status) { _, newStatus in
                 isAnimating = (newStatus == .syncing)
             }
             .onAppear {

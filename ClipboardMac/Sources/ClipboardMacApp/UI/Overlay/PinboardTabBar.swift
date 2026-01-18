@@ -119,12 +119,12 @@ struct PinboardTabBar: View {
                                 scrollViewBounds = scrollGeo.frame(in: .named(localCoordinateSpaceName))
                                 currentScrollProxy = scrollProxy
                             }
-                            .onChange(of: scrollGeo.frame(in: .named(localCoordinateSpaceName))) { newFrame in
+                            .onChange(of: scrollGeo.frame(in: .named(localCoordinateSpaceName))) { newFrame, _ in
                                 scrollViewBounds = newFrame
                             }
                         }
                     )
-                    .onChange(of: dragState) { newDragState in
+                    .onChange(of: dragState) { newDragState, _ in
                         handleAutoScrollStateChange(newDragState, scrollProxy: scrollProxy)
                     }
                 }
@@ -198,13 +198,13 @@ struct PinboardTabBar: View {
                 trailingTabWidth = w
             }
         }
-        .onChange(of: draftName) { newValue in
+        .onChange(of: draftName) { newValue, _ in
             let clamped = String(newValue.prefix(maxPinboardNameLength))
             if clamped != newValue {
                 draftName = clamped
             }
         }
-        .onChange(of: pinboards.count) { _ in
+        .onChange(of: pinboards.count) {
             frameManager.shouldReportFrames = true
         }
     }

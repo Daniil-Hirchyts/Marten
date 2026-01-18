@@ -50,6 +50,11 @@ struct SettingsView: View {
 
     @State private var selectedTab: SettingsTab? = .general
 
+    init(syncCoordinator: SyncCoordinator? = nil, initialTab: SettingsTab? = .general) {
+        self.syncCoordinator = syncCoordinator
+        self._selectedTab = State(initialValue: initialTab)
+    }
+
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedTab) {
@@ -118,6 +123,8 @@ struct SettingsCard<Content: View>: View {
             )
     }
 }
+
+
 
 // MARK: - Settings Section Header
 
@@ -210,3 +217,25 @@ private struct AccountUnavailableContent: View {
         }
     }
 }
+
+// MARK: - Component Previews
+
+#Preview("Settings - General") {
+    SettingsView(syncCoordinator: nil, initialTab: .general)
+}
+
+// #Preview("Settings - Account (Unavailable)") {
+//     SettingsView(syncCoordinator: nil, initialTab: .account)
+// }
+
+// #Preview("Settings - Shortcuts") {
+//     SettingsView(syncCoordinator: nil, initialTab: .shortcuts)
+// }
+
+// #Preview("Settings - Privacy") {
+//     SettingsView(syncCoordinator: nil, initialTab: .privacy)
+// }
+
+// #Preview("Settings - Subscription") {
+//     SettingsView(syncCoordinator: nil, initialTab: .subscription)
+// }

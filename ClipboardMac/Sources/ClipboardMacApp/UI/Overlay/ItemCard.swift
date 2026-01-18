@@ -265,12 +265,9 @@ struct ItemCard: View {
         .onAppear {
             cachedProps = CachedItemProperties(item: item)
         }
-        .onChange(
-            of: item.objectID,
-            perform: { _ in
-                cachedProps = CachedItemProperties(item: item)
-            }
-        )
+        .onChange(of: item.objectID) { _, _ in
+            cachedProps = CachedItemProperties(item: item)
+        }
         .onReceive(item.objectWillChange) { _ in
             DispatchQueue.main.async {
                 cachedProps = CachedItemProperties(item: item)
@@ -495,3 +492,4 @@ private struct QuickPasteBadge: View {
             .clipShape(Circle())
     }
 }
+

@@ -400,7 +400,7 @@ struct OverlayRootView: View {
         .background(WindowAccessor(window: $window))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
-        .onChange(of: dragCoordinator.dragPreviewData) { newData in
+        .onChange(of: dragCoordinator.dragPreviewData) { newData, _ in
             dragCoordinator.updateDragPreviewWindow(newData, parentWindow: window)
         }
         .alert("Accessibility Permission Required", isPresented: $viewModel.showAccessibilityAlert)
@@ -412,17 +412,17 @@ struct OverlayRootView: View {
         } message: {
             Text("Paste needs Accessibility permission to paste into other apps.")
         }
-        .onChange(of: searchModel.selectedPinboardID) { _ in
+        .onChange(of: searchModel.selectedPinboardID) {
             if isFilterPopoverPresented {
                 searchModel.updateAppOptions(from: Array(items))
             }
         }
-        .onChange(of: isSearchExpanded) { expanded in
+        .onChange(of: isSearchExpanded) { expanded, _ in
             if !expanded {
                 isFilterPopoverPresented = false
             }
         }
-        .onChange(of: searchFocused) { focused in
+        .onChange(of: searchFocused) { focused, _ in
             // Close empty search when focus is lost
             if !focused && isSearchExpanded
                 && searchModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -453,10 +453,10 @@ struct OverlayRootView: View {
             isCreatingPinboard = false
             renamePinboardID = nil
         }
-        .onChange(of: pinboards.count) { _ in
+        .onChange(of: pinboards.count) {
             ensureValidSelection()
         }
-        .onChange(of: itemsSourceAppsHash) { _ in
+        .onChange(of: itemsSourceAppsHash) {
             if isFilterPopoverPresented {
                 searchModel.updateAppOptions(
                     from: Array(items))
