@@ -146,13 +146,20 @@ struct PinboardTabBar: View {
                         editorView(pinboard: nil)
                     } else {
                         Button(action: onCreate) {
-                            Image(systemName: "plus")
-                                .font(.system(size: headerButtonIconSize, weight: .semibold))
-                                .frame(width: headerButtonSize, height: headerButtonSize)
-                                .background(
-                                    Circle()
-                                        .fill(Color.white.opacity(0.12))
-                                )
+                            if #available(macOS 26.0, *) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: headerButtonIconSize, weight: .semibold))
+                                    .frame(width: headerButtonSize, height: headerButtonSize)
+                                    .glassCircleButton()
+                            } else {
+                                Image(systemName: "plus")
+                                    .font(.system(size: headerButtonIconSize, weight: .semibold))
+                                    .frame(width: headerButtonSize, height: headerButtonSize)
+                                    .background(
+                                        Circle()
+                                            .fill(Color.white.opacity(DesignTokens.Opacity.backgroundMedium))
+                                    )
+                            }
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("overlay.pinboard.add")
@@ -309,11 +316,27 @@ struct PinboardTabBar: View {
         .frame(minHeight: tabContentHeight, alignment: .center)
         .padding(.vertical, tabVerticalPadding)
         .padding(.horizontal, tabHorizontalPadding)
-        .background(Color.white.opacity(0.15))
+        .background(
+            Group {
+                if #available(macOS 26.0, *) {
+                    Capsule()
+                        .fill(Color.clear)
+                        .glassNavigationStyle()
+                } else {
+                    Color.white.opacity(DesignTokens.Opacity.backgroundStrong)
+                }
+            }
+        )
         .clipShape(Capsule())
         .overlay(
-            Capsule()
-                .stroke(Color.white.opacity(isFocused ? 0.3 : 0), lineWidth: 1)
+            Group {
+                if #available(macOS 26.0, *) {
+                    EmptyView()
+                } else {
+                    Capsule()
+                        .stroke(Color.white.opacity(isFocused ? DesignTokens.Opacity.borderStrong : 0), lineWidth: 1)
+                }
+            }
         )
         .fixedSize(horizontal: true, vertical: false)
         .frame(maxWidth: maxTabWidth, alignment: .leading)
@@ -717,7 +740,17 @@ private struct PinboardTabPreview: View {
         .frame(minHeight: 20)
         .padding(.vertical, 5)
         .padding(.horizontal, 10)
-        .background(Color.white.opacity(0.2))
+        .background(
+            Group {
+                if #available(macOS 26.0, *) {
+                    Capsule()
+                        .fill(Color.clear)
+                        .glassNavigationStyle()
+                } else {
+                    Color.white.opacity(DesignTokens.Opacity.backgroundStrong)
+                }
+            }
+        )
         .clipShape(Capsule())
         .allowsHitTesting(false)
         .opacity(0.9)

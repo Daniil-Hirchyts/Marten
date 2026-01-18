@@ -1,19 +1,23 @@
 import AppKit
 import ClipboardMacServices
 import Combine
+import SwiftUI
 
 final class MenuBarController: NSObject {
     private let statusItem: NSStatusItem
     private let toggleHandler: () -> Void
+    private let hideOverlayHandler: (@escaping () -> Void) -> Void
     private let screenSharingManager: ScreenSharingManager
     private var screenSharingMenuItem: NSMenuItem?
     private var cancellables: Set<AnyCancellable> = []
 
     init(
         toggleHandler: @escaping () -> Void,
+        hideOverlayHandler: @escaping (@escaping () -> Void) -> Void,
         screenSharingManager: ScreenSharingManager
     ) {
         self.toggleHandler = toggleHandler
+        self.hideOverlayHandler = hideOverlayHandler
         self.screenSharingManager = screenSharingManager
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
@@ -37,11 +41,26 @@ final class MenuBarController: NSObject {
             systemSymbolName: "clipboard", accessibilityDescription: nil)
         menu.addItem(showClipboardItem)
 
-        let settingsItem = NSMenuItem(
-            title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
-        settingsItem.target = self
-        settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
-        menu.addItem(settingsItem)
+        if #available(macOS 14.0, *) {
+            let settingsItem = NSMenuItem()
+            let hostingView = NSHostingView(
+                rootView: MenuSettingsButton14(closeOverlay: { [weak self] completion in
+                    self?.hideOverlayHandler(completion) ?? completion()
+                })
+            )
+            hostingView.frame.size = NSSize(width: 220, height: 22)
+            settingsItem.view = hostingView
+            settingsItem.keyEquivalent = ","
+            settingsItem.keyEquivalentModifierMask = [.command]
+            menu.addItem(settingsItem)
+        } else {
+            let settingsItem = NSMenuItem(
+                title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+            settingsItem.target = self
+            settingsItem.image = NSImage(
+                systemSymbolName: "gearshape", accessibilityDescription: nil)
+            menu.addItem(settingsItem)
+        }
 
         menu.addItem(NSMenuItem.separator())
 
@@ -82,11 +101,38 @@ final class MenuBarController: NSObject {
     }
 
     @objc private func openSettings() {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        hideOverlayHandler {
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
     }
 
     @objc private func quitApp() {
         NSApp.terminate(nil)
+    }
+}
+
+@available(macOS 14.0, *)
+private struct MenuSettingsButton14: View {
+    let closeOverlay: (@escaping () -> Void) -> Void
+
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        Button {
+            closeOverlay {
+                NSApp.activate(ignoringOtherApps: true)
+                openSettings()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "gearshape")
+                Text("Settings…")
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 22)
+        }
+        .buttonStyle(.plain)
     }
 }

@@ -151,6 +151,11 @@ final class OverlayViewModel: ObservableObject {
     }
 
     @MainActor
+    func closeOverlayForSettings(completion: @escaping () -> Void) {
+        closeOverlayForPaste(completion)
+    }
+
+    @MainActor
     private func waitForOverlayToHide() async {
         await withCheckedContinuation { continuation in
             closeOverlayForPaste {

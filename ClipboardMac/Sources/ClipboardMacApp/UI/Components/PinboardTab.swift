@@ -8,7 +8,7 @@ struct PinboardTab: View {
     var minWidth: CGFloat? = nil
     var maxWidth: CGFloat? = nil
     let action: () -> Void
-    
+
     @State private var isHovering = false
 
     var body: some View {
@@ -24,7 +24,6 @@ struct PinboardTab: View {
                         .frame(width: 8, height: 8)
                 }
 
-
                 Text(title)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white)
@@ -35,7 +34,7 @@ struct PinboardTab: View {
             .padding(.vertical, 5)
             .padding(.horizontal, 10)
             .frame(maxWidth: maxWidth, alignment: .leading)
-            .background(backgroundColor)
+            .background(backgroundView)
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -45,14 +44,25 @@ struct PinboardTab: View {
             }
         }
     }
-    
-    private var backgroundColor: Color {
+
+    @ViewBuilder
+    private var backgroundView: some View {
+        if #available(macOS 26.0, *) {
+            Capsule()
+                .fill(Color.clear)
+                .glassStyle(shape: .capsule, isProminent: isSelected)
+        } else {
+            fallbackBackgroundColor
+        }
+    }
+
+    private var fallbackBackgroundColor: Color {
         if isSelected {
-            return Color.white.opacity(0.2)
+            return Color.white.opacity(DesignTokens.Opacity.backgroundStrong)
         }
         if isHovering {
-            return Color.white.opacity(0.12)
+            return Color.white.opacity(DesignTokens.Opacity.backgroundMedium)
         }
-        return Color.white.opacity(0.08)
+        return Color.white.opacity(DesignTokens.Opacity.backgroundSubtle)
     }
 }

@@ -9,7 +9,8 @@
       "Bash(wc:*)",
       "Bash(grep:*)",
       "Bash(ls:*)",
-      "Bash(swift test:*)"
+      "Bash(swift test:*)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }

@@ -2,7 +2,7 @@ import ClipboardCore
 import ServiceManagement
 import SwiftUI
 
-struct GeneralTab: View {
+struct GeneralSettingsContent: View {
     @AppStorage("openAtLogin") private var openAtLogin = false
     @AppStorage("alwaysPastePlainText") private var alwaysPastePlainText = false
     @AppStorage("soundEffectsEnabled") private var soundEffectsEnabled = true
@@ -11,11 +11,18 @@ struct GeneralTab: View {
     @State private var showEraseConfirmation = false
 
     var body: some View {
-        Form {
-            Section("Startup") {
-                Toggle("Open at login", isOn: $openAtLogin)
-                    .accessibilityIdentifier("settings.toggle.openAtLogin")
-                    .accessibilityLabel("Open at login")
+        VStack(alignment: .leading, spacing: 24) {
+            // Startup Section
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsSectionHeader("Startup", icon: "power")
+
+                SettingsCard {
+                    SettingsToggleRow(
+                        "Open at login",
+                        description: "Launch Paste automatically when you log in",
+                        isOn: $openAtLogin,
+                        identifier: "settings.toggle.openAtLogin"
+                    )
                     .onChange(of: openAtLogin) { newValue in
                         if newValue {
                             try? SMAppService.mainApp.register()
@@ -23,50 +30,103 @@ struct GeneralTab: View {
                             try? SMAppService.mainApp.unregister()
                         }
                     }
+                }
             }
 
-            Section("Paste Behavior") {
-                Toggle("Always paste as Plain Text", isOn: $alwaysPastePlainText)
-                    .accessibilityIdentifier("settings.toggle.alwaysPastePlainText")
-                    .accessibilityLabel("Always paste as plain text")
+            // Behavior Section
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsSectionHeader("Behavior", icon: "hand.tap")
 
-                Toggle("Sound effects", isOn: $soundEffectsEnabled)
-                    .accessibilityIdentifier("settings.toggle.soundEffects")
-                    .accessibilityLabel("Sound effects")
+                SettingsCard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        SettingsToggleRow(
+                            "Always paste as Plain Text",
+                            description: "Remove formatting when pasting",
+                            isOn: $alwaysPastePlainText,
+                            identifier: "settings.toggle.alwaysPastePlainText"
+                        )
+
+                        Divider()
+                            .background(Color.white.opacity(0.1))
+
+                        SettingsToggleRow(
+                            "Sound effects",
+                            description: "Play sounds for actions",
+                            isOn: $soundEffectsEnabled,
+                            identifier: "settings.toggle.soundEffects"
+                        )
+                    }
+                }
             }
 
-            Section("History") {
-                Picker("Keep History", selection: $retentionPolicy) {
-                    Text("Day").tag("day")
-                    Text("Week").tag("week")
-                    Text("Month").tag("month")
-                    Text("Year").tag("year")
-                    Text("Forever").tag("forever")
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("settings.picker.historyRetention")
-                .accessibilityLabel("Keep history")
+            // History Section
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsSectionHeader("History", icon: "clock.arrow.circlepath")
 
-                Button("Erase History...", role: .destructive) {
-                    showEraseConfirmation = true
+                SettingsCard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Keep history for")
+                                .font(.system(size: 13, weight: .medium))
+
+                            Picker("", selection: $retentionPolicy) {
+                                Text("1 Day").tag("day")
+                                Text("1 Week").tag("week")
+                                Text("1 Month").tag("month")
+                                Text("1 Year").tag("year")
+                                Text("Forever").tag("forever")
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings.picker.historyRetention")
+                        }
+
+                        Divider()
+                            .background(Color.white.opacity(0.1))
+
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Erase all history")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("This cannot be undone")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+
+                            Spacer()
+
+                            Button(role: .destructive) {
+                                showEraseConfirmation = true
+                            } label: {
+                                Text("Erase...")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                            .accessibilityIdentifier("settings.button.eraseHistory")
+                        }
+                    }
                 }
-                .accessibilityIdentifier("settings.button.eraseHistory")
-                .accessibilityLabel("Erase history")
             }
         }
-        .formStyle(.grouped)
-        .padding()
         .alert("Erase History", isPresented: $showEraseConfirmation) {
             Button("Erase", role: .destructive) {
                 ClipItemStore.deleteAll()
             }
             .accessibilityIdentifier("settings.button.eraseHistory.confirm")
-            .accessibilityLabel("Confirm erase history")
+
             Button("Cancel", role: .cancel) {}
                 .accessibilityIdentifier("settings.button.eraseHistory.cancel")
-                .accessibilityLabel("Cancel erase history")
         } message: {
             Text("Are you sure you want to erase all history? This action cannot be undone.")
         }
+    }
+}
+
+// Keep the old tab for compatibility
+struct GeneralTab: View {
+    var body: some View {
+        GeneralSettingsContent()
+            .padding()
     }
 }

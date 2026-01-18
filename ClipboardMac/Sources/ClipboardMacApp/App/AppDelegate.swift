@@ -50,7 +50,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.regular)
+        UserDefaults.standard.register(
+            defaults: [
+                "hasCompletedOnboarding": true,
+                "soundEffectsEnabled": true,
+                "openAtLogin": false,
+                "alwaysPastePlainText": false,
+                "retentionPolicy": "month",
+            ]
+        )
+
+        NSApp.setActivationPolicy(.accessory)
 
         overlayController = OverlayWindowController(
             persistence: persistence,
@@ -97,6 +107,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             toggleHandler: { [weak self] in
                 Task { @MainActor in
                     self?.toggleOverlay()
+                }
+            },
+            hideOverlayHandler: { [weak self] completion in
+                Task { @MainActor in
+                    guard let self, let overlayController = self.overlayController else {
+                        completion()
+                        return
+                    }
+                    overlayController.hideForPaste(completion: completion)
                 }
             },
             screenSharingManager: screenSharingManager
@@ -420,7 +439,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     private func requestAccessibilityForHotkeysIfNeeded() {
-        if permissionManager.checkAccessibility(prompt: true) {
+        if permissionManager.checkAccessibility(prompt: false) {
             return
         }
 

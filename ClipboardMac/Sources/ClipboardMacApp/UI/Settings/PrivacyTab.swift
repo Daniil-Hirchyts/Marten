@@ -1,7 +1,8 @@
 import AppKit
+import ClipboardCore
 import SwiftUI
 
-struct PrivacyTab: View {
+struct PrivacySettingsContent: View {
     @AppStorage("showDuringScreenSharing") private var showDuringScreenSharing = true
     @AppStorage("generateLinkPreviews") private var generateLinkPreviews = false
     @AppStorage("ignoreConfidentialContent") private var ignoreConfidentialContent = true
@@ -11,92 +12,181 @@ struct PrivacyTab: View {
     @State private var selectedIgnoredBundleID: String?
 
     var body: some View {
-        Form {
-            Section("Visibility") {
-                Toggle("Show during screen sharing", isOn: $showDuringScreenSharing)
-                    .accessibilityIdentifier("settings.toggle.showDuringScreenSharing")
-                    .accessibilityLabel("Show during screen sharing")
+        VStack(alignment: .leading, spacing: 24) {
+            // Visibility Section
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsSectionHeader("Visibility", icon: "eye")
+
+                SettingsCard {
+                    SettingsToggleRow(
+                        "Show during screen sharing",
+                        description: "Keep overlay visible when sharing your screen",
+                        isOn: $showDuringScreenSharing,
+                        identifier: "settings.toggle.showDuringScreenSharing"
+                    )
+                }
             }
 
-            Section("Content Filtering") {
-                VStack(alignment: .leading) {
-                    Toggle("Generate link previews", isOn: $generateLinkPreviews)
-                        .accessibilityIdentifier("settings.toggle.generateLinkPreviews")
-                        .accessibilityLabel("Generate link previews")
-                    Text("When enabled, Paste fetches metadata from websites you copy.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            // Content Filtering Section
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsSectionHeader("Content Filtering", icon: "line.3.horizontal.decrease.circle")
 
-                VStack(alignment: .leading) {
-                    Toggle("Ignore confidential content", isOn: $ignoreConfidentialContent)
-                        .accessibilityIdentifier("settings.toggle.ignoreConfidentialContent")
-                        .accessibilityLabel("Ignore confidential content")
-                    Text("Automatically filters passwords, credit cards, and API keys.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                SettingsCard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        SettingsToggleRow(
+                            "Generate link previews",
+                            description: "Fetch metadata from websites you copy",
+                            isOn: $generateLinkPreviews,
+                            identifier: "settings.toggle.generateLinkPreviews"
+                        )
 
-                Toggle("Ignore transient content", isOn: $ignoreTransientContent)
-                    .accessibilityIdentifier("settings.toggle.ignoreTransientContent")
-                    .accessibilityLabel("Ignore transient content")
+                        Divider()
+                            .background(Color.white.opacity(0.1))
+
+                        SettingsToggleRow(
+                            "Ignore confidential content",
+                            description: "Filter passwords, credit cards, and API keys",
+                            isOn: $ignoreConfidentialContent,
+                            identifier: "settings.toggle.ignoreConfidentialContent"
+                        )
+
+                        Divider()
+                            .background(Color.white.opacity(0.1))
+
+                        SettingsToggleRow(
+                            "Ignore transient content",
+                            description: "Skip temporary clipboard content",
+                            isOn: $ignoreTransientContent,
+                            identifier: "settings.toggle.ignoreTransientContent"
+                        )
+                    }
+                }
             }
 
-            Section("Ignored Applications") {
-                List(selection: $selectedIgnoredBundleID) {
-                    ForEach(ignoredAppsModel.apps) { app in
-                        HStack(spacing: 8) {
-                            if let data = app.iconData, let icon = NSImage(data: data) {
-                                Image(nsImage: icon)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 16, height: 16)
+            // Ignored Applications Section
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsSectionHeader("Ignored Applications", icon: "app.badge.checkmark")
+
+                SettingsCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Content copied from these apps won't be saved")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+
+                        // App List
+                        if ignoredAppsModel.apps.isEmpty {
+                            HStack {
+                                Spacer()
+                                VStack(spacing: 8) {
+                                    Image(systemName: "app.dashed")
+                                        .font(.system(size: 24))
+                                        .foregroundStyle(.tertiary)
+                                    Text("No ignored apps")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .padding(.vertical, 20)
+                                Spacer()
                             }
-                            Text(app.name)
+                        } else {
+                            ScrollView {
+                                VStack(spacing: 4) {
+                                    ForEach(ignoredAppsModel.apps) { app in
+                                        IgnoredAppRow(
+                                            app: app,
+                                            isSelected: selectedIgnoredBundleID == app.bundleIdentifier,
+                                            onSelect: {
+                                                selectedIgnoredBundleID = app.bundleIdentifier
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            .frame(maxHeight: 120)
+                        }
+
+                        // Action Buttons
+                        HStack(spacing: 8) {
+                            Button {
+                                ignoredAppsModel.addFromOpenPanel()
+                            } label: {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .accessibilityIdentifier("settings.button.ignoredApps.add")
+
+                            Button {
+                                if let selectedIgnoredBundleID {
+                                    ignoredAppsModel.remove(bundleIdentifier: selectedIgnoredBundleID)
+                                    self.selectedIgnoredBundleID = nil
+                                }
+                            } label: {
+                                Image(systemName: "minus")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(selectedIgnoredBundleID == nil)
+                            .accessibilityIdentifier("settings.button.ignoredApps.remove")
+
                             Spacer()
                         }
-                        .tag(app.bundleIdentifier)
                     }
-                }
-                .onAppear {
-                    ignoredAppsModel.refresh()
-                }
-                .listStyle(.inset)
-                .frame(height: 150)
-                .background(Color.clear)
-                .accessibilityIdentifier("settings.list.ignoredApps")
-                .accessibilityLabel("Ignored applications")
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                )
-
-                HStack {
-                    Button {
-                        ignoredAppsModel.addFromOpenPanel()
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityIdentifier("settings.button.ignoredApps.add")
-                    .accessibilityLabel("Add ignored application")
-
-                    Button {
-                        if let selectedIgnoredBundleID {
-                            ignoredAppsModel.remove(bundleIdentifier: selectedIgnoredBundleID)
-                            self.selectedIgnoredBundleID = nil
-                        }
-                    } label: {
-                        Image(systemName: "minus")
-                    }
-                    .disabled(selectedIgnoredBundleID == nil)
-                    .accessibilityIdentifier("settings.button.ignoredApps.remove")
-                    .accessibilityLabel("Remove ignored application")
-
-                    Spacer()
                 }
             }
         }
-        .formStyle(.grouped)
-        .padding()
+        .onAppear {
+            ignoredAppsModel.refresh()
+        }
+    }
+}
+
+// MARK: - Ignored App Row
+
+private struct IgnoredAppRow: View {
+    let app: IgnoredApp
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if let data = app.iconData, let icon = NSImage(data: data) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
+            } else {
+                Image(systemName: "app")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+            }
+
+            Text(app.name)
+                .font(.system(size: 12))
+                .lineLimit(1)
+
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isSelected ? Color.white.opacity(0.15) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onSelect()
+        }
+    }
+}
+
+// Keep the old tab for compatibility
+struct PrivacyTab: View {
+    var body: some View {
+        PrivacySettingsContent()
+            .padding()
     }
 }

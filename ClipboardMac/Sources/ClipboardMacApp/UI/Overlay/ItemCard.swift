@@ -196,7 +196,7 @@ enum PreviewFactory {
             case .mixed:
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.white.opacity(0.08))
+                        .fill(Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
                     Image(systemName: typeIcon)
                         .font(.system(size: 18, weight: .semibold))
                 }
@@ -205,7 +205,7 @@ enum PreviewFactory {
         .frame(width: 72, height: 72)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+                .fill(Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
         )
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
@@ -345,11 +345,11 @@ struct ItemCard: View {
                     ForEach(Array(cached.pinboardColors.enumerated()), id: \.offset) { _, color in
                         Circle()
                             .fill(color)
-                            .frame(width: 8, height: 8)
+                            .frame(width: 10, height: 10)
                     }
                 }
             } else if item.sourceAppBundleID != nil {
-                AppIconView(bundleID: item.sourceAppBundleID, size: 16)
+                AppIconView(bundleID: item.sourceAppBundleID, size: 30)
             }
 
             if showPinIndicator, item.isPinned {
@@ -401,14 +401,27 @@ struct ItemCard: View {
     }
 
     private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(isSelected ? Color.white.opacity(0.1) : Color.white.opacity(0.06))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Color.white.opacity(0.3) : Color.white.opacity(0.1),
-                        lineWidth: isSelected ? 2 : 1)
+        RoundedRectangle(cornerRadius: DesignTokens.Spacing.cardCornerRadius, style: .continuous)
+            .fill(
+                isSelected
+                    ? Color.white.opacity(DesignTokens.Opacity.cardBackgroundSelected)
+                    : Color.white.opacity(DesignTokens.Opacity.cardBackground)
             )
+            .background(
+                // Add a subtle dark layer underneath for better contrast on light backgrounds
+                RoundedRectangle(cornerRadius: DesignTokens.Spacing.cardCornerRadius, style: .continuous)
+                    .fill(Color.black.opacity(0.15))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.Spacing.cardCornerRadius, style: .continuous)
+                    .strokeBorder(
+                        isSelected
+                            ? Color.white.opacity(DesignTokens.Opacity.borderStrong)
+                            : Color.white.opacity(DesignTokens.Opacity.borderMedium),
+                        lineWidth: isSelected ? 2 : 1
+                    )
+            )
+            .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
     }
 
     private var checkmarkOverlay: some View {

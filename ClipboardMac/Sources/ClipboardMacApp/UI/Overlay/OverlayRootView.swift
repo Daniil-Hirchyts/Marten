@@ -211,7 +211,7 @@ struct OverlayRootView: View {
                                             .font(.system(size: 10, weight: .semibold))
                                             .foregroundStyle(.secondary)
                                             .padding(3)
-                                            .background(Color.white.opacity(0.1))
+                                            .background(Color.white.opacity(DesignTokens.Opacity.backgroundMedium))
                                             .clipShape(Circle())
                                     }
                                     .buttonStyle(.plain)
@@ -225,14 +225,32 @@ struct OverlayRootView: View {
                             }
                         }
                         .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.1))
-                                .opacity(isSearchExpanded ? 1 : 0)
+                            Group {
+                                if #available(macOS 26.0, *) {
+                                    Capsule()
+                                        .fill(Color.clear)
+                                        .glassNavigationStyle()
+                                        .opacity(isSearchExpanded ? 1 : 0)
+                                } else {
+                                    Capsule()
+                                        .fill(Color.white.opacity(DesignTokens.Opacity.backgroundMedium))
+                                        .opacity(isSearchExpanded ? 1 : 0)
+                                }
+                            }
                         )
                         .overlay(
-                            Capsule()
-                                .stroke(
-                                    Color.white.opacity(isSearchExpanded ? 0.3 : 0), lineWidth: 1)
+                            Group {
+                                if #available(macOS 26.0, *) {
+                                    // Glass effect handles its own border
+                                    EmptyView()
+                                } else {
+                                    Capsule()
+                                        .stroke(
+                                            Color.white.opacity(isSearchExpanded ? DesignTokens.Opacity.borderStrong : 0),
+                                            lineWidth: 1
+                                        )
+                                }
+                            }
                         )
                         .frame(
                             width: isSearchExpanded ? searchExpandedWidth : searchCollapsedWidth,
@@ -263,21 +281,23 @@ struct OverlayRootView: View {
                         Spacer()
                         Group {
                             if #available(macOS 14.0, *) {
-                                SettingsLink {
-                                    settingsIcon
-                                }
+                                OverlaySettingsButton14(
+                                    closeOverlay: { completion in
+                                        viewModel.closeOverlayForSettings(completion: completion)
+                                    },
+                                    label: AnyView(settingsIcon)
+                                )
                             } else {
-                                Button(action: openSettingsLegacy) {
+                                Button {
+                                    viewModel.closeOverlayForSettings {
+                                        openSettingsLegacy()
+                                    }
+                                } label: {
                                     settingsIcon
                                 }
                             }
                         }
                         .buttonStyle(.plain)
-                        .simultaneousGesture(
-                            TapGesture().onEnded {
-                                NSApp.activate(ignoringOtherApps: true)
-                            }
-                        )
                         .accessibilityIdentifier("overlay.settings")
                         .accessibilityLabel("Settings")
                         .accessibilityHint("Opens settings")
@@ -583,10 +603,17 @@ struct OverlayRootView: View {
 
     private var searchIcon: some View {
         ZStack {
-            Circle()
-                .fill(Color.white.opacity(0.1))
-                .frame(width: headerButtonSize, height: headerButtonSize)
-                .opacity(isSearchExpanded ? 0 : 1)
+            if #available(macOS 26.0, *) {
+                Color.clear
+                    .frame(width: headerButtonSize, height: headerButtonSize)
+                    .glassCircleButton()
+                    .opacity(isSearchExpanded ? 0 : 1)
+            } else {
+                Circle()
+                    .fill(Color.white.opacity(DesignTokens.Opacity.backgroundMedium))
+                    .frame(width: headerButtonSize, height: headerButtonSize)
+                    .opacity(isSearchExpanded ? 0 : 1)
+            }
 
             Image(systemName: "text.magnifyingglass")
                 .font(.system(size: headerButtonIconSize, weight: .semibold))
@@ -765,15 +792,24 @@ struct OverlayRootView: View {
         }
     }
 
+    @ViewBuilder
     private var settingsIcon: some View {
-        Image(systemName: "gearshape.fill")
-            .font(.system(size: headerButtonIconSize, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .frame(width: headerButtonSize, height: headerButtonSize)
-            .background(
-                Circle()
-                    .fill(Color.white.opacity(0.1))
-            )
+        if #available(macOS 26.0, *) {
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: headerButtonIconSize, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: headerButtonSize, height: headerButtonSize)
+                .glassCircleButton()
+        } else {
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: headerButtonIconSize, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: headerButtonSize, height: headerButtonSize)
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(DesignTokens.Opacity.backgroundMedium))
+                )
+        }
     }
 
     private func openSettingsLegacy() {
@@ -827,6 +863,25 @@ private struct WindowAccessor: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+@available(macOS 14.0, *)
+private struct OverlaySettingsButton14: View {
+    let closeOverlay: (@escaping () -> Void) -> Void
+    let label: AnyView
+
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        Button {
+            closeOverlay {
+                NSApp.activate(ignoringOtherApps: true)
+                openSettings()
+            }
+        } label: {
+            label
+        }
+    }
 }
 
 private struct RenameOverlayView: View {
@@ -943,8 +998,8 @@ private struct ResizeHandleView: View {
 
                         // Clamp
                         let screenHeight = window.screen?.visibleFrame.height ?? 800
-                        let maxHeight = min(screenHeight - 50, 450)
-                        let minHeight: CGFloat = 280
+                        let maxHeight = min(screenHeight - 50, 400)
+                        let minHeight: CGFloat = 220
                         let clamped = min(max(minHeight, newHeight), maxHeight)
 
                         var frame = window.frame

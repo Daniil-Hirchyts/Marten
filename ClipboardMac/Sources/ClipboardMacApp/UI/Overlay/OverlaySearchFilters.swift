@@ -256,12 +256,36 @@ private struct FilterChip: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(
-                Capsule(style: .continuous)
-                    .fill(isSelected ? Color.white.opacity(0.9) : Color.white.opacity(0.12))
+                Group {
+                    if #available(macOS 26.0, *) {
+                        if isSelected {
+                            Capsule(style: .continuous)
+                                .fill(Color.white.opacity(0.9))
+                        } else {
+                            Capsule(style: .continuous)
+                                .fill(Color.clear)
+                                .glassNavigationStyle()
+                        }
+                    } else {
+                        Capsule(style: .continuous)
+                            .fill(isSelected ? Color.white.opacity(0.9) : Color.white.opacity(DesignTokens.Opacity.backgroundMedium))
+                    }
+                }
             )
             .overlay(
-                Capsule(style: .continuous)
-                    .strokeBorder(Color.white.opacity(isSelected ? 0.2 : 0.08), lineWidth: 1)
+                Group {
+                    if #available(macOS 26.0, *) {
+                        if isSelected {
+                            Capsule(style: .continuous)
+                                .strokeBorder(Color.white.opacity(DesignTokens.Opacity.borderMedium), lineWidth: 1)
+                        } else {
+                            EmptyView()
+                        }
+                    } else {
+                        Capsule(style: .continuous)
+                            .strokeBorder(Color.white.opacity(isSelected ? DesignTokens.Opacity.borderMedium : DesignTokens.Opacity.borderSubtle), lineWidth: 1)
+                    }
+                }
             )
         }
         .buttonStyle(.plain)
@@ -291,12 +315,36 @@ private struct AppFilterChip: View {
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.white.opacity(0.9) : Color.white.opacity(0.12))
+                Group {
+                    if #available(macOS 26.0, *) {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.white.opacity(0.9))
+                        } else {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.clear)
+                                .glassStyle(shape: .roundedRectangle(cornerRadius: 10))
+                        }
+                    } else {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(isSelected ? Color.white.opacity(0.9) : Color.white.opacity(DesignTokens.Opacity.backgroundMedium))
+                    }
+                }
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.white.opacity(isSelected ? 0.2 : 0.08), lineWidth: 1)
+                Group {
+                    if #available(macOS 26.0, *) {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(Color.white.opacity(DesignTokens.Opacity.borderMedium), lineWidth: 1)
+                        } else {
+                            EmptyView()
+                        }
+                    } else {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.white.opacity(isSelected ? DesignTokens.Opacity.borderMedium : DesignTokens.Opacity.borderSubtle), lineWidth: 1)
+                    }
+                }
             )
         }
         .buttonStyle(.plain)
