@@ -20,8 +20,6 @@ struct ClipboardMacApp: App {
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
-            // Remove sidebar toggle from View menu
-            CommandGroup(replacing: .sidebar) {}
         }
     }
 }

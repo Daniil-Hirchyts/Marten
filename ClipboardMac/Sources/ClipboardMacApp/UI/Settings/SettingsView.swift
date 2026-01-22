@@ -91,8 +91,7 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle(currentTab.title)
         }
-        .toolbar(removing: .sidebarToggle)
-        .frame(width: 720, height: 520)
+        .frame(maxWidth: 720, maxHeight: 520)
     }
 
     private var currentTab: SettingsTab {
@@ -217,25 +216,3 @@ private struct AccountUnavailableContent: View {
         }
     }
 }
-
-// MARK: - Component Previews
-
-#Preview("Settings - General") {
-    SettingsView(syncCoordinator: nil, initialTab: .general)
-}
-
-// #Preview("Settings - Account (Unavailable)") {
-//     SettingsView(syncCoordinator: nil, initialTab: .account)
-// }
-
-// #Preview("Settings - Shortcuts") {
-//     SettingsView(syncCoordinator: nil, initialTab: .shortcuts)
-// }
-
-// #Preview("Settings - Privacy") {
-//     SettingsView(syncCoordinator: nil, initialTab: .privacy)
-// }
-
-// #Preview("Settings - Subscription") {
-//     SettingsView(syncCoordinator: nil, initialTab: .subscription)
-// }
