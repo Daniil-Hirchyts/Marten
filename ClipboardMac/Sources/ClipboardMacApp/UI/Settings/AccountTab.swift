@@ -5,121 +5,135 @@ struct AccountSettingsContent: View {
     @State private var showDisableSyncWarning = false
     @State private var isSyncInProgress = false
     @State private var syncError: Error?
+    @State private var authManager = AppleAuthManager()
+    @State private var signInError: String?
 
     @ObservedObject var syncCoordinator: SyncCoordinator
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            // Apple ID Section
-            VStack(alignment: .leading, spacing: 12) {
-                SettingsSectionHeader("Apple ID", icon: "apple.logo")
-
-                SettingsCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 14) {
-                            Image(systemName: "person.crop.circle.fill")
-                                .font(.system(size: 36))
-                                .foregroundStyle(.secondary)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                if case .error(let error) = syncCoordinator.status,
-                                   case .notSignedIn = error {
-                                    Text("Not Signed In")
-                                        .font(.system(size: 14, weight: .semibold))
-                                    Text("Sign in to iCloud to sync your clipboard")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    Text("iCloud Account")
-                                        .font(.system(size: 14, weight: .semibold))
-                                    Text("Signed in")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-
-                            Spacer()
-
-                            Button("Open Settings...") {
-                                openAppleIDSettings()
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .accessibilityIdentifier("settings.button.openAppleIdSettings")
-                        }
-
-                        Text("Your Apple ID is used to sync clipboard history across your devices.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-            }
-
             // iCloud Sync Section
             VStack(alignment: .leading, spacing: 12) {
                 SettingsSectionHeader("iCloud Sync", icon: "icloud")
 
                 SettingsCard {
                     VStack(alignment: .leading, spacing: 16) {
-                        SettingsToggleRow(
-                            "Enable iCloud Sync",
-                            description: "Sync clipboard history across all your devices",
-                            isOn: Binding(
-                                get: { syncCoordinator.syncEnabled },
-                                set: { newValue in
-                                    if newValue {
-                                        syncCoordinator.syncEnabled = true
-                                    } else {
-                                        showDisableSyncWarning = true
-                                    }
-                                }
-                            ),
-                            identifier: "settings.toggle.icloudSync"
-                        )
-
-                        if case .error(let error) = syncCoordinator.status,
-                           error.requiresUserAction {
-                            Divider()
-                                .background(Color.white.opacity(0.1))
-
-                            AccountStatusRow(error: error, onSignIn: openAppleIDSettings)
-                        }
-
-                        if syncCoordinator.syncEnabled {
-                            Divider()
-                                .background(Color.white.opacity(0.1))
-
-                            SyncStatusIndicator(coordinator: syncCoordinator, displayMode: .expanded)
-
-                            Divider()
-                                .background(Color.white.opacity(0.1))
-
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Manual Sync")
-                                        .font(.system(size: 13, weight: .medium))
-                                    Text("Force sync with iCloud")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(.tertiary)
-                                }
-
-                                Spacer()
-
-                                Button {
-                                    performManualSync()
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        if isSyncInProgress {
-                                            ProgressView()
-                                                .controlSize(.small)
+                        if authManager.isSignedIn {
+                            // Signed in - show sync controls
+                            SettingsToggleRow(
+                                "Enable iCloud Sync",
+                                description: "Sync clipboard history across all your devices",
+                                isOn: Binding(
+                                    get: { syncCoordinator.syncEnabled },
+                                    set: { newValue in
+                                        if newValue {
+                                            syncCoordinator.syncEnabled = true
+                                        } else {
+                                            showDisableSyncWarning = true
                                         }
-                                        Text(isSyncInProgress ? "Syncing..." : "Sync Now")
-                                            .font(.system(size: 12, weight: .medium))
                                     }
+                                ),
+                                identifier: "settings.toggle.icloudSync"
+                            )
+
+                            if case .error(let error) = syncCoordinator.status,
+                               error.requiresUserAction {
+                                Divider()
+                                    .background(Color.white.opacity(0.1))
+
+                                AccountStatusRow(error: error, onSignIn: openAppleIDSettings)
+                            }
+
+                            if syncCoordinator.syncEnabled {
+                                Divider()
+                                    .background(Color.white.opacity(0.1))
+
+                                SyncStatusIndicator(coordinator: syncCoordinator, displayMode: .expanded)
+
+                                Divider()
+                                    .background(Color.white.opacity(0.1))
+
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Manual Sync")
+                                            .font(.system(size: 13, weight: .medium))
+                                        Text("Force sync with iCloud")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.tertiary)
+                                    }
+
+                                    Spacer()
+
+                                    Button {
+                                        performManualSync()
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            if isSyncInProgress {
+                                                ProgressView()
+                                                    .controlSize(.small)
+                                            }
+                                            Text(isSyncInProgress ? "Syncing..." : "Sync Now")
+                                                .font(.system(size: 12, weight: .medium))
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .disabled(isSyncInProgress || syncCoordinator.status == .syncing)
+                                    .accessibilityIdentifier("settings.button.syncNow")
+                                }
+                            }
+
+                            Divider()
+                                .background(Color.white.opacity(0.1))
+
+                            // Sign Out button
+                            HStack {
+                                Spacer()
+                                Button("Sign Out") {
+                                    // Disable sync before signing out
+                                    syncCoordinator.syncEnabled = false
+                                    authManager.signOut()
                                 }
                                 .buttonStyle(.bordered)
-                                .disabled(isSyncInProgress || syncCoordinator.status == .syncing)
-                                .accessibilityIdentifier("settings.button.syncNow")
+                                .accessibilityIdentifier("settings.button.signOut")
+                            }
+                        } else {
+                            // Not signed in - show sign in button
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Sign in with your Apple ID to enable iCloud sync")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+
+                                Button {
+                                    Task {
+                                        do {
+                                            try await authManager.signIn()
+                                            signInError = nil
+                                        } catch is CancellationError {
+                                            // User cancelled - ignore
+                                        } catch {
+                                            signInError = error.localizedDescription
+                                        }
+                                    }
+                                } label: {
+                                    if authManager.isAuthenticating {
+                                        HStack(spacing: 6) {
+                                            ProgressView()
+                                                .controlSize(.small)
+                                            Text("Signing In...")
+                                        }
+                                    } else {
+                                        Text("Sign In with Apple")
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(authManager.isAuthenticating)
+                                .accessibilityIdentifier("settings.button.signInWithApple")
+
+                                if let error = signInError {
+                                    Text(error)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.red)
+                                }
                             }
                         }
                     }

@@ -12,7 +12,8 @@
       "Bash(swift test:*)",
       "mcp__ide__getDiagnostics",
       "Bash(sw_vers:*)",
-      "Bash(swift --version:*)"
+      "Bash(swift --version:*)",
+      "WebFetch(domain:medium.com)"
     ]
   }
 }

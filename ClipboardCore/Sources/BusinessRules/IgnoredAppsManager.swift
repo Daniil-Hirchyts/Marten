@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 public struct IgnoredApp: Codable, Identifiable, Equatable {
@@ -58,6 +59,21 @@ public final class IgnoredAppsManager {
 
     public func contains(bundleIdentifier: String) -> Bool {
         ignoredApps.contains { $0.bundleIdentifier == bundleIdentifier }
+    }
+
+    /// Filters out apps that are not installed on the system.
+    ///
+    /// This method checks each ignored app's bundle identifier and removes it
+    /// if the app cannot be found on the system via NSWorkspace.
+    public func filterInstalledApps() {
+        let originalCount = ignoredApps.count
+        ignoredApps.removeAll { app in
+            NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.bundleIdentifier) == nil
+        }
+        
+        if ignoredApps.count != originalCount {
+            save()
+        }
     }
 
     private func save() {

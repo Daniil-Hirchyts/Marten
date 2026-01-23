@@ -14,6 +14,9 @@ final class IgnoredAppsViewModel: ObservableObject {
     }
 
     func refresh() {
+        // Filter out apps that are not installed on the system
+        manager.filterInstalledApps()
+        
         apps = manager.ignoredApps.sorted {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }

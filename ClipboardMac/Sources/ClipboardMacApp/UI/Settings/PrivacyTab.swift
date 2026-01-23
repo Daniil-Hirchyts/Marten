@@ -89,20 +89,17 @@ struct PrivacySettingsContent: View {
                                 Spacer()
                             }
                         } else {
-                            ScrollView {
-                                VStack(spacing: 4) {
-                                    ForEach(ignoredAppsModel.apps) { app in
-                                        IgnoredAppRow(
-                                            app: app,
-                                            isSelected: selectedIgnoredBundleID == app.bundleIdentifier,
-                                            onSelect: {
-                                                selectedIgnoredBundleID = app.bundleIdentifier
-                                            }
-                                        )
-                                    }
+                            VStack(spacing: 4) {
+                                ForEach(ignoredAppsModel.apps) { app in
+                                    IgnoredAppRow(
+                                        app: app,
+                                        isSelected: selectedIgnoredBundleID == app.bundleIdentifier,
+                                        onSelect: {
+                                            selectedIgnoredBundleID = app.bundleIdentifier
+                                        }
+                                    )
                                 }
                             }
-                            .frame(maxHeight: 120)
                         }
 
                         // Action Buttons
@@ -112,9 +109,11 @@ struct PrivacySettingsContent: View {
                             } label: {
                                 Image(systemName: "plus")
                                     .font(.system(size: 12, weight: .semibold))
+                                    .frame(width: 12, height: 12)
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
+                            .frame(width: 28, height: 22)
                             .accessibilityIdentifier("settings.button.ignoredApps.add")
 
                             Button {
@@ -125,9 +124,11 @@ struct PrivacySettingsContent: View {
                             } label: {
                                 Image(systemName: "minus")
                                     .font(.system(size: 12, weight: .semibold))
+                                    .frame(width: 12, height: 12)
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
+                            .frame(width: 28, height: 22)
                             .disabled(selectedIgnoredBundleID == nil)
                             .accessibilityIdentifier("settings.button.ignoredApps.remove")
 
@@ -150,9 +151,23 @@ private struct IgnoredAppRow: View {
     let isSelected: Bool
     let onSelect: () -> Void
 
+    private var appIcon: NSImage? {
+        // Try to load from saved icon data first
+        if let data = app.iconData, let icon = NSImage(data: data) {
+            return icon
+        }
+
+        // Try to get icon from bundle identifier
+        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.bundleIdentifier) {
+            return NSWorkspace.shared.icon(forFile: appURL.path)
+        }
+
+        return nil
+    }
+
     var body: some View {
         HStack(spacing: 10) {
-            if let data = app.iconData, let icon = NSImage(data: data) {
+            if let icon = appIcon {
                 Image(nsImage: icon)
                     .resizable()
                     .scaledToFit()

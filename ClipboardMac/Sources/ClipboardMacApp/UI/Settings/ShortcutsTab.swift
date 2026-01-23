@@ -62,21 +62,6 @@ struct ShortcutsSettingsContent: View {
                     }
                 }
             }
-
-            // Reset Button
-            HStack {
-                Spacer()
-
-                Button {
-                    model.resetToDefaults()
-                    model.save()
-                } label: {
-                    Text("Reset to Defaults")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("settings.button.resetShortcuts")
-            }
         }
         .onChange(of: model.showClipboard) { model.save() }
         .onChange(of: model.quickPaste1) { model.save() }
@@ -122,30 +107,23 @@ struct SettingsHotkeyRow: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(Color.white.opacity(isRecording ? 0.15 : 0.08))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .strokeBorder(
                                 Color.white.opacity(isRecording ? 0.3 : 0.1),
                                 lineWidth: 1
                             )
                     )
-
-                Button {
-                    if isRecording {
-                        stopRecording()
-                    } else {
-                        startRecording()
+                    .onTapGesture {
+                        if isRecording {
+                            stopRecording()
+                        } else {
+                            startRecording()
+                        }
                     }
-                } label: {
-                    Text(isRecording ? "Stop" : "Record")
-                        .font(.system(size: 11, weight: .medium))
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .accessibilityIdentifier("\(identifier).recordButton")
 
                 Button {
                     value = value.cleared()
@@ -153,10 +131,14 @@ struct SettingsHotkeyRow: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                        .background(Color.white.opacity(0.1))
+                        .clipShape(Circle())
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .buttonStyle(.plain)
                 .disabled(!value.isEnabled)
+                .opacity(value.isEnabled ? 1 : 0.5)
                 .accessibilityIdentifier("\(identifier).clearButton")
             }
         }

@@ -423,14 +423,7 @@ struct OverlayRootView: View {
             }
         }
         .onChange(of: searchFocused) { focused, _ in
-            // Close empty search when focus is lost
-            if !focused && isSearchExpanded
-                && searchModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            {
-                withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
-                    isSearchExpanded = false
-                }
-            }
+            // Don't auto-close search on focus lost - let user close it explicitly
         }
         .onAppear {
             searchFocused = true
@@ -663,6 +656,9 @@ struct OverlayRootView: View {
         } else {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 isSearchExpanded = true
+            }
+            // Delay focus until the TextField is rendered
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 searchFocused = true
             }
         }
