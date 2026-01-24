@@ -6,6 +6,7 @@ struct CardContextMenu: View {
     let itemID: UUID
     let isPinned: Bool
     let allowPinning: Bool
+    let assignedPinboardIDs: Set<UUID>
     let pinboards: [Pinboard]
     let onPaste: () -> Void
     let onPastePlainText: () -> Void
@@ -42,8 +43,15 @@ struct CardContextMenu: View {
         .accessibilityIdentifier("\(identifierPrefix).copy")
         Menu("Move to Pinboard") {
             ForEach(pinboards) { pinboard in
-                Button(pinboard.name) {
+                let isAssigned = assignedPinboardIDs.contains(pinboard.id)
+                Button {
                     onMoveToPinboard(pinboard)
+                } label: {
+                    if isAssigned {
+                        Label(pinboard.name, systemImage: "checkmark")
+                    } else {
+                        Text(pinboard.name)
+                    }
                 }
                 .accessibilityIdentifier("\(identifierPrefix).move.\(pinboard.id.uuidString)")
             }

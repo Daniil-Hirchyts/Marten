@@ -14,7 +14,7 @@ struct CachedItemProperties {
     let detailLines: [String]?
     let statsLabel: String
     let shouldShowPrimaryTitle: Bool
-    let pinboardColors: [Color]
+    let primaryPinboardColor: Color?
 
     init(item: ClipItem) {
         // Cache type-based properties
@@ -43,8 +43,8 @@ struct CachedItemProperties {
         // Cache stats label
         self.statsLabel = Self.computeStatsLabel(for: item, itemType: itemType)
 
-        // Cache pinboard colors
-        self.pinboardColors = Self.computePinboardColors(for: item)
+        // Cache pinboard color
+        self.primaryPinboardColor = Self.computePrimaryPinboardColor(for: item)
     }
 
     private static func computeTypeLabel(for itemType: ItemType) -> String {
@@ -154,15 +154,11 @@ struct CachedItemProperties {
         }
     }
 
-    private static func computePinboardColors(for item: ClipItem) -> [Color] {
+    private static func computePrimaryPinboardColor(for item: ClipItem) -> Color? {
         let pinboards = item.pinboards?.filter { !$0.isSystemClipboard } ?? []
         let sorted = pinboards.sorted { $0.sortOrder < $1.sortOrder }
-        var seen = Set<String>()
-        return sorted.compactMap { pinboard in
-            guard !seen.contains(pinboard.colorHex) else { return nil }
-            seen.insert(pinboard.colorHex)
-            return Color(hex: pinboard.colorHex, fallback: .gray)
-        }
+        guard let pinboard = sorted.first else { return nil }
+        return Color(hex: pinboard.colorHex, fallback: .gray)
     }
 }
 
@@ -238,6 +234,7 @@ struct ItemCard: View {
     @State private var lastTapTime: Date?
     @State private var editTitle: String = ""
     @State private var cachedProps: CachedItemProperties?
+    @StateObject private var appColorLoader = AppIconColorLoader()
     @FocusState private var isFocused: Bool
 
     /// Cached properties to avoid recalculating on every render
@@ -247,26 +244,33 @@ struct ItemCard: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(spacing: 0) {
                 headerView
-                contentPreviewView
-                Spacer(minLength: 0)
-                footerView
+                VStack(alignment: .leading, spacing: 10) {
+                    contentPreviewView
+                    Spacer(minLength: 0)
+                    footerView
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
+                .padding(.top, 10)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(12)
             .background(cardBackground)
+            .clipShape(cardShape)
+            .overlay(selectionBorder)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
-
-            if isSelected {
-                checkmarkOverlay
-            }
         }
         .onAppear {
             cachedProps = CachedItemProperties(item: item)
+            appColorLoader.load(bundleID: item.sourceAppBundleID)
         }
         .onChange(of: item.objectID) { _, _ in
             cachedProps = CachedItemProperties(item: item)
+            appColorLoader.load(bundleID: item.sourceAppBundleID)
+        }
+        .onChange(of: item.sourceAppBundleID) { newValue, _ in
+            appColorLoader.load(bundleID: newValue)
         }
         .onReceive(item.objectWillChange) { _ in
             DispatchQueue.main.async {
@@ -296,6 +300,7 @@ struct ItemCard: View {
                 itemID: item.id,
                 isPinned: item.isPinned,
                 allowPinning: allowPinning,
+                assignedPinboardIDs: assignedPinboardIDs,
                 pinboards: pinboards,
                 onPaste: onPaste,
                 onPastePlainText: onPastePlainText,
@@ -309,13 +314,18 @@ struct ItemCard: View {
         }
     }
 
+    private var assignedPinboardIDs: Set<UUID> {
+        let assigned = item.pinboards?.filter { !$0.isSystemClipboard } ?? []
+        return Set(assigned.map(\.id))
+    }
+
     private var headerView: some View {
         HStack(alignment: .center, spacing: 8) {
             if isEditing {
                 TextField("", text: $editTitle)
                     .textFieldStyle(.plain)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.white)
                     .focused($isFocused)
                     .onSubmit {
                         onCommitRename(editTitle)
@@ -331,22 +341,17 @@ struct ItemCard: View {
             } else {
                 Text(cached.displayTitle)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.white)
                     .lineLimit(1)
             }
 
             Spacer()
 
-            if !cached.pinboardColors.isEmpty {
-                HStack(spacing: 3) {
-                    ForEach(Array(cached.pinboardColors.enumerated()), id: \.offset) { _, color in
-                        Circle()
-                            .fill(color)
-                            .frame(width: 10, height: 10)
-                    }
-                }
-            } else if item.sourceAppBundleID != nil {
-                AppIconView(bundleID: item.sourceAppBundleID, size: 30)
+            if cached.primaryPinboardColor == nil,
+                let bundleID = item.sourceAppBundleID,
+                !bundleID.isEmpty
+            {
+                AppIconView(bundleID: bundleID, size: 30)
             }
 
             if showPinIndicator, item.isPinned {
@@ -356,6 +361,11 @@ struct ItemCard: View {
                     .padding(.leading, 4)
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(minHeight: headerMinHeight, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(headerBackground)
     }
 
     private var contentPreviewView: some View {
@@ -363,20 +373,20 @@ struct ItemCard: View {
             if cached.shouldShowPrimaryTitle {
                 Text(cached.primaryTitle)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.white.opacity(0.9))
                     .lineLimit(1)
             }
 
             if let preview = cached.previewText {
                 Text(preview)
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.75))
                     .lineLimit(5)
             } else if let details = cached.detailLines {
                 ForEach(details, id: \.self) { line in
                     Text(line)
                         .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.75))
                         .lineLimit(1)
                 }
             }
@@ -387,46 +397,67 @@ struct ItemCard: View {
         HStack(alignment: .center, spacing: 8) {
             Text(timeAgo)
                 .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.white.opacity(0.6))
 
             Spacer()
 
             Text(cached.statsLabel)
                 .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.white.opacity(0.6))
         }
     }
 
     private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: DesignTokens.Spacing.cardCornerRadius, style: .continuous)
-            .fill(
-                isSelected
-                    ? Color.white.opacity(DesignTokens.Opacity.cardBackgroundSelected)
-                    : Color.white.opacity(DesignTokens.Opacity.cardBackground)
-            )
-            .background(
-                // Add a subtle dark layer underneath for better contrast on light backgrounds
-                RoundedRectangle(cornerRadius: DesignTokens.Spacing.cardCornerRadius, style: .continuous)
-                    .fill(Color.black.opacity(0.15))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignTokens.Spacing.cardCornerRadius, style: .continuous)
-                    .strokeBorder(
-                        isSelected
-                            ? Color.white.opacity(DesignTokens.Opacity.borderStrong)
-                            : Color.white.opacity(DesignTokens.Opacity.borderMedium),
-                        lineWidth: isSelected ? 2 : 1
-                    )
-            )
-            .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+        cardShape
+            .fill(Color(.sRGB, white: 0.04, opacity: 0.72))
     }
 
-    private var checkmarkOverlay: some View {
-        Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 20, weight: .semibold))
-            .foregroundStyle(.white)
-            .padding(8)
-            .transition(.scale.combined(with: .opacity))
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: DesignTokens.Spacing.cardCornerRadius, style: .continuous)
+    }
+
+    @ViewBuilder
+    private var selectionBorder: some View {
+        if isSelected {
+            cardShape
+                .strokeBorder(Color(nsColor: .controlAccentColor), lineWidth: 2)
+        }
+    }
+
+    private var headerBackgroundShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            cornerRadii: .init(
+                topLeading: DesignTokens.Spacing.cardCornerRadius,
+                bottomLeading: 0,
+                bottomTrailing: 0,
+                topTrailing: DesignTokens.Spacing.cardCornerRadius
+            ),
+            style: .continuous
+        )
+    }
+
+    private var headerBackground: some View {
+        headerBackgroundShape
+            .inset(by: headerBackgroundInset)
+            .fill(headerBackgroundColor)
+    }
+
+    private var headerMinHeight: CGFloat {
+        50
+    }
+
+    private var headerBackgroundInset: CGFloat {
+        0
+    }
+
+    private var headerBackgroundColor: Color {
+        if let pinboardColor = cached.primaryPinboardColor {
+            return pinboardColor.opacity(0.9)
+        }
+        if let appColor = appColorLoader.color {
+            return Color(nsColor: appColor).opacity(0.9)
+        }
+        return Color(.sRGB, white: 0.2, opacity: 0.6)
     }
 
     // MARK: - Non-cached Properties (need fresh data each render)
@@ -492,4 +523,3 @@ private struct QuickPasteBadge: View {
             .clipShape(Circle())
     }
 }
-

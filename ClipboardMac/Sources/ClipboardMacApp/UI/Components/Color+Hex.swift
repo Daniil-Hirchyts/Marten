@@ -55,14 +55,11 @@ public struct PinboardColor: Hashable {
 
 public enum PinboardPalette {
     public static let all = [
-        PinboardColor(name: "Red", hex: "#E86B6B"),
-        PinboardColor(name: "Orange", hex: "#F0B25D"),
-        PinboardColor(name: "Yellow", hex: "#E2D36B"),
-        PinboardColor(name: "Green", hex: "#6BCB83"),
-        PinboardColor(name: "Blue", hex: "#4FAAD7"),
-        PinboardColor(name: "Indigo", hex: "#7A79E3"),
-        PinboardColor(name: "Purple", hex: "#C47AD8"),
-        PinboardColor(name: "Gray", hex: "#8E8E93")
+        PinboardColor(name: "Blue", hex: "#3A86FF"),
+        PinboardColor(name: "Purple", hex: "#8338EC"),
+        PinboardColor(name: "Pink", hex: "#FF006E"),
+        PinboardColor(name: "Orange", hex: "#FB5607"),
+        PinboardColor(name: "Yellow", hex: "#FFBE0B")
     ]
     
     public static let colors = all.map { $0.hex }

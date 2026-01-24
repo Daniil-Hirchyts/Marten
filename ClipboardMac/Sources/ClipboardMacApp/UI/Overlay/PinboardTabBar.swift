@@ -567,7 +567,7 @@ struct PinboardTabBar: View {
         {
             let height = max(0, localFrame.height)
             RoundedRectangle(cornerRadius: 2)
-                .fill(Color.white.opacity(0.5))
+                .fill(Color(nsColor: .controlAccentColor))
                 .frame(width: placeholderWidth, height: height)
                 .offset(x: dropTarget.placeholderX - placeholderWidth / 2, y: 0)
                 .transition(.opacity)

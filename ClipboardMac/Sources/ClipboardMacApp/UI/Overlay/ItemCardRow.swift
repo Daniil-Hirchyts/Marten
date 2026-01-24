@@ -566,7 +566,7 @@ struct ItemCardRow: View {
         if let dropTarget, let frame = itemFrames[dropTarget.item.objectID] {
             let height = max(0, frame.height - 16)
             RoundedRectangle(cornerRadius: 2)
-                .fill(Color.white.opacity(0.5))
+                .fill(Color(nsColor: .controlAccentColor))
                 .frame(width: placeholderWidth, height: height)
                 .offset(x: dropTarget.placeholderX - placeholderWidth / 2, y: 8)
                 .transition(.opacity)
@@ -805,4 +805,3 @@ struct ItemCardRowPagination {
         return index / batchSize
     }
 }
-

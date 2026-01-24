@@ -65,6 +65,20 @@ final class PinboardManager {
         }
     }
 
+    func toggleItem(_ item: ClipItem, in pinboard: Pinboard) {
+        let isAssigned =
+            item.pinboards?.contains(where: { $0.objectID == pinboard.objectID }) ?? false
+        do {
+            if isAssigned {
+                try store.removeItem(objectID: item.objectID, fromPinboard: pinboard.objectID)
+            } else {
+                try store.moveItem(objectID: item.objectID, toPinboard: pinboard.objectID)
+            }
+        } catch {
+            Logger.app.error("Failed to toggle item pinboard: \(error.localizedDescription)")
+        }
+    }
+
     func moveItemToPinboard(_ pinboard: Pinboard, itemURIString: String) {
         guard let url = URL(string: itemURIString),
             let objectID = persistence.container.persistentStoreCoordinator

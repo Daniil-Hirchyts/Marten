@@ -343,7 +343,7 @@ struct OverlayRootView: View {
                             onCopy: copyItem,
                             onDelete: deleteItem,
                             onTogglePin: togglePin,
-                            onMoveToPinboard: pinboardManager.moveItem,
+                            onMoveToPinboard: pinboardManager.toggleItem,
                             onCreatePinboard: { beginPinboardCreate(for: $0) },
                             onRename: renameItem,
                             onCommitRename: { item, newTitle in
