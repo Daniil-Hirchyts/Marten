@@ -466,7 +466,7 @@ struct ItemCard: View {
                             VStack {
                                 Spacer()
                                 Image(systemName: "photo")
-                                    .font(.system(size: 48, weight: .light))
+                                    .font(.system(size: isCompactSize ? 36 : 48, weight: .light))
                                     .foregroundStyle(
                                         colorScheme == .dark
                                             ? Color.white.opacity(0.3)
@@ -479,11 +479,11 @@ struct ItemCard: View {
                         // Show filename for image files
                         if let fileName = imageFileNameShortened {
                             Text(fileName)
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.system(size: isCompactSize ? 9 : 11, weight: .medium))
                                 .foregroundStyle(primaryTextColor)
                                 .lineLimit(1)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
+                                .padding(.horizontal, isCompactSize ? 8 : 12)
+                                .padding(.vertical, isCompactSize ? 4 : 6)
                                 .frame(maxWidth: .infinity)
                         }
                     }
@@ -491,30 +491,30 @@ struct ItemCard: View {
                     // Resolution badge (top right)
                     if let resolution = imageResolution {
                         Text(resolution)
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: isCompactSize ? 8 : 10, weight: .semibold))
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
+                            .padding(.horizontal, isCompactSize ? 4 : 6)
+                            .padding(.vertical, isCompactSize ? 2 : 3)
                             .background(Color.black.opacity(0.6))
                             .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                            .padding(8)
+                            .padding(isCompactSize ? 6 : 8)
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: isCompactSize ? 90 : 120)
+                .frame(minHeight: imageCardMinHeight)
             } else if item.itemTypeValue == .file {
                 // File card: centered large icon
-                VStack {
+                VStack(spacing: isCompactSize ? 6 : 8) {
                     Spacer()
                     if let icon = fileIconImage {
                         Image(nsImage: icon)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 64, height: 64)
+                            .frame(width: fileIconSize, height: fileIconSize)
                             .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
                     } else {
                         Image(systemName: "doc.fill")
-                            .font(.system(size: 48, weight: .regular))
+                            .font(.system(size: fileIconSize * 0.75, weight: .regular))
                             .foregroundStyle(
                                 colorScheme == .dark
                                     ? Color.white.opacity(0.4)
@@ -524,25 +524,23 @@ struct ItemCard: View {
                     
                     if let fileName = fileNameOnly {
                         Text(fileName)
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.system(size: isCompactSize ? 11 : 13, weight: .medium))
                             .foregroundStyle(primaryTextColor)
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 12)
-                            .padding(.top, 8)
                     }
                     
                     if let size = fileSizeText {
                         Text(size)
-                            .font(.system(size: 11, weight: .regular))
+                            .font(.system(size: isCompactSize ? 9 : 11, weight: .regular))
                             .foregroundStyle(secondaryTextColor)
-                            .padding(.top, 2)
                     }
                     
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: isCompactSize ? 120 : 150)
+                .frame(minHeight: fileCardMinHeight)
             } else {
                 Group {
                     if shouldShowLeadingPreview {
@@ -737,6 +735,36 @@ struct ItemCard: View {
 
     private var maxPreviewLines: Int {
         isCompactSize ? 3 : 5
+    }
+    
+    private var fileIconSize: CGFloat {
+        if cardSize < 250 {
+            return 48
+        } else if cardSize < 300 {
+            return 56
+        } else {
+            return 64
+        }
+    }
+    
+    private var fileCardMinHeight: CGFloat {
+        if cardSize < 250 {
+            return 100
+        } else if cardSize < 300 {
+            return 130
+        } else {
+            return 150
+        }
+    }
+    
+    private var imageCardMinHeight: CGFloat {
+        if cardSize < 250 {
+            return 80
+        } else if cardSize < 300 {
+            return 100
+        } else {
+            return 120
+        }
     }
 
     private var shouldShowLeadingPreview: Bool {
