@@ -460,11 +460,11 @@ struct ItemCard: View {
                                     .resizable()
                                     .scaledToFit()
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .frame(maxWidth: .infinity)
+                            .layoutPriority(1)
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         } else {
-                            VStack {
-                                Spacer()
+                            ZStack {
                                 Image(systemName: "photo")
                                     .font(.system(size: isCompactSize ? 36 : 48, weight: .light))
                                     .foregroundStyle(
@@ -472,8 +472,9 @@ struct ItemCard: View {
                                             ? Color.white.opacity(0.3)
                                             : Color.black.opacity(0.2)
                                     )
-                                Spacer()
                             }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .layoutPriority(1)
                         }
                         
                         // Show filename for image files
@@ -485,6 +486,7 @@ struct ItemCard: View {
                                 .padding(.horizontal, isCompactSize ? 8 : 12)
                                 .padding(.vertical, isCompactSize ? 4 : 6)
                                 .frame(maxWidth: .infinity)
+                                .layoutPriority(0)
                         }
                     }
                     
@@ -501,17 +503,17 @@ struct ItemCard: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: imageCardMinHeight)
             } else if item.itemTypeValue == .file {
                 // File card: centered large icon
                 VStack(spacing: isCompactSize ? 6 : 8) {
-                    Spacer()
+                    Spacer(minLength: 0)
                     if let icon = fileIconImage {
                         Image(nsImage: icon)
                             .resizable()
                             .scaledToFit()
                             .frame(width: fileIconSize, height: fileIconSize)
                             .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+                            .layoutPriority(1)
                     } else {
                         Image(systemName: "doc.fill")
                             .font(.system(size: fileIconSize * 0.75, weight: .regular))
@@ -520,6 +522,7 @@ struct ItemCard: View {
                                     ? Color.white.opacity(0.4)
                                     : Color.black.opacity(0.3)
                             )
+                            .layoutPriority(1)
                     }
                     
                     if let fileName = fileNameOnly {
@@ -529,18 +532,19 @@ struct ItemCard: View {
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 12)
+                            .layoutPriority(0)
                     }
                     
                     if let size = fileSizeText {
                         Text(size)
                             .font(.system(size: isCompactSize ? 9 : 11, weight: .regular))
                             .foregroundStyle(secondaryTextColor)
+                            .layoutPriority(0)
                     }
                     
-                    Spacer()
+                    Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: fileCardMinHeight)
             } else {
                 Group {
                     if shouldShowLeadingPreview {
@@ -744,26 +748,6 @@ struct ItemCard: View {
             return 56
         } else {
             return 64
-        }
-    }
-    
-    private var fileCardMinHeight: CGFloat {
-        if cardSize < 250 {
-            return 100
-        } else if cardSize < 300 {
-            return 130
-        } else {
-            return 150
-        }
-    }
-    
-    private var imageCardMinHeight: CGFloat {
-        if cardSize < 250 {
-            return 80
-        } else if cardSize < 300 {
-            return 100
-        } else {
-            return 120
         }
     }
 
