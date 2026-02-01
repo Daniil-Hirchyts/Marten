@@ -451,44 +451,53 @@ struct ItemCard: View {
                 .frame(minHeight: isCompactSize ? 90 : 120)
             } else if item.itemTypeValue == .image {
                 // Image card: full-size image preview
-                VStack(spacing: 0) {
-                    if let image = thumbnailImage {
-                        ZStack {
-                            TransparencyGrid(squareSize: 12)
-                            Image(nsImage: image)
-                                .resizable()
-                                .scaledToFit()
+                ZStack(alignment: .topTrailing) {
+                    VStack(spacing: 0) {
+                        if let image = thumbnailImage {
+                            ZStack {
+                                TransparencyGrid(squareSize: 12)
+                                Image(nsImage: image)
+                                    .resizable()
+                                    .scaledToFit()
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        } else {
+                            VStack {
+                                Spacer()
+                                Image(systemName: "photo")
+                                    .font(.system(size: 48, weight: .light))
+                                    .foregroundStyle(
+                                        colorScheme == .dark
+                                            ? Color.white.opacity(0.3)
+                                            : Color.black.opacity(0.2)
+                                    )
+                                Spacer()
+                            }
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    } else {
-                        VStack {
-                            Spacer()
-                            Image(systemName: "photo")
-                                .font(.system(size: 48, weight: .light))
-                                .foregroundStyle(
-                                    colorScheme == .dark
-                                        ? Color.white.opacity(0.3)
-                                        : Color.black.opacity(0.2)
-                                )
-                            Spacer()
+                        
+                        // Show filename for image files
+                        if let fileName = imageFileNameShortened {
+                            Text(fileName)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(primaryTextColor)
+                                .lineLimit(1)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .frame(maxWidth: .infinity)
                         }
                     }
                     
-                    // Show filename for image files
-                    if let fileName = imageFileName {
-                        Text(fileName)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(primaryTextColor)
-                            .lineLimit(1)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                colorScheme == .dark
-                                    ? Color.black.opacity(0.3)
-                                    : Color.white.opacity(0.5)
-                            )
+                    // Resolution badge (top right)
+                    if let resolution = imageResolution {
+                        Text(resolution)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.black.opacity(0.6))
+                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            .padding(8)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -756,6 +765,42 @@ struct ItemCard: View {
         }
         let url = URL(fileURLWithPath: path.trimmingCharacters(in: .whitespacesAndNewlines))
         return url.lastPathComponent
+    }
+    
+    private var imageFileNameShortened: String? {
+        guard let fileName = imageFileName else { return nil }
+        return shortenFileName(fileName, maxLength: 20)
+    }
+    
+    private var imageResolution: String? {
+        guard item.itemTypeValue == .image, let image = thumbnailImage else { return nil }
+        let width = Int(image.size.width)
+        let height = Int(image.size.height)
+        return "\(width)×\(height)"
+    }
+    
+    private func shortenFileName(_ name: String, maxLength: Int) -> String {
+        guard name.count > maxLength else { return name }
+        
+        // Split into name and extension
+        let url = URL(fileURLWithPath: name)
+        let ext = url.pathExtension
+        let nameOnly = url.deletingPathExtension().lastPathComponent
+        
+        // Calculate available space for name (excluding extension and ellipsis)
+        let extWithDot = ext.isEmpty ? "" : ".\(ext)"
+        let availableLength = maxLength - extWithDot.count - 3  // 3 for "..."
+        
+        guard availableLength > 0 else { return name }
+        
+        // Take characters from start
+        let startLength = availableLength / 2
+        let endLength = availableLength - startLength
+        
+        let start = String(nameOnly.prefix(startLength))
+        let end = String(nameOnly.suffix(endLength))
+        
+        return "\(start)...\(end)\(extWithDot)"
     }
 
     private var fileSizeText: String? {
