@@ -444,7 +444,9 @@ struct ItemCard: View {
     private var contentPreviewView: some View {
         Group {
             if item.itemTypeValue == .color, let hex = normalizedColorHex {
-                ZStack {
+                // Color card: centered text in the content area
+                VStack {
+                    Spacer()
                     Text(hex)
                         .font(.system(size: colorFontSize, weight: .semibold))
                         .foregroundStyle(colorItemForeground ?? primaryTextColor)
@@ -452,6 +454,7 @@ struct ItemCard: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .padding(.horizontal, 8)
+                    Spacer()
                 }
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: isCompactSize ? 90 : 120)
@@ -687,14 +690,59 @@ struct ItemCard: View {
     }
 
     private func refreshThumbnailImage() {
-        guard item.itemTypeValue == .image, let path = item.thumbnailPath, !path.isEmpty else {
+        guard item.itemTypeValue == .image else {
             thumbnailImage = nil
             return
         }
+        
+        // Try to load from thumbnail path first
+        if let path = item.thumbnailPath, !path.isEmpty {
+            DispatchQueue.global(qos: .userInitiated).async {
+                let img = NSImage(contentsOfFile: path)
+                DispatchQueue.main.async {
+                    thumbnailImage = img
+                }
+            }
+            return
+        }
+        
+        // If no thumbnail path, try to load from image representations
         DispatchQueue.global(qos: .userInitiated).async {
-            let img = NSImage(contentsOfFile: path)
+            guard let reps = item.representations else {
+                DispatchQueue.main.async {
+                    thumbnailImage = nil
+                }
+                return
+            }
+            
+            // Look for image representations
+            for rep in reps {
+                let kind = rep.kindValue
+                if kind == .png || kind == .jpeg || kind == .tiff {
+                    if let data = rep.binaryData, let img = NSImage(data: data) {
+                        DispatchQueue.main.async {
+                            thumbnailImage = img
+                        }
+                        return
+                    }
+                }
+            }
+            
+            // If still no image, try to load from file URL
+            if let fileRep = reps.first(where: { $0.kindValue == .fileURL }),
+               let data = fileRep.textData,
+               let path = String(data: data, encoding: .utf8) {
+                let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty, let img = NSImage(contentsOfFile: trimmed) {
+                    DispatchQueue.main.async {
+                        thumbnailImage = img
+                    }
+                    return
+                }
+            }
+            
             DispatchQueue.main.async {
-                thumbnailImage = img
+                thumbnailImage = nil
             }
         }
     }
