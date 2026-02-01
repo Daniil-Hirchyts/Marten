@@ -162,7 +162,8 @@ public final class HotkeyManager {
     public func handleKeyDownForTesting(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Bool {
         let normalizedFlags = flags.intersection(.deviceIndependentFlagsMask)
         for (action, hotkey) in hotkeys where hotkey.keyCode == keyCode {
-            if normalizedFlags.contains(hotkey.modifiers) {
+            if normalizedFlags == hotkey.modifiers {
+                Logger.hotkey.info("Hotkey '\(action)' triggered")
                 DispatchQueue.main.async {
                     self.handlers[action]?(normalizedFlags)
                 }

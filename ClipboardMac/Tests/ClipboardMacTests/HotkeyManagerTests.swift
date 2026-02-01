@@ -48,4 +48,57 @@ final class HotkeyManagerTests: XCTestCase {
         let consumed = manager.handleKeyDownForTesting(keyCode: 12, flags: [.command])
         XCTAssertFalse(consumed)
     }
+
+    func testExactModifierMatchingWithMultipleModifiers() {
+        let manager = HotkeyManager()
+        let expectation = expectation(description: "hotkey handler")
+
+        // Register Cmd+Shift+V
+        manager.register(
+            action: "showClipboard",
+            hotkey: .init(keyCode: 9, modifiers: [.command, .shift])
+        ) { flags in
+            XCTAssertTrue(flags.contains(.command))
+            XCTAssertTrue(flags.contains(.shift))
+            expectation.fulfill()
+        }
+
+        // Should trigger with exact match
+        let consumed = manager.handleKeyDownForTesting(keyCode: 9, flags: [.command, .shift])
+        XCTAssertTrue(consumed, "Should consume event when modifiers match exactly")
+        spinRunLoop(for: 0.2)
+        wait(for: [expectation], timeout: 1)
+    }
+
+    func testDoesNotTriggerWithExtraModifiers() {
+        let manager = HotkeyManager()
+
+        // Register Cmd+Shift+V
+        manager.register(
+            action: "showClipboard",
+            hotkey: .init(keyCode: 9, modifiers: [.command, .shift])
+        ) { _ in
+            XCTFail("Handler should not be called with extra modifiers")
+        }
+
+        // Should NOT trigger with extra modifier (Option)
+        let consumed = manager.handleKeyDownForTesting(keyCode: 9, flags: [.command, .shift, .option])
+        XCTAssertFalse(consumed, "Should not consume event when extra modifiers are present")
+    }
+
+    func testDoesNotTriggerWithFewerModifiers() {
+        let manager = HotkeyManager()
+
+        // Register Cmd+Shift+V
+        manager.register(
+            action: "showClipboard",
+            hotkey: .init(keyCode: 9, modifiers: [.command, .shift])
+        ) { _ in
+            XCTFail("Handler should not be called with fewer modifiers")
+        }
+
+        // Should NOT trigger with only Cmd
+        let consumed = manager.handleKeyDownForTesting(keyCode: 9, flags: [.command])
+        XCTAssertFalse(consumed, "Should not consume event when fewer modifiers are present")
+    }
 }

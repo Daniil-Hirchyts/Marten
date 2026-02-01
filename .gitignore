@@ -71,3 +71,14 @@ coverage/
 # Test artifacts
 *.test
 *.log
+
+# Agent Skills
+skills/
+.agent/skills/
+.agents/skills/
+.claude/skills/
+.codex/skills/
+.cursor/skills/
+.gemini/skills/
+.github/skills/
+.trae/skills/
