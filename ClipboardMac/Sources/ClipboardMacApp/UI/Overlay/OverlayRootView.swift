@@ -1036,7 +1036,10 @@ private struct ResizeHandleView: View {
                     .onEnded { _ in
                         isDragging = false
                         if let window = window {
-                            UserDefaults.standard.set(window.frame.height, forKey: "OverlayHeight")
+                            let height = window.frame.height
+                            UserDefaults.standard.set(height, forKey: "OverlayHeight")
+                            UserDefaults.standard.synchronize()
+                            print("✅ Saved overlay height: \(height)")
                         }
                     }
             )

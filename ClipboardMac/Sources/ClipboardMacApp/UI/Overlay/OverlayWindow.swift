@@ -173,12 +173,14 @@ final class OverlayWindowController {
         let width = max(visible.width - (horizontalMargin * 2), 320)
 
         let savedHeight = UserDefaults.standard.double(forKey: "OverlayHeight")
+        print("📏 Loading overlay height from UserDefaults: \(savedHeight)")
         let preferredHeight = savedHeight > 0 ? CGFloat(savedHeight) : 320
 
         let maxAllowedHeight = min(visible.height - 50, 400)
-        let minAllowedHeight: CGFloat = 280
+        let minAllowedHeight: CGFloat = 220  // Match the resize minimum
 
         let height = min(max(minAllowedHeight, preferredHeight), maxAllowedHeight)
+        print("📏 Calculated overlay height: \(height) (min: \(minAllowedHeight), max: \(maxAllowedHeight))")
 
         let x = visible.minX + horizontalMargin
         let y = visible.minY + bottomMargin

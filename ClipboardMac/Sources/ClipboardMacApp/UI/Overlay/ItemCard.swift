@@ -436,8 +436,8 @@ struct ItemCard: View {
         Group {
             if item.itemTypeValue == .color, let text = item.primaryText {
                 // Color card: centered text in the content area
-                VStack {
-                    Spacer()
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
                     Text(text.trimmingCharacters(in: .whitespacesAndNewlines))
                         .font(.system(size: colorFontSize, weight: .semibold))
                         .foregroundStyle(colorItemForeground ?? primaryTextColor)
@@ -445,10 +445,10 @@ struct ItemCard: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .padding(.horizontal, 8)
-                    Spacer()
+                        .layoutPriority(1)
+                    Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: isCompactSize ? 90 : 120)
             } else if item.itemTypeValue == .image {
                 // Image card: full-size image preview
                 ZStack(alignment: .topTrailing) {
