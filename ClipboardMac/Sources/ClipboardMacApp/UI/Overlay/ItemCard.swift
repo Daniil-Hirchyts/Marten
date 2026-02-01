@@ -443,11 +443,11 @@ struct ItemCard: View {
 
     private var contentPreviewView: some View {
         Group {
-            if item.itemTypeValue == .color, let hex = normalizedColorHex {
+            if item.itemTypeValue == .color, let text = item.primaryText {
                 // Color card: centered text in the content area
                 VStack {
                     Spacer()
-                    Text(hex)
+                    Text(text.trimmingCharacters(in: .whitespacesAndNewlines))
                         .font(.system(size: colorFontSize, weight: .semibold))
                         .foregroundStyle(colorItemForeground ?? primaryTextColor)
                         .monospaced()
@@ -458,6 +458,72 @@ struct ItemCard: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: isCompactSize ? 90 : 120)
+            } else if item.itemTypeValue == .image {
+                // Image card: full-size image preview
+                VStack {
+                    Spacer()
+                    if let image = thumbnailImage {
+                        ZStack {
+                            TransparencyGrid(squareSize: 12)
+                            Image(nsImage: image)
+                                .resizable()
+                                .scaledToFit()
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    } else {
+                        Image(systemName: "photo")
+                            .font(.system(size: 48, weight: .light))
+                            .foregroundStyle(
+                                colorScheme == .dark
+                                    ? Color.white.opacity(0.3)
+                                    : Color.black.opacity(0.2)
+                            )
+                    }
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: isCompactSize ? 90 : 120)
+            } else if item.itemTypeValue == .file {
+                // File card: centered large icon
+                VStack {
+                    Spacer()
+                    if let icon = fileIconImage {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 64, height: 64)
+                            .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+                    } else {
+                        Image(systemName: "doc.fill")
+                            .font(.system(size: 48, weight: .regular))
+                            .foregroundStyle(
+                                colorScheme == .dark
+                                    ? Color.white.opacity(0.4)
+                                    : Color.black.opacity(0.3)
+                            )
+                    }
+                    
+                    if let fileName = fileNameOnly {
+                        Text(fileName)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(primaryTextColor)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 8)
+                    }
+                    
+                    if let size = fileSizeText {
+                        Text(size)
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(secondaryTextColor)
+                            .padding(.top, 2)
+                    }
+                    
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: isCompactSize ? 120 : 150)
             } else {
                 Group {
                     if shouldShowLeadingPreview {
@@ -656,11 +722,17 @@ struct ItemCard: View {
 
     private var shouldShowLeadingPreview: Bool {
         switch item.itemTypeValue {
-        case .image, .file, .url, .mixed:
+        case .url, .mixed:
             return true
         default:
             return false
         }
+    }
+    
+    private var fileNameOnly: String? {
+        guard item.itemTypeValue == .file else { return nil }
+        let url = URL(fileURLWithPath: cached.primaryTitle)
+        return url.lastPathComponent
     }
 
     private var fileSizeText: String? {
