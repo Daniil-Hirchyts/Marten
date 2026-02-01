@@ -50,6 +50,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Setup crash reporting first
+        CrashReporter.shared.setupGlobalExceptionHandler()
+        CrashReporter.shared.recordLifecycleEvent(.appLaunched)
+        
         UserDefaults.standard.register(
             defaults: [
                 "hasCompletedOnboarding": true,
@@ -180,9 +184,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let recentItems = try clipItemStore.fetchRecentItems(limit: 1)
             Logger.integrity.info(
                 "Database access verified. Found \(recentItems.count) recent items.")
+            CrashReporter.shared.logInfo(
+                "Database verified with \(recentItems.count) items",
+                context: "Startup Integrity"
+            )
         } catch {
             Logger.integrity.fault(
                 "Critical: Database access failed during integrity check: \(error.localizedDescription)"
+            )
+            CrashReporter.shared.recordDatabaseError(
+                error,
+                operation: "Startup Integrity Check",
+                entityName: "ClipItem"
             )
         }
 
@@ -191,6 +204,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let raw = rawPolicy, RetentionPolicy(rawValue: raw) == nil {
             Logger.integrity.error(
                 "Invalid retention policy found in UserDefaults: \(raw). Defaulting to month.")
+            CrashReporter.shared.logWarning(
+                "Invalid retention policy: \(raw)",
+                context: "Startup Integrity"
+            )
         } else {
             Logger.integrity.info("Retention policy verified: \(rawPolicy ?? "default")")
         }
@@ -246,6 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     func applicationWillTerminate(_ notification: Notification) {
+        CrashReporter.shared.recordLifecycleEvent(.appTerminating)
         pasteboardMonitor.stop()
         hotkeyManager.stop()
         hotkeyManager.unregisterAll()
@@ -294,6 +312,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } catch {
                 Logger.pasteboard.error(
                     "Failed to capture clipboard item: \(error.localizedDescription)")
+                CrashReporter.shared.recordCaptureError(
+                    error,
+                    operation: "Create Item",
+                    bundleID: source.bundleID
+                )
             }
         }
     }
@@ -399,11 +422,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         self.permissionManager.requestAccessibility()
                     } catch {
                         Logger.app.error("Quick paste failed: \(error.localizedDescription)")
+                        CrashReporter.shared.recordPasteError(
+                            error,
+                            operation: "Quick Paste \(index)",
+                            targetApp: nil
+                        )
                     }
                 }
             }
         } catch {
             Logger.app.error("Quick paste failed: \(error.localizedDescription)")
+            CrashReporter.shared.recordPasteError(
+                error,
+                operation: "Quick Paste Fetch",
+                targetApp: nil
+            )
         }
     }
 
@@ -434,6 +467,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         } catch {
             Logger.retention.error("Retention cleanup failed: \(error.localizedDescription)")
+            CrashReporter.shared.recordDatabaseError(
+                error,
+                operation: "Retention Cleanup",
+                entityName: "ClipItem"
+            )
         }
     }
 

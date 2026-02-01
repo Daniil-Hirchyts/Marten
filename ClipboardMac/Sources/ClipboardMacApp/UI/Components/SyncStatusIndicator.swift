@@ -145,7 +145,7 @@ public struct SyncStatusIndicator<Coordinator: SyncCoordinating & ObservableObje
     private var statusDetailText: String? {
         switch coordinator.status {
         case .idle:
-            return nil
+            return lastSyncText
         case .syncing:
             return syncProgressText
         case .synced:

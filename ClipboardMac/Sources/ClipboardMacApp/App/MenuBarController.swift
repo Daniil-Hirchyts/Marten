@@ -154,7 +154,7 @@ private struct MenuSettingsButton14: View {
                 )
             )
             .background(
-                Rectangle()
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(
                         Color(
                             nsColor: isHighlighted
@@ -190,6 +190,11 @@ private final class MenuItemHostingView<Content: View>: NSHostingView<Content> {
     override func viewWillDraw() {
         super.viewWillDraw()
         syncHighlightState()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        syncHighlightState()
+        super.draw(dirtyRect)
     }
 
     private func syncHighlightState() {
