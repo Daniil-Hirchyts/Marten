@@ -140,16 +140,7 @@ struct CachedItemProperties {
             }
             return nil
         case .file:
-            if let text = item.primaryText, !text.isEmpty {
-                let size =
-                    item.byteCount > 0
-                    ? ByteCountFormatter.string(fromByteCount: item.byteCount, countStyle: .file)
-                    : nil
-                if let size {
-                    return [size]
-                }
-                return nil
-            }
+            // Don't show size in detail lines - it's already in stats label and shown in file card
             return nil
         default:
             return nil
@@ -460,8 +451,7 @@ struct ItemCard: View {
                 .frame(minHeight: isCompactSize ? 90 : 120)
             } else if item.itemTypeValue == .image {
                 // Image card: full-size image preview
-                VStack {
-                    Spacer()
+                VStack(spacing: 0) {
                     if let image = thumbnailImage {
                         ZStack {
                             TransparencyGrid(squareSize: 12)
@@ -469,17 +459,37 @@ struct ItemCard: View {
                                 .resizable()
                                 .scaledToFit()
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     } else {
-                        Image(systemName: "photo")
-                            .font(.system(size: 48, weight: .light))
-                            .foregroundStyle(
+                        VStack {
+                            Spacer()
+                            Image(systemName: "photo")
+                                .font(.system(size: 48, weight: .light))
+                                .foregroundStyle(
+                                    colorScheme == .dark
+                                        ? Color.white.opacity(0.3)
+                                        : Color.black.opacity(0.2)
+                                )
+                            Spacer()
+                        }
+                    }
+                    
+                    // Show filename for image files
+                    if let fileName = imageFileName {
+                        Text(fileName)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(primaryTextColor)
+                            .lineLimit(1)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .frame(maxWidth: .infinity)
+                            .background(
                                 colorScheme == .dark
-                                    ? Color.white.opacity(0.3)
-                                    : Color.black.opacity(0.2)
+                                    ? Color.black.opacity(0.3)
+                                    : Color.white.opacity(0.5)
                             )
                     }
-                    Spacer()
                 }
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: isCompactSize ? 90 : 120)
@@ -732,6 +742,19 @@ struct ItemCard: View {
     private var fileNameOnly: String? {
         guard item.itemTypeValue == .file else { return nil }
         let url = URL(fileURLWithPath: cached.primaryTitle)
+        return url.lastPathComponent
+    }
+    
+    private var imageFileName: String? {
+        guard item.itemTypeValue == .image else { return nil }
+        // Check if this is an image file (has file URL representation)
+        guard let reps = item.representations,
+              let fileRep = reps.first(where: { $0.kindValue == .fileURL }),
+              let data = fileRep.textData,
+              let path = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        let url = URL(fileURLWithPath: path.trimmingCharacters(in: .whitespacesAndNewlines))
         return url.lastPathComponent
     }
 
