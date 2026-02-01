@@ -120,6 +120,17 @@ public final class PasteboardExtractor {
             }
         }
 
+        // Check if file is actually an image file by extension
+        if hasFile, let text = primaryText {
+            let imageExtensions = ["png", "jpg", "jpeg", "gif", "tiff", "tif", "bmp", "heic", "heif", "webp", "svg", "ico"]
+            let url = URL(fileURLWithPath: text)
+            let ext = url.pathExtension.lowercased()
+            if imageExtensions.contains(ext) {
+                return .image
+            }
+        }
+
+        // Prioritize specific types over generic
         if hasFile { return .file }
         if hasImage { return .image }
         if hasURL { return .url }

@@ -570,9 +570,7 @@ struct ItemCard: View {
     }
 
     private var headerBackgroundColor: Color {
-        if item.itemTypeValue == .color, let bg = colorItemBackground {
-            return bg.opacity(0.95)
-        }
+        // Color cards should NOT have colored headers - they use app/pinboard colors like other cards
         if let pinboardColor = cached.primaryPinboardColor {
             return pinboardColor.opacity(0.9)
         }
@@ -588,9 +586,7 @@ struct ItemCard: View {
     // MARK: - Text Colors
 
     private var headerTextColor: Color {
-        if item.itemTypeValue == .color, let fg = colorItemForeground {
-            return fg
-        }
+        // Color cards use normal header text color (not based on color content)
         // If using vibrant pinboard or app color, white text works best
         if cached.primaryPinboardColor != nil || appColorLoader.color != nil {
             return Color.white
