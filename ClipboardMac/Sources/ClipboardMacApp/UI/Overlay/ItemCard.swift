@@ -505,7 +505,7 @@ struct ItemCard: View {
                 .frame(maxWidth: .infinity)
             } else if item.itemTypeValue == .file {
                 // File card: centered large icon
-                VStack(spacing: isCompactSize ? 6 : 8) {
+                VStack(spacing: isCompactSize ? 4 : 6) {
                     Spacer(minLength: 0)
                     if let icon = fileIconImage {
                         Image(nsImage: icon)
@@ -513,7 +513,6 @@ struct ItemCard: View {
                             .scaledToFit()
                             .frame(width: fileIconSize, height: fileIconSize)
                             .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
-                            .layoutPriority(1)
                     } else {
                         Image(systemName: "doc.fill")
                             .font(.system(size: fileIconSize * 0.75, weight: .regular))
@@ -522,24 +521,16 @@ struct ItemCard: View {
                                     ? Color.white.opacity(0.4)
                                     : Color.black.opacity(0.3)
                             )
-                            .layoutPriority(1)
                     }
                     
                     if let fileName = fileNameOnly {
                         Text(fileName)
-                            .font(.system(size: isCompactSize ? 11 : 13, weight: .medium))
+                            .font(.system(size: isCompactSize ? 10 : 12, weight: .medium))
                             .foregroundStyle(primaryTextColor)
-                            .lineLimit(2)
+                            .lineLimit(1)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, 12)
-                            .layoutPriority(0)
-                    }
-                    
-                    if let size = fileSizeText {
-                        Text(size)
-                            .font(.system(size: isCompactSize ? 9 : 11, weight: .regular))
-                            .foregroundStyle(secondaryTextColor)
-                            .layoutPriority(0)
+                            .padding(.horizontal, 8)
+                            .padding(.top, isCompactSize ? 2 : 4)
                     }
                     
                     Spacer(minLength: 0)
@@ -743,11 +734,11 @@ struct ItemCard: View {
     
     private var fileIconSize: CGFloat {
         if cardSize < 250 {
-            return 48
+            return 40
         } else if cardSize < 300 {
-            return 56
+            return 48
         } else {
-            return 64
+            return 56
         }
     }
 
