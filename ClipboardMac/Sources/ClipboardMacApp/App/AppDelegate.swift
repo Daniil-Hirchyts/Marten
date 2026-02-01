@@ -509,6 +509,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let entitlement = "com.apple.developer.aps-environment" as CFString
         return SecTaskCopyValueForEntitlement(task, entitlement, nil) != nil
     }
+
+    @MainActor
+    @objc func openSettingsWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        
+        // Find existing settings window
+        if let settingsWindow = NSApp.windows.first(where: { $0.identifier?.rawValue == "settings" }) {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            return
+        }
+        
+        // On macOS 14+, the SwiftUI command will handle opening the window
+        // We trigger it by sending the keyboard shortcut
+        if #available(macOS 14.0, *) {
+            let event = NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: .command,
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                characters: ",",
+                charactersIgnoringModifiers: ",",
+                isARepeat: false,
+                keyCode: 43
+            )
+            if let event = event {
+                NSApp.sendEvent(event)
+            }
+        }
+    }
+
 }
 
 extension AppDelegate: @unchecked Sendable {}

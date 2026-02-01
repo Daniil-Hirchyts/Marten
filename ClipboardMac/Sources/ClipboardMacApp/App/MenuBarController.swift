@@ -41,31 +41,12 @@ final class MenuBarController: NSObject {
             systemSymbolName: "clipboard", accessibilityDescription: nil)
         menu.addItem(showClipboardItem)
 
-        if #available(macOS 14.0, *) {
-            let settingsItem = NSMenuItem()
-            let highlightState = MenuItemHighlightState()
-            let hostingView = MenuItemHostingView(
-                rootView: MenuSettingsButton14(
-                    closeOverlay: { [weak self] completion in
-                        self?.hideOverlayHandler(completion) ?? completion()
-                    },
-                    highlightState: highlightState
-                )
-            )
-            hostingView.highlightState = highlightState
-            hostingView.frame.size = NSSize(width: 220, height: 22)
-            settingsItem.view = hostingView
-            settingsItem.keyEquivalent = ","
-            settingsItem.keyEquivalentModifierMask = [.command]
-            menu.addItem(settingsItem)
-        } else {
-            let settingsItem = NSMenuItem(
-                title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
-            settingsItem.target = self
-            settingsItem.image = NSImage(
-                systemSymbolName: "gearshape", accessibilityDescription: nil)
-            menu.addItem(settingsItem)
-        }
+        let settingsItem = NSMenuItem(
+            title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        settingsItem.image = NSImage(
+            systemSymbolName: "gearshape", accessibilityDescription: nil)
+        menu.addItem(settingsItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -107,101 +88,12 @@ final class MenuBarController: NSObject {
 
     @objc private func openSettings() {
         hideOverlayHandler {
-            NSApp.activate(ignoringOtherApps: true)
-            if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "settings" }) {
-                window.makeKeyAndOrderFront(nil)
-            }
+            // Call the AppDelegate method to open settings
+            NSApp.sendAction(#selector(AppDelegate.openSettingsWindow), to: nil, from: nil)
         }
     }
 
     @objc private func quitApp() {
         NSApp.terminate(nil)
-    }
-}
-
-@available(macOS 14.0, *)
-private struct MenuSettingsButton14: View {
-    let closeOverlay: (@escaping () -> Void) -> Void
-    @ObservedObject var highlightState: MenuItemHighlightState
-
-    @Environment(\.openWindow) private var openWindow
-
-    private var isHighlighted: Bool {
-        highlightState.isHighlighted
-    }
-
-    var body: some View {
-        Button {
-            closeOverlay {
-                NSApp.activate(ignoringOtherApps: true)
-                openWindow(id: "settings")
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "gearshape")
-                Text("Settings…")
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 14)
-            .frame(height: 22)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .foregroundStyle(
-                Color(
-                    nsColor: isHighlighted
-                        ? NSColor.selectedMenuItemTextColor
-                        : NSColor.controlTextColor
-                )
-            )
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(
-                        Color(
-                            nsColor: isHighlighted
-                                ? NSColor.selectedMenuItemColor
-                                : NSColor.clear
-                        )
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-@available(macOS 14.0, *)
-private final class MenuItemHighlightState: ObservableObject {
-    @Published var isHighlighted: Bool = false
-}
-
-@available(macOS 14.0, *)
-private final class MenuItemHostingView<Content: View>: NSHostingView<Content> {
-    var highlightState: MenuItemHighlightState?
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        syncHighlightState()
-    }
-
-    override func viewDidMoveToSuperview() {
-        super.viewDidMoveToSuperview()
-        syncHighlightState()
-    }
-
-    override func viewWillDraw() {
-        super.viewWillDraw()
-        syncHighlightState()
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        syncHighlightState()
-        super.draw(dirtyRect)
-    }
-
-    private func syncHighlightState() {
-        guard let highlightState else { return }
-        let isHighlighted = enclosingMenuItem?.isHighlighted ?? false
-        if highlightState.isHighlighted != isHighlighted {
-            highlightState.isHighlighted = isHighlighted
-        }
     }
 }

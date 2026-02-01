@@ -7,5 +7,6 @@ public enum ItemType: Int16, CaseIterable, Sendable {
     case file = 3
     case url = 4
     case code = 5
+    case color = 6
     case mixed = 99
 }

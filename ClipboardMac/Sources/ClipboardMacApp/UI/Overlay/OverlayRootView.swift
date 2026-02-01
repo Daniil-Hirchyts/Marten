@@ -86,6 +86,10 @@ struct OverlayRootView: View {
             .hashValue
     }
 
+    private var pinboardSelectionKey: String {
+        searchModel.selectedPinboardID?.uuidString ?? "all-pinboards"
+    }
+
     var body: some View {
         ZStack {
             VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
@@ -102,9 +106,13 @@ struct OverlayRootView: View {
                         draftName: $renamePinboardName,
                         draftColor: $renamePinboardColor,
                         isGlobalDragActive: dragCoordinator.dragPreviewData != nil,
+                        window: window,
+                        onPreviewUpdate: { data in
+                            dragCoordinator.updatePinboardDragPreviewWindow(data, parentWindow: window)
+                        },
                         onSelect: { id in
                             closeSearchIfEmpty()
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(.easeOut(duration: 0.14)) {
                                 searchModel.selectedPinboardID = id
                             }
                         },
@@ -319,7 +327,7 @@ struct OverlayRootView: View {
                 .frame(height: headerButtonSize)
                 .zIndex(1)
 
-                Group {
+                ZStack(alignment: .topLeading) {
                     if filteredItems.isEmpty {
                         emptyStateView
                             .padding(.horizontal, 14)
@@ -387,6 +395,9 @@ struct OverlayRootView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .id(pinboardSelectionKey)
+                .transition(.opacity)
+                .animation(.easeOut(duration: 0.14), value: pinboardSelectionKey)
 
                 Spacer(minLength: 0)
             }
@@ -441,10 +452,12 @@ struct OverlayRootView: View {
             modifierMonitor.start()
             ensureValidSelection()
             dragCoordinator.ensurePreviewWindow()
+            dragCoordinator.ensurePinboardPreviewWindow()
         }
         .onDisappear {
             modifierMonitor.stop()
             dragCoordinator.cleanupPreviewWindow()
+            dragCoordinator.cleanupPinboardPreviewWindow()
 
             // Close search on overlay close only if empty
             if searchModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

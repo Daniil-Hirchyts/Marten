@@ -36,6 +36,8 @@ struct PinboardTabBar: View {
     @Binding var draftName: String
     @Binding var draftColor: String
     var isGlobalDragActive: Bool = false  // True when any drag (including card drag) is happening
+    let window: NSWindow?
+    var onPreviewUpdate: ((PinboardDragPreviewData?) -> Void)? = nil
 
     let onSelect: (UUID?) -> Void
     let onCreate: () -> Void
@@ -210,9 +212,6 @@ struct PinboardTabBar: View {
             .coordinateSpace(name: localCoordinateSpaceName)
             .overlay(alignment: .topLeading) {
                 placeholderView()
-            }
-            .overlay(alignment: .topLeading) {
-                dragPreviewView()
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
@@ -481,6 +480,9 @@ struct PinboardTabBar: View {
             frameManager.setCachedOrderedFrames(result.cachedOrderedFrames)
             dragOpacity = 1
 
+            // Send initial preview data
+            updatePreviewData(for: pinboard, localFrame: localFrame)
+
             if let cachedLocal = frameManager.cachedOrderedFrames {
                 dropTarget = handler.computeDropTarget(
                     location: localPointer,
@@ -504,6 +506,11 @@ struct PinboardTabBar: View {
 
             dragState = result.dragState
             dropTarget = result.dropTarget
+
+            // Update preview data during drag
+            if let localFrame = frameManager.latestTabFrames[pinboard.objectID] {
+                updatePreviewData(for: pinboard, localFrame: localFrame)
+            }
 
             // Check for auto-scroll near edges
             if let scrollProxy = currentScrollProxy {
@@ -537,6 +544,9 @@ struct PinboardTabBar: View {
     private func endDrag(for itemID: NSManagedObjectID) {
         stopAutoScroll()
 
+        // Clear preview immediately
+        onPreviewUpdate?(nil)
+
         withAnimation(.easeOut(duration: 0.1)) {
             dropTarget = nil
             dragOpacity = 0
@@ -548,6 +558,16 @@ struct PinboardTabBar: View {
                 frameManager.clearCaches()
             }
         }
+    }
+
+    private func updatePreviewData(for pinboard: Pinboard, localFrame: CGRect) {
+        let data = PinboardDragPreviewData(
+            title: pinboard.name,
+            colorHex: pinboard.colorHex,
+            size: localFrame.size,
+            opacity: dragOpacity
+        )
+        onPreviewUpdate?(data)
     }
 
     private func handleBlurCommit() {

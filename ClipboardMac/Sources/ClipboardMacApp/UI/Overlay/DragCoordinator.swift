@@ -9,8 +9,10 @@ final class DragCoordinator: ObservableObject {
     @Published var pinboardEditorFrame: CGRect?
     @Published var searchFieldFrame: CGRect?
     @Published var dragPreviewData: DragPreviewData?
+    @Published var pinboardDragPreviewData: PinboardDragPreviewData?
 
     private var dragPreviewWindow: DragPreviewWindow?
+    private var pinboardDragPreviewWindow: PinboardDragPreviewWindow?
 
     func updatePinboardLayout(_ layout: PinboardLayoutInfo) {
         guard dragPreviewData == nil else { return }
@@ -39,10 +41,22 @@ final class DragCoordinator: ObservableObject {
         }
     }
 
+    func ensurePinboardPreviewWindow() {
+        if pinboardDragPreviewWindow == nil {
+            pinboardDragPreviewWindow = PinboardDragPreviewWindow()
+        }
+    }
+
     func cleanupPreviewWindow() {
         dragPreviewWindow?.orderOut(nil)
         dragPreviewWindow = nil
         dragPreviewData = nil
+    }
+
+    func cleanupPinboardPreviewWindow() {
+        pinboardDragPreviewWindow?.orderOut(nil)
+        pinboardDragPreviewWindow = nil
+        pinboardDragPreviewData = nil
     }
 
     func updateDragPreviewWindow(_ data: DragPreviewData?, parentWindow: NSWindow?) {
@@ -63,5 +77,23 @@ final class DragCoordinator: ObservableObject {
             dragPreviewWindow.updatePreview(nil)
         }
     }
-}
 
+    func updatePinboardDragPreviewWindow(_ data: PinboardDragPreviewData?, parentWindow: NSWindow?) {
+        guard let pinboardDragPreviewWindow, parentWindow != nil else { return }
+
+        if let data {
+            let mouseLocation = NSEvent.mouseLocation
+            let previewFrame = NSRect(
+                x: mouseLocation.x - 150,
+                y: mouseLocation.y - 50,
+                width: 300,
+                height: 100
+            )
+
+            pinboardDragPreviewWindow.setFrame(previewFrame, display: false)
+            pinboardDragPreviewWindow.updatePreview(data)
+        } else {
+            pinboardDragPreviewWindow.updatePreview(nil)
+        }
+    }
+}

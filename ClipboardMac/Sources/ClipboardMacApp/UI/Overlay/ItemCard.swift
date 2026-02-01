@@ -62,6 +62,7 @@ struct CachedItemProperties {
         case .file: return "File"
         case .url: return "URL"
         case .code: return "Code"
+        case .color: return "Color"
         case .mixed: return "Mixed"
         }
     }
@@ -74,6 +75,7 @@ struct CachedItemProperties {
         case .file: return "doc"
         case .url: return "link"
         case .code: return "chevron.left.slash.chevron.right"
+        case .color: return "paintpalette"
         case .mixed: return "square.stack"
         }
     }
@@ -106,6 +108,8 @@ struct CachedItemProperties {
             return text.isEmpty ? "Text" : text
         case .code:
             return text.isEmpty ? "Code" : text
+        case .color:
+            return text.isEmpty ? "Color" : text
         case .mixed:
             return text.isEmpty ? "Mixed" : text
         }
@@ -116,6 +120,8 @@ struct CachedItemProperties {
         switch itemType {
         case .text, .richText, .code:
             return text
+        case .color:
+            return nil
         default:
             return nil
         }
@@ -135,15 +141,14 @@ struct CachedItemProperties {
             return nil
         case .file:
             if let text = item.primaryText, !text.isEmpty {
-                let url = URL(fileURLWithPath: text)
                 let size =
                     item.byteCount > 0
                     ? ByteCountFormatter.string(fromByteCount: item.byteCount, countStyle: .file)
                     : nil
                 if let size {
-                    return [url.lastPathComponent, size]
+                    return [size]
                 }
-                return [url.lastPathComponent]
+                return nil
             }
             return nil
         default:
@@ -156,12 +161,15 @@ struct CachedItemProperties {
         case .text, .richText, .code:
             let count = item.primaryText?.count ?? 0
             return "\(count) chars"
+        case .color:
+            return "Color"
         default:
             return ByteCountFormatter.string(fromByteCount: item.byteCount, countStyle: .file)
         }
     }
 
-    private static func computePrimaryPinboard(for item: ClipItem) -> (color: Color?, name: String?) {
+    private static func computePrimaryPinboard(for item: ClipItem) -> (color: Color?, name: String?)
+    {
         let pinboards = item.pinboards?.filter { !$0.isSystemClipboard } ?? []
         let sorted = pinboards.sorted { $0.sortOrder < $1.sortOrder }
         guard let pinboard = sorted.first else { return (nil, nil) }
@@ -196,6 +204,7 @@ enum PreviewFactory {
         thumbnailImage: NSImage?,
         urlHost: String,
         urlPath: String,
+        fileIcon: NSImage?,
         fileName: String,
         fileSizeText: String?,
         previewText: String?,
@@ -208,17 +217,20 @@ enum PreviewFactory {
             case .url:
                 URLPreview(host: urlHost, path: urlPath)
             case .file:
-                FilePreview(name: fileName, size: fileSizeText)
+                FilePreview(icon: fileIcon, name: fileName, size: fileSizeText)
             case .code:
                 CodePreview(text: previewText ?? "")
             case .richText, .text:
                 TextPreview(text: previewText ?? "")
+            case .color:
+                ColorPreview(hex: previewText ?? "")
             case .mixed:
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(colorScheme == .dark 
-                            ? Color.white.opacity(DesignTokens.Opacity.backgroundSubtle)
-                            : Color.black.opacity(0.05)
+                        .fill(
+                            colorScheme == .dark
+                                ? Color.white.opacity(DesignTokens.Opacity.backgroundSubtle)
+                                : Color.black.opacity(0.05)
                         )
                     Image(systemName: typeIcon)
                         .font(.system(size: 18, weight: .semibold))
@@ -228,9 +240,10 @@ enum PreviewFactory {
         .frame(width: 72, height: 72)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(colorScheme == .dark 
-                    ? Color.white.opacity(DesignTokens.Opacity.backgroundSubtle)
-                    : Color.black.opacity(0.05)
+                .fill(
+                    colorScheme == .dark
+                        ? Color.white.opacity(DesignTokens.Opacity.backgroundSubtle)
+                        : Color.black.opacity(0.05)
                 )
         )
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -266,12 +279,29 @@ struct ItemCard: View {
     @State private var editTitle: String = ""
     @State private var cachedProps: CachedItemProperties?
     @StateObject private var appColorLoader = AppIconColorLoader()
+    @State private var thumbnailImage: NSImage?
+    @State private var fileIconImage: NSImage?
     @FocusState private var isFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
 
     /// Cached properties to avoid recalculating on every render
     private var cached: CachedItemProperties {
         cachedProps ?? CachedItemProperties(item: item)
+    }
+
+    private var normalizedColorHex: String? {
+        guard item.itemTypeValue == .color, let text = item.primaryText else { return nil }
+        return ClipboardHexColor.normalizedHex(from: text)
+    }
+
+    private var colorItemBackground: Color? {
+        guard let hex = normalizedColorHex else { return nil }
+        return Color(hex: hex, fallback: .gray)
+    }
+
+    private var colorItemForeground: Color? {
+        guard let hex = normalizedColorHex else { return nil }
+        return ClipboardHexColor.foregroundColor(forNormalizedHex: hex)
     }
 
     var body: some View {
@@ -307,10 +337,12 @@ struct ItemCard: View {
         .onAppear {
             cachedProps = CachedItemProperties(item: item)
             appColorLoader.load(bundleID: item.sourceAppBundleID)
+            refreshPreviewAssets()
         }
         .onChange(of: item.objectID) { _, _ in
             cachedProps = CachedItemProperties(item: item)
             appColorLoader.load(bundleID: item.sourceAppBundleID)
+            refreshPreviewAssets()
         }
         .onChange(of: item.sourceAppBundleID) { newValue, _ in
             appColorLoader.load(bundleID: newValue)
@@ -410,6 +442,47 @@ struct ItemCard: View {
     }
 
     private var contentPreviewView: some View {
+        Group {
+            if item.itemTypeValue == .color, let hex = normalizedColorHex {
+                ZStack {
+                    Text(hex)
+                        .font(.system(size: colorFontSize, weight: .semibold))
+                        .foregroundStyle(colorItemForeground ?? primaryTextColor)
+                        .monospaced()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .padding(.horizontal, 8)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: isCompactSize ? 90 : 120)
+            } else {
+                Group {
+                    if shouldShowLeadingPreview {
+                        HStack(alignment: .top, spacing: 10) {
+                            PreviewFactory.makePreview(
+                                for: item.itemTypeValue,
+                                typeIcon: cached.typeIcon,
+                                thumbnailImage: thumbnailImage,
+                                urlHost: urlHost,
+                                urlPath: urlPath,
+                                fileIcon: fileIconImage,
+                                fileName: cached.primaryTitle,
+                                fileSizeText: fileSizeText,
+                                previewText: cached.previewText,
+                                colorScheme: colorScheme
+                            )
+
+                            textDetailStack
+                        }
+                    } else {
+                        textDetailStack
+                    }
+                }
+            }
+        }
+    }
+
+    private var textDetailStack: some View {
         VStack(alignment: .leading, spacing: 4) {
             if cached.shouldShowPrimaryTitle {
                 Text(cached.primaryTitle)
@@ -450,9 +523,11 @@ struct ItemCard: View {
 
     private var cardBackground: some View {
         cardShape
-            .fill(colorScheme == .dark 
-                ? Color(.sRGB, white: 0.04, opacity: 0.72)
-                : Color(.sRGB, white: 0.96, opacity: 0.9)
+            .fill(
+                colorItemBackground
+                    ?? (colorScheme == .dark
+                        ? Color(.sRGB, white: 0.04, opacity: 0.72)
+                        : Color(.sRGB, white: 0.96, opacity: 0.9))
             )
     }
 
@@ -495,6 +570,9 @@ struct ItemCard: View {
     }
 
     private var headerBackgroundColor: Color {
+        if item.itemTypeValue == .color, let bg = colorItemBackground {
+            return bg.opacity(0.95)
+        }
         if let pinboardColor = cached.primaryPinboardColor {
             return pinboardColor.opacity(0.9)
         }
@@ -506,28 +584,40 @@ struct ItemCard: View {
             ? Color(.sRGB, white: 0.2, opacity: 0.6)
             : Color(.sRGB, white: 0.85, opacity: 0.8)
     }
-    
+
     // MARK: - Text Colors
-    
+
     private var headerTextColor: Color {
+        if item.itemTypeValue == .color, let fg = colorItemForeground {
+            return fg
+        }
         // If using vibrant pinboard or app color, white text works best
         if cached.primaryPinboardColor != nil || appColorLoader.color != nil {
-            return .white
+            return Color.white
         }
         // For fallback gray background, use theme-aware text
-        return colorScheme == .dark ? .white : .black
+        return colorScheme == .dark ? Color.white : Color.black
     }
-    
+
     private var primaryTextColor: Color {
-        colorScheme == .dark ? .white.opacity(0.9) : .black.opacity(0.9)
+        if item.itemTypeValue == .color, let fg = colorItemForeground {
+            return fg
+        }
+        return colorScheme == .dark ? Color.white.opacity(0.9) : Color.black.opacity(0.9)
     }
-    
+
     private var secondaryTextColor: Color {
-        colorScheme == .dark ? .white.opacity(0.75) : .black.opacity(0.75)
+        if item.itemTypeValue == .color, let fg = colorItemForeground {
+            return fg.opacity(0.8)
+        }
+        return colorScheme == .dark ? Color.white.opacity(0.75) : Color.black.opacity(0.75)
     }
-    
+
     private var tertiaryTextColor: Color {
-        colorScheme == .dark ? .white.opacity(0.6) : .black.opacity(0.5)
+        if item.itemTypeValue == .color, let fg = colorItemForeground {
+            return fg.opacity(0.7)
+        }
+        return colorScheme == .dark ? Color.white.opacity(0.6) : Color.black.opacity(0.5)
     }
 
     private var headerSubtitle: String? {
@@ -563,6 +653,77 @@ struct ItemCard: View {
 
     private var maxPreviewLines: Int {
         isCompactSize ? 3 : 5
+    }
+
+    private var shouldShowLeadingPreview: Bool {
+        switch item.itemTypeValue {
+        case .image, .file, .url, .mixed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var fileSizeText: String? {
+        guard item.byteCount > 0 else { return nil }
+        return ByteCountFormatter.string(fromByteCount: item.byteCount, countStyle: .file)
+    }
+
+    private var urlHost: String {
+        guard item.itemTypeValue == .url, let text = item.primaryText, let url = URL(string: text)
+        else {
+            return "URL"
+        }
+        return url.host ?? "URL"
+    }
+
+    private var urlPath: String {
+        guard item.itemTypeValue == .url, let text = item.primaryText, let url = URL(string: text)
+        else {
+            return "/"
+        }
+        return url.path.isEmpty ? "/" : url.path
+    }
+
+    private func refreshPreviewAssets() {
+        refreshThumbnailImage()
+        refreshFileIcon()
+    }
+
+    private func refreshThumbnailImage() {
+        guard item.itemTypeValue == .image, let path = item.thumbnailPath, !path.isEmpty else {
+            thumbnailImage = nil
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let img = NSImage(contentsOfFile: path)
+            DispatchQueue.main.async {
+                thumbnailImage = img
+            }
+        }
+    }
+
+    private func refreshFileIcon() {
+        guard item.itemTypeValue == .file, let filePath = filePathFromRepresentations() else {
+            fileIconImage = nil
+            return
+        }
+        fileIconImage = NSWorkspace.shared.icon(forFile: filePath)
+    }
+
+    private func filePathFromRepresentations() -> String? {
+        guard let reps = item.representations else { return nil }
+        guard let rep = reps.first(where: { $0.kindValue == .fileURL }) else { return nil }
+        guard let data = rep.textData, let path = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
+    private var colorFontSize: CGFloat {
+        isCompactSize ? 18 : 24
     }
 
     // MARK: - Non-cached Properties (need fresh data each render)
@@ -614,6 +775,50 @@ struct ItemCard: View {
         return trimmed
     }
 
+}
+
+private enum ClipboardHexColor {
+    static func normalizedHex(from text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var s = trimmed
+        if s.lowercased().hasPrefix("0x") {
+            s = String(s.dropFirst(2))
+        }
+        if s.hasPrefix("#") {
+            s = String(s.dropFirst())
+        }
+        let cleaned = s.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        if cleaned.count == 3 {
+            let chars = Array(cleaned)
+            return
+                "#\(String(repeating: String(chars[0]), count: 2))\(String(repeating: String(chars[1]), count: 2))\(String(repeating: String(chars[2]), count: 2))"
+                .uppercased()
+        }
+        if cleaned.count == 6 {
+            return "#\(cleaned)".uppercased()
+        }
+        if cleaned.count == 8 {
+            let start = cleaned.startIndex
+            let end = cleaned.index(start, offsetBy: 6)
+            return "#\(String(cleaned[start..<end]))".uppercased()
+        }
+        return nil
+    }
+
+    static func foregroundColor(forNormalizedHex hex: String) -> Color {
+        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        guard cleaned.count == 6, let value = UInt64(cleaned, radix: 16) else {
+            return .white
+        }
+        let r = Double((value >> 16) & 0xFF) / 255.0
+        let g = Double((value >> 8) & 0xFF) / 255.0
+        let b = Double(value & 0xFF) / 255.0
+
+        let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return luminance > 0.6 ? .black : .white
+    }
 }
 
 private struct QuickPasteBadge: View {

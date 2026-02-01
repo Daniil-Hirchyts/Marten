@@ -80,7 +80,7 @@ public final class PasteboardExtractor {
             return nil
         }
 
-        var itemType = deriveItemType(from: representations)
+        var itemType = deriveItemType(from: representations, primaryText: primaryText)
         if textLooksLikeCode && itemType == .text {
             itemType = .code
         }
@@ -94,53 +94,62 @@ public final class PasteboardExtractor {
         )
     }
 
-    private func deriveItemType(from representations: [ClipRepresentationPayload]) -> ItemType {
-        enum Category: Hashable {
-            case text
-            case richText
-            case image
-            case file
-            case url
-        }
+    private func deriveItemType(
+        from representations: [ClipRepresentationPayload], primaryText: String?
+    ) -> ItemType {
+        var hasText = false
+        var hasRichText = false
+        var hasImage = false
+        var hasFile = false
+        var hasURL = false
 
-        var categories = Set<Category>()
         for rep in representations {
             switch rep.kind {
             case .plainText, .markdown:
-                categories.insert(.text)
+                hasText = true
             case .rtf, .html:
-                categories.insert(.richText)
+                hasRichText = true
             case .png, .jpeg, .tiff, .pdf:
-                categories.insert(.image)
+                hasImage = true
             case .fileURL:
-                categories.insert(.file)
+                hasFile = true
             case .url:
-                categories.insert(.url)
+                hasURL = true
             case .custom:
                 break
             }
         }
 
-        if categories.count == 2, categories.contains(.richText), categories.contains(.text) {
-            return .richText
-        }
-
-        guard categories.count == 1, let category = categories.first else {
-            return categories.isEmpty ? .text : .mixed
-        }
-
-        switch category {
-        case .text:
+        if hasFile { return .file }
+        if hasImage { return .image }
+        if hasURL { return .url }
+        if hasRichText { return .richText }
+        if hasText {
+            if let primaryText, isHexColor(primaryText) {
+                return .color
+            }
             return .text
-        case .richText:
-            return .richText
-        case .image:
-            return .image
-        case .file:
-            return .file
-        case .url:
-            return .url
         }
+
+        return .mixed
+    }
+
+    private func isHexColor(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        var s = trimmed
+        if s.lowercased().hasPrefix("0x") {
+            s = String(s.dropFirst(2))
+        }
+        if s.hasPrefix("#") {
+            s = String(s.dropFirst())
+        }
+        let cleaned = s.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        if cleaned.count == 3 || cleaned.count == 6 || cleaned.count == 8 {
+            return cleaned.allSatisfy { $0.isHexDigit }
+        }
+        return false
     }
 
     func shouldFilter(text: String?, types: [String], dataSize: Int) -> (

@@ -156,6 +156,8 @@ struct FilterPopoverView: View {
             return "URL"
         case .code:
             return "Code"
+        case .color:
+            return "Color"
         case .mixed:
             return "Mixed"
         }
@@ -204,6 +206,8 @@ struct FilterPopoverView: View {
             return "link"
         case .code:
             return "chevron.left.slash.chevron.right"
+        case .color:
+            return "paintpalette"
         case .mixed:
             return "square.stack.3d.up"
         }
@@ -223,6 +227,8 @@ struct FilterPopoverView: View {
             return "url"
         case .code:
             return "code"
+        case .color:
+            return "color"
         case .mixed:
             return "mixed"
         }
@@ -240,7 +246,7 @@ private struct FilterChip: View {
     let isSelected: Bool
     let identifier: String
     let action: () -> Void
-    
+
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -284,7 +290,11 @@ private struct FilterChip: View {
                         }
                     } else {
                         Capsule(style: .continuous)
-                            .strokeBorder(Color.white.opacity(isSelected ? DesignTokens.Opacity.borderMedium : DesignTokens.Opacity.borderSubtle), lineWidth: 1)
+                            .strokeBorder(
+                                Color.white.opacity(
+                                    isSelected
+                                        ? DesignTokens.Opacity.borderMedium
+                                        : DesignTokens.Opacity.borderSubtle), lineWidth: 1)
                     }
                 }
             )
@@ -295,7 +305,7 @@ private struct FilterChip: View {
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
         .accessibilityHint("Toggles filter")
     }
-    
+
     private var iconColor: Color {
         if isSelected {
             return colorScheme == .dark ? .black.opacity(0.9) : .white.opacity(0.9)
@@ -303,7 +313,7 @@ private struct FilterChip: View {
             return colorScheme == .dark ? .white.opacity(0.7) : .black.opacity(0.7)
         }
     }
-    
+
     private var textColor: Color {
         if isSelected {
             return colorScheme == .dark ? .black : .white
@@ -311,19 +321,19 @@ private struct FilterChip: View {
             return colorScheme == .dark ? .white : .black
         }
     }
-    
+
     private var selectedBackgroundColor: Color {
-        colorScheme == .dark 
-            ? Color.white.opacity(0.9) 
+        colorScheme == .dark
+            ? Color.white.opacity(0.9)
             : Color.black.opacity(0.85)
     }
-    
+
     private var unselectedBackgroundColor: Color {
         colorScheme == .dark
             ? Color.white.opacity(DesignTokens.Opacity.backgroundMedium)
             : Color.black.opacity(0.1)
     }
-    
+
     private var borderColor: Color {
         colorScheme == .dark
             ? Color.white.opacity(DesignTokens.Opacity.borderMedium)
@@ -336,7 +346,7 @@ private struct AppFilterChip: View {
     let isSelected: Bool
     let identifier: String
     let action: () -> Void
-    
+
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -356,7 +366,8 @@ private struct AppFilterChip: View {
                     if #available(macOS 26.0, *) {
                         if isSelected {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill((colorScheme == .dark ? Color.white : Color.black).opacity(0.9))
+                                .fill(
+                                    (colorScheme == .dark ? Color.white : Color.black).opacity(0.9))
                         } else {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .fill(Color.clear)
@@ -364,7 +375,12 @@ private struct AppFilterChip: View {
                         }
                     } else {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(isSelected ? (colorScheme == .dark ? Color.white : Color.black).opacity(0.9) : (colorScheme == .dark ? Color.white : Color.black).opacity(DesignTokens.Opacity.backgroundMedium))
+                            .fill(
+                                isSelected
+                                    ? (colorScheme == .dark ? Color.white : Color.black).opacity(
+                                        0.9)
+                                    : (colorScheme == .dark ? Color.white : Color.black).opacity(
+                                        DesignTokens.Opacity.backgroundMedium))
                     }
                 }
             )
@@ -373,13 +389,19 @@ private struct AppFilterChip: View {
                     if #available(macOS 26.0, *) {
                         if isSelected {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder((colorScheme == .dark ? Color.white : Color.black).opacity(DesignTokens.Opacity.borderMedium), lineWidth: 1)
+                                .strokeBorder(
+                                    (colorScheme == .dark ? Color.white : Color.black).opacity(
+                                        DesignTokens.Opacity.borderMedium), lineWidth: 1)
                         } else {
                             EmptyView()
                         }
                     } else {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder((colorScheme == .dark ? Color.white : Color.black).opacity(isSelected ? DesignTokens.Opacity.borderMedium : DesignTokens.Opacity.borderSubtle), lineWidth: 1)
+                            .strokeBorder(
+                                (colorScheme == .dark ? Color.white : Color.black).opacity(
+                                    isSelected
+                                        ? DesignTokens.Opacity.borderMedium
+                                        : DesignTokens.Opacity.borderSubtle), lineWidth: 1)
                     }
                 }
             )
@@ -390,7 +412,7 @@ private struct AppFilterChip: View {
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
         .accessibilityHint("Toggles app filter")
     }
-    
+
     private var textColor: Color {
         if isSelected {
             return colorScheme == .dark ? .black : .white

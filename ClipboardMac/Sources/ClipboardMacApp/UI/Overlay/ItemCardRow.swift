@@ -462,6 +462,25 @@ struct ItemCardRow: View {
             candidate = nil
         }
 
+        // Hide placeholder if dropping would keep the card in its original position
+        guard let candidate else { return nil }
+        
+        // Get the frames of the dragged items
+        let draggedFrames = draggedIDs.compactMap { itemFrames[$0] }
+        guard !draggedFrames.isEmpty else { return candidate }
+        
+        // Calculate the span where dragged cards originated
+        let draggedMinX = draggedFrames.map(\.minX).min() ?? 0
+        let draggedMaxX = draggedFrames.map(\.maxX).max() ?? 0
+        
+        // Check if placeholder falls within or adjacent to the original dragged card position
+        // Add a small margin (half of cardSpacing) to account for the gap
+        let margin = cardSpacing / 2
+        if candidate.placeholderX >= (draggedMinX - margin) && 
+           candidate.placeholderX <= (draggedMaxX + margin) {
+            return nil
+        }
+
         return candidate
     }
 

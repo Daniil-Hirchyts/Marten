@@ -94,20 +94,26 @@ public struct SyncCoordinatorConfiguration: Sendable {
     /// UserDefaults key for sync enabled preference.
     public var syncEnabledKey: String
 
+    /// UserDefaults key for last sync date.
+    public var lastSyncDateKey: String
+
     public static let `default` = SyncCoordinatorConfiguration(
         periodicFetchInterval: 30.0,
         debugLogging: false,
-        syncEnabledKey: "com.paste.syncEnabled"
+        syncEnabledKey: "com.paste.syncEnabled",
+        lastSyncDateKey: "com.paste.lastSyncDate"
     )
 
     public init(
         periodicFetchInterval: TimeInterval = 30.0,
         debugLogging: Bool = false,
-        syncEnabledKey: String = "com.paste.syncEnabled"
+        syncEnabledKey: String = "com.paste.syncEnabled",
+        lastSyncDateKey: String = "com.paste.lastSyncDate"
     ) {
         self.periodicFetchInterval = periodicFetchInterval
         self.debugLogging = debugLogging
         self.syncEnabledKey = syncEnabledKey
+        self.lastSyncDateKey = lastSyncDateKey
     }
 }
 
@@ -126,7 +132,13 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     @Published public private(set) var status: SyncStatus = .idle
 
     /// Timestamp of last successful sync.
-    @Published public private(set) var lastSyncDate: Date?
+    @Published public private(set) var lastSyncDate: Date? {
+        didSet {
+            if let date = lastSyncDate {
+                userDefaults.set(date, forKey: configuration.lastSyncDateKey)
+            }
+        }
+    }
 
     /// Current sync progress.
     @Published public private(set) var progress: SyncProgress = .zero
@@ -209,6 +221,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         self.configuration = configuration
         self.userDefaults = userDefaults
         self.syncEnabled = userDefaults.bool(forKey: configuration.syncEnabledKey)
+        self.lastSyncDate = userDefaults.object(forKey: configuration.lastSyncDateKey) as? Date
 
         setupObservers()
     }

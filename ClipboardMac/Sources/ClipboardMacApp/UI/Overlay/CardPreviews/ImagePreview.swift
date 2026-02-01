@@ -7,9 +7,12 @@ struct ImagePreview: View {
     var body: some View {
         Group {
             if let image {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
+                ZStack {
+                    TransparencyGrid(squareSize: 8)
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                }
             } else {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
