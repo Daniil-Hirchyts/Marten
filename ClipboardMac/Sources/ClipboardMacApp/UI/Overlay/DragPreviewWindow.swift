@@ -54,7 +54,7 @@ private struct DragPreviewWindowContent: View {
             if let data = data {
                 GeometryReader { _ in
                     if data.items.count == 1, let item = data.items.first {
-                        ItemCardDragPreview(item: item, pinboards: data.pinboards)
+                        ItemCardDragPreview(item: item, pinboards: data.pinboards, cardSize: data.cardSize)
                             .frame(width: data.cardSize, height: data.cardSize)
                             .position(x: 300, y: 300) // Center of the 600x600 window
                             .opacity(data.opacity)

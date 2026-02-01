@@ -43,11 +43,16 @@ final class MenuBarController: NSObject {
 
         if #available(macOS 14.0, *) {
             let settingsItem = NSMenuItem()
-            let hostingView = NSHostingView(
-                rootView: MenuSettingsButton14(closeOverlay: { [weak self] completion in
-                    self?.hideOverlayHandler(completion) ?? completion()
-                })
+            let highlightState = MenuItemHighlightState()
+            let hostingView = MenuItemHostingView(
+                rootView: MenuSettingsButton14(
+                    closeOverlay: { [weak self] completion in
+                        self?.hideOverlayHandler(completion) ?? completion()
+                    },
+                    highlightState: highlightState
+                )
             )
+            hostingView.highlightState = highlightState
             hostingView.frame.size = NSSize(width: 220, height: 22)
             settingsItem.view = hostingView
             settingsItem.keyEquivalent = ","
@@ -117,8 +122,13 @@ final class MenuBarController: NSObject {
 @available(macOS 14.0, *)
 private struct MenuSettingsButton14: View {
     let closeOverlay: (@escaping () -> Void) -> Void
+    @ObservedObject var highlightState: MenuItemHighlightState
 
     @Environment(\.openWindow) private var openWindow
+
+    private var isHighlighted: Bool {
+        highlightState.isHighlighted
+    }
 
     var body: some View {
         Button {
@@ -134,8 +144,59 @@ private struct MenuSettingsButton14: View {
             }
             .padding(.horizontal, 14)
             .frame(height: 22)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .foregroundStyle(
+                Color(
+                    nsColor: isHighlighted
+                        ? NSColor.selectedMenuItemTextColor
+                        : NSColor.controlTextColor
+                )
+            )
+            .background(
+                Rectangle()
+                    .fill(
+                        Color(
+                            nsColor: isHighlighted
+                                ? NSColor.selectedMenuItemColor
+                                : NSColor.clear
+                        )
+                    )
+            )
         }
         .buttonStyle(.plain)
     }
 }
 
+@available(macOS 14.0, *)
+private final class MenuItemHighlightState: ObservableObject {
+    @Published var isHighlighted: Bool = false
+}
+
+@available(macOS 14.0, *)
+private final class MenuItemHostingView<Content: View>: NSHostingView<Content> {
+    var highlightState: MenuItemHighlightState?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncHighlightState()
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        syncHighlightState()
+    }
+
+    override func viewWillDraw() {
+        super.viewWillDraw()
+        syncHighlightState()
+    }
+
+    private func syncHighlightState() {
+        guard let highlightState else { return }
+        let isHighlighted = enclosingMenuItem?.isHighlighted ?? false
+        if highlightState.isHighlighted != isHighlighted {
+            highlightState.isHighlighted = isHighlighted
+        }
+    }
+}

@@ -172,6 +172,7 @@ struct ItemCardRow: View {
                 showPinIndicator: allowPinning,
                 allowPinning: allowPinning,
                 isDragEnabled: isDragEnabled,
+                cardSize: size,
                 onPaste: { onPaste(item) },
                 onPastePlainText: { onPastePlainText(item) },
                 onCopy: { onCopy(item) },
@@ -684,6 +685,7 @@ private enum PinboardDropTarget: Equatable {
 struct ItemCardDragPreview: View {
     let item: ClipItem
     let pinboards: [Pinboard]
+    let cardSize: CGFloat
 
     var body: some View {
         ItemCard(
@@ -696,6 +698,7 @@ struct ItemCardDragPreview: View {
             showPinIndicator: false,
             allowPinning: false,
             isDragEnabled: false,
+            cardSize: cardSize,
             onPaste: {},
             onPastePlainText: {},
             onCopy: {},
@@ -737,6 +740,7 @@ struct MultiItemCardDragPreview: View {
                     showPinIndicator: false,
                     allowPinning: false,
                     isDragEnabled: false,
+                    cardSize: cardSize,
                     onPaste: {},
                     onPastePlainText: {},
                     onCopy: {},

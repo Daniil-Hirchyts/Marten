@@ -178,6 +178,7 @@ struct OverlayRootView: View {
                                 searchIcon
                             }
                             .buttonStyle(.plain)
+                            .contentShape(Rectangle())
                             .accessibilityIdentifier("overlay.search.toggle")
                             .accessibilityLabel(searchButtonAccessibilityLabel)
                             .accessibilityValue(searchButtonAccessibilityValue)
@@ -211,10 +212,14 @@ struct OverlayRootView: View {
                                             .font(.system(size: 10, weight: .semibold))
                                             .foregroundStyle(.secondary)
                                             .padding(3)
-                                            .background(Color.white.opacity(DesignTokens.Opacity.backgroundMedium))
+                                            .background(
+                                                Color.white.opacity(
+                                                    DesignTokens.Opacity.backgroundMedium)
+                                            )
                                             .clipShape(Circle())
                                     }
                                     .buttonStyle(.plain)
+                                    .contentShape(Circle())
                                     .accessibilityIdentifier("overlay.search.clear")
                                     .accessibilityLabel("Clear search")
                                     .accessibilityHint(
@@ -233,7 +238,10 @@ struct OverlayRootView: View {
                                         .opacity(isSearchExpanded ? 1 : 0)
                                 } else {
                                     Capsule()
-                                        .fill(Color.white.opacity(DesignTokens.Opacity.backgroundMedium))
+                                        .fill(
+                                            Color.white.opacity(
+                                                DesignTokens.Opacity.backgroundMedium)
+                                        )
                                         .opacity(isSearchExpanded ? 1 : 0)
                                 }
                             }
@@ -246,7 +254,9 @@ struct OverlayRootView: View {
                                 } else {
                                     Capsule()
                                         .stroke(
-                                            Color.white.opacity(isSearchExpanded ? DesignTokens.Opacity.borderStrong : 0),
+                                            Color.white.opacity(
+                                                isSearchExpanded
+                                                    ? DesignTokens.Opacity.borderStrong : 0),
                                             lineWidth: 1
                                         )
                                 }
@@ -298,6 +308,7 @@ struct OverlayRootView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                        .contentShape(Rectangle())
                         .accessibilityIdentifier("overlay.settings")
                         .accessibilityLabel("Settings")
                         .accessibilityHint("Opens settings")
@@ -620,6 +631,7 @@ struct OverlayRootView: View {
             }
         }
         .frame(width: headerButtonSize, height: headerButtonSize)
+        .contentShape(Rectangle())
     }
 
     private var searchFilterPopover: some View {
@@ -796,6 +808,7 @@ struct OverlayRootView: View {
                 .foregroundStyle(.secondary)
                 .frame(width: headerButtonSize, height: headerButtonSize)
                 .glassCircleButton()
+                .contentShape(Circle())
         } else {
             Image(systemName: "gearshape.fill")
                 .font(.system(size: headerButtonIconSize, weight: .semibold))
@@ -805,6 +818,7 @@ struct OverlayRootView: View {
                     Circle()
                         .fill(Color.white.opacity(DesignTokens.Opacity.backgroundMedium))
                 )
+                .contentShape(Circle())
         }
     }
 

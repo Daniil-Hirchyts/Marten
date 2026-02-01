@@ -15,6 +15,8 @@ struct CachedItemProperties {
     let statsLabel: String
     let shouldShowPrimaryTitle: Bool
     let primaryPinboardColor: Color?
+    let primaryPinboardName: String?
+    let sourceLabel: String?
 
     init(item: ClipItem) {
         // Cache type-based properties
@@ -43,8 +45,13 @@ struct CachedItemProperties {
         // Cache stats label
         self.statsLabel = Self.computeStatsLabel(for: item, itemType: itemType)
 
-        // Cache pinboard color
-        self.primaryPinboardColor = Self.computePrimaryPinboardColor(for: item)
+        // Cache pinboard color and name
+        let pinboardInfo = Self.computePrimaryPinboard(for: item)
+        self.primaryPinboardColor = pinboardInfo.color
+        self.primaryPinboardName = pinboardInfo.name
+
+        // Cache source label (app name or bundle ID)
+        self.sourceLabel = Self.computeSourceLabel(for: item)
     }
 
     private static func computeTypeLabel(for itemType: ItemType) -> String {
@@ -154,11 +161,27 @@ struct CachedItemProperties {
         }
     }
 
-    private static func computePrimaryPinboardColor(for item: ClipItem) -> Color? {
+    private static func computePrimaryPinboard(for item: ClipItem) -> (color: Color?, name: String?) {
         let pinboards = item.pinboards?.filter { !$0.isSystemClipboard } ?? []
         let sorted = pinboards.sorted { $0.sortOrder < $1.sortOrder }
-        guard let pinboard = sorted.first else { return nil }
-        return Color(hex: pinboard.colorHex, fallback: .gray)
+        guard let pinboard = sorted.first else { return (nil, nil) }
+        return (Color(hex: pinboard.colorHex, fallback: .gray), pinboard.name)
+    }
+
+    private static func computeSourceLabel(for item: ClipItem) -> String? {
+        // Prefer source app name, fallback to bundle ID
+        if let appName = item.sourceAppName, !appName.isEmpty {
+            return appName
+        }
+        if let bundleID = item.sourceAppBundleID, !bundleID.isEmpty {
+            // Extract app name from bundle ID (e.g., "com.apple.Safari" -> "Safari")
+            let components = bundleID.split(separator: ".")
+            if let lastComponent = components.last {
+                return String(lastComponent)
+            }
+            return bundleID
+        }
+        return nil
     }
 }
 
@@ -175,7 +198,8 @@ enum PreviewFactory {
         urlPath: String,
         fileName: String,
         fileSizeText: String?,
-        previewText: String?
+        previewText: String?,
+        colorScheme: ColorScheme
     ) -> some View {
         Group {
             switch itemType {
@@ -192,7 +216,10 @@ enum PreviewFactory {
             case .mixed:
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
+                        .fill(colorScheme == .dark 
+                            ? Color.white.opacity(DesignTokens.Opacity.backgroundSubtle)
+                            : Color.black.opacity(0.05)
+                        )
                     Image(systemName: typeIcon)
                         .font(.system(size: 18, weight: .semibold))
                 }
@@ -201,7 +228,10 @@ enum PreviewFactory {
         .frame(width: 72, height: 72)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
+                .fill(colorScheme == .dark 
+                    ? Color.white.opacity(DesignTokens.Opacity.backgroundSubtle)
+                    : Color.black.opacity(0.05)
+                )
         )
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
@@ -219,6 +249,7 @@ struct ItemCard: View {
     let showPinIndicator: Bool
     let allowPinning: Bool
     let isDragEnabled: Bool
+    let cardSize: CGFloat
     let onPaste: () -> Void
     let onPastePlainText: () -> Void
     let onCopy: () -> Void
@@ -236,6 +267,7 @@ struct ItemCard: View {
     @State private var cachedProps: CachedItemProperties?
     @StateObject private var appColorLoader = AppIconColorLoader()
     @FocusState private var isFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     /// Cached properties to avoid recalculating on every render
     private var cached: CachedItemProperties {
@@ -246,20 +278,31 @@ struct ItemCard: View {
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 0) {
                 headerView
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: isCompactSize ? 8 : 10) {
                     contentPreviewView
                     Spacer(minLength: 0)
                     footerView
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 12)
-                .padding(.top, 10)
+                .padding(.horizontal, cardPadding)
+                .padding(.bottom, cardPadding)
+                .padding(.top, isCompactSize ? 8 : 10)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(cardBackground)
             .clipShape(cardShape)
             .overlay(selectionBorder)
+            .contentShape(cardShape)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+        }
+        .onTapGesture {
+            let now = Date()
+            if let lastTime = lastTapTime, now.timeIntervalSince(lastTime) < 0.3 {
+                onDoubleTap()
+                lastTapTime = nil  // Reset
+            } else {
+                onTap()
+                lastTapTime = now
+            }
         }
         .onAppear {
             cachedProps = CachedItemProperties(item: item)
@@ -277,18 +320,7 @@ struct ItemCard: View {
                 cachedProps = CachedItemProperties(item: item)
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
-        .onTapGesture {
-            let now = Date()
-            if let lastTime = lastTapTime, now.timeIntervalSince(lastTime) < 0.3 {
-                onDoubleTap()
-                lastTapTime = nil  // Reset
-            } else {
-                onTap()
-                lastTapTime = now
-            }
-        }
         .accessibilityElement(children: isEditing ? .contain : .ignore)
         .accessibilityIdentifier("overlay.itemCard.\(item.id.uuidString)")
         .accessibilityLabel(accessibilityLabelText)
@@ -324,8 +356,8 @@ struct ItemCard: View {
             if isEditing {
                 TextField("", text: $editTitle)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .font(.system(size: titleFontSize, weight: .semibold))
+                    .foregroundStyle(headerTextColor)
                     .focused($isFocused)
                     .onSubmit {
                         onCommitRename(editTitle)
@@ -339,10 +371,19 @@ struct ItemCard: View {
                         isFocused = true
                     }
             } else {
-                Text(cached.displayTitle)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(cached.displayTitle)
+                        .font(.system(size: titleFontSize, weight: .semibold))
+                        .foregroundStyle(headerTextColor)
+                        .lineLimit(1)
+
+                    if let subtitle = headerSubtitle {
+                        Text(subtitle)
+                            .font(.system(size: subtitleFontSize, weight: .medium))
+                            .foregroundStyle(headerTextColor.opacity(0.7))
+                            .lineLimit(1)
+                    }
+                }
             }
 
             Spacer()
@@ -361,8 +402,8 @@ struct ItemCard: View {
                     .padding(.leading, 4)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, cardPadding)
+        .padding(.vertical, isCompactSize ? 8 : 10)
         .frame(minHeight: headerMinHeight, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(headerBackground)
@@ -372,21 +413,21 @@ struct ItemCard: View {
         VStack(alignment: .leading, spacing: 4) {
             if cached.shouldShowPrimaryTitle {
                 Text(cached.primaryTitle)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .font(.system(size: contentFontSize, weight: .medium))
+                    .foregroundStyle(primaryTextColor)
                     .lineLimit(1)
             }
 
             if let preview = cached.previewText {
                 Text(preview)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.75))
-                    .lineLimit(5)
+                    .font(.system(size: contentFontSize))
+                    .foregroundStyle(secondaryTextColor)
+                    .lineLimit(maxPreviewLines)
             } else if let details = cached.detailLines {
                 ForEach(details, id: \.self) { line in
                     Text(line)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.75))
+                        .font(.system(size: contentFontSize))
+                        .foregroundStyle(secondaryTextColor)
                         .lineLimit(1)
                 }
             }
@@ -397,19 +438,22 @@ struct ItemCard: View {
         HStack(alignment: .center, spacing: 8) {
             Text(timeAgo)
                 .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(tertiaryTextColor)
 
             Spacer()
 
             Text(cached.statsLabel)
                 .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(tertiaryTextColor)
         }
     }
 
     private var cardBackground: some View {
         cardShape
-            .fill(Color(.sRGB, white: 0.04, opacity: 0.72))
+            .fill(colorScheme == .dark 
+                ? Color(.sRGB, white: 0.04, opacity: 0.72)
+                : Color(.sRGB, white: 0.96, opacity: 0.9)
+            )
     }
 
     private var cardShape: RoundedRectangle {
@@ -457,7 +501,68 @@ struct ItemCard: View {
         if let appColor = appColorLoader.color {
             return Color(nsColor: appColor).opacity(0.9)
         }
-        return Color(.sRGB, white: 0.2, opacity: 0.6)
+        // Theme-aware fallback color
+        return colorScheme == .dark
+            ? Color(.sRGB, white: 0.2, opacity: 0.6)
+            : Color(.sRGB, white: 0.85, opacity: 0.8)
+    }
+    
+    // MARK: - Text Colors
+    
+    private var headerTextColor: Color {
+        // If using vibrant pinboard or app color, white text works best
+        if cached.primaryPinboardColor != nil || appColorLoader.color != nil {
+            return .white
+        }
+        // For fallback gray background, use theme-aware text
+        return colorScheme == .dark ? .white : .black
+    }
+    
+    private var primaryTextColor: Color {
+        colorScheme == .dark ? .white.opacity(0.9) : .black.opacity(0.9)
+    }
+    
+    private var secondaryTextColor: Color {
+        colorScheme == .dark ? .white.opacity(0.75) : .black.opacity(0.75)
+    }
+    
+    private var tertiaryTextColor: Color {
+        colorScheme == .dark ? .white.opacity(0.6) : .black.opacity(0.5)
+    }
+
+    private var headerSubtitle: String? {
+        // Show pinboard name if available, otherwise show source app name
+        if let pinboardName = cached.primaryPinboardName {
+            return pinboardName
+        }
+        return cached.sourceLabel
+    }
+
+    // MARK: - Responsive Design
+
+    /// Adjust spacing and sizing based on card size
+    private var isCompactSize: Bool {
+        cardSize < 280
+    }
+
+    private var cardPadding: CGFloat {
+        isCompactSize ? 10 : 12
+    }
+
+    private var titleFontSize: CGFloat {
+        isCompactSize ? 13 : 14
+    }
+
+    private var subtitleFontSize: CGFloat {
+        isCompactSize ? 9 : 10
+    }
+
+    private var contentFontSize: CGFloat {
+        isCompactSize ? 11 : 12
+    }
+
+    private var maxPreviewLines: Int {
+        isCompactSize ? 3 : 5
     }
 
     // MARK: - Non-cached Properties (need fresh data each render)

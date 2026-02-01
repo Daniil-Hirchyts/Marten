@@ -4,6 +4,18 @@ import CoreData
 import OSLog
 import SwiftUI
 
+/// Preference key for tracking scroll view bounds
+private struct ScrollViewBoundsKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let next = nextValue()
+        if !next.isEmpty {
+            value = next
+        }
+    }
+}
+
 struct PinboardTabBar: View {
     private let tabSpacing: CGFloat = 12
     private let placeholderWidth: CGFloat = 3
@@ -59,6 +71,7 @@ struct PinboardTabBar: View {
     @State private var autoScrollTimer: Timer?
     @State private var scrollViewBounds: CGRect = .zero
     @State private var currentScrollProxy: ScrollViewProxy?
+    @Environment(\.colorScheme) private var colorScheme
 
     private let autoScrollEdgeInset: CGFloat = 40
     private let autoScrollSpeed: CGFloat = 4
@@ -102,28 +115,40 @@ struct PinboardTabBar: View {
         return availableWidth
     }
 
+    /// Returns true if scrolling should be disabled (content fits within available space)
+    private func shouldDisableScroll(parentWidth: CGFloat) -> Bool {
+        guard measuredContentWidth > 0 else { return true }
+        let availableWidth = availableScrollWidth(parentWidth: parentWidth)
+        let contentWithPadding = measuredContentWidth + (scrollContentPadding * 2)
+        return contentWithPadding <= availableWidth
+    }
+
     var body: some View {
         GeometryReader { proxy in
-            HStack(spacing: tabSpacing) {
+            HStack(spacing: 6) {
                 ScrollViewReader { scrollProxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         pinboardsContent(isMeasuring: false)
                             .fixedSize(horizontal: true, vertical: false)
                             .padding(.horizontal, scrollContentPadding)
                     }
+                    .scrollDisabled(shouldDisableScroll(parentWidth: proxy.size.width))
                     .coordinateSpace(name: scrollSpaceName)
                     .frame(width: scrollViewWidth(parentWidth: proxy.size.width))
                     .background(
                         GeometryReader { scrollGeo in
-                            Color.clear.onAppear {
-                                scrollViewBounds = scrollGeo.frame(in: .named(localCoordinateSpaceName))
-                                currentScrollProxy = scrollProxy
-                            }
-                            .onChange(of: scrollGeo.frame(in: .named(localCoordinateSpaceName))) { newFrame, _ in
-                                scrollViewBounds = newFrame
-                            }
+                            let bounds = scrollGeo.frame(in: .named(localCoordinateSpaceName))
+                            Color.clear
+                                .preference(key: ScrollViewBoundsKey.self, value: bounds)
+                                .onAppear {
+                                    scrollViewBounds = bounds
+                                    currentScrollProxy = scrollProxy
+                                }
                         }
                     )
+                    .onPreferenceChange(ScrollViewBoundsKey.self) { newBounds in
+                        scrollViewBounds = newBounds
+                    }
                     .onChange(of: dragState) { newDragState, _ in
                         handleAutoScrollStateChange(newDragState, scrollProxy: scrollProxy)
                     }
@@ -151,17 +176,22 @@ struct PinboardTabBar: View {
                                     .font(.system(size: headerButtonIconSize, weight: .semibold))
                                     .frame(width: headerButtonSize, height: headerButtonSize)
                                     .glassCircleButton()
+                                    .contentShape(Circle())
                             } else {
                                 Image(systemName: "plus")
                                     .font(.system(size: headerButtonIconSize, weight: .semibold))
                                     .frame(width: headerButtonSize, height: headerButtonSize)
                                     .background(
                                         Circle()
-                                            .fill(Color.white.opacity(DesignTokens.Opacity.backgroundMedium))
+                                            .fill(
+                                                Color.white.opacity(
+                                                    DesignTokens.Opacity.backgroundMedium))
                                     )
+                                    .contentShape(Circle())
                             }
                         }
                         .buttonStyle(.plain)
+                        .contentShape(Circle())
                         .accessibilityIdentifier("overlay.pinboard.add")
                         .accessibilityLabel("Add pinboard")
                         .accessibilityHint("Creates a new pinboard")
@@ -204,8 +234,13 @@ struct PinboardTabBar: View {
                 draftName = clamped
             }
         }
-        .onChange(of: pinboards.count) {
-            frameManager.shouldReportFrames = true
+        .onChange(of: pinboards.count) { _, _ in
+            // Pinboard count changed, clear caches
+            frameManager.clearCaches()
+        }
+        .onAppear {
+            // Ensure clean state when view appears
+            frameManager.clearCaches()
         }
     }
 
@@ -229,25 +264,16 @@ struct PinboardTabBar: View {
                     if !isMeasuring {
                         let overlayFrame = overlayFrame(from: proxy)
                         let minX = proxy.frame(in: .named(scrollSpaceName)).minX
+                        let barLocalFrame = localFrame(from: proxy)
 
-                        if frameManager.shouldReportFrames {
-                            let barLocalFrame = localFrame(from: proxy)
-
-                            Color.clear.preference(
-                                key: PinboardLayoutInfoKey.self,
-                                value: PinboardLayoutInfo(
-                                    tabFrames: [Self.allTabObjectID: barLocalFrame],
-                                    allOverlayFrame: overlayFrame,
-                                    scrollOffset: minX
-                                )
+                        Color.clear.preference(
+                            key: PinboardLayoutInfoKey.self,
+                            value: PinboardLayoutInfo(
+                                tabFrames: [Self.allTabObjectID: barLocalFrame],
+                                allOverlayFrame: overlayFrame,
+                                scrollOffset: minX
                             )
-                        } else {
-                            Color.clear.preference(
-                                key: PinboardLayoutInfoKey.self,
-                                value: PinboardLayoutInfo(
-                                    allOverlayFrame: overlayFrame, scrollOffset: minX)
-                            )
-                        }
+                        )
                     }
                 }
             )
@@ -279,14 +305,14 @@ struct PinboardTabBar: View {
             ZStack(alignment: .leading) {
                 Text(draftName.isEmpty ? "Name" : draftName)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.clear)
+                    .foregroundStyle(.clear)
                     .padding(.vertical, 0)
                     .layoutPriority(1)
 
                 if draftName.isEmpty {
                     Text("Name")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundStyle(editorPlaceholderColor)
                         .allowsHitTesting(false)
                 }
                 TextField("", text: $draftName) { editing in
@@ -298,8 +324,8 @@ struct PinboardTabBar: View {
                 }
                 .textFieldStyle(.plain)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white)
-                .accentColor(.white)
+                .foregroundStyle(editorTextColor)
+                .tint(editorTextColor)
                 .focused($isFocused)
                 .accessibilityIdentifier("overlay.pinboard.editor.name")
                 .accessibilityLabel("Pinboard name")
@@ -323,7 +349,7 @@ struct PinboardTabBar: View {
                         .fill(Color.clear)
                         .glassNavigationStyle()
                 } else {
-                    Color.white.opacity(DesignTokens.Opacity.backgroundStrong)
+                    (colorScheme == .dark ? Color.white : Color.black).opacity(DesignTokens.Opacity.backgroundStrong)
                 }
             }
         )
@@ -334,7 +360,9 @@ struct PinboardTabBar: View {
                     EmptyView()
                 } else {
                     Capsule()
-                        .stroke(Color.white.opacity(isFocused ? DesignTokens.Opacity.borderStrong : 0), lineWidth: 1)
+                        .stroke(
+                            (colorScheme == .dark ? Color.white : Color.black).opacity(isFocused ? DesignTokens.Opacity.borderStrong : 0),
+                            lineWidth: 1)
                 }
             }
         )
@@ -374,25 +402,15 @@ struct PinboardTabBar: View {
             GeometryReader { proxy in
                 if !isMeasuring {
                     let overlayFrame = overlayFrame(from: proxy)
+                    let localFrame = localFrame(from: proxy)
 
-                    if frameManager.shouldReportFrames {
-                        let localFrame = localFrame(from: proxy)
-
-                        Color.clear.preference(
-                            key: PinboardLayoutInfoKey.self,
-                            value: PinboardLayoutInfo(
-                                tabFrames: [pinboard.objectID: localFrame],
-                                overlayPinboardFrames: [pinboard.objectID: overlayFrame]
-                            )
+                    Color.clear.preference(
+                        key: PinboardLayoutInfoKey.self,
+                        value: PinboardLayoutInfo(
+                            tabFrames: [pinboard.objectID: localFrame],
+                            overlayPinboardFrames: [pinboard.objectID: overlayFrame]
                         )
-                    } else {
-                        Color.clear.preference(
-                            key: PinboardLayoutInfoKey.self,
-                            value: PinboardLayoutInfo(overlayPinboardFrames: [
-                                pinboard.objectID: overlayFrame
-                            ])
-                        )
-                    }
+                    )
                 }
             }
         )
@@ -437,6 +455,13 @@ struct PinboardTabBar: View {
 
         if dragState == nil {
             guard let localFrame = frameManager.latestTabFrames[pinboard.objectID] else {
+                Logger.drag.debug("Cannot begin drag: frame not found for pinboard")
+                return
+            }
+
+            // Ensure we have valid frame data before starting drag
+            guard !frameManager.latestTabFrames.isEmpty else {
+                Logger.drag.debug("Cannot begin drag: no tab frames available")
                 return
             }
 
@@ -460,7 +485,8 @@ struct PinboardTabBar: View {
                 dropTarget = handler.computeDropTarget(
                     location: localPointer,
                     draggedID: pinboard.objectID,
-                    orderedFrames: cachedLocal
+                    orderedFrames: cachedLocal,
+                    visibleBounds: scrollViewBounds
                 )
             }
         } else {
@@ -472,7 +498,8 @@ struct PinboardTabBar: View {
                 currentState: currentDragState,
                 translation: value.translation,
                 newLocation: localPointer,
-                cachedLocalOrderedFrames: cachedLocal
+                cachedLocalOrderedFrames: cachedLocal,
+                visibleBounds: scrollViewBounds
             )
 
             dragState = result.dragState
@@ -495,7 +522,11 @@ struct PinboardTabBar: View {
         }
 
         let handler = PinboardDragHandler(pinboards: pinboards, tabSpacing: tabSpacing)
-        if let result = handler.endDrag(state: dragState, cachedLocalOrderedFrames: cachedLocal) {
+        if let result = handler.endDrag(
+            state: dragState,
+            cachedLocalOrderedFrames: cachedLocal,
+            visibleBounds: scrollViewBounds
+        ) {
             onReorder(result.draggedItem, result.targetItem, result.insertBefore)
             onReorderEnd()
         }
@@ -560,10 +591,21 @@ struct PinboardTabBar: View {
         return parts.joined(separator: ". ")
     }
 
+    // MARK: - Editor Colors
+
+    private var editorTextColor: Color {
+        colorScheme == .dark ? .white : .black
+    }
+
+    private var editorPlaceholderColor: Color {
+        colorScheme == .dark ? .white.opacity(0.5) : .black.opacity(0.3)
+    }
+
     @ViewBuilder
     private func placeholderView() -> some View {
         if let dropTarget,
-            let localFrame = frameManager.latestTabFrames[dropTarget.item.objectID]
+            let localFrame = frameManager.latestTabFrames[dropTarget.item.objectID],
+            isPlaceholderVisible(at: dropTarget.placeholderX)
         {
             let height = max(0, localFrame.height)
             RoundedRectangle(cornerRadius: 2)
@@ -572,6 +614,14 @@ struct PinboardTabBar: View {
                 .offset(x: dropTarget.placeholderX - placeholderWidth / 2, y: 0)
                 .transition(.opacity)
         }
+    }
+
+    /// Checks if a placeholder at the given X position is within visible scroll bounds
+    private func isPlaceholderVisible(at x: CGFloat) -> Bool {
+        guard !scrollViewBounds.isEmpty else { return true }
+        // Allow a small margin outside the bounds for better UX
+        let margin: CGFloat = 10
+        return x >= scrollViewBounds.minX - margin && x <= scrollViewBounds.maxX + margin
     }
 
     @ViewBuilder
@@ -595,7 +645,9 @@ struct PinboardTabBar: View {
 
     // MARK: - Auto-Scroll
 
-    private func handleAutoScrollStateChange(_ newState: PinboardTabDragState?, scrollProxy: ScrollViewProxy) {
+    private func handleAutoScrollStateChange(
+        _ newState: PinboardTabDragState?, scrollProxy: ScrollViewProxy
+    ) {
         if newState == nil {
             stopAutoScroll()
         }
@@ -625,7 +677,9 @@ struct PinboardTabBar: View {
             case .leading:
                 // Find the first pinboard to the left of current position
                 if let targetPinboard = sortedPinboards.last(where: {
-                    guard let frame = frameManager.latestTabFrames[$0.objectID] else { return false }
+                    guard let frame = frameManager.latestTabFrames[$0.objectID] else {
+                        return false
+                    }
                     return frame.minX < currentX - autoScrollEdgeInset
                 }) {
                     withAnimation(.easeInOut(duration: 0.15)) {
@@ -640,7 +694,9 @@ struct PinboardTabBar: View {
             case .trailing:
                 // Find the first pinboard to the right of current position
                 if let targetPinboard = sortedPinboards.first(where: {
-                    guard let frame = frameManager.latestTabFrames[$0.objectID] else { return false }
+                    guard let frame = frameManager.latestTabFrames[$0.objectID] else {
+                        return false
+                    }
                     return frame.maxX > currentX + autoScrollEdgeInset
                 }) {
                     withAnimation(.easeInOut(duration: 0.15)) {
@@ -722,6 +778,8 @@ private struct ColorPicker: View {
 private struct PinboardTabPreview: View {
     let title: String
     let colorHex: String?
+    @Environment(\.colorScheme) private var colorScheme
+
 
     var body: some View {
         HStack(spacing: 6) {
@@ -733,7 +791,7 @@ private struct PinboardTabPreview: View {
 
             Text(title)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(colorScheme == .dark ? .white : .black)
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
@@ -747,7 +805,7 @@ private struct PinboardTabPreview: View {
                         .fill(Color.clear)
                         .glassNavigationStyle()
                 } else {
-                    Color.white.opacity(DesignTokens.Opacity.backgroundStrong)
+                    (colorScheme == .dark ? Color.white : Color.black).opacity(DesignTokens.Opacity.backgroundStrong)
                 }
             }
         )

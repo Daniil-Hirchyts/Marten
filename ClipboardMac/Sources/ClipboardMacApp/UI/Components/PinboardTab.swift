@@ -10,6 +10,7 @@ struct PinboardTab: View {
     let action: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
@@ -17,7 +18,7 @@ struct PinboardTab: View {
                 if let iconName {
                     Image(systemName: iconName)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(textColor)
                 } else if let colorHex {
                     Circle()
                         .fill(Color(hex: colorHex, fallback: .gray))
@@ -26,7 +27,7 @@ struct PinboardTab: View {
 
                 Text(title)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(textColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -36,13 +37,19 @@ struct PinboardTab: View {
             .frame(maxWidth: maxWidth, alignment: .leading)
             .background(backgroundView)
             .clipShape(Capsule())
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .contentShape(Capsule())
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovering = hovering
             }
         }
+    }
+
+    private var textColor: Color {
+        colorScheme == .dark ? .white.opacity(0.85) : .black.opacity(0.85)
     }
 
     @ViewBuilder
@@ -57,12 +64,17 @@ struct PinboardTab: View {
     }
 
     private var fallbackBackgroundColor: Color {
+        let opacity: CGFloat
         if isSelected {
-            return Color.white.opacity(DesignTokens.Opacity.backgroundStrong)
+            opacity = DesignTokens.Opacity.backgroundStrong
+        } else if isHovering {
+            opacity = DesignTokens.Opacity.backgroundMedium
+        } else {
+            opacity = DesignTokens.Opacity.backgroundSubtle
         }
-        if isHovering {
-            return Color.white.opacity(DesignTokens.Opacity.backgroundMedium)
-        }
-        return Color.white.opacity(DesignTokens.Opacity.backgroundSubtle)
+
+        return colorScheme == .dark
+            ? Color.white.opacity(opacity)
+            : Color.black.opacity(opacity)
     }
 }

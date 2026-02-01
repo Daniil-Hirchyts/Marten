@@ -85,25 +85,33 @@ private struct GlassNavigationModifier: ViewModifier {
                 content
                     .glassEffect(.regular, in: .circle)
                     .brightness(0.1)
+                    .contentShape(Circle())
             } else {
-                content.glassEffect(.regular, in: .circle)
+                content
+                    .glassEffect(.regular, in: .circle)
+                    .contentShape(Circle())
             }
         case .capsule:
             if isProminent {
                 content
                     .glassEffect(.regular, in: .capsule)
                     .brightness(0.1)
+                    .contentShape(Capsule())
             } else {
-                content.glassEffect(.regular, in: .capsule)
+                content
+                    .glassEffect(.regular, in: .capsule)
+                    .contentShape(Capsule())
             }
         case .roundedRectangle(let cornerRadius):
             if isProminent {
                 content
                     .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius, style: .continuous))
                     .brightness(0.1)
+                    .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             } else {
                 content.glassEffect(
                     .regular, in: .rect(cornerRadius: cornerRadius, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             }
         }
     }
@@ -116,6 +124,7 @@ struct FallbackGlassBackground: ViewModifier {
     let shape: GlassShape
     let isSelected: Bool
     let isHovering: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
         let opacity: CGFloat = {
@@ -132,15 +141,21 @@ struct FallbackGlassBackground: ViewModifier {
             Group {
                 switch shape {
                 case .circle:
-                    Circle().fill(Color.white.opacity(opacity))
+                    Circle().fill(adaptiveColor(opacity: opacity))
                 case .capsule:
-                    Capsule().fill(Color.white.opacity(opacity))
+                    Capsule().fill(adaptiveColor(opacity: opacity))
                 case .roundedRectangle(let cornerRadius):
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(Color.white.opacity(opacity))
+                        .fill(adaptiveColor(opacity: opacity))
                 }
             }
         )
+    }
+
+    private func adaptiveColor(opacity: CGFloat) -> Color {
+        colorScheme == .dark
+            ? Color.white.opacity(opacity)
+            : Color.black.opacity(opacity)
     }
 }
 

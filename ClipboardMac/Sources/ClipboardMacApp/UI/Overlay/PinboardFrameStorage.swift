@@ -28,9 +28,6 @@ final class PinboardFrameManager: ObservableObject {
     /// Whether updates should be suppressed (e.g., during drag)
     var suppressUpdates: Bool = false
 
-    /// Whether frame reporting is needed
-    var shouldReportFrames: Bool = true
-
     // MARK: - Update Methods
 
     /// Updates content-space frames and invalidates caches if needed
@@ -106,6 +103,5 @@ final class PinboardFrameManager: ObservableObject {
         contentWidth = 0
         cachedOrderedFrames = nil
         suppressUpdates = false
-        shouldReportFrames = true
     }
 }
