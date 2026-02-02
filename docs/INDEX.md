@@ -10,7 +10,9 @@
 
 ## Documentation
 
-- **[CODEBASE.md](./CODEBASE.md)** - Start here: codebase overview, quick reference
+- **[CODEBASE.md](./CODEBASE.md)** - Start here: codebase overview, quick reference, architecture
+- **[BEST-PRACTICES.md](./BEST-PRACTICES.md)** - Security, logging, architecture guidelines
+- **[AUDIT-INTEGRATION-SUMMARY.md](./AUDIT-INTEGRATION-SUMMARY.md)** - Audit findings and remediation record
 - **[ARCHITECTURE-DECISIONS.md](./ARCHITECTURE-DECISIONS.md)** - 12 ADRs explaining key decisions
 - **[SETUP.md](./SETUP.md)** - Development environment setup
 
@@ -39,10 +41,12 @@
 
 ## Key Metrics
 
-**Code:** 123 Swift files (44 Core + 79 Mac), ~15k LOC  
-**Entities:** 7 Core Data entities  
-**Services:** 10 system services  
+**Code:** 182 Swift files (45 Core + 78 Mac + 59 Tests), ~30k LOC
+**Entities:** 7 Core Data entities
+**Services:** 8 domain services, 10 system services, 4 coordinators
 **Performance:** All targets met ✅
+
+**Architecture:** Repository pattern, coordinator pattern, settings providers ✅
 
 ---
 
@@ -64,4 +68,4 @@ Swift 5.9+ | SwiftUI + AppKit | Core Data | CloudKit | XCTest
 
 **Questions?** Read [CODEBASE.md](./CODEBASE.md) or [ARCHITECTURE-DECISIONS.md](./ARCHITECTURE-DECISIONS.md)
 
-**Last Updated:** 2026-02-02
+**Last Updated:** 2026-02-03

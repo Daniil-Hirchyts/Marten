@@ -34,16 +34,50 @@ Paste/
 | Feature | Location |
 |---------|----------|
 | **Clipboard capture** | `ClipboardMacServices/Services/PasteboardMonitor/` |
+| **Capture orchestration** | `ClipboardMacApp/App/Coordinators/CaptureCoordinator.swift` |
 | **Paste to app** | `ClipboardMacServices/Services/PasteEngine/` |
 | **Global hotkeys** | `ClipboardMacServices/Services/HotkeyManager/` |
-| **Overlay UI** | `ClipboardMacApp/UI/Overlay/OverlayViewModel.swift` |
+| **Hotkey coordination** | `ClipboardMacApp/App/Coordinators/HotkeyCoordinator.swift` |
+| **Overlay UI** | `ClipboardMacApp/UI/Overlay/OverlayShellView.swift` |
+| **Overlay coordinators** | `ClipboardMacApp/UI/Overlay/OverlayPreviewCoordinator.swift`, `OverlayActionHandlers.swift`, `OverlayPinboardLockHandler.swift` |
 | **Item cards** | `ClipboardMacApp/UI/Overlay/ItemCard.swift` |
 | **Search** | `ClipboardMacApp/UI/Overlay/OverlaySearchViewModel.swift` |
 | **Settings** | `ClipboardMacApp/UI/Settings/` |
-| **Core Data CRUD** | `ClipboardCore/Sources/BusinessRules/ClipItemStore.swift` |
+| **Settings providers** | `ClipboardMacServices/Services/Settings/*Providing.swift` |
+| **Core Data CRUD** | `ClipboardCore/Sources/BusinessRules/ClipItemRepository.swift` |
 | **CloudKit sync** | `ClipboardCore/Sources/Sync/SyncCoordinator.swift` |
 | **Password detection** | `ClipboardCore/Sources/BusinessRules/Classifiers/` |
 | **Thumbnails** | `ClipboardMacServices/Services/Thumbnails/` |
+
+---
+
+## Architecture Components
+
+### Services (ClipboardCore/BusinessRules/)
+- **ClipItemRepository** — CRUD operations, persistence façade
+- **ClipItemStore** — Thin façade over repository (for legacy compatibility)
+- **PinboardRepository** — Pinboard management
+- **SearchService** — Search text extraction
+- **AssetManagementService** — Asset lifecycle management
+- **ClipItemDeduplicationService** — Duplicate detection
+- **ClipItemRetentionService** — Retention policy enforcement
+- **ClipItemUsageService** — Usage tracking
+
+### Coordinators (ClipboardMacApp/App/Coordinators/)
+- **CaptureCoordinator** — Orchestrates capture pipeline
+- **HotkeyCoordinator** — Hotkey registration and reload
+- **OnboardingCoordinator** — Onboarding flow management
+- **IntegrityCheckService** — Startup integrity checks
+
+### Overlay Coordinators (ClipboardMacApp/UI/Overlay/)
+- **OverlayPreviewCoordinator** — Preview popover state and editor window coordination
+- **OverlayPinboardLockHandler** — Pinboard lock/unlock and visibility logic
+- **OverlayActionHandlers** — Consolidates all item/pinboard user actions
+
+### Settings Providers (ClipboardMacServices/Services/Settings/)
+- **CaptureSettingsProviding** — Capture behavior settings
+- **LinkPreviewSettingsProviding** — Link preview toggle
+- **PasteSettingsProviding** — Paste behavior settings
 
 ---
 
@@ -79,10 +113,12 @@ Bi-directional CloudKit synchronization.
 
 ## Key Patterns
 
-**MVVM:** SwiftUI views + `@ObservableObject` ViewModels  
-**Repository:** `ClipItemStore` abstracts persistence  
-**DI:** `AppServiceContainer` provides dependencies  
-**Coordinator:** `SyncCoordinator`, `PasteStackManager` orchestrate workflows
+**MVVM:** SwiftUI views + `@ObservableObject` ViewModels
+**Repository:** `ClipItemRepository` abstracts persistence (replaces direct ClipItemStore usage)
+**Service Layer:** Domain services for dedupe, retention, usage, asset management
+**DI:** `AppServiceContainer` provides dependencies via protocols
+**Coordinator:** `CaptureCoordinator`, `HotkeyCoordinator`, `SyncCoordinator` orchestrate workflows
+**Settings Providers:** Protocol-based settings access (no @AppStorage in services)
 
 ---
 
@@ -179,14 +215,43 @@ See [`ARCHITECTURE-DECISIONS.md`](./ARCHITECTURE-DECISIONS.md) for full ADRs:
 
 ---
 
+## Recent Architecture Changes (Feb 2026)
+
+### Repository Pattern Introduction
+- `ClipItemStore` refactored to thin façade over `ClipItemRepository`
+- Domain services extracted: deduplication, retention, usage tracking, asset management
+- Better separation of concerns and testability
+
+### Coordinator Extraction
+- `AppDelegate` responsibilities moved to focused coordinators
+- `CaptureCoordinator`: Capture pipeline orchestration
+- `HotkeyCoordinator`: Hotkey management
+- `OnboardingCoordinator`: Onboarding flow
+- `IntegrityCheckService`: Startup checks
+
+### Overlay Decomposition
+- `OverlayShellView` reduced from 799 → 766 lines
+- Extracted coordinators for preview, lock handling, actions
+- Improved SOLID compliance (SRP: D → A, OCP: C → B+)
+
+### Settings Provider Pattern
+- Removed @AppStorage from services layer
+- Introduced protocol-based settings providers
+- Services now depend on injected providers, not SwiftUI
+
+### Best Practices
+See [BEST-PRACTICES.md](./BEST-PRACTICES.md) for security, logging, and architecture guidelines.
+
+---
+
 ## Next Steps
 
-**Phase 7 (Current):** Beta testing  
-**Phase 8:** App Store prep (icon, screenshots, privacy policy)  
+**Phase 7 (Current):** Beta testing
+**Phase 8:** App Store prep (icon, screenshots, privacy policy)
 **Phase 9:** Launch
 
 ---
 
-**Version:** 1.0.0  
-**Last Updated:** 2026-02-02  
+**Version:** 1.0.0
+**Last Updated:** 2026-02-03
 **Full Documentation:** See [`INDEX.md`](./INDEX.md)
