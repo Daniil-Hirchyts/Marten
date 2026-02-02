@@ -12,7 +12,6 @@
 
 - **[CODEBASE.md](./CODEBASE.md)** - Start here: codebase overview, quick reference, architecture
 - **[BEST-PRACTICES.md](./BEST-PRACTICES.md)** - Security, logging, architecture guidelines
-- **[AUDIT-INTEGRATION-SUMMARY.md](./AUDIT-INTEGRATION-SUMMARY.md)** - Audit findings and remediation record
 - **[ARCHITECTURE-DECISIONS.md](./ARCHITECTURE-DECISIONS.md)** - 12 ADRs explaining key decisions
 - **[SETUP.md](./SETUP.md)** - Development environment setup
 
@@ -30,20 +29,20 @@
 | 3. Paste Behaviors | ✅ | 68 | Paste, hotkeys, stack |
 | 4. Privacy & Settings | ✅ | 28 | Filters, settings, onboarding |
 | 5. CloudKit Sync | ✅ | 133 | Sync, conflicts, assets |
-| 6. Hardening | ✅ | 289 | Performance, tests, accessibility |
+| 6. Hardening | ✅ | SwiftPM | Performance, tests, accessibility |
 | 7. Beta Testing | 🔜 | - | Internal + TestFlight |
 | 8. App Store | ⏸️ | - | Assets, submission |
 | 9. Launch | ⏸️ | - | Release, monitoring |
 
-**289/289 tests passing** ✅
+**SwiftPM tests passing** ✅ (UI tests require an Xcode runner)
 
 ---
 
 ## Key Metrics
 
-**Code:** 182 Swift files (45 Core + 78 Mac + 59 Tests), ~30k LOC
-**Entities:** 7 Core Data entities
-**Services:** 8 domain services, 10 system services, 4 coordinators
+**Code:** 219 Swift files across both packages (Sources + Tests)
+**Entities:** 6 Core Data entities
+**Services:** Domain services + repositories in `ClipboardCore`, system services in `ClipboardMacServices`, UI in `ClipboardMacApp`
 **Performance:** All targets met ✅
 
 **Architecture:** Repository pattern, coordinator pattern, settings providers ✅

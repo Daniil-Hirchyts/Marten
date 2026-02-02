@@ -2,7 +2,7 @@
 
 **Project:** Paste Clipboard Manager  
 **Version:** 1.0.0  
-**Last Updated:** 2026-02-02
+**Last Updated:** 2026-02-03
 
 ---
 
@@ -55,7 +55,7 @@ Each ADR includes:
 - ❌ More boilerplate code (entities, fetch requests)
 - ❌ Steeper learning curve than SwiftData
 
-**References:** `/docs/specs/Data-Model-Spec.md`, `/docs/specs/Cloud-Schema-Spec.md`
+**References:** `ClipboardCore/Sources/DataModel/`, `ClipboardCore/Sources/Sync/`
 
 ---
 
@@ -93,7 +93,7 @@ Each ADR includes:
 - ❌ More code (~2000 LOC for sync engine)
 - ❌ More complexity to maintain
 
-**References:** `/docs/specs/Cloud-Schema-Spec.md`, `ClipboardCore/Sources/Sync/`
+**References:** `ClipboardCore/Sources/Sync/`
 
 ---
 
@@ -125,7 +125,7 @@ Each ADR includes:
 - ❌ ~100ms latency (acceptable trade-off)
 - ❌ Constant background polling (mitigated by adaptive intervals)
 
-**References:** `/docs/specs/macOS-Services-Spec.md`, `ClipboardMacServices/Services/PasteboardMonitor/`
+**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/`
 
 ---
 
@@ -166,7 +166,7 @@ Each ADR includes:
 - ❌ Mixing paradigms (requires bridging)
 - ❌ Some boilerplate (NSViewRepresentable, NSHostingView)
 
-**References:** `/docs/specs/UI-Contract-Spec.md`, `ClipboardMacApp/UI/Overlay/OverlayWindow.swift`
+**References:** `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayWindow.swift`
 
 ---
 
@@ -209,7 +209,7 @@ Each ADR includes:
 - ❌ Potential false positives (high-entropy text)
 - 🔄 Can add ML in future if needed
 
-**References:** `/docs/specs/Privacy-Security-Spec.md`, `ClipboardCore/Sources/BusinessRules/Classifiers/`
+**References:** `ClipboardCore/Sources/BusinessRules/Classifiers/`
 
 ---
 
@@ -244,7 +244,7 @@ Each ADR includes:
 - ❌ Hash computation overhead (~0.3ms, acceptable)
 - ❌ Normalized comparison may merge intentionally different items (rare)
 
-**References:** `/docs/specs/Data-Model-Spec.md`, `ClipboardCore/Sources/DataModel/Extensions/Data+SHA256.swift`
+**References:** `ClipboardCore/Sources/DataModel/Extensions/Data+SHA256.swift`
 
 ---
 
@@ -283,7 +283,7 @@ Each ADR includes:
 - ❌ Two storage locations to manage
 - ❌ Orphaned assets possible (mitigated by retention cleanup)
 
-**References:** `/docs/specs/Data-Model-Spec.md`, `ClipboardCore/Sources/Assets/AssetStore.swift`
+**References:** `ClipboardCore/Sources/Assets/AssetStore.swift`
 
 ---
 
@@ -324,7 +324,7 @@ Each ADR includes:
 - ❌ May not work in sandboxed apps (fallback to pasteboard-only)
 - ❌ 100ms delay to ensure paste completes
 
-**References:** `/docs/specs/macOS-Services-Spec.md`, `ClipboardMacServices/Services/PasteEngine/`
+**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/PasteEngine/`
 
 ---
 
@@ -360,7 +360,7 @@ Each ADR includes:
 - ❌ Less discoverable for new users (mitigated by onboarding)
 - ❌ No dock badge for notifications (not needed for this app)
 
-**References:** `/docs/specs/UI-Contract-Spec.md`, `ClipboardMacApp/App/AppDelegate.swift`
+**References:** `ClipboardMac/Sources/ClipboardMacApp/App/AppDelegate.swift`
 
 ---
 
@@ -397,7 +397,7 @@ Each ADR includes:
 - ❌ Background cleanup overhead (mitigated: runs daily, ~86ms)
 - ❌ Potential data loss if user forgets to favorite
 
-**References:** `/docs/specs/Data-Model-Spec.md`, `ClipboardCore/Sources/BusinessRules/RetentionPolicy.swift`
+**References:** `ClipboardCore/Sources/BusinessRules/RetentionPolicy.swift`
 
 ---
 
@@ -439,7 +439,7 @@ Each ADR includes:
 - ❌ Xcode workspace required (vs single project)
 - ❌ Slightly more setup for new developers
 
-**References:** `/docs/specs/Architecture-Overview.md`, `ClipboardCore/Package.swift`, `ClipboardMac/Package.swift`
+**References:** `docs/CODEBASE.md`, `ClipboardCore/Package.swift`, `ClipboardMac/Package.swift`
 
 ---
 
@@ -476,7 +476,7 @@ Each ADR includes:
 - ✅ No third-party dependencies
 - ❌ No remote logging/crash service (mitigated: can add Sentry/Crashlytics later if needed)
 
-**References:** `ClipboardMacServices/Services/Logging/Loggers.swift`, `ClipboardMacServices/Services/CrashReporter.swift`
+**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/Logging/Loggers.swift`, `ClipboardMac/Sources/ClipboardMacServices/Services/CrashReporter.swift`
 
 ---
 

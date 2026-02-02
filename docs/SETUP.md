@@ -2,8 +2,8 @@
 
 ## Prerequisites
 
-- macOS 13.0+ (Ventura or later)
-- Xcode 15.0+
+- macOS 26.0+
+- Xcode 26.0+
 - Swift 5.9+
 - Apple Developer account (for code signing and CloudKit)
 
@@ -14,21 +14,26 @@
 ### 1. Build and Run (Command Line)
 
 ```bash
-# Build all packages
+# Build + test ClipboardCore
+cd ClipboardCore
 swift build
-
-# Run tests
 swift test
 
-# Note: swift run will launch app unsigned (CloudKit sync unavailable)
+# Build + test ClipboardMac
+cd ../ClipboardMac
+swift build
+swift test
+
+# Run the app (unsigned, no iCloud sync)
+swift run ClipboardMac
 ```
 
 ### 2. Build Signed App (Required for iCloud Sync)
 
 CloudKit requires a signed `.app` with correct entitlements.
 
-1. Open `ClipboardMac/ClipboardMac.xcodeproj` in Xcode
-2. Select the `ClipboardMacApp` target
+1. Open `ClipboardMacWrapper/ClipboardMacWrapper.xcodeproj` in Xcode
+2. Select the app target
 3. In **Signing & Capabilities**:
    - Choose your Team
    - Set a bundle identifier you own (e.g., `com.yourcompany.paste`)

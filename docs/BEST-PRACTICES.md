@@ -4,7 +4,7 @@
 **Audience:** All developers and contributors
 **Status:** Active guidelines
 
-This document establishes security, architecture, and quality standards for the Paste codebase. These practices are derived from the technical audit (Feb 2026) and align with secure SDLC principles.
+This document establishes security, architecture, and quality standards for the Paste codebase. These practices reflect the current application architecture and the security/privacy requirements of a clipboard manager.
 
 ---
 
@@ -18,14 +18,13 @@ Clipboard payloads must be treated as sensitive by default. Do not include clipb
 
 **Examples:**
 ```swift
-// ❌ BAD - logs clipboard content
-logger.info("Captured text: \(clipboardText)")
+import OSLog
 
-// ✅ GOOD - logs metadata only
-logger.info("Captured text item", metadata: [
-    "length": "\(clipboardText.count)",
-    "type": "text/plain"
-])
+// ❌ BAD - logs clipboard content
+Logger.pasteboard.info("Captured text: \(clipboardText)")
+
+// ✅ GOOD - log metadata only
+Logger.pasteboard.info("Captured text item (length=\(clipboardText.count, privacy: .public))")
 ```
 
 ### 1.2 Logging Policy
@@ -46,24 +45,18 @@ logger.info("Captured text item", metadata: [
 ```swift
 import OSLog
 
-private let logger = Logger(subsystem: "com.example.paste", category: "capture")
-
 // ❌ BAD - uses print()
 print("Pasteboard changed: \(changeCount)")
 
 // ❌ BAD - logs sensitive data as public
-logger.info("Captured URL: \(url)")
+Logger.pasteboard.info("Captured URL: \(url)")
 
-// ✅ GOOD - uses OSLog with privacy redaction
-logger.info("Pasteboard changed", metadata: [
-    "changeCount": "\(changeCount)"
-])
+// ✅ GOOD - logs safe metadata
+Logger.pasteboard.info("Pasteboard changed (changeCount=\(changeCount, privacy: .public))")
 
 // ✅ GOOD - redacts sensitive data
-logger.info("Captured URL", metadata: [
-    "url": "\(url, privacy: .private)",
-    "domain": "\(url.host ?? "unknown", privacy: .private)"
-])
+Logger.pasteboard.info("Captured URL: \(url, privacy: .private)")
+Logger.pasteboard.info("Captured URL host: \(url.host ?? "unknown", privacy: .private)")
 ```
 
 **Enforcement:**
@@ -93,23 +86,18 @@ public protocol CaptureSettingsProviding {
     var ignoreTransientContent: Bool { get }
 }
 
-public struct UserDefaultsCaptureSettings: CaptureSettingsProviding {
-    private let defaults: UserDefaults
-    public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+public struct UserDefaultsCaptureSettingsProvider: CaptureSettingsProviding {
+    private let userDefaults: UserDefaults
+    public init(userDefaults: UserDefaults = .standard) { self.userDefaults = userDefaults }
 
-    public var ignoreConfidentialContent: Bool {
-        defaults.bool(forKey: "ignoreConfidentialContent")
-    }
-
-    public var ignoreTransientContent: Bool {
-        defaults.bool(forKey: "ignoreTransientContent")
-    }
+    public var ignoreConfidentialContent: Bool { userDefaults.bool(forKey: "ignoreConfidentialContent") }
+    public var ignoreTransientContent: Bool { userDefaults.bool(forKey: "ignoreTransientContent") }
 }
 
 public final class PasteboardExtractor {
     private let settings: CaptureSettingsProviding
 
-    public init(settings: CaptureSettingsProviding = UserDefaultsCaptureSettings()) {
+    public init(settings: CaptureSettingsProviding = UserDefaultsCaptureSettingsProvider()) {
         self.settings = settings
     }
 }
@@ -493,7 +481,6 @@ final class ClipItemStore {
 
 - **[CODEBASE.md](./CODEBASE.md)** — Architecture overview and navigation
 - **[ARCHITECTURE-DECISIONS.md](./ARCHITECTURE-DECISIONS.md)** — ADRs explaining key decisions
-- **[AUDIT-INTEGRATION-SUMMARY.md](./AUDIT-INTEGRATION-SUMMARY.md)** — Audit findings and remediation record
 - **[NIST SSDF](https://csrc.nist.gov/pubs/sp/800/218/final)** — Secure Software Development Framework
 
 ---

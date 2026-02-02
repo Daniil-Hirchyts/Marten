@@ -1,7 +1,7 @@
 # Paste - Codebase Guide
 
 **macOS clipboard manager with iCloud sync**  
-**Status:** Phase 6 Complete | 289 tests passing | Production-ready
+**Status:** Phase 6 Complete | SwiftPM tests passing | Production-ready
 
 ---
 
@@ -9,16 +9,18 @@
 
 ```
 Paste/
-├── ClipboardCore/          Platform-agnostic logic (44 files)
-│   ├── Assets/            Large file storage
-│   ├── BusinessRules/     Stores, classifiers, managers
-│   ├── DataModel/         Core Data (7 entities)
-│   ├── Persistence/       Database stack
-│   └── Sync/              CloudKit sync (10 components)
+├── ClipboardCore/          Platform-agnostic logic
+│   ├── Sources/           Assets, business rules, persistence, sync
+│   └── Tests/             Unit tests
 │
-├── ClipboardMac/           macOS app (79 files)
-│   ├── ClipboardMacApp/   UI (Overlay, Settings, Onboarding)
-│   └── ClipboardMacServices/  System services (10 services)
+├── ClipboardMac/           macOS package
+│   ├── Sources/
+│   │   ├── ClipboardMacApp/       UI + lifecycle
+│   │   ├── ClipboardMacServices/  System services
+│   │   └── ClipboardMacValidation/ Validation executable
+│   └── Tests/              Unit + UI tests
+│
+├── ClipboardMacWrapper/    Xcode wrapper project (signing, entitlements, assets)
 │
 └── docs/                   Documentation
     ├── INDEX.md           Main navigation
@@ -33,27 +35,27 @@ Paste/
 
 | Feature | Location |
 |---------|----------|
-| **Clipboard capture** | `ClipboardMacServices/Services/PasteboardMonitor/` |
-| **Capture orchestration** | `ClipboardMacApp/App/Coordinators/CaptureCoordinator.swift` |
-| **Paste to app** | `ClipboardMacServices/Services/PasteEngine/` |
-| **Global hotkeys** | `ClipboardMacServices/Services/HotkeyManager/` |
-| **Hotkey coordination** | `ClipboardMacApp/App/Coordinators/HotkeyCoordinator.swift` |
-| **Overlay UI** | `ClipboardMacApp/UI/Overlay/OverlayShellView.swift` |
-| **Overlay coordinators** | `ClipboardMacApp/UI/Overlay/OverlayPreviewCoordinator.swift`, `OverlayActionHandlers.swift`, `OverlayPinboardLockHandler.swift` |
-| **Item cards** | `ClipboardMacApp/UI/Overlay/ItemCard.swift` |
-| **Search** | `ClipboardMacApp/UI/Overlay/OverlaySearchViewModel.swift` |
-| **Settings** | `ClipboardMacApp/UI/Settings/` |
-| **Settings providers** | `ClipboardMacServices/Services/Settings/*Providing.swift` |
+| **Clipboard capture** | `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/` |
+| **Capture orchestration** | `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/CaptureCoordinator.swift` |
+| **Paste to app** | `ClipboardMac/Sources/ClipboardMacServices/Services/PasteEngine/` |
+| **Global hotkeys** | `ClipboardMac/Sources/ClipboardMacServices/Services/HotkeyManager/` |
+| **Hotkey coordination** | `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/HotkeyCoordinator.swift` |
+| **Overlay UI** | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayShellView.swift` |
+| **Overlay coordinators** | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayPreviewCoordinator.swift`, `OverlayActionHandlers.swift`, `OverlayPinboardLockHandler.swift` |
+| **Item cards** | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemCard.swift` |
+| **Search** | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlaySearchViewModel.swift` |
+| **Settings** | `ClipboardMac/Sources/ClipboardMacApp/UI/Settings/` |
+| **Settings providers** | `ClipboardMac/Sources/ClipboardMacServices/Services/Settings/*Providing.swift` |
 | **Core Data CRUD** | `ClipboardCore/Sources/BusinessRules/ClipItemRepository.swift` |
 | **CloudKit sync** | `ClipboardCore/Sources/Sync/SyncCoordinator.swift` |
 | **Password detection** | `ClipboardCore/Sources/BusinessRules/Classifiers/` |
-| **Thumbnails** | `ClipboardMacServices/Services/Thumbnails/` |
+| **Thumbnails** | `ClipboardMac/Sources/ClipboardMacServices/Services/Thumbnails/` |
 
 ---
 
 ## Architecture Components
 
-### Services (ClipboardCore/BusinessRules/)
+### Services (ClipboardCore/Sources/BusinessRules/)
 - **ClipItemRepository** — CRUD operations, persistence façade
 - **ClipItemStore** — Thin façade over repository (for legacy compatibility)
 - **PinboardRepository** — Pinboard management
@@ -63,21 +65,22 @@ Paste/
 - **ClipItemRetentionService** — Retention policy enforcement
 - **ClipItemUsageService** — Usage tracking
 
-### Coordinators (ClipboardMacApp/App/Coordinators/)
+### Coordinators (ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/)
 - **CaptureCoordinator** — Orchestrates capture pipeline
 - **HotkeyCoordinator** — Hotkey registration and reload
 - **OnboardingCoordinator** — Onboarding flow management
 - **IntegrityCheckService** — Startup integrity checks
 
-### Overlay Coordinators (ClipboardMacApp/UI/Overlay/)
+### Overlay Coordinators (ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/)
 - **OverlayPreviewCoordinator** — Preview popover state and editor window coordination
 - **OverlayPinboardLockHandler** — Pinboard lock/unlock and visibility logic
 - **OverlayActionHandlers** — Consolidates all item/pinboard user actions
 
-### Settings Providers (ClipboardMacServices/Services/Settings/)
+### Settings Providers (ClipboardMac/Sources/ClipboardMacServices/Services/Settings/)
 - **CaptureSettingsProviding** — Capture behavior settings
 - **LinkPreviewSettingsProviding** — Link preview toggle
 - **PasteSettingsProviding** — Paste behavior settings
+- **ScreenSharingSettingsProviding** — Screen sharing visibility behavior
 
 ---
 
@@ -160,11 +163,9 @@ See [`ARCHITECTURE-DECISIONS.md`](./ARCHITECTURE-DECISIONS.md) for full ADRs:
 
 ## Testing
 
-**289 tests total:**
-- ClipboardCore: 185 (unit + integration)
-- ClipboardMac: 104 (68 unit, 36 UI)
+**Test targets:** `ClipboardCoreTests`, `ClipboardMacTests`, `ClipboardMacAppTests`, `ClipboardMacUITests`
 
-**Run:** `swift test` (unit) or Xcode Test Navigator (UI)
+**Run:** `swift test` for unit tests, or Xcode Test Navigator for UI tests.
 
 ---
 
@@ -232,7 +233,7 @@ See [`ARCHITECTURE-DECISIONS.md`](./ARCHITECTURE-DECISIONS.md) for full ADRs:
 ### Overlay Decomposition
 - `OverlayShellView` reduced from 799 → 766 lines
 - Extracted coordinators for preview, lock handling, actions
-- Improved SOLID compliance (SRP: D → A, OCP: C → B+)
+- Reduced mixed responsibilities by moving focused behavior into dedicated types
 
 ### Settings Provider Pattern
 - Removed @AppStorage from services layer
@@ -252,6 +253,6 @@ See [BEST-PRACTICES.md](./BEST-PRACTICES.md) for security, logging, and architec
 
 ---
 
-**Version:** 1.0.0
+**Version:** 1.3.0
 **Last Updated:** 2026-02-03
 **Full Documentation:** See [`INDEX.md`](./INDEX.md)
