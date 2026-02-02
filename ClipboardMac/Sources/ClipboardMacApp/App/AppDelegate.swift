@@ -92,7 +92,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             eventBroadcaster: eventBroadcaster,
             captureQueue: captureQueue,
             soundPlayer: soundPlayer,
-            linkPreviewFetcher: linkPreviewFetcher
+            linkPreviewFetcher: linkPreviewFetcher,
+            linkPreviewSettings: UserDefaultsLinkPreviewSettingsProvider()
         )
         self.captureCoordinator = captureCoordinator
         captureCoordinator.start()
@@ -102,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             permissionManager: permissionManager,
             clipItemStore: clipItemStore,
             pasteEngine: pasteEngine,
+            pasteSettings: UserDefaultsPasteSettingsProvider(),
             toggleOverlay: { [weak self] in
                 self?.toggleOverlay()
             },

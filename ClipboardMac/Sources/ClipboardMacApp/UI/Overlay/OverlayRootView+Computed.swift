@@ -1,6 +1,6 @@
 import AppKit
-import ClipboardCore
-import ClipboardMacServices
+@preconcurrency import ClipboardCore
+@preconcurrency import ClipboardMacServices
 import SwiftUI
 
 extension OverlayShellView {
@@ -8,10 +8,10 @@ extension OverlayShellView {
         let selectedPinboardID = searchModel.selectedPinboardID
         let sourceItems = searchModel.isSearchTextActive ? searchModel.searchResults : Array(items)
         let baseList = sourceItems.filter { item in
-            isItemVisible(item, selectedPinboardID: selectedPinboardID)
+            lockHandler.isItemVisible(item, selectedPinboardID: selectedPinboardID)
         }
         let filtered = searchModel.applyFilters(to: baseList)
-        return sortItems(filtered)
+        return actionHandlers.sortItems(filtered, selectedPinboardID: selectedPinboardID, allowPinning: allowPinning)
     }
 
     var isSearchActive: Bool {
@@ -51,36 +51,27 @@ extension OverlayShellView {
     }
 
     var allowPinning: Bool {
-        searchModel.selectedPinboardID != nil && selectedPinboardIsAccessible
+        searchModel.selectedPinboardID != nil
     }
 
     var isDragEnabled: Bool {
-        true
+        !isSearchActive
     }
 
     var isReorderingEnabled: Bool {
-        isDragEnabled
-            && searchModel.selectedPinboardID != nil
-            && selectedPinboardIsAccessible
-            && !isSearchActive
-    }
-
-    var itemsSourceAppsHash: Int {
-        items.map { $0.sourceAppBundleID ?? $0.sourceAppName ?? "" }
-            .sorted()
-            .joined()
-            .hashValue
+        !isSearchActive && searchModel.selectedPinboardID == nil
     }
 
     var pinboardSelectionKey: String {
-        searchModel.selectedPinboardID?.uuidString ?? "all-pinboards"
+        searchModel.selectedPinboardID?.uuidString ?? "all"
+    }
+
+    var itemsSourceAppsHash: Int {
+        let apps = Set(items.compactMap(\.sourceAppBundleID))
+        return apps.reduce(0) { $0 ^ $1.hashValue }
     }
 
     var keyHandlerRefreshToken: String {
-        let renameItem = renameItemID?.uriRepresentation().absoluteString ?? "nil"
-        let renamePinboard = renamePinboardID?.uriRepresentation().absoluteString ?? "nil"
-        let previewItem = previewItemID?.uriRepresentation().absoluteString ?? "nil"
-        return
-            "\(isSearchExpanded)-\(searchFocused)-\(isCreatingPinboard)-\(isPreviewPopoverPresented)-\(renameItem)-\(renamePinboard)-\(previewItem)"
+        "\(isCreatingPinboard)-\(renamePinboardID?.description ?? "")-\(renameItemID?.description ?? "")-\(isSearchExpanded)-\(searchFocused)-\(previewCoordinator.isPreviewPopoverPresented)"
     }
 }

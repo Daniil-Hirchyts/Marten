@@ -10,6 +10,7 @@ final class HotkeyCoordinator {
     private let permissionManager: PermissionManager
     private let clipItemStore: ClipItemStore
     private let pasteEngine: PasteEngine
+    private let pasteSettings: any PasteSettingsProviding
     private let hideOverlayForPaste: (@escaping () -> Void) -> Void
     private let toggleOverlay: () -> Void
 
@@ -20,6 +21,7 @@ final class HotkeyCoordinator {
         permissionManager: PermissionManager,
         clipItemStore: ClipItemStore,
         pasteEngine: PasteEngine,
+        pasteSettings: any PasteSettingsProviding,
         toggleOverlay: @escaping () -> Void,
         hideOverlayForPaste: @escaping (@escaping () -> Void) -> Void
     ) {
@@ -27,6 +29,7 @@ final class HotkeyCoordinator {
         self.permissionManager = permissionManager
         self.clipItemStore = clipItemStore
         self.pasteEngine = pasteEngine
+        self.pasteSettings = pasteSettings
         self.toggleOverlay = toggleOverlay
         self.hideOverlayForPaste = hideOverlayForPaste
     }
@@ -105,7 +108,7 @@ final class HotkeyCoordinator {
     }
 
     private func quickPaste(index: Int, flags: NSEvent.ModifierFlags) {
-        let alwaysPlainText = UserDefaults.standard.bool(forKey: "alwaysPastePlainText")
+        let alwaysPlainText = pasteSettings.alwaysPastePlainText
         let isPlainText = flags.contains(.shift) || alwaysPlainText
 
         do {

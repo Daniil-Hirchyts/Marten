@@ -3,9 +3,35 @@ import Foundation
 
 public final class ClipItemStore {
     private let repository: ClipItemRepository
+    private let pinboardRepository: PinboardRepository
+    private let assetManagementService: AssetManagementService
+    private let retentionService: ClipItemRetentionService
+    private let usageService: ClipItemUsageService
+    private let searchService: SearchService
 
     public init(persistence: PersistenceController = .shared, assetStore: AssetStore = .shared) {
-        self.repository = ClipItemRepository(persistence: persistence, assetStore: assetStore)
+        let pinboardRepository = PinboardRepository(persistence: persistence)
+        let searchService = SearchService(persistence: persistence)
+        let assetManagementService = AssetManagementService(
+            persistence: persistence,
+            assetStore: assetStore
+        )
+
+        self.repository = ClipItemRepository(
+            persistence: persistence,
+            assetStore: assetStore,
+            pinboardRepository: pinboardRepository,
+            searchService: searchService,
+            assetManagementService: assetManagementService
+        )
+        self.pinboardRepository = pinboardRepository
+        self.assetManagementService = assetManagementService
+        self.retentionService = ClipItemRetentionService(
+            persistence: persistence,
+            assetManagementService: assetManagementService
+        )
+        self.usageService = ClipItemUsageService(persistence: persistence)
+        self.searchService = searchService
     }
 
     @discardableResult
@@ -15,7 +41,10 @@ public final class ClipItemStore {
         isUserCreated: Bool = false
     ) throws -> ClipItem {
         try repository.createTextItem(
-            text: text, sourceApp: sourceApp, isUserCreated: isUserCreated)
+            text: text,
+            sourceApp: sourceApp,
+            isUserCreated: isUserCreated
+        )
     }
 
     @discardableResult
@@ -25,7 +54,10 @@ public final class ClipItemStore {
         isUserCreated: Bool = false
     ) throws -> ClipItem {
         try repository.createItem(
-            payload: payload, sourceApp: sourceApp, isUserCreated: isUserCreated)
+            payload: payload,
+            sourceApp: sourceApp,
+            isUserCreated: isUserCreated
+        )
     }
 
     public static func deleteAll() {
@@ -42,7 +74,7 @@ public final class ClipItemStore {
 
     @discardableResult
     public func cleanupExpiredItems(policy: RetentionPolicy, now: Date = Date()) throws -> Int {
-        try repository.cleanupExpiredItems(policy: policy, now: now)
+        try retentionService.cleanupExpiredItems(policy: policy, now: now)
     }
 
     @discardableResult
@@ -62,24 +94,24 @@ public final class ClipItemStore {
     }
 
     public func fetchPinboards() throws -> [Pinboard] {
-        try repository.fetchPinboards()
+        try pinboardRepository.fetchPinboards()
     }
 
     @discardableResult
     public func createPinboard(name: String, colorHex: String, iconName: String? = nil) throws
         -> Pinboard
     {
-        try repository.createPinboard(name: name, colorHex: colorHex, iconName: iconName)
+        try pinboardRepository.createPinboard(name: name, colorHex: colorHex, iconName: iconName)
     }
 
     public func renamePinboard(objectID: NSManagedObjectID, name: String, colorHex: String? = nil)
         throws
     {
-        try repository.renamePinboard(objectID: objectID, name: name, colorHex: colorHex)
+        try pinboardRepository.renamePinboard(objectID: objectID, name: name, colorHex: colorHex)
     }
 
     public func deletePinboard(objectID: NSManagedObjectID) throws {
-        try repository.deletePinboard(objectID: objectID)
+        try pinboardRepository.deletePinboard(objectID: objectID)
     }
 
     public func renameItem(objectID: NSManagedObjectID, title: String?) throws {
@@ -89,19 +121,19 @@ public final class ClipItemStore {
     public func addItem(objectID: NSManagedObjectID, toPinboard pinboardID: NSManagedObjectID)
         throws
     {
-        try repository.addItem(objectID: objectID, toPinboard: pinboardID)
+        try pinboardRepository.addItem(objectID: objectID, toPinboard: pinboardID)
     }
 
     public func removeItem(objectID: NSManagedObjectID, fromPinboard pinboardID: NSManagedObjectID)
         throws
     {
-        try repository.removeItem(objectID: objectID, fromPinboard: pinboardID)
+        try pinboardRepository.removeItem(objectID: objectID, fromPinboard: pinboardID)
     }
 
     public func moveItem(objectID: NSManagedObjectID, toPinboard pinboardID: NSManagedObjectID)
         throws
     {
-        try repository.moveItem(objectID: objectID, toPinboard: pinboardID)
+        try pinboardRepository.moveItem(objectID: objectID, toPinboard: pinboardID)
     }
 
     public func updateThumbnail(
@@ -109,15 +141,19 @@ public final class ClipItemStore {
         data: Data,
         fileExtension: String = "png"
     ) throws {
-        try repository.updateThumbnail(objectID: objectID, data: data, fileExtension: fileExtension)
+        try assetManagementService.updateThumbnail(
+            objectID: objectID,
+            data: data,
+            fileExtension: fileExtension
+        )
     }
 
     public func updateLinkPreview(objectID: NSManagedObjectID, payload: LinkPreviewPayload) throws {
-        try repository.updateLinkPreview(objectID: objectID, payload: payload)
+        try assetManagementService.updateLinkPreview(objectID: objectID, payload: payload)
     }
 
     public func updateImageData(objectID: NSManagedObjectID, imageData: Data) throws {
-        try repository.updateImageData(objectID: objectID, imageData: imageData)
+        try assetManagementService.updateImageData(objectID: objectID, imageData: imageData)
     }
 
     public func updateFileName(objectID: NSManagedObjectID, newFileName: String) throws {
@@ -129,37 +165,40 @@ public final class ClipItemStore {
         url: URL,
         fetchedAt: Date = Date()
     ) throws {
-        try repository.markLinkPreviewFetchFailed(
-            objectID: objectID, url: url, fetchedAt: fetchedAt)
+        try assetManagementService.markLinkPreviewFetchFailed(
+            objectID: objectID,
+            url: url,
+            fetchedAt: fetchedAt
+        )
     }
 
     public func fetchPendingLinkPreviewTargets(limit: Int = 25) throws -> [(
         objectID: NSManagedObjectID,
         url: URL
     )] {
-        try repository.fetchPendingLinkPreviewTargets(limit: limit)
+        try assetManagementService.fetchPendingLinkPreviewTargets(limit: limit)
     }
 
     public func markItemUsed(objectID: NSManagedObjectID, now: Date = Date()) throws {
-        try repository.markItemUsed(objectID: objectID, now: now)
+        try usageService.markItemUsed(objectID: objectID, now: now)
     }
 
     public func markItemsUsed(objectIDs: [NSManagedObjectID], now: Date = Date()) throws {
-        try repository.markItemsUsed(objectIDs: objectIDs, now: now)
+        try usageService.markItemsUsed(objectIDs: objectIDs, now: now)
     }
 
     public func reorderItems(objectIDs: [NSManagedObjectID]) throws {
-        try repository.reorderItems(objectIDs: objectIDs)
+        try usageService.reorderItems(objectIDs: objectIDs)
     }
 
     public func reorderPinboards(orderedIDs: [NSManagedObjectID]) throws {
-        try repository.reorderPinboards(orderedIDs: orderedIDs)
+        try pinboardRepository.reorderPinboards(orderedIDs: orderedIDs)
     }
 
     public func searchItems(query: String, limit: Int = 50, pinboardID: UUID? = nil) throws
         -> [ClipItem]
     {
-        try repository.searchItems(query: query, limit: limit, pinboardID: pinboardID)
+        try searchService.searchItems(query: query, limit: limit, pinboardID: pinboardID)
     }
 
     public func saveChanges() throws {

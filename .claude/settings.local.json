@@ -14,7 +14,9 @@
       "Bash(sw_vers:*)",
       "Bash(swift --version:*)",
       "WebFetch(domain:medium.com)",
-      "Bash(swift package clean:*)"
+      "Bash(swift package clean:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

@@ -16,6 +16,7 @@ final class CaptureCoordinator {
     private let captureQueue: DispatchQueue
     private let soundPlayer: SoundEffectPlayer
     private let linkPreviewFetcher: LinkPreviewFetcher
+    private let linkPreviewSettings: any LinkPreviewSettingsProviding
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -27,7 +28,8 @@ final class CaptureCoordinator {
         eventBroadcaster: any ClipboardEventBroadcaster,
         captureQueue: DispatchQueue,
         soundPlayer: SoundEffectPlayer,
-        linkPreviewFetcher: LinkPreviewFetcher
+        linkPreviewFetcher: LinkPreviewFetcher,
+        linkPreviewSettings: any LinkPreviewSettingsProviding
     ) {
         self.pasteboardMonitor = pasteboardMonitor
         self.pasteboardExtractor = pasteboardExtractor
@@ -37,6 +39,7 @@ final class CaptureCoordinator {
         self.captureQueue = captureQueue
         self.soundPlayer = soundPlayer
         self.linkPreviewFetcher = linkPreviewFetcher
+        self.linkPreviewSettings = linkPreviewSettings
     }
 
     func start() {
@@ -64,7 +67,7 @@ final class CaptureCoordinator {
     }
 
     func schedulePendingLinkPreviewFetchesIfEnabled(limit: Int = 25) {
-        guard UserDefaults.standard.bool(forKey: "generateLinkPreviews") else {
+        guard linkPreviewSettings.isLinkPreviewEnabled else {
             return
         }
 
@@ -91,6 +94,7 @@ final class CaptureCoordinator {
             bundleID: frontmost?.bundleIdentifier,
             name: frontmost?.localizedName
         )
+        let linkPreviewEnabled = linkPreviewSettings.isLinkPreviewEnabled
 
         guard let payload = pasteboardExtractor.extract(from: pasteboard) else {
             return
@@ -112,7 +116,7 @@ final class CaptureCoordinator {
                     self?.soundPlayer.play(.capture)
                 }
 
-                if payload.needsLinkPreview, let text = payload.primaryText,
+                if linkPreviewEnabled, payload.needsLinkPreview, let text = payload.primaryText,
                     let url = URL(string: text)
                 {
                     Self.scheduleLinkPreviewFetch(
@@ -155,9 +159,6 @@ final class CaptureCoordinator {
         clipItemStore: ClipItemStore,
         linkPreviewFetcher: LinkPreviewFetcher?
     ) {
-        guard UserDefaults.standard.bool(forKey: "generateLinkPreviews") else {
-            return
-        }
         guard let linkPreviewFetcher else {
             return
         }
