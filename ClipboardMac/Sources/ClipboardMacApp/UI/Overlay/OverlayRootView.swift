@@ -4,6 +4,10 @@ import ClipboardMacServices
 import OSLog
 import SwiftUI
 
+var ReturnKeyHandlerKey: UInt8 = 0
+var SpaceKeyHandlerKey: UInt8 = 0
+var EscapeKeyHandlerKey: UInt8 = 0
+
 struct OverlayRootView: View {
     @EnvironmentObject private var viewModel: OverlayViewModel
     @Environment(\.clipboardEventBroadcaster) private var eventBroadcaster
@@ -18,13 +22,18 @@ struct OverlayRootView: View {
     @StateObject private var searchModel = OverlaySearchViewModel()
     @StateObject private var frameCoordinator = FrameCoordinator()
     @StateObject private var dragCoordinator = DragCoordinator()
+    @StateObject private var pinboardLockController = PinboardLockController()
     @State private var window: NSWindow?
     @State private var isSearchExpanded = false
     @State private var isFilterPopoverPresented = false
 
+    @State private var previewItemID: NSManagedObjectID?
+    @State private var isPreviewPopoverPresented = false
+
     private let itemOperationsHandler = ItemOperationsHandler()
     private let pinboardManager = PinboardManager()
     private let pasteStackManager = PasteStackManager()
+    private let itemEditorWindowController = ItemEditorWindowController()
     private let overlayCoordinateSpaceName = "OverlaySpace"
     private let headerButtonSize: CGFloat = 30
     private let headerButtonIconSize: CGFloat = 14
@@ -50,11 +59,10 @@ struct OverlayRootView: View {
 
     private var filteredItems: [ClipItem] {
         let selectedPinboardID = searchModel.selectedPinboardID
-        let baseItems = items.filter { item in
-            guard let selectedPinboardID else { return true }
-            return item.pinboards?.contains(where: { $0.id == selectedPinboardID }) ?? false
+        let sourceItems = searchModel.isSearchTextActive ? searchModel.searchResults : Array(items)
+        let baseList = sourceItems.filter { item in
+            isItemVisible(item, selectedPinboardID: selectedPinboardID)
         }
-        let baseList = searchModel.isSearchTextActive ? searchModel.searchResults : Array(baseItems)
         let filtered = searchModel.applyFilters(to: baseList)
         return sortItems(filtered)
     }
@@ -67,8 +75,35 @@ struct OverlayRootView: View {
         pinboards.filter { !$0.isSystemClipboard }
     }
 
+    private var visiblePinboardIDs: [UUID] {
+        visiblePinboards.map(\.id)
+    }
+
+    private var movablePinboards: [Pinboard] {
+        visiblePinboards.filter { pinboardLockController.canAccess(pinboardID: $0.id) }
+    }
+
+    private var selectedCustomPinboard: Pinboard? {
+        guard let selectedPinboardID = searchModel.selectedPinboardID else { return nil }
+        return visiblePinboards.first(where: { $0.id == selectedPinboardID })
+    }
+
+    private var selectedPinboardIsLocked: Bool {
+        guard let selectedCustomPinboard else { return false }
+        return pinboardLockController.isLocked(pinboardID: selectedCustomPinboard.id)
+    }
+
+    private var selectedPinboardIsAccessible: Bool {
+        guard let selectedCustomPinboard else { return true }
+        return pinboardLockController.canAccess(pinboardID: selectedCustomPinboard.id)
+    }
+
+    private var isSelectedPinboardAwaitingUnlock: Bool {
+        searchModel.selectedPinboardID != nil && selectedPinboardIsLocked && !selectedPinboardIsAccessible
+    }
+
     private var allowPinning: Bool {
-        searchModel.selectedPinboardID != nil
+        searchModel.selectedPinboardID != nil && selectedPinboardIsAccessible
     }
 
     private var isDragEnabled: Bool {
@@ -76,7 +111,10 @@ struct OverlayRootView: View {
     }
 
     private var isReorderingEnabled: Bool {
-        isDragEnabled && searchModel.selectedPinboardID != nil && !isSearchActive
+        isDragEnabled
+            && searchModel.selectedPinboardID != nil
+            && selectedPinboardIsAccessible
+            && !isSearchActive
     }
 
     private var itemsSourceAppsHash: Int {
@@ -90,9 +128,33 @@ struct OverlayRootView: View {
         searchModel.selectedPinboardID?.uuidString ?? "all-pinboards"
     }
 
-    var body: some View {
-        ZStack {
+    private var keyHandlerRefreshToken: String {
+        let renameItem = renameItemID?.uriRepresentation().absoluteString ?? "nil"
+        let renamePinboard = renamePinboardID?.uriRepresentation().absoluteString ?? "nil"
+        let previewItem = previewItemID?.uriRepresentation().absoluteString ?? "nil"
+        return
+            "\(isSearchExpanded)-\(searchFocused)-\(isCreatingPinboard)-\(isPreviewPopoverPresented)-\(renameItem)-\(renamePinboard)-\(previewItem)"
+    }
+
+    @ViewBuilder
+    private var backgroundView: some View {
+        if #available(macOS 26.0, *) {
+            Rectangle()
+                .fill(Color.clear)
+                .glassEffect(.regular, in: .rect(cornerRadius: 0, style: .continuous))
+        } else {
             VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
+        }
+    }
+
+    var body: some View {
+        mainContent
+    }
+
+    private var mainContent: some View {
+        ZStack {
+            backgroundView
+                .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 14) {
                 // Header Bar
@@ -101,6 +163,8 @@ struct OverlayRootView: View {
                     PinboardTabBar(
                         pinboards: visiblePinboards,
                         selectedID: searchModel.selectedPinboardID,
+                        isLocked: { pinboardLockController.isLocked(pinboardID: $0.id) },
+                        isUnlocked: { pinboardLockController.canAccess(pinboardID: $0.id) },
                         editingID: $renamePinboardID,
                         isCreating: $isCreatingPinboard,
                         draftName: $renamePinboardName,
@@ -108,7 +172,8 @@ struct OverlayRootView: View {
                         isGlobalDragActive: dragCoordinator.dragPreviewData != nil,
                         window: window,
                         onPreviewUpdate: { data in
-                            dragCoordinator.updatePinboardDragPreviewWindow(data, parentWindow: window)
+                            dragCoordinator.updatePinboardDragPreviewWindow(
+                                data, parentWindow: window)
                         },
                         onSelect: { id in
                             closeSearchIfEmpty()
@@ -132,6 +197,11 @@ struct OverlayRootView: View {
                             }
                             renamePinboardName = ""
                         },
+                        onSetLockEnabled: { pinboard, isEnabled in
+                            setPinboardLock(pinboard, enabled: isEnabled)
+                        },
+                        onUnlock: requestPinboardUnlock,
+                        onLockNow: lockPinboardNow,
                         onRename: { pinboard in
                             renamePinboardID = pinboard.objectID
                             renamePinboardName = pinboard.name
@@ -148,7 +218,12 @@ struct OverlayRootView: View {
                             )
                         },
                         onReorderEnd: pinboardManager.saveChanges,
-                        onMoveItem: pinboardManager.moveItemToPinboard,
+                        onMoveItem: { pinboard, itemURIString in
+                            guard pinboardLockController.canAccess(pinboardID: pinboard.id) else {
+                                return
+                            }
+                            pinboardManager.moveItemToPinboard(pinboard, itemURIString: itemURIString)
+                        },
                         onCommit: {
                             if isCreatingPinboard {
                                 commitPinboardCreate()
@@ -171,11 +246,15 @@ struct OverlayRootView: View {
                     .padding(.horizontal, headerSideWidth)
                     .frame(height: headerButtonSize, alignment: .center)
                     .onPreferenceChange(PinboardLayoutInfoKey.self) { layout in
-                        frameCoordinator.updateCapturedPinboardLayout(layout)
-                        dragCoordinator.updatePinboardLayout(layout)
+                        DispatchQueue.main.async {
+                            frameCoordinator.updateCapturedPinboardLayout(layout)
+                            dragCoordinator.updatePinboardLayout(layout)
+                        }
                     }
                     .onPreferenceChange(SearchFieldFrameKey.self) { frame in
-                        dragCoordinator.updateSearchFieldFrame(frame)
+                        DispatchQueue.main.async {
+                            dragCoordinator.updateSearchFieldFrame(frame)
+                        }
                     }
 
                     // Left: Search
@@ -328,13 +407,18 @@ struct OverlayRootView: View {
                 .zIndex(1)
 
                 ZStack(alignment: .topLeading) {
-                    if filteredItems.isEmpty {
+                    if isSelectedPinboardAwaitingUnlock {
+                        lockedPinboardView
+                            .padding(.horizontal, 14)
+                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    } else if filteredItems.isEmpty {
                         emptyStateView
                             .padding(.horizontal, 14)
+                            .transition(.opacity)
                     } else {
                         ItemCardRow(
                             items: filteredItems,
-                            pinboards: visiblePinboards,
+                            pinboards: movablePinboards,
                             mode: viewModel.mode,
                             selectedItemIDs: viewModel.selectedItemIDs,
                             editingItemID: renameItemID,
@@ -362,8 +446,9 @@ struct OverlayRootView: View {
                             onCopy: copyItem,
                             onDelete: deleteItem,
                             onTogglePin: togglePin,
-                            onMoveToPinboard: pinboardManager.toggleItem,
+                            onMoveToPinboard: handleMoveToPinboard,
                             onCreatePinboard: { beginPinboardCreate(for: $0) },
+                            onEdit: { openEditor(for: $0) },
                             onRename: renameItem,
                             onCommitRename: { item, newTitle in
                                 commitItemRename(item: item, newTitle: newTitle)
@@ -389,11 +474,15 @@ struct OverlayRootView: View {
                             dragPreviewData: $dragCoordinator.dragPreviewData,
                             onPreviewUpdate: { data in
                                 dragCoordinator.updateDragPreviewWindow(data, parentWindow: window)
-                            }
+                            },
+                            previewItemID: $previewItemID,
+                            isPreviewPopoverPresented: $isPreviewPopoverPresented
                         )
                         .frame(maxHeight: .infinity, alignment: .topLeading)
+                        .transition(.opacity)
                     }
                 }
+                .animation(.easeInOut(duration: 0.2), value: isSelectedPinboardAwaitingUnlock)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .id(pinboardSelectionKey)
                 .transition(.opacity)
@@ -435,8 +524,18 @@ struct OverlayRootView: View {
             Text("Paste needs Accessibility permission to paste into other apps.")
         }
         .onChange(of: searchModel.selectedPinboardID) {
+            if isSelectedPinboardAwaitingUnlock {
+                viewModel.clearSelection()
+                closePreview()
+            }
             if isFilterPopoverPresented {
-                searchModel.updateAppOptions(from: Array(items))
+                searchModel.updateAppOptions(from: allItemsVisibleInAllPinboard)
+            }
+        }
+        .onChange(of: selectedPinboardIsAccessible) { isAccessible, _ in
+            if !isAccessible, searchModel.selectedPinboardID != nil {
+                viewModel.clearSelection()
+                closePreview()
             }
         }
         .onChange(of: isSearchExpanded) { expanded, _ in
@@ -447,17 +546,33 @@ struct OverlayRootView: View {
         .onChange(of: searchFocused) { focused, _ in
             // Don't auto-close search on focus lost - let user close it explicitly
         }
+        .onChange(of: keyHandlerRefreshToken) { _, _ in
+            installSpaceKeyHandlerIfPossible()
+            installEscapeKeyHandlerIfPossible()
+        }
         .onAppear {
             searchFocused = true
             modifierMonitor.start()
+            pinboardLockController.reconcile(validPinboardIDs: visiblePinboardIDs)
             ensureValidSelection()
             dragCoordinator.ensurePreviewWindow()
             dragCoordinator.ensurePinboardPreviewWindow()
+            installReturnKeyHandlerIfPossible()
+            installSpaceKeyHandlerIfPossible()
+            installEscapeKeyHandlerIfPossible()
+        }
+        .onChange(of: window) { _, _ in
+            installReturnKeyHandlerIfPossible()
+            installSpaceKeyHandlerIfPossible()
+            installEscapeKeyHandlerIfPossible()
         }
         .onDisappear {
             modifierMonitor.stop()
             dragCoordinator.cleanupPreviewWindow()
             dragCoordinator.cleanupPinboardPreviewWindow()
+
+            previewItemID = nil
+            isPreviewPopoverPresented = false
 
             // Close search on overlay close only if empty
             if searchModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -470,19 +585,25 @@ struct OverlayRootView: View {
             isCreatingPinboard = false
             renamePinboardID = nil
         }
-        .onChange(of: pinboards.count) {
+        .onChange(of: visiblePinboardIDs) {
+            pinboardLockController.reconcile(validPinboardIDs: visiblePinboardIDs)
             ensureValidSelection()
         }
         .onChange(of: itemsSourceAppsHash) {
             if isFilterPopoverPresented {
                 searchModel.updateAppOptions(
-                    from: Array(items))
+                    from: allItemsVisibleInAllPinboard)
             }
         }
         .onReceive(eventBroadcaster.events) { event in
             if event == .overlayDidShow {
                 searchFocused = true
                 announceOverlayItemCount()
+            }
+        }
+        .onChange(of: viewModel.selectedItemIDs) { _, _ in
+            if isPreviewPopoverPresented {
+                closePreview()
             }
         }
         .environmentObject(frameCoordinator)
@@ -535,6 +656,106 @@ struct OverlayRootView: View {
         return "Copy something to get started."
     }
 
+    private var lockedPinboardView: some View {
+        VStack(spacing: 14) {
+            Image(systemName: pinboardLockController.isAuthenticating ? "lock.open.fill" : "lock.fill")
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(.tertiary)
+                .contentTransition(.symbolEffect(.replace))
+
+            Text(lockedPinboardTitle)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            Button {
+                guard let selectedCustomPinboard else { return }
+                requestPinboardUnlock(selectedCustomPinboard)
+            } label: {
+                if pinboardLockController.isAuthenticating {
+                    ProgressView("Authenticating...")
+                } else {
+                    Label("Unlock with Touch ID", systemImage: "touchid")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(pinboardLockController.isAuthenticating || selectedCustomPinboard == nil)
+            .accessibilityIdentifier("overlay.pinboard.unlock")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+    }
+
+    private var lockedPinboardTitle: String {
+        guard let selectedCustomPinboard else { return "Pinboard is locked" }
+        return "\"\(selectedCustomPinboard.name)\" is locked"
+    }
+
+    private var allItemsVisibleInAllPinboard: [ClipItem] {
+        Array(items).filter { !isItemHiddenInAllPinboard($0) }
+    }
+
+    private func isItemVisible(_ item: ClipItem, selectedPinboardID: UUID?) -> Bool {
+        if let selectedPinboardID {
+            guard item.pinboards?.contains(where: { $0.id == selectedPinboardID }) ?? false else {
+                return false
+            }
+            return selectedPinboardIsAccessible
+        }
+        return !isItemHiddenInAllPinboard(item)
+    }
+
+    private func isItemHiddenInAllPinboard(_ item: ClipItem) -> Bool {
+        let customPinboards = item.pinboards?.filter { !$0.isSystemClipboard } ?? []
+        guard !customPinboards.isEmpty else { return false }
+
+        return customPinboards.contains { pinboard in
+            pinboardLockController.isLocked(pinboardID: pinboard.id)
+                && !pinboardLockController.canAccess(pinboardID: pinboard.id)
+        }
+    }
+
+    private func setPinboardLock(_ pinboard: Pinboard, enabled: Bool) {
+        if !enabled && !pinboardLockController.canAccess(pinboardID: pinboard.id) {
+            requestPinboardUnlock(pinboard)
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            pinboardLockController.setLockEnabled(enabled, pinboardID: pinboard.id)
+        }
+        if enabled && searchModel.selectedPinboardID == pinboard.id {
+            viewModel.clearSelection()
+            closePreview()
+        }
+    }
+
+    private func lockPinboardNow(_ pinboard: Pinboard) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            pinboardLockController.lockNow(pinboardID: pinboard.id)
+        }
+        if searchModel.selectedPinboardID == pinboard.id {
+            viewModel.clearSelection()
+            closePreview()
+        }
+    }
+
+    private func requestPinboardUnlock(_ pinboard: Pinboard) {
+        Task { @MainActor in
+            let unlocked = await pinboardLockController.unlock(
+                pinboardID: pinboard.id,
+                pinboardName: pinboard.name
+            )
+            if unlocked, searchModel.selectedPinboardID == pinboard.id {
+                viewModel.clearSelection()
+            }
+        }
+    }
+
+    private func handleMoveToPinboard(_ item: ClipItem, _ pinboard: Pinboard) {
+        guard pinboardLockController.canAccess(pinboardID: pinboard.id) else { return }
+        pinboardManager.toggleItem(item, in: pinboard)
+    }
+
     private func copyItem(_ item: ClipItem) {
         itemOperationsHandler.copyItem(
             item,
@@ -542,6 +763,126 @@ struct OverlayRootView: View {
             orderedItems: filteredItems,
             eventBroadcaster: eventBroadcaster
         )
+    }
+
+    private func installReturnKeyHandlerIfPossible() {
+        guard let window else { return }
+        let handler: () -> Void = { [weak viewModel, weak modifierMonitor] in
+            guard let viewModel, let modifierMonitor else { return }
+            viewModel.handleReturnKey(
+                orderedItems: self.filteredItems,
+                isShiftPressed: modifierMonitor.isShiftPressed
+            )
+        }
+        objc_setAssociatedObject(
+            window,
+            &ReturnKeyHandlerKey,
+            handler as Any,
+            .OBJC_ASSOCIATION_RETAIN
+        )
+    }
+
+    private func installSpaceKeyHandlerIfPossible() {
+        guard let window else { return }
+        let handler: (NSEvent) -> Bool = { _ in
+            if isCreatingPinboard || renamePinboardID != nil || renameItemID != nil {
+                return false
+            }
+            if isSearchExpanded, searchFocused {
+                return false
+            }
+            return togglePreviewForCurrentSelection()
+        }
+        objc_setAssociatedObject(
+            window,
+            &SpaceKeyHandlerKey,
+            handler as Any,
+            .OBJC_ASSOCIATION_RETAIN
+        )
+    }
+
+    private func installEscapeKeyHandlerIfPossible() {
+        guard let window else { return }
+        let handler: (NSEvent) -> Bool = { _ in
+            if isPreviewPopoverPresented {
+                closePreview()
+                return true
+            }
+            return false
+        }
+        objc_setAssociatedObject(
+            window,
+            &EscapeKeyHandlerKey,
+            handler as Any,
+            .OBJC_ASSOCIATION_RETAIN
+        )
+    }
+
+    private func closeOverlayMenus() {
+        previewItemID = nil
+        isPreviewPopoverPresented = false
+    }
+
+    @discardableResult
+    private func togglePreviewForCurrentSelection() -> Bool {
+        let selected =
+            filteredItems.first(where: { viewModel.selectedItemIDs.contains($0.objectID) })
+            ?? filteredItems.first
+        guard let selected else {
+            closePreview()
+            return false
+        }
+        if !viewModel.selectedItemIDs.contains(selected.objectID) {
+            viewModel.restoreSelection([selected.objectID], in: filteredItems)
+        }
+        if isPreviewPopoverPresented, previewItemID == selected.objectID {
+            closePreview()
+            return true
+        }
+        previewItemID = selected.objectID
+        isPreviewPopoverPresented = true
+        return true
+    }
+
+    private func openEditor(for item: ClipItem) {
+        closePreview()
+
+        // Close the overlay first
+        viewModel.closeOverlayForSettings { [itemEditorWindowController] in
+            // Then show the editor window
+            itemEditorWindowController.show(
+                item: item,
+                onSave: { _ in },
+                onClose: {
+                    // Optional: reopen overlay or do nothing
+                }
+            )
+        }
+    }
+
+    private func closeEditor() {
+        itemEditorWindowController.hide()
+    }
+
+    private func closePreview() {
+        previewItemID = nil
+        isPreviewPopoverPresented = false
+    }
+
+    private func overlayAnchorFrame(for itemID: NSManagedObjectID) -> CGRect? {
+        guard let localFrame = frameCoordinator.latestItemFrames[itemID] else { return nil }
+        let rowFrame = frameCoordinator.latestItemRowFrame
+        return CGRect(
+            x: localFrame.minX + rowFrame.minX,
+            y: localFrame.minY + rowFrame.minY,
+            width: localFrame.width,
+            height: localFrame.height
+        )
+    }
+
+    private var previewItem: ClipItem? {
+        guard let id = previewItemID else { return nil }
+        return filteredItems.first(where: { $0.objectID == id })
     }
 
     private func deleteItem(_ item: ClipItem) {
@@ -570,6 +911,7 @@ struct OverlayRootView: View {
             pinboard,
             selectedPinboardID: searchModel.selectedPinboardID
         )
+        pinboardLockController.setLockEnabled(false, pinboardID: pinboard.id)
     }
 
     private func commitPinboardRename() {
@@ -675,7 +1017,7 @@ struct OverlayRootView: View {
     private func handleSearchButtonTap() {
         if isSearchExpanded {
             if !isFilterPopoverPresented {
-                searchModel.updateAppOptions(from: Array(items))
+                searchModel.updateAppOptions(from: allItemsVisibleInAllPinboard)
             }
             isFilterPopoverPresented.toggle()
         } else {
@@ -690,11 +1032,11 @@ struct OverlayRootView: View {
     }
 
     private func ensureValidSelection() {
-        guard let selectedPinboardID = searchModel.selectedPinboardID,
-            let selected = pinboards.first(where: { $0.id == selectedPinboardID }),
-            selected.isSystemClipboard
-        else { return }
-        searchModel.selectedPinboardID = nil
+        guard let selectedPinboardID = searchModel.selectedPinboardID else { return }
+        guard visiblePinboards.contains(where: { $0.id == selectedPinboardID }) else {
+            searchModel.selectedPinboardID = nil
+            return
+        }
     }
 
     private func beginPinboardCreate(for item: ClipItem?) {
@@ -713,7 +1055,10 @@ struct OverlayRootView: View {
     private func sortItems(_ items: [ClipItem]) -> [ClipItem] {
         guard searchModel.selectedPinboardID != nil else {
             return items.sorted { lhs, rhs in
-                lhs.createdAt > rhs.createdAt
+                if lhs.displayOrder != rhs.displayOrder {
+                    return lhs.displayOrder > rhs.displayOrder
+                }
+                return lhs.createdAt > rhs.createdAt
             }
         }
 
@@ -768,6 +1113,13 @@ struct OverlayRootView: View {
     }
 
     private func handleDropToPinboard(_ item: ClipItem, _ pinboardID: NSManagedObjectID) {
+        guard let targetPinboard = pinboards.first(where: { $0.objectID == pinboardID }) else {
+            return
+        }
+        guard pinboardLockController.canAccess(pinboardID: targetPinboard.id) else {
+            return
+        }
+
         if pinboardManager.handleDropToPinboard(item: item, pinboardID: pinboardID) {
             viewModel.clearSelection()
             // Update search results if search is active to reflect the change
@@ -843,6 +1195,10 @@ struct OverlayRootView: View {
     }
 
     private func handleOverlayTap(at location: CGPoint) {
+        if isPreviewPopoverPresented {
+            closeOverlayMenus()
+            return
+        }
         if isSearchExpanded,
             let searchFieldFrame = dragCoordinator.searchFieldFrame,
             !searchFieldFrame.contains(location)
@@ -1045,6 +1401,32 @@ private struct ResizeHandleView: View {
             )
             Spacer()
         }
+    }
+}
+
+// MARK: - Return Key Handler
+
+@MainActor
+final class ReturnKeyHandler {
+    weak var viewModel: OverlayViewModel?
+    weak var modifierMonitor: ModifierKeyMonitor?
+    let getFilteredItems: () -> [ClipItem]
+
+    init(
+        viewModel: OverlayViewModel, modifierMonitor: ModifierKeyMonitor,
+        getFilteredItems: @escaping () -> [ClipItem]
+    ) {
+        self.viewModel = viewModel
+        self.modifierMonitor = modifierMonitor
+        self.getFilteredItems = getFilteredItems
+    }
+
+    func handleReturnKey() {
+        guard let viewModel = viewModel, let modifierMonitor = modifierMonitor else { return }
+        viewModel.handleReturnKey(
+            orderedItems: getFilteredItems(),
+            isShiftPressed: modifierMonitor.isShiftPressed
+        )
     }
 }
 

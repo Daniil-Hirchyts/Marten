@@ -1,5 +1,7 @@
 import AppKit
 import ClipboardCore
+import Foundation
+import LinkPresentation
 import SwiftUI
 
 // MARK: - Cached Properties for Performance
@@ -206,7 +208,13 @@ enum PreviewFactory {
             case .image:
                 ImagePreview(image: thumbnailImage)
             case .url:
-                URLPreview(host: urlHost, path: urlPath)
+                if let thumbnailImage {
+                    Image(nsImage: thumbnailImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    URLPreview(host: urlHost, path: urlPath)
+                }
             case .file:
                 FilePreview(icon: fileIcon, name: fileName, size: fileSizeText)
             case .code:
@@ -261,6 +269,7 @@ struct ItemCard: View {
     let onTogglePin: () -> Void
     let onMoveToPinboard: (Pinboard) -> Void
     let onCreatePinboard: () -> Void
+    let onEdit: () -> Void
     let onRename: () -> Void
     let onCommitRename: (String) -> Void
     let onTap: () -> Void
@@ -272,6 +281,10 @@ struct ItemCard: View {
     @StateObject private var appColorLoader = AppIconColorLoader()
     @State private var thumbnailImage: NSImage?
     @State private var fileIconImage: NSImage?
+    @State private var urlBannerImage: NSImage?
+    @State private var lastLoadedURLBannerPath: String?
+    @State private var lastFetchedURLBannerURLString: String?
+    @State private var styledPreviewText: AttributedString?
     @FocusState private var isFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
 
@@ -308,7 +321,7 @@ struct ItemCard: View {
                 .padding(.bottom, cardPadding)
                 .padding(.top, isCompactSize ? 8 : 10)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(width: cardSize, height: cardSize, alignment: .topLeading)
             .background(cardBackground)
             .clipShape(cardShape)
             .overlay(selectionBorder)
@@ -329,11 +342,28 @@ struct ItemCard: View {
             cachedProps = CachedItemProperties(item: item)
             appColorLoader.load(bundleID: item.sourceAppBundleID)
             refreshPreviewAssets()
+            refreshStyledPreviewText()
         }
         .onChange(of: item.objectID) { _, _ in
             cachedProps = CachedItemProperties(item: item)
             appColorLoader.load(bundleID: item.sourceAppBundleID)
             refreshPreviewAssets()
+            refreshStyledPreviewText()
+        }
+        .onChange(of: item.linkPreview?.imagePath) { _, _ in
+            refreshURLBannerImage()
+        }
+        .onChange(of: item.thumbnailPath) { _, _ in
+            refreshThumbnailImage()
+        }
+        .onChange(of: item.modifiedAt) { _, _ in
+            // Refresh assets when item is modified (e.g., rotated image)
+            refreshPreviewAssets()
+            refreshStyledPreviewText()
+        }
+        .onChange(of: item.primaryText) { _, _ in
+            resetURLBannerState()
+            refreshURLBannerImage()
         }
         .onChange(of: item.sourceAppBundleID) { newValue, _ in
             appColorLoader.load(bundleID: newValue)
@@ -341,6 +371,8 @@ struct ItemCard: View {
         .onReceive(item.objectWillChange) { _ in
             DispatchQueue.main.async {
                 cachedProps = CachedItemProperties(item: item)
+                refreshURLBannerImage()
+                refreshStyledPreviewText()
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
@@ -352,6 +384,7 @@ struct ItemCard: View {
         .accessibilityAddTraits(.isButton)
         .contextMenu {
             CardContextMenu(
+                item: item,
                 itemID: item.id,
                 isPinned: item.isPinned,
                 allowPinning: allowPinning,
@@ -363,6 +396,7 @@ struct ItemCard: View {
                 onCopy: onCopy,
                 onMoveToPinboard: onMoveToPinboard,
                 onCreatePinboard: onCreatePinboard,
+                onEdit: onEdit,
                 onRename: onRename,
                 onDelete: onDelete
             )
@@ -476,7 +510,7 @@ struct ItemCard: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .layoutPriority(1)
                         }
-                        
+
                         // Show filename for image files
                         if let fileName = imageFileNameShortened {
                             Text(fileName)
@@ -489,7 +523,7 @@ struct ItemCard: View {
                                 .layoutPriority(0)
                         }
                     }
-                    
+
                     // Resolution badge (top right)
                     if let resolution = imageResolution {
                         Text(resolution)
@@ -503,6 +537,18 @@ struct ItemCard: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
+            } else if item.itemTypeValue == .url {
+                URLBannerPreview(
+                    image: urlBannerImage,
+                    host: urlHost,
+                    path: urlPath,
+                    isCompact: isCompactSize
+                )
+                .aspectRatio(1.91, contentMode: .fit)
+                .frame(width: cardSize - (cardPadding * 2))
+                .task(id: urlBannerTaskID) {
+                    await fetchURLBannerIfNeeded()
+                }
             } else if item.itemTypeValue == .file {
                 // File card: compact centered icon
                 VStack(spacing: isCompactSize ? 2 : 4) {
@@ -522,7 +568,7 @@ struct ItemCard: View {
                                     : Color.black.opacity(0.3)
                             )
                     }
-                    
+
                     if let fileName = fileNameOnly {
                         Text(fileName)
                             .font(.system(size: isCompactSize ? 9 : 10, weight: .medium))
@@ -532,7 +578,7 @@ struct ItemCard: View {
                             .padding(.horizontal, 6)
                             .padding(.top, isCompactSize ? 2 : 3)
                     }
-                    
+
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity)
@@ -572,7 +618,11 @@ struct ItemCard: View {
                     .lineLimit(1)
             }
 
-            if let preview = cached.previewText {
+            if let styledPreview = richTextPreview {
+                Text(styledPreview)
+                    .foregroundStyle(secondaryTextColor)
+                    .lineLimit(maxPreviewLines)
+            } else if let preview = cached.previewText {
                 Text(preview)
                     .font(.system(size: contentFontSize))
                     .foregroundStyle(secondaryTextColor)
@@ -586,6 +636,11 @@ struct ItemCard: View {
                 }
             }
         }
+    }
+
+    private var richTextPreview: AttributedString? {
+        guard item.itemTypeValue == .richText else { return nil }
+        return styledPreviewText
     }
 
     private var footerView: some View {
@@ -620,7 +675,7 @@ struct ItemCard: View {
     private var selectionBorder: some View {
         if isSelected {
             cardShape
-                .strokeBorder(Color(nsColor: .controlAccentColor), lineWidth: 2)
+                .strokeBorder(Color(nsColor: .controlAccentColor), lineWidth: 4)
         }
     }
 
@@ -731,78 +786,81 @@ struct ItemCard: View {
     private var maxPreviewLines: Int {
         isCompactSize ? 3 : 5
     }
-    
+
     private var fileIconSize: CGFloat {
-        if cardSize < 250 {
-            return 32
-        } else if cardSize < 300 {
-            return 40
+        if cardSize < 180 {
+            return 30
+        } else if cardSize < 220 {
+            return 50
+        } else if cardSize < 260 {
+            return 80
         } else {
-            return 48
+            return 120
         }
     }
 
     private var shouldShowLeadingPreview: Bool {
         switch item.itemTypeValue {
-        case .url, .mixed:
+        case .mixed:
             return true
         default:
             return false
         }
     }
-    
+
     private var fileNameOnly: String? {
         guard item.itemTypeValue == .file else { return nil }
         let url = URL(fileURLWithPath: cached.primaryTitle)
         return url.lastPathComponent
     }
-    
+
     private var imageFileName: String? {
         guard item.itemTypeValue == .image else { return nil }
         // Check if this is an image file (has file URL representation)
         guard let reps = item.representations,
-              let fileRep = reps.first(where: { $0.kindValue == .fileURL }),
-              let data = fileRep.textData,
-              let path = String(data: data, encoding: .utf8) else {
+            let fileRep = reps.first(where: { $0.kindValue == .fileURL }),
+            let data = fileRep.textData,
+            let path = String(data: data, encoding: .utf8)
+        else {
             return nil
         }
         let url = URL(fileURLWithPath: path.trimmingCharacters(in: .whitespacesAndNewlines))
         return url.lastPathComponent
     }
-    
+
     private var imageFileNameShortened: String? {
         guard let fileName = imageFileName else { return nil }
         return shortenFileName(fileName, maxLength: 20)
     }
-    
+
     private var imageResolution: String? {
         guard item.itemTypeValue == .image, let image = thumbnailImage else { return nil }
         let width = Int(image.size.width)
         let height = Int(image.size.height)
         return "\(width)×\(height)"
     }
-    
+
     private func shortenFileName(_ name: String, maxLength: Int) -> String {
         guard name.count > maxLength else { return name }
-        
+
         // Split into name and extension
         let url = URL(fileURLWithPath: name)
         let ext = url.pathExtension
         let nameOnly = url.deletingPathExtension().lastPathComponent
-        
+
         // Calculate available space for name (excluding extension and ellipsis)
         let extWithDot = ext.isEmpty ? "" : ".\(ext)"
         let availableLength = maxLength - extWithDot.count - 3  // 3 for "..."
-        
+
         guard availableLength > 0 else { return name }
-        
+
         // Take characters from start
         let startLength = availableLength / 2
         let endLength = availableLength - startLength
-        
+
         let start = String(nameOnly.prefix(startLength))
         let end = String(nameOnly.suffix(endLength))
-        
+
         return "\(start)...\(end)\(extWithDot)"
     }
 
@@ -812,24 +870,154 @@ struct ItemCard: View {
     }
 
     private var urlHost: String {
-        guard item.itemTypeValue == .url, let text = item.primaryText, let url = URL(string: text)
-        else {
-            return "URL"
-        }
+        guard item.itemTypeValue == .url, let url = normalizedPrimaryURL else { return "URL" }
         return url.host ?? "URL"
     }
 
     private var urlPath: String {
-        guard item.itemTypeValue == .url, let text = item.primaryText, let url = URL(string: text)
-        else {
-            return "/"
-        }
+        guard item.itemTypeValue == .url, let url = normalizedPrimaryURL else { return "/" }
         return url.path.isEmpty ? "/" : url.path
+    }
+
+    private var normalizedPrimaryURL: URL? {
+        guard let raw = item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !raw.isEmpty
+        else {
+            return nil
+        }
+
+        if raw.localizedCaseInsensitiveContains("://") {
+            return URL(string: raw)
+        }
+
+        return URL(string: "https://\(raw)")
     }
 
     private func refreshPreviewAssets() {
         refreshThumbnailImage()
         refreshFileIcon()
+        refreshURLBannerImage()
+    }
+
+    private func refreshStyledPreviewText() {
+        guard item.itemTypeValue == .richText else {
+            styledPreviewText = nil
+            return
+        }
+
+        guard let styled = item.styledTextContentWithoutTextColor else {
+            styledPreviewText = nil
+            return
+        }
+
+        styledPreviewText = try? AttributedString(styled, including: \.appKit)
+    }
+
+    private func refreshURLBannerImage() {
+        guard item.itemTypeValue == .url else {
+            urlBannerImage = nil
+            lastLoadedURLBannerPath = nil
+            lastFetchedURLBannerURLString = nil
+            return
+        }
+
+        guard
+            let path = item.linkPreview?.imagePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !path.isEmpty
+        else {
+            lastLoadedURLBannerPath = nil
+            return
+        }
+
+        if lastLoadedURLBannerPath == path {
+            return
+        }
+        lastLoadedURLBannerPath = path
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let image = NSImage(contentsOfFile: path)
+            DispatchQueue.main.async {
+                if let image {
+                    urlBannerImage = image
+                }
+            }
+        }
+    }
+
+    private func resetURLBannerState() {
+        urlBannerImage = nil
+        lastLoadedURLBannerPath = nil
+        lastFetchedURLBannerURLString = nil
+    }
+
+    private var urlBannerTaskID: String {
+        let url =
+            normalizedPrimaryURL?.absoluteString
+            ?? (item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
+        let bannerPath =
+            item.linkPreview?.imagePath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return "\(url)|\(bannerPath)"
+    }
+
+    private func fetchURLBannerIfNeeded() async {
+        guard item.itemTypeValue == .url else { return }
+
+        guard let url = normalizedPrimaryURL, let scheme = url.scheme?.lowercased(),
+            scheme == "http" || scheme == "https"
+        else {
+            return
+        }
+        let urlString = url.absoluteString
+
+        if urlBannerImage != nil {
+            lastFetchedURLBannerURLString = urlString
+            return
+        }
+
+        if lastFetchedURLBannerURLString == urlString {
+            return
+        }
+
+        let provider = LPMetadataProvider()
+        let metadata: LPLinkMetadata
+        do {
+            metadata = try await provider.startFetchingMetadata(for: url)
+        } catch {
+            return
+        }
+
+        let itemProvider = metadata.imageProvider ?? metadata.iconProvider
+        guard let itemProvider else { return }
+
+        let image: NSImage?
+        do {
+            image = try await loadNSImage(from: itemProvider)
+        } catch {
+            return
+        }
+
+        guard let image else { return }
+        await MainActor.run {
+            if urlBannerImage == nil {
+                urlBannerImage = image
+            }
+        }
+    }
+
+    private func loadNSImage(from provider: NSItemProvider) async throws -> NSImage {
+        try await withCheckedThrowingContinuation { continuation in
+            provider.loadObject(ofClass: NSImage.self) { object, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let image = object as? NSImage else {
+                    continuation.resume(throwing: NSError(domain: "URLBannerPreview", code: 1))
+                    return
+                }
+                continuation.resume(returning: image)
+            }
+        }
     }
 
     private func refreshThumbnailImage() {
@@ -837,18 +1025,24 @@ struct ItemCard: View {
             thumbnailImage = nil
             return
         }
-        
+
         // Try to load from thumbnail path first
         if let path = item.thumbnailPath, !path.isEmpty {
             DispatchQueue.global(qos: .userInitiated).async {
-                let img = NSImage(contentsOfFile: path)
+                // Clear cached image first to ensure we load fresh data
+                let img: NSImage?
+                if let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
+                    img = NSImage(data: data)
+                } else {
+                    img = nil
+                }
                 DispatchQueue.main.async {
                     thumbnailImage = img
                 }
             }
             return
         }
-        
+
         // If no thumbnail path, try to load from image representations
         DispatchQueue.global(qos: .userInitiated).async {
             guard let reps = item.representations else {
@@ -857,7 +1051,7 @@ struct ItemCard: View {
                 }
                 return
             }
-            
+
             // Look for image representations
             for rep in reps {
                 let kind = rep.kindValue
@@ -870,11 +1064,12 @@ struct ItemCard: View {
                     }
                 }
             }
-            
+
             // If still no image, try to load from file URL
             if let fileRep = reps.first(where: { $0.kindValue == .fileURL }),
-               let data = fileRep.textData,
-               let path = String(data: data, encoding: .utf8) {
+                let data = fileRep.textData,
+                let path = String(data: data, encoding: .utf8)
+            {
                 let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty, let img = NSImage(contentsOfFile: trimmed) {
                     DispatchQueue.main.async {
@@ -883,7 +1078,7 @@ struct ItemCard: View {
                     return
                 }
             }
-            
+
             DispatchQueue.main.async {
                 thumbnailImage = nil
             }
@@ -918,7 +1113,7 @@ struct ItemCard: View {
     private var timeAgo: String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
-        return formatter.localizedString(for: item.createdAt, relativeTo: Date())
+        return formatter.localizedString(for: item.modifiedAt ?? item.createdAt, relativeTo: Date())
     }
 
     private var accessibilityLabelText: String {

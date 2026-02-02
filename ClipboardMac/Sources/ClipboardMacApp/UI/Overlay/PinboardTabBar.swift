@@ -31,6 +31,8 @@ struct PinboardTabBar: View {
 
     let pinboards: [Pinboard]
     let selectedID: UUID?
+    let isLocked: (Pinboard) -> Bool
+    let isUnlocked: (Pinboard) -> Bool
     @Binding var editingID: NSManagedObjectID?
     @Binding var isCreating: Bool
     @Binding var draftName: String
@@ -41,6 +43,9 @@ struct PinboardTabBar: View {
 
     let onSelect: (UUID?) -> Void
     let onCreate: () -> Void
+    let onSetLockEnabled: (Pinboard, Bool) -> Void
+    let onUnlock: (Pinboard) -> Void
+    let onLockNow: (Pinboard) -> Void
     let onRename: (Pinboard) -> Void
     let onColorChange: (Pinboard, String) -> Void
     let onDelete: (Pinboard) -> Void
@@ -107,13 +112,13 @@ struct PinboardTabBar: View {
     private func scrollViewWidth(parentWidth: CGFloat) -> CGFloat {
         let availableWidth = availableScrollWidth(parentWidth: parentWidth)
 
-        // If we have measured content, use it; otherwise fill available space
+        // If we have measured content, use it when it fits; otherwise use available width
         if measuredContentWidth > 0 {
             let contentWithPadding = measuredContentWidth + (scrollContentPadding * 2)
             return min(contentWithPadding, availableWidth)
         }
 
-        // Before first measurement, use available width (content will constrain itself)
+        // Before first measurement, use available width
         return availableWidth
     }
 
@@ -143,13 +148,21 @@ struct PinboardTabBar: View {
                             Color.clear
                                 .preference(key: ScrollViewBoundsKey.self, value: bounds)
                                 .onAppear {
-                                    scrollViewBounds = bounds
-                                    currentScrollProxy = scrollProxy
+                                    DispatchQueue.main.async {
+                                        if !rectsApproximatelyEqual(scrollViewBounds, bounds) {
+                                            scrollViewBounds = bounds
+                                        }
+                                        currentScrollProxy = scrollProxy
+                                    }
                                 }
                         }
                     )
                     .onPreferenceChange(ScrollViewBoundsKey.self) { newBounds in
-                        scrollViewBounds = newBounds
+                        DispatchQueue.main.async {
+                            if !rectsApproximatelyEqual(scrollViewBounds, newBounds) {
+                                scrollViewBounds = newBounds
+                            }
+                        }
                     }
                     .onChange(of: dragState) { newDragState, _ in
                         handleAutoScrollStateChange(newDragState, scrollProxy: scrollProxy)
@@ -216,15 +229,17 @@ struct PinboardTabBar: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .onPreferenceChange(PinboardLayoutInfoKey.self) { layout in
-            frameManager.suppressUpdates = (dragState != nil || isGlobalDragActive)
-            if !layout.tabFrames.isEmpty {
-                frameManager.updateTabFrames(layout.tabFrames)
-            }
-            if let offset = layout.scrollOffset {
-                frameCoordinator.updateCurrentPinboardScrollOffset(offset)
-            }
-            if let w = layout.editorOverlayFrame?.width {
-                trailingTabWidth = w
+            DispatchQueue.main.async {
+                frameManager.suppressUpdates = (dragState != nil || isGlobalDragActive)
+                if !layout.tabFrames.isEmpty {
+                    frameManager.updateTabFrames(layout.tabFrames)
+                }
+                if let offset = layout.scrollOffset {
+                    frameCoordinator.updateCurrentPinboardScrollOffset(offset)
+                }
+                if let w = layout.editorOverlayFrame?.width, trailingTabWidth != w {
+                    trailingTabWidth = w
+                }
             }
         }
         .onChange(of: draftName) { newValue, _ in
@@ -256,7 +271,9 @@ struct PinboardTabBar: View {
             .accessibilityIdentifier("overlay.pinboard.all")
             .accessibilityLabel("All items")
             .accessibilityValue(selectedID == nil ? "Selected" : "Not selected")
-            .accessibilityHint(pinboardHint(title: "All items", isAll: true))
+            .accessibilityHint(
+                pinboardHint(title: "All items", isAll: true, isLocked: false, isUnlocked: false)
+            )
             .accessibilityElement(children: .ignore)
             .background(
                 GeometryReader { proxy in
@@ -383,9 +400,12 @@ struct PinboardTabBar: View {
         -> some View
     {
         let isDragging = dragState?.itemID == pinboard.objectID
+        let locked = isLocked(pinboard)
+        let unlocked = isUnlocked(pinboard)
 
         let base = PinboardTab(
             title: pinboard.name, colorHex: pinboard.colorHex,
+            trailingIconName: locked ? (unlocked ? "lock.open.fill" : "lock.fill") : nil,
             isSelected: selectedID == pinboard.id, maxWidth: maxTabWidth
         ) {
             onSelect(pinboard.id)
@@ -394,7 +414,9 @@ struct PinboardTabBar: View {
         .accessibilityIdentifier("overlay.pinboard.\(pinboard.id.uuidString)")
         .accessibilityLabel(pinboard.name)
         .accessibilityValue(selectedID == pinboard.id ? "Selected" : "Not selected")
-        .accessibilityHint(pinboardHint(title: pinboard.name, isAll: false))
+        .accessibilityHint(
+            pinboardHint(title: pinboard.name, isAll: false, isLocked: locked, isUnlocked: unlocked)
+        )
         .accessibilityElement(children: .ignore)
         .opacity(isDragging ? 0.25 : 1)
         .background(
@@ -417,6 +439,11 @@ struct PinboardTabBar: View {
             PinboardContextMenu(
                 canEdit: !pinboard.isSystemClipboard,
                 pinboardID: pinboard.id,
+                isLocked: locked,
+                isUnlocked: unlocked,
+                onSetLockEnabled: { enabled in onSetLockEnabled(pinboard, enabled) },
+                onUnlock: { onUnlock(pinboard) },
+                onLockNow: { onLockNow(pinboard) },
                 onRename: { onRename(pinboard) },
                 onColorChange: { color in onColorChange(pinboard, color) },
                 onDelete: { onDelete(pinboard) }
@@ -602,9 +629,12 @@ struct PinboardTabBar: View {
         isFocused = false
     }
 
-    private func pinboardHint(title: String, isAll: Bool) -> String {
+    private func pinboardHint(title: String, isAll: Bool, isLocked: Bool, isUnlocked: Bool) -> String {
         var parts: [String] = []
         parts.append(isAll ? "Shows all items" : "Shows items in \(title)")
+        if !isAll && isLocked {
+            parts.append(isUnlocked ? "Temporarily unlocked" : "Locked")
+        }
         if !isAll && canReorder {
             parts.append("Drag to reorder pinboards")
         }

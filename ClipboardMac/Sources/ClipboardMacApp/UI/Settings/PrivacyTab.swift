@@ -41,7 +41,7 @@ struct PrivacySettingsContent: View {
                         )
 
                         Divider()
-                            .background(Color.white.opacity(0.1))
+                            .background(Color.primary.opacity(0.1))
 
                         SettingsToggleRow(
                             "Ignore confidential content",
@@ -51,7 +51,7 @@ struct PrivacySettingsContent: View {
                         )
 
                         Divider()
-                            .background(Color.white.opacity(0.1))
+                            .background(Color.primary.opacity(0.1))
 
                         SettingsToggleRow(
                             "Ignore transient content",
@@ -189,7 +189,7 @@ private struct IgnoredAppRow: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isSelected ? Color.white.opacity(0.15) : Color.clear)
+                .fill(isSelected ? Color.primary.opacity(0.1) : Color.clear)
         )
         .contentShape(Rectangle())
         .onTapGesture {

@@ -25,6 +25,7 @@ struct ItemCardRow: View {
     let onTogglePin: (ClipItem) -> Void
     let onMoveToPinboard: (ClipItem, Pinboard) -> Void
     let onCreatePinboard: (ClipItem) -> Void
+    let onEdit: (ClipItem) -> Void
     let onRename: (ClipItem) -> Void
     let onCommitRename: (ClipItem, String) -> Void
     let onTap: (ClipItem) -> Void
@@ -40,6 +41,9 @@ struct ItemCardRow: View {
     let window: NSWindow?
     @Binding var dragPreviewData: DragPreviewData?
     var onPreviewUpdate: ((DragPreviewData?) -> Void)? = nil  // Direct preview update, bypasses state
+
+    @Binding var previewItemID: NSManagedObjectID?
+    @Binding var isPreviewPopoverPresented: Bool
 
     @EnvironmentObject private var frameCoordinator: FrameCoordinator
 
@@ -73,6 +77,10 @@ struct ItemCardRow: View {
                         LazyHStack(alignment: .top, spacing: cardSpacing) {
                             cardViews(size: cardSize, proxy: proxy, items: visibleItems)
                         }
+                        .animation(
+                            .spring(response: 0.32, dampingFraction: 0.86),
+                            value: items.map(\.displayOrder)
+                        )
                         .scrollTargetLayout()
                     }
                 }
@@ -84,6 +92,10 @@ struct ItemCardRow: View {
                         LazyHStack(alignment: .top, spacing: cardSpacing) {
                             cardViews(size: cardSize, proxy: proxy, items: visibleItems)
                         }
+                        .animation(
+                            .spring(response: 0.32, dampingFraction: 0.86),
+                            value: items.map(\.displayOrder)
+                        )
                         .padding(.horizontal, placeholderInset)
                     }
                 }
@@ -162,6 +174,20 @@ struct ItemCardRow: View {
         ForEach(Array(items.enumerated()), id: \.element.objectID) { index, item in
             let isDragging = dragState?.itemIDs.contains(item.objectID) ?? false
 
+            let isPreviewPresented = Binding(
+                get: {
+                    isPreviewPopoverPresented && previewItemID == item.objectID
+                },
+                set: { newValue in
+                    if !newValue {
+                        if previewItemID == item.objectID {
+                            previewItemID = nil
+                        }
+                        isPreviewPopoverPresented = false
+                    }
+                }
+            )
+
             let base = ItemCard(
                 item: item,
                 pinboards: pinboards,
@@ -180,6 +206,7 @@ struct ItemCardRow: View {
                 onTogglePin: { onTogglePin(item) },
                 onMoveToPinboard: { onMoveToPinboard(item, $0) },
                 onCreatePinboard: { onCreatePinboard(item) },
+                onEdit: { onEdit(item) },
                 onRename: { onRename(item) },
                 onCommitRename: { newTitle in onCommitRename(item, newTitle) },
                 onTap: {
@@ -190,6 +217,50 @@ struct ItemCardRow: View {
                 },
                 onDoubleTap: { onDoubleTap(item) }
             )
+            .popover(isPresented: isPreviewPresented, arrowEdge: .bottom) {
+                OverlayItemPreview(
+                    item: item,
+                    allowPinning: allowPinning,
+                    pinboards: pinboards,
+                    onEdit: {
+                        previewItemID = nil
+                        isPreviewPopoverPresented = false
+                        onEdit(item)
+                    },
+                    onPaste: {
+                        onPaste(item)
+                        previewItemID = nil
+                        isPreviewPopoverPresented = false
+                    },
+                    onPastePlainText: {
+                        onPastePlainText(item)
+                        previewItemID = nil
+                        isPreviewPopoverPresented = false
+                    },
+                    onCopy: {
+                        onCopy(item)
+                        previewItemID = nil
+                        isPreviewPopoverPresented = false
+                    },
+                    onTogglePin: {
+                        onTogglePin(item)
+                    },
+                    onMoveToPinboard: { pinboard in
+                        onMoveToPinboard(item, pinboard)
+                    },
+                    onCreatePinboard: {
+                        previewItemID = nil
+                        isPreviewPopoverPresented = false
+                        onCreatePinboard(item)
+                    },
+                    onDelete: {
+                        onDelete(item)
+                        previewItemID = nil
+                        isPreviewPopoverPresented = false
+                    }
+                )
+                .frame(width: 560, height: 380)
+            }
             .id(item.objectID)
             .frame(width: size, height: size)
             .opacity(isDragging ? 0.25 : 1)
@@ -464,20 +535,21 @@ struct ItemCardRow: View {
 
         // Hide placeholder if dropping would keep the card in its original position
         guard let candidate else { return nil }
-        
+
         // Get the frames of the dragged items
         let draggedFrames = draggedIDs.compactMap { itemFrames[$0] }
         guard !draggedFrames.isEmpty else { return candidate }
-        
+
         // Calculate the span where dragged cards originated
         let draggedMinX = draggedFrames.map(\.minX).min() ?? 0
         let draggedMaxX = draggedFrames.map(\.maxX).max() ?? 0
-        
+
         // Check if placeholder falls within or adjacent to the original dragged card position
         // Add a small margin (half of cardSpacing) to account for the gap
         let margin = cardSpacing / 2
-        if candidate.placeholderX >= (draggedMinX - margin) && 
-           candidate.placeholderX <= (draggedMaxX + margin) {
+        if candidate.placeholderX >= (draggedMinX - margin)
+            && candidate.placeholderX <= (draggedMaxX + margin)
+        {
             return nil
         }
 
@@ -725,6 +797,7 @@ struct ItemCardDragPreview: View {
             onTogglePin: {},
             onMoveToPinboard: { _ in },
             onCreatePinboard: {},
+            onEdit: {},
             onRename: {},
             onCommitRename: { _ in },
             onTap: {},
@@ -767,6 +840,7 @@ struct MultiItemCardDragPreview: View {
                     onTogglePin: {},
                     onMoveToPinboard: { _ in },
                     onCreatePinboard: {},
+                    onEdit: {},
                     onRename: {},
                     onCommitRename: { _ in },
                     onTap: {},

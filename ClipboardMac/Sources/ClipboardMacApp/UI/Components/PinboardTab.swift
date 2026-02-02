@@ -4,6 +4,7 @@ struct PinboardTab: View {
     let title: String
     var iconName: String? = nil
     let colorHex: String?
+    var trailingIconName: String? = nil
     let isSelected: Bool
     var minWidth: CGFloat? = nil
     var maxWidth: CGFloat? = nil
@@ -30,6 +31,14 @@ struct PinboardTab: View {
                     .foregroundStyle(textColor)
                     .lineLimit(1)
                     .truncationMode(.tail)
+
+                if let trailingIconName {
+                    Image(systemName: trailingIconName)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(textColor.opacity(0.95))
+                        .contentTransition(.symbolEffect(.replace))
+                        .animation(.easeInOut(duration: 0.18), value: trailingIconName)
+                }
             }
             .frame(minWidth: minWidth, minHeight: 20)
             .padding(.vertical, 5)

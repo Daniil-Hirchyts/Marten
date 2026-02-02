@@ -39,19 +39,19 @@ struct AccountSettingsContent: View {
                             if case .error(let error) = syncCoordinator.status,
                                error.requiresUserAction {
                                 Divider()
-                                    .background(Color.white.opacity(0.1))
+                                    .background(Color.primary.opacity(0.1))
 
                                 AccountStatusRow(error: error, onSignIn: openAppleIDSettings)
                             }
 
                             if syncCoordinator.syncEnabled {
                                 Divider()
-                                    .background(Color.white.opacity(0.1))
+                                    .background(Color.primary.opacity(0.1))
 
                                 SyncStatusIndicator(coordinator: syncCoordinator, displayMode: .expanded)
 
                                 Divider()
-                                    .background(Color.white.opacity(0.1))
+                                    .background(Color.primary.opacity(0.1))
 
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
@@ -83,7 +83,7 @@ struct AccountSettingsContent: View {
                             }
 
                             Divider()
-                                .background(Color.white.opacity(0.1))
+                                .background(Color.primary.opacity(0.1))
 
                             // Sign Out button
                             HStack {

@@ -1,8 +1,10 @@
+import AppKit
 import ClipboardCore
 import Foundation
 import SwiftUI
 
 struct CardContextMenu: View {
+    let item: ClipItem
     let itemID: UUID
     let isPinned: Bool
     let allowPinning: Bool
@@ -14,6 +16,7 @@ struct CardContextMenu: View {
     let onCopy: () -> Void
     let onMoveToPinboard: (Pinboard) -> Void
     let onCreatePinboard: () -> Void
+    let onEdit: () -> Void
     let onRename: () -> Void
     let onDelete: () -> Void
 
@@ -31,6 +34,12 @@ struct CardContextMenu: View {
         }
         .accessibilityIdentifier("\(identifierPrefix).pastePlainText")
         Divider()
+        if item.itemTypeValue == .url {
+            Button("Open Link") {
+                openLink()
+            }
+            .accessibilityIdentifier("\(identifierPrefix).openLink")
+        }
         if allowPinning {
             Button(isPinned ? "Unpin" : "Pin") {
                 onTogglePin()
@@ -63,6 +72,10 @@ struct CardContextMenu: View {
         }
         .accessibilityIdentifier("\(identifierPrefix).move")
         Divider()
+        Button("Edit...") {
+            onEdit()
+        }
+        .accessibilityIdentifier("\(identifierPrefix).edit")
         Button("Rename...") {
             onRename()
         }
@@ -72,11 +85,36 @@ struct CardContextMenu: View {
         }
         .accessibilityIdentifier("\(identifierPrefix).delete")
     }
+    
+    private func openLink() {
+        guard item.itemTypeValue == .url,
+              let urlString = item.primaryText,
+              !urlString.isEmpty else {
+            return
+        }
+        
+        // Handle URLs with or without scheme
+        let normalizedURLString: String
+        if urlString.lowercased().hasPrefix("http://") || urlString.lowercased().hasPrefix("https://") {
+            normalizedURLString = urlString
+        } else {
+            normalizedURLString = "https://\(urlString)"
+        }
+        
+        if let url = URL(string: normalizedURLString) {
+            NSWorkspace.shared.open(url)
+        }
+    }
 }
 
 struct PinboardContextMenu: View {
     let canEdit: Bool
     let pinboardID: UUID
+    let isLocked: Bool
+    let isUnlocked: Bool
+    let onSetLockEnabled: (Bool) -> Void
+    let onUnlock: () -> Void
+    let onLockNow: () -> Void
     let onRename: () -> Void
     let onColorChange: (String) -> Void
     let onDelete: () -> Void
@@ -87,6 +125,31 @@ struct PinboardContextMenu: View {
 
     var body: some View {
         if canEdit {
+            if isLocked {
+                if isUnlocked {
+                    Button("Lock Now") {
+                        onLockNow()
+                    }
+                    .accessibilityIdentifier("\(identifierPrefix).lockNow")
+                    Button("Disable Lock") {
+                        onSetLockEnabled(false)
+                    }
+                    .accessibilityIdentifier("\(identifierPrefix).disableLock")
+                } else {
+                    Button("Unlock") {
+                        onUnlock()
+                    }
+                    .accessibilityIdentifier("\(identifierPrefix).unlock")
+                }
+            } else {
+                Button("Lock Pinboard") {
+                    onSetLockEnabled(true)
+                }
+                .accessibilityIdentifier("\(identifierPrefix).enableLock")
+            }
+
+            Divider()
+
             Menu("Color") {
                 ForEach(PinboardPalette.all, id: \.hex) { color in
                     Button {

@@ -7,6 +7,8 @@ struct GeneralSettingsContent: View {
     @AppStorage("alwaysPastePlainText") private var alwaysPastePlainText = false
     @AppStorage("soundEffectsEnabled") private var soundEffectsEnabled = true
     @AppStorage("retentionPolicy") private var retentionPolicy = "month"
+    @AppStorage(PinboardSecuritySettings.unlockDurationSecondsKey)
+    private var unlockDurationSeconds = PinboardSecuritySettings.defaultUnlockDurationSeconds
 
     @State private var showEraseConfirmation = false
 
@@ -47,7 +49,7 @@ struct GeneralSettingsContent: View {
                         )
 
                         Divider()
-                            .background(Color.white.opacity(0.1))
+                            .background(Color.primary.opacity(0.1))
 
                         SettingsToggleRow(
                             "Sound effects",
@@ -55,6 +57,51 @@ struct GeneralSettingsContent: View {
                             isOn: $soundEffectsEnabled,
                             identifier: "settings.toggle.soundEffects"
                         )
+                    }
+                }
+            }
+
+            // Security Section
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsSectionHeader("Security", icon: "lock.shield")
+
+                SettingsCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Locked pinboard unlock duration")
+                            .font(.system(size: 13, weight: .medium))
+
+                        HStack {
+                            Picker("Duration", selection: $unlockDurationSeconds) {
+                                ForEach(durationOptions, id: \.self) { seconds in
+                                    Text(formattedDuration(seconds)).tag(seconds)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .accessibilityIdentifier("settings.picker.pinboardUnlockDuration")
+
+                            Spacer()
+
+                            Text(durationLabel)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .onAppear {
+                            normalizeUnlockDurationSelection()
+                        }
+                        .onChange(of: unlockDurationSeconds) { newValue, _ in
+                            let clamped = PinboardSecuritySettings.clampedUnlockDuration(newValue)
+                            let normalized = PinboardSecuritySettings.nearestQuickDuration(to: clamped)
+                            if normalized != newValue {
+                                unlockDurationSeconds = normalized
+                            }
+                        }
+
+                        Text(
+                            "After Touch ID or password authentication, locked pinboards stay unlocked for this preset duration."
+                        )
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
                     }
                 }
             }
@@ -82,7 +129,7 @@ struct GeneralSettingsContent: View {
                         }
 
                         Divider()
-                            .background(Color.white.opacity(0.1))
+                            .background(Color.primary.opacity(0.1))
 
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
@@ -120,6 +167,32 @@ struct GeneralSettingsContent: View {
         } message: {
             Text("Are you sure you want to erase all history? This action cannot be undone.")
         }
+    }
+
+    private var durationLabel: String {
+        formattedDuration(unlockDurationSeconds)
+    }
+
+    private var durationOptions: [Int] {
+        PinboardSecuritySettings.quickUnlockDurations
+    }
+
+    private func normalizeUnlockDurationSelection() {
+        let normalized = PinboardSecuritySettings.nearestQuickDuration(to: unlockDurationSeconds)
+        if normalized != unlockDurationSeconds {
+            unlockDurationSeconds = normalized
+        }
+    }
+
+    private func formattedDuration(_ seconds: Int) -> String {
+        if seconds < 60 {
+            return "\(seconds)s"
+        }
+        if seconds.isMultiple(of: 60) {
+            let minutes = seconds / 60
+            return minutes == 1 ? "1m" : "\(minutes)m"
+        }
+        return "\(seconds)s"
     }
 }
 

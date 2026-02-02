@@ -34,6 +34,12 @@ final class ItemOperationsHandler {
         eventBroadcaster.publish(.clipboardWillWrite)
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+
+        do {
+            try store.markItemUsed(objectID: item.objectID)
+        } catch {
+            Logger.app.error("Failed to mark copied item as used: \(error.localizedDescription)")
+        }
     }
 
     func deleteItem(
@@ -64,6 +70,24 @@ final class ItemOperationsHandler {
         }
     }
 
+    func updateImageData(itemID: NSManagedObjectID, imageData: Data) {
+        do {
+            try store.updateImageData(objectID: itemID, imageData: imageData)
+        } catch {
+            Logger.app.error("Failed to update image: \(error.localizedDescription)")
+        }
+    }
+
+    func updateFileName(itemID: NSManagedObjectID, newFileName: String) {
+        let trimmed = newFileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        do {
+            try store.updateFileName(objectID: itemID, newFileName: trimmed)
+        } catch {
+            Logger.app.error("Failed to update file name: \(error.localizedDescription)")
+        }
+    }
+
     func togglePin(_ item: ClipItem, allowPinning: Bool) {
         guard allowPinning else { return }
         let context = item.managedObjectContext
@@ -86,12 +110,21 @@ final class ItemOperationsHandler {
         eventBroadcaster: any ClipboardEventBroadcaster
     ) {
         let selectedItems = orderedItems.filter { selectedItemIDs.contains($0.objectID) }
-        let texts = selectedItems.compactMap { $0.primaryText }.filter { !$0.isEmpty }
+        let itemsToCopy = selectedItems.filter { ($0.primaryText?.isEmpty == false) }
+        let texts = itemsToCopy.compactMap { $0.primaryText }.filter { !$0.isEmpty }
         guard !texts.isEmpty else { return }
 
         eventBroadcaster.publish(.clipboardWillWrite)
         pasteboard.clearContents()
         pasteboard.setString(texts.joined(separator: "\n"), forType: .string)
+
+        let ids = itemsToCopy.map(\.objectID)
+        do {
+            try store.markItemsUsed(objectIDs: ids)
+        } catch {
+            Logger.app.error(
+                "Failed to mark copied items as used: \(error.localizedDescription)")
+        }
     }
 
     private func deleteSelectedItems(

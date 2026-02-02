@@ -10,6 +10,7 @@ final class ModifierKeyMonitor: ObservableObject {
 
     func start() {
         stop()
+        updateFlags(NSEvent.modifierFlags)
 
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             self?.updateFlags(event.modifierFlags)

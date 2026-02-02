@@ -61,6 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "openAtLogin": false,
                 "alwaysPastePlainText": false,
                 "retentionPolicy": "month",
+                PinboardSecuritySettings.unlockDurationSecondsKey:
+                    PinboardSecuritySettings.defaultUnlockDurationSeconds,
             ]
         )
 

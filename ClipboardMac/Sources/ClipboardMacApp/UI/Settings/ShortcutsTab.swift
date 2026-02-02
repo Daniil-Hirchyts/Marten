@@ -28,7 +28,7 @@ struct ShortcutsSettingsContent: View {
                         ForEach(1...9, id: \.self) { index in
                             if index > 1 {
                                 Divider()
-                                    .background(Color.white.opacity(0.1))
+                                    .background(Color.primary.opacity(0.1))
                             }
 
                             SettingsHotkeyRow(
@@ -52,7 +52,7 @@ struct ShortcutsSettingsContent: View {
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(.secondary)
                                 .frame(width: 20, height: 20)
-                                .background(Color.white.opacity(0.1))
+                                .background(Color.primary.opacity(0.1))
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
 
                             Text("Hold Shift while pasting to paste as Plain Text")
@@ -108,12 +108,12 @@ struct SettingsHotkeyRow: View {
                     .padding(.vertical, 6)
                     .background(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.white.opacity(isRecording ? 0.15 : 0.08))
+                            .fill(Color.primary.opacity(isRecording ? 0.15 : 0.08))
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .strokeBorder(
-                                Color.white.opacity(isRecording ? 0.3 : 0.1),
+                                Color.primary.opacity(isRecording ? 0.3 : 0.1),
                                 lineWidth: 1
                             )
                     )
@@ -133,7 +133,7 @@ struct SettingsHotkeyRow: View {
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .frame(width: 20, height: 20)
-                        .background(Color.white.opacity(0.1))
+                        .background(Color.primary.opacity(0.1))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)

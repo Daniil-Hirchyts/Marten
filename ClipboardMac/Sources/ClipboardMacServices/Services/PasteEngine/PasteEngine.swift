@@ -440,11 +440,24 @@ public final class PasteEngine {
         _ representation: ClipRepresentation, to pasteboardItem: NSPasteboardItem
     ) throws {
         let type = NSPasteboard.PasteboardType(representation.uti)
+        let kind = representation.kindValue
+
+        if (kind == .rtf || kind == .html),
+            let richTextData = try sanitizedRichTextData(for: representation),
+            let attributed = NSAttributedString.clipboardAttributedString(
+                from: richTextData,
+                kind: kind
+            )
+        {
+            pasteboardItem.setData(richTextData, forType: type)
+            pasteboardItem.setString(attributed.string, forType: .string)
+            return
+        }
 
         if let textData = representation.textData,
             let text = String(data: textData, encoding: .utf8)
         {
-            switch representation.kindValue {
+            switch kind {
             case .fileURL:
                 let url = URL(fileURLWithPath: text)
                 pasteboardItem.setString(url.absoluteString, forType: type)
@@ -461,21 +474,42 @@ public final class PasteEngine {
             }
         }
 
-        if let data = representation.binaryData {
+        if let data = try representationData(for: representation) {
             pasteboardItem.setData(data, forType: type)
             return
+        }
+    }
+
+    private func sanitizedRichTextData(for representation: ClipRepresentation) throws -> Data? {
+        let kind = representation.kindValue
+        guard kind == .rtf || kind == .html else { return nil }
+        guard
+            let data = try representationData(for: representation),
+            let attributed = NSAttributedString.clipboardAttributedString(from: data, kind: kind)
+        else {
+            return nil
+        }
+
+        return attributed
+            .removingTextColorAttributes()
+            .clipboardData(for: kind)
+    }
+
+    private func representationData(for representation: ClipRepresentation) throws -> Data? {
+        if let data = representation.binaryData {
+            return data
         }
 
         if let data = representation.textData {
-            pasteboardItem.setData(data, forType: type)
-            return
+            return data
         }
 
         if let assetRef = representation.assetRef {
-            let data = try assetStore.load(
+            return try assetStore.load(
                 assetRef: assetRef, fileExtension: representation.fileExtension)
-            pasteboardItem.setData(data, forType: type)
         }
+
+        return nil
     }
 
     private func insertSeparator(_ separator: String) async throws {

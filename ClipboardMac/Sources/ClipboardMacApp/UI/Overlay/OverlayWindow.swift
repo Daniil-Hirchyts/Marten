@@ -177,10 +177,12 @@ final class OverlayWindowController {
         let preferredHeight = savedHeight > 0 ? CGFloat(savedHeight) : 320
 
         let maxAllowedHeight = min(visible.height - 50, 400)
-        let minAllowedHeight: CGFloat = 220  // Match the resize minimum
+        let minAllowedHeight: CGFloat = 220
 
         let height = min(max(minAllowedHeight, preferredHeight), maxAllowedHeight)
-        print("📏 Calculated overlay height: \(height) (min: \(minAllowedHeight), max: \(maxAllowedHeight))")
+        print(
+            "📏 Calculated overlay height: \(height) (min: \(minAllowedHeight), max: \(maxAllowedHeight))"
+        )
 
         let x = visible.minX + horizontalMargin
         let y = visible.minY + bottomMargin
@@ -272,6 +274,8 @@ final class OverlayWindowController {
 }
 
 private final class OverlayPanel: NSPanel {
+    @MainActor var onReturnKey: (() -> Void)?
+
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -279,5 +283,44 @@ private final class OverlayPanel: NSPanel {
     override func becomeKey() {
         super.becomeKey()
         makeFirstResponder(contentView)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 36 || event.keyCode == 76 {
+            if let firstResponder = firstResponder,
+                !(firstResponder is NSTextView || firstResponder is NSTextField)
+            {
+                if let handler = objc_getAssociatedObject(self, &ReturnKeyHandlerKey)
+                    as? (() -> Void)
+                {
+                    handler()
+                    return
+                }
+                onReturnKey?()
+                return
+            }
+        }
+
+        if event.keyCode == 49 {
+            if let handler = objc_getAssociatedObject(self, &SpaceKeyHandlerKey)
+                as? ((NSEvent) -> Bool)
+            {
+                if handler(event) {
+                    return
+                }
+            }
+        }
+
+        if event.keyCode == 53 {
+            if let handler = objc_getAssociatedObject(self, &EscapeKeyHandlerKey)
+                as? ((NSEvent) -> Bool)
+            {
+                if handler(event) {
+                    return
+                }
+            }
+        }
+
+        super.keyDown(with: event)
     }
 }

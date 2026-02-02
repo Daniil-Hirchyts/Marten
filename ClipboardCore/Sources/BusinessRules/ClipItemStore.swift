@@ -169,19 +169,23 @@ public final class ClipItemStore {
         let context = persistence.newBackgroundContext()
         try context.performAndWaitThrowing {
             let request = ClipItem.fetchRequest()
-            let items = try context.fetch(request)
-            for item in items {
-                removeAssets(for: item)
-                context.delete(item)
-            }
-            if context.hasChanges {
-                try context.save()
-            }
-        }
+            request.fetchLimit = 200
 
-        let viewContext = persistence.viewContext
-        try viewContext.performAndWaitThrowing {
-            viewContext.refreshAllObjects()
+            while true {
+                let items = try context.fetch(request)
+                guard !items.isEmpty else { break }
+
+                for item in items {
+                    removeAssets(for: item)
+                    context.delete(item)
+                }
+
+                if context.hasChanges {
+                    try context.save()
+                }
+
+                context.reset()
+            }
         }
     }
 
@@ -288,7 +292,127 @@ public final class ClipItemStore {
         let viewContext = persistence.viewContext
         var fetchedItem: ClipItem?
         try viewContext.performAndWaitThrowing {
-            fetchedItem = try viewContext.existingObject(with: updatedObjectID) as? ClipItem
+            if let item = try viewContext.existingObject(with: updatedObjectID) as? ClipItem {
+                viewContext.refresh(item, mergeChanges: true)
+                fetchedItem = item
+            }
+        }
+
+        guard let item = fetchedItem else {
+            throw ClipItemStoreError.missingItem
+        }
+
+        return item
+    }
+
+    @discardableResult
+    public func updateRichTextItem(objectID: NSManagedObjectID, newText: String, rtfData: Data) throws
+        -> ClipItem
+    {
+        let trimmedText = String(newText.prefix(10_000))
+        let hash = Data(trimmedText.utf8).sha256Hex()
+        let now = Date()
+
+        let context = persistence.newBackgroundContext()
+        var updatedObjectID: NSManagedObjectID?
+        try context.performAndWaitThrowing {
+            guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                throw ClipItemStoreError.missingItem
+            }
+
+            item.primaryText = trimmedText
+            item.searchableText = trimmedText.normalizedForSearch()
+            item.modifiedAt = now
+            item.contentHash = hash
+            item.displayOrder = currentDisplayOrder(reference: now)
+            item.itemTypeValue = .richText
+
+            let plainTextData = Data(trimmedText.utf8)
+
+            let existingRepresentations = item.representations ?? []
+
+            let plainRep =
+                existingRepresentations.first(where: { $0.kindValue == .plainText })
+                ?? {
+                    guard
+                        let representation = NSEntityDescription.insertNewObject(
+                            forEntityName: "ClipRepresentation", into: context) as? ClipRepresentation
+                    else {
+                        return nil
+                    }
+                    representation.id = UUID()
+                    representation.clipItem = item
+                    item.addToRepresentations(representation)
+                    return representation
+                }()
+
+            guard let plainRep else {
+                throw ClipItemStoreError.creationFailed
+            }
+
+            plainRep.uti = "public.utf8-plain-text"
+            plainRep.kindValue = .plainText
+            plainRep.displayOrder = 0
+            plainRep.fileExtension = nil
+            plainRep.binaryData = nil
+            plainRep.assetRef = nil
+            plainRep.textData = plainTextData
+            plainRep.byteCount = Int64(plainTextData.count)
+
+            let richRep =
+                existingRepresentations.first(where: { $0.kindValue == .rtf })
+                ?? {
+                    guard
+                        let representation = NSEntityDescription.insertNewObject(
+                            forEntityName: "ClipRepresentation", into: context) as? ClipRepresentation
+                    else {
+                        return nil
+                    }
+                    representation.id = UUID()
+                    representation.clipItem = item
+                    item.addToRepresentations(representation)
+                    return representation
+                }()
+
+            guard let richRep else {
+                throw ClipItemStoreError.creationFailed
+            }
+
+            richRep.uti = "public.rtf"
+            richRep.kindValue = .rtf
+            richRep.displayOrder = 1
+            richRep.fileExtension = "rtf"
+            richRep.binaryData = rtfData
+            richRep.assetRef = nil
+            richRep.textData = nil
+            richRep.byteCount = Int64(rtfData.count)
+
+            // Rich text edit should replace stale HTML representation, if any.
+            for rep in existingRepresentations where rep.kindValue == .html {
+                item.removeFromRepresentations(rep)
+                context.delete(rep)
+            }
+
+            let totalByteCount = (item.representations ?? []).reduce(Int64(0)) { partial, rep in
+                partial + rep.byteCount
+            }
+            item.byteCount = totalByteCount
+
+            try context.save()
+            updatedObjectID = item.objectID
+        }
+
+        guard let updatedObjectID else {
+            throw ClipItemStoreError.missingItem
+        }
+
+        let viewContext = persistence.viewContext
+        var fetchedItem: ClipItem?
+        try viewContext.performAndWaitThrowing {
+            if let item = try viewContext.existingObject(with: updatedObjectID) as? ClipItem {
+                viewContext.refresh(item, mergeChanges: true)
+                fetchedItem = item
+            }
         }
 
         guard let item = fetchedItem else {
@@ -542,6 +666,91 @@ public final class ClipItemStore {
             preview.clipItem = item
             item.linkPreview = preview
             item.needsLinkPreview = false
+            try context.save()
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            if let item = try? viewContext.existingObject(with: objectID) as? ClipItem {
+                viewContext.refresh(item, mergeChanges: true)
+            }
+        }
+    }
+
+    public func updateImageData(objectID: NSManagedObjectID, imageData: Data) throws {
+        let context = persistence.newBackgroundContext()
+        try context.performAndWaitThrowing {
+            guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                throw ClipItemStoreError.missingItem
+            }
+
+            // Update the image representation
+            if let representations = item.representations {
+                for rep in representations {
+                    if rep.kindValue == .png || rep.kindValue == .jpeg || rep.kindValue == .tiff {
+                        rep.binaryData = imageData
+                        rep.byteCount = Int64(imageData.count)
+                    }
+                }
+            }
+
+            // Update thumbnail
+            if let existingPath = item.thumbnailPath {
+                try? FileManager.default.removeItem(atPath: existingPath)
+            }
+            let assetRef = try assetStore.store(data: imageData, fileExtension: "png")
+            let url = assetStore.urlForAsset(assetRef, fileExtension: "png")
+            item.thumbnailPath = url.path
+
+            // Update metadata and move to front of list
+            let now = Date()
+            item.byteCount = Int64(imageData.count)
+            item.modifiedAt = now
+            item.displayOrder = currentDisplayOrder(reference: now)
+
+            try context.save()
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            if let item = try? viewContext.existingObject(with: objectID) as? ClipItem {
+                viewContext.refresh(item, mergeChanges: true)
+            }
+        }
+    }
+
+    public func updateFileName(objectID: NSManagedObjectID, newFileName: String) throws {
+        let context = persistence.newBackgroundContext()
+        try context.performAndWaitThrowing {
+            guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                throw ClipItemStoreError.missingItem
+            }
+
+            // For file items, update the primaryText which stores the path
+            if item.itemTypeValue == .file, let oldPath = item.primaryText {
+                let oldURL = URL(fileURLWithPath: oldPath)
+                let newURL = oldURL.deletingLastPathComponent().appendingPathComponent(newFileName)
+
+                // Rename the actual file if it exists
+                if FileManager.default.fileExists(atPath: oldPath) {
+                    try? FileManager.default.moveItem(atPath: oldPath, toPath: newURL.path)
+                }
+
+                item.primaryText = newURL.path
+
+                // Update file URL representation
+                if let representations = item.representations {
+                    for rep in representations where rep.kindValue == .fileURL {
+                        rep.textData = Data(newURL.path.utf8)
+                        rep.byteCount = Int64(newURL.path.utf8.count)
+                    }
+                }
+            }
+
+            // Update metadata and move to front of list
+            let now = Date()
+            item.modifiedAt = now
+            item.displayOrder = currentDisplayOrder(reference: now)
             try context.save()
         }
 

@@ -149,6 +149,22 @@ final class OverlayViewModel: ObservableObject {
     func requestAccessibility() {
         permissionManager.requestAccessibility()
     }
+    
+    @MainActor
+    func handleReturnKey(orderedItems: [ClipItem], isShiftPressed: Bool) {
+        guard !selectedItemIDs.isEmpty else { return }
+        
+        // Get selected items in order
+        let selectedItems = orderedItems.filter { selectedItemIDs.contains($0.objectID) }
+        guard !selectedItems.isEmpty else { return }
+        
+        // If single item, paste normally; if multiple, paste as plain text
+        if selectedItems.count == 1 {
+            paste(item: selectedItems[0], plainText: isShiftPressed)
+        } else {
+            pasteMultipleItemsAsPlainText(selectedItems)
+        }
+    }
 
     @MainActor
     func closeOverlayForSettings(completion: @escaping () -> Void) {
