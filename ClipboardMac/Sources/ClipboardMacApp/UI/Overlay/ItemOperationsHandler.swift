@@ -10,7 +10,7 @@ final class ItemOperationsHandler {
     private let pasteboard: NSPasteboard
     private let soundPlayer = SoundEffectPlayer()
 
-    init(store: ClipItemStore = ClipItemStore(), pasteboard: NSPasteboard = .general) {
+    init(store: ClipItemStore, pasteboard: NSPasteboard = .general) {
         self.store = store
         self.pasteboard = pasteboard
     }

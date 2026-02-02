@@ -16,6 +16,7 @@ struct ItemCardRow: View {
     let selectedItemIDs: Set<NSManagedObjectID>
     let editingItemID: NSManagedObjectID?
     let allowPinning: Bool
+    let clipItemEditor: any ClipItemEditing
     let isDragEnabled: Bool
     let isReorderingEnabled: Bool
     let onPaste: (ClipItem) -> Void
@@ -57,6 +58,9 @@ struct ItemCardRow: View {
     @State private var loadedItemCount: Int = 0
     @State private var lastVisibleIndex: Int = 0
     @State private var currentPage: Int = 0
+
+    @State private var pendingItemFrames: [NSManagedObjectID: CGRect]?
+    @State private var isItemFramesUpdateScheduled = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -114,16 +118,14 @@ struct ItemCardRow: View {
             placeholderView()
         }
         .onPreferenceChange(ItemFrameKey.self) { frames in
-            frameCoordinator.updateLatestItemFrames(frames)
-
-            // Skip reactive updates during drag
-            guard dragState == nil else { return }
-
-            // Update if count changed OR keys changed (different items after filter)
-            let countChanged = frames.count != itemFrames.count
-            let keysChanged = Set(frames.keys) != Set(itemFrames.keys)
-            if countChanged || keysChanged {
-                itemFrames = frames
+            pendingItemFrames = frames
+            guard !isItemFramesUpdateScheduled else { return }
+            isItemFramesUpdateScheduled = true
+            DispatchQueue.main.async {
+                isItemFramesUpdateScheduled = false
+                guard let latest = pendingItemFrames else { return }
+                pendingItemFrames = nil
+                applyItemFramesPreference(latest)
             }
         }
         .onPreferenceChange(ItemRowFrameKey.self) { frame in
@@ -166,6 +168,18 @@ struct ItemCardRow: View {
                 total: items.count, isEnabled: paginationEnabled)
             lastVisibleIndex = 0
             currentPage = 0
+        }
+    }
+
+    private func applyItemFramesPreference(_ frames: [NSManagedObjectID: CGRect]) {
+        frameCoordinator.updateLatestItemFrames(frames)
+
+        guard dragState == nil else { return }
+
+        let countChanged = frames.count != itemFrames.count
+        let keysChanged = Set(frames.keys) != Set(itemFrames.keys)
+        if countChanged || keysChanged {
+            itemFrames = frames
         }
     }
 
@@ -222,6 +236,7 @@ struct ItemCardRow: View {
                     item: item,
                     allowPinning: allowPinning,
                     pinboards: pinboards,
+                    clipItemEditor: clipItemEditor,
                     onEdit: {
                         previewItemID = nil
                         isPreviewPopoverPresented = false

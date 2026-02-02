@@ -2,6 +2,7 @@ import AppKit
 import ClipboardCore
 import ClipboardMacServices
 import Combine
+import OSLog
 import SwiftUI
 
 @MainActor
@@ -23,6 +24,7 @@ final class OverlayWindowController {
         hotkeyManager: HotkeyManager? = nil,
         eventBroadcaster: ClipboardEventBroadcaster = ClipboardEventBroadcasterImpl(),
         screenSharingManager: ScreenSharingManager = ScreenSharingManager(),
+        clipItemStore: ClipItemStore? = nil,
         rootView: AnyView? = nil
     ) {
         self.hotkeyManager = hotkeyManager
@@ -58,6 +60,7 @@ final class OverlayWindowController {
         if let rootView {
             panel.contentView = NSHostingView(rootView: rootView)
         } else {
+            let resolvedClipItemStore = clipItemStore ?? ClipItemStore(persistence: persistence)
             let model = OverlayViewModel(
                 persistence: persistence,
                 pasteEngine: pasteEngine,
@@ -71,7 +74,7 @@ final class OverlayWindowController {
             }
             viewModel = model
             let contentView = AnyView(
-                OverlayRootView()
+                OverlayRootView(persistence: persistence, store: resolvedClipItemStore)
                     .environment(\.managedObjectContext, persistence.viewContext)
                     .environment(\.clipboardEventBroadcaster, eventBroadcaster)
                     .environmentObject(model)
@@ -173,15 +176,15 @@ final class OverlayWindowController {
         let width = max(visible.width - (horizontalMargin * 2), 320)
 
         let savedHeight = UserDefaults.standard.double(forKey: "OverlayHeight")
-        print("📏 Loading overlay height from UserDefaults: \(savedHeight)")
+        Logger.ui.debug("Loading overlay height from defaults: \(savedHeight, privacy: .public)")
         let preferredHeight = savedHeight > 0 ? CGFloat(savedHeight) : 320
 
         let maxAllowedHeight = min(visible.height - 50, 400)
         let minAllowedHeight: CGFloat = 220
 
         let height = min(max(minAllowedHeight, preferredHeight), maxAllowedHeight)
-        print(
-            "📏 Calculated overlay height: \(height) (min: \(minAllowedHeight), max: \(maxAllowedHeight))"
+        Logger.ui.debug(
+            "Calculated overlay height: \(height, privacy: .public) (min: \(minAllowedHeight, privacy: .public), max: \(maxAllowedHeight, privacy: .public))"
         )
 
         let x = visible.minX + horizontalMargin

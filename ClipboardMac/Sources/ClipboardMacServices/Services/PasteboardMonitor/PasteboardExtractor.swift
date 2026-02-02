@@ -2,7 +2,6 @@ import AppKit
 import ClipboardCore
 import Foundation
 import OSLog
-import SwiftUI
 import UniformTypeIdentifiers
 
 public final class PasteboardExtractor {
@@ -19,10 +18,11 @@ public final class PasteboardExtractor {
     private let confidentialClassifier = ConfidentialContentClassifier()
     private let transientClassifier = TransientContentClassifier()
 
-    @AppStorage("ignoreConfidentialContent") private var ignoreConfidentialContent = true
-    @AppStorage("ignoreTransientContent") private var ignoreTransientContent = true
+    private let settings: any CaptureSettingsProviding
 
-    public init() {}
+    public init(settings: any CaptureSettingsProviding = UserDefaultsCaptureSettingsProvider()) {
+        self.settings = settings
+    }
 
     public func extract(from pasteboard: NSPasteboard) -> ClipItemPayload? {
         var representations: [ClipRepresentationPayload] = []
@@ -122,7 +122,10 @@ public final class PasteboardExtractor {
 
         // Check if file is actually an image file by extension
         if hasFile, let text = primaryText {
-            let imageExtensions = ["png", "jpg", "jpeg", "gif", "tiff", "tif", "bmp", "heic", "heif", "webp", "svg", "ico"]
+            let imageExtensions = [
+                "png", "jpg", "jpeg", "gif", "tiff", "tif", "bmp", "heic", "heif", "webp", "svg",
+                "ico",
+            ]
             let url = URL(fileURLWithPath: text)
             let ext = url.pathExtension.lowercased()
             if imageExtensions.contains(ext) {
@@ -166,13 +169,13 @@ public final class PasteboardExtractor {
     func shouldFilter(text: String?, types: [String], dataSize: Int) -> (
         filtered: Bool, reason: String?
     ) {
-        if ignoreTransientContent {
+        if settings.ignoreTransientContent {
             if transientClassifier.isTransient(types: types, dataSize: dataSize) {
                 return (true, "transient content")
             }
         }
 
-        if ignoreConfidentialContent, let text {
+        if settings.ignoreConfidentialContent, let text {
             let result = confidentialClassifier.classify(text)
             if case .sensitive(let reason) = result {
                 return (true, "confidential: \(reason.rawValue)")

@@ -6,6 +6,11 @@ import XCTest
 
 @MainActor
 final class PasteboardExtractorTests: XCTestCase {
+    private struct TestCaptureSettings: CaptureSettingsProviding {
+        var ignoreConfidentialContent: Bool
+        var ignoreTransientContent: Bool
+    }
+
     func testExtractPlainText() {
         let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
         pasteboard.clearContents()
@@ -32,12 +37,14 @@ final class PasteboardExtractorTests: XCTestCase {
         pasteboard.clearContents()
 
         let attributed = NSAttributedString(string: "Rich")
-        let rtfData = try attributed.data(from: NSRange(location: 0, length: attributed.length),
-                                          documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
+        let rtfData = try attributed.data(
+            from: NSRange(location: 0, length: attributed.length),
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
         pasteboard.setData(rtfData, forType: .rtf)
 
-        let htmlData = try attributed.data(from: NSRange(location: 0, length: attributed.length),
-                                           documentAttributes: [.documentType: NSAttributedString.DocumentType.html])
+        let htmlData = try attributed.data(
+            from: NSRange(location: 0, length: attributed.length),
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.html])
         pasteboard.setData(htmlData, forType: .html)
 
         let payload = PasteboardExtractor().extract(from: pasteboard)
@@ -112,6 +119,49 @@ final class PasteboardExtractorTests: XCTestCase {
         filePasteboard.writeObjects([fileURL as NSURL])
         let filePayload = extractor.extract(from: filePasteboard)
         XCTAssertEqual(filePayload?.itemType, .file)
-        XCTAssertTrue(filePayload?.representations.contains(where: { $0.kind == .fileURL }) ?? false)
+        XCTAssertTrue(
+            filePayload?.representations.contains(where: { $0.kind == .fileURL }) ?? false)
+    }
+
+    func testFiltersConfidentialContentWhenEnabled() {
+        let settings = TestCaptureSettings(
+            ignoreConfidentialContent: true, ignoreTransientContent: false)
+        let extractor = PasteboardExtractor(settings: settings)
+
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+        pasteboard.setString("4242424242424242", forType: .string)
+
+        XCTAssertNil(extractor.extract(from: pasteboard))
+    }
+
+    func testDoesNotFilterConfidentialContentWhenDisabled() {
+        let settings = TestCaptureSettings(
+            ignoreConfidentialContent: false, ignoreTransientContent: false)
+        let extractor = PasteboardExtractor(settings: settings)
+
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+        pasteboard.setString("4242424242424242", forType: .string)
+
+        let payload = extractor.extract(from: pasteboard)
+        XCTAssertEqual(payload?.primaryText, "4242424242424242")
+        XCTAssertEqual(payload?.itemType, .text)
+    }
+
+    func testFiltersTransientContentWhenEnabled() {
+        let settings = TestCaptureSettings(
+            ignoreConfidentialContent: false, ignoreTransientContent: true)
+        let extractor = PasteboardExtractor(settings: settings)
+
+        let promisedType = NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-url")
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+        pasteboard.setString("Hello", forType: .string)
+        pasteboard.setData(
+            Data([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A]),
+            forType: promisedType)
+
+        XCTAssertNil(extractor.extract(from: pasteboard))
     }
 }

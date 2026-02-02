@@ -34,14 +34,16 @@ final class OverlaySearchViewModel: ObservableObject {
     private let debounceNanoseconds: UInt64
     private var lastAppOptionsSignature: Int?
 
-    init(store: ClipItemStore = ClipItemStore(), debounceNanoseconds: UInt64 = 250_000_000) {
+    init(store: ClipItemStore, debounceNanoseconds: UInt64 = 250_000_000) {
         self.store = store
         self.debounceNanoseconds = debounceNanoseconds
         self.selectedPinboardID = nil
     }
 
     @MainActor
-    convenience init(services: any AppServiceProviding, debounceNanoseconds: UInt64 = 250_000_000) {
+    convenience init(
+        services: any CaptureServicesProviding, debounceNanoseconds: UInt64 = 250_000_000
+    ) {
         self.init(store: services.clipItemStore, debounceNanoseconds: debounceNanoseconds)
     }
 

@@ -45,7 +45,7 @@ struct PinboardDragHandler {
 
         let cachedOrderedFrames = computeOrderedFrames(from: tabFrames)
 
-        Logger.drag.debug("Drag started: item=\(pinboard.name)")
+        Logger.drag.debug("Drag started")
 
         let dragState = PinboardTabDragState(
             itemID: pinboard.objectID,
@@ -103,9 +103,7 @@ struct PinboardDragHandler {
             return nil
         }
 
-        Logger.drag.debug(
-            "Reorder: \(draggedItem.name) -> \(target.item.name), insertBefore=\(target.insertBefore)"
-        )
+        Logger.drag.debug("Reorder insertBefore=\(target.insertBefore)")
 
         return DragEndResult(
             draggedItem: draggedItem,
@@ -131,21 +129,25 @@ struct PinboardDragHandler {
         }
 
         let locationX = location.x
-        
+
         // Filter frames to only those visible within scroll bounds (with margin for better UX)
         let margin: CGFloat = 10
-        let visibleFrames = visibleBounds.isEmpty ? orderedFrames : orderedFrames.filter { entry in
-            let frame = entry.frame
-            return frame.maxX >= visibleBounds.minX - margin && frame.minX <= visibleBounds.maxX + margin
-        }
-        
+        let visibleFrames =
+            visibleBounds.isEmpty
+            ? orderedFrames
+            : orderedFrames.filter { entry in
+                let frame = entry.frame
+                return frame.maxX >= visibleBounds.minX - margin
+                    && frame.minX <= visibleBounds.maxX + margin
+            }
+
         guard !visibleFrames.isEmpty,
-              let visibleFirst = visibleFrames.first,
-              let visibleLast = visibleFrames.last
+            let visibleFirst = visibleFrames.first,
+            let visibleLast = visibleFrames.last
         else {
             return nil
         }
-        
+
         let candidate: PinboardTabDropTarget?
 
         // Check if location is before first visible item
@@ -156,7 +158,9 @@ struct PinboardDragHandler {
         }
         // Check if location is after last visible item
         else if locationX > visibleLast.frame.maxX {
-            let targetIndex = orderedFrames.firstIndex(where: { $0.item.objectID == visibleLast.item.objectID }) ?? orderedFrames.count - 1
+            let targetIndex =
+                orderedFrames.firstIndex(where: { $0.item.objectID == visibleLast.item.objectID })
+                ?? orderedFrames.count - 1
             let pX = computePlaceholderX(
                 for: orderedFrames, targetIndex: targetIndex, insertBefore: false)
             candidate = PinboardTabDropTarget(

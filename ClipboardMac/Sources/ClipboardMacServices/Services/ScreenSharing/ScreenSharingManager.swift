@@ -1,13 +1,17 @@
-import SwiftUI
+import Combine
 
 public final class ScreenSharingManager: ObservableObject {
     @Published public var isScreenSharingModeActive: Bool = false
-    @AppStorage("showDuringScreenSharing") private var showDuringScreenSharing: Bool = true
+    private let settings: any ScreenSharingSettingsProviding
 
-    public init() {}
+    public init(
+        settings: any ScreenSharingSettingsProviding = UserDefaultsScreenSharingSettingsProvider()
+    ) {
+        self.settings = settings
+    }
 
     public var shouldShowOverlay: Bool {
-        showDuringScreenSharing || !isScreenSharingModeActive
+        settings.showDuringScreenSharing() || !isScreenSharingModeActive
     }
 
     public func toggle() {
@@ -23,7 +27,7 @@ public final class ScreenSharingManager: ObservableObject {
     }
 
     public var showDuringScreenSharingPreference: Bool {
-        get { showDuringScreenSharing }
-        set { showDuringScreenSharing = newValue }
+        get { settings.showDuringScreenSharing() }
+        set { settings.setShowDuringScreenSharing(newValue) }
     }
 }

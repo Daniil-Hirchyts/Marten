@@ -1,10 +1,46 @@
 import ClipboardCore
 import ClipboardMacServices
 import Foundation
-import Security
 
 @MainActor
-protocol AppServiceProviding: AnyObject {
+protocol CaptureServicesProviding: AnyObject {
+    var persistence: PersistenceController { get }
+    var clipItemStore: ClipItemStore { get }
+    var pasteboardMonitor: PasteboardMonitor { get }
+    var pasteboardExtractor: PasteboardExtractor { get }
+    var thumbnailGenerator: ThumbnailGenerator { get }
+    var eventBroadcaster: any ClipboardEventBroadcaster { get }
+}
+
+@MainActor
+protocol PasteServicesProviding: AnyObject {
+    var pasteEngine: PasteEngine { get }
+    var activeAppTracker: ActiveAppTracker { get }
+    var permissionManager: PermissionManager { get }
+    var eventBroadcaster: any ClipboardEventBroadcaster { get }
+}
+
+@MainActor
+protocol OverlayServicesProviding: AnyObject {
+    var persistence: PersistenceController { get }
+    var clipItemStore: ClipItemStore { get }
+    var hotkeyManager: HotkeyManager { get }
+    var permissionManager: PermissionManager { get }
+    var pasteEngine: PasteEngine { get }
+    var screenSharingManager: ScreenSharingManager { get }
+    var eventBroadcaster: any ClipboardEventBroadcaster { get }
+}
+
+@MainActor
+protocol SyncServicesProviding: AnyObject {
+    var syncCoordinator: SyncCoordinator? { get }
+}
+
+@MainActor
+protocol AppServiceProviding: CaptureServicesProviding, PasteServicesProviding,
+    OverlayServicesProviding,
+    SyncServicesProviding
+{
     var persistence: PersistenceController { get }
     var clipItemStore: ClipItemStore { get }
 
@@ -34,7 +70,9 @@ final class AppServiceContainer: AppServiceProviding {
 
     let syncCoordinator: SyncCoordinator?
 
-    lazy var screenSharingManager = ScreenSharingManager()
+    lazy var screenSharingManager = ScreenSharingManager(
+        settings: UserDefaultsScreenSharingSettingsProvider()
+    )
     lazy var clipItemStore: ClipItemStore = ClipItemStore(persistence: persistence)
     lazy var pasteEngine: PasteEngine = PasteEngine(
         activeAppTracker: activeAppTracker,
@@ -45,12 +83,16 @@ final class AppServiceContainer: AppServiceProviding {
     init(
         persistence: PersistenceController = .shared,
         pasteboardMonitor: PasteboardMonitor = PasteboardMonitor(),
-        pasteboardExtractor: PasteboardExtractor = PasteboardExtractor(),
+        pasteboardExtractor: PasteboardExtractor = PasteboardExtractor(
+            settings: UserDefaultsCaptureSettingsProvider()
+        ),
         thumbnailGenerator: ThumbnailGenerator = ThumbnailGenerator(),
         hotkeyManager: HotkeyManager = HotkeyManager(),
         permissionManager: PermissionManager = PermissionManager(),
         activeAppTracker: ActiveAppTracker = ActiveAppTracker(),
-        eventBroadcaster: any ClipboardEventBroadcaster = ClipboardEventBroadcasterImpl()
+        eventBroadcaster: any ClipboardEventBroadcaster = ClipboardEventBroadcasterImpl(),
+        syncConfigurationProvider: any SyncConfigurationProviding =
+            DefaultSyncConfigurationProvider()
     ) {
         self.persistence = persistence
         self.pasteboardMonitor = pasteboardMonitor
@@ -61,33 +103,16 @@ final class AppServiceContainer: AppServiceProviding {
         self.activeAppTracker = activeAppTracker
         self.eventBroadcaster = eventBroadcaster
         let cloudKitConfiguration = CloudKitConfiguration.default
-        if Self.canUseCloudKit(containerIdentifier: cloudKitConfiguration.containerIdentifier) {
+        if syncConfigurationProvider.canUseCloudKit(
+            containerIdentifier: cloudKitConfiguration.containerIdentifier
+        ) {
             self.syncCoordinator = SyncCoordinator.create(
                 cloudKitConfiguration: cloudKitConfiguration,
                 persistenceController: persistence,
-                syncEnabledProvider: {
-                    UserDefaults.standard.bool(forKey: "com.paste.syncEnabled")
-                }
+                syncEnabledProvider: syncConfigurationProvider.isSyncEnabled
             )
         } else {
             self.syncCoordinator = nil
         }
-    }
-
-    private static func canUseCloudKit(containerIdentifier: String) -> Bool {
-        guard let task = SecTaskCreateFromSelf(nil) else { return false }
-        let servicesKey = "com.apple.developer.icloud-services" as CFString
-        let containersKey = "com.apple.developer.icloud-container-identifiers" as CFString
-        let servicesValue = SecTaskCopyValueForEntitlement(task, servicesKey, nil)
-        let containersValue = SecTaskCopyValueForEntitlement(task, containersKey, nil)
-
-        let services = servicesValue as? [String]
-            ?? (servicesValue as? String).map { [$0] }
-            ?? []
-        let containers = containersValue as? [String]
-            ?? (containersValue as? String).map { [$0] }
-            ?? []
-
-        return services.contains("CloudKit") && containers.contains(containerIdentifier)
     }
 }

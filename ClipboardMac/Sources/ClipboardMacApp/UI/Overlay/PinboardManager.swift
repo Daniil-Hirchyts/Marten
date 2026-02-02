@@ -7,12 +7,12 @@ final class PinboardManager {
     private let store: ClipItemStore
     private let persistence: PersistenceController
 
-    init(store: ClipItemStore = ClipItemStore(), persistence: PersistenceController = .shared) {
+    init(store: ClipItemStore, persistence: PersistenceController) {
         self.store = store
         self.persistence = persistence
     }
 
-    convenience init(services: any AppServiceProviding) {
+    convenience init(services: any CaptureServicesProviding) {
         self.init(store: services.clipItemStore, persistence: services.persistence)
     }
 
