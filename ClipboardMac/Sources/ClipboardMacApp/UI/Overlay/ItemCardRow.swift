@@ -65,7 +65,11 @@ struct ItemCardRow: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let cardSize = geometry.size.height
+            // Reduce card size to allow space for shadows (top and bottom)
+            // Shadow radius 6 + y offset 3 = ~9pt extend. 24pt total reduction gives ample room.
+            let verticalPadding: CGFloat = 12
+            let cardSize = geometry.size.height - (verticalPadding * 2)
+            
             // Add side margin (14) to the placeholder allowance so cards start aligned with header
             let sideMargin: CGFloat = 14
             let placeholderInset = sideMargin + (placeholderWidth / 2)
@@ -79,9 +83,10 @@ struct ItemCardRow: View {
             if #available(macOS 14.0, *) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ScrollViewReader { proxy in
-                        LazyHStack(alignment: .top, spacing: cardSpacing) {
+                        LazyHStack(alignment: .center, spacing: cardSpacing) {
                             cardViews(size: cardSize, proxy: proxy, items: visibleItems)
                         }
+                        .padding(.vertical, verticalPadding)
                         .animation(
                             .spring(response: 0.32, dampingFraction: 0.86),
                             value: items.map(\.displayOrder)
@@ -94,9 +99,10 @@ struct ItemCardRow: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ScrollViewReader { proxy in
-                        LazyHStack(alignment: .top, spacing: cardSpacing) {
+                        LazyHStack(alignment: .center, spacing: cardSpacing) {
                             cardViews(size: cardSize, proxy: proxy, items: visibleItems)
                         }
+                        .padding(.vertical, verticalPadding)
                         .animation(
                             .spring(response: 0.32, dampingFraction: 0.86),
                             value: items.map(\.displayOrder)

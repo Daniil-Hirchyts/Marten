@@ -325,6 +325,12 @@ struct ItemCard: View {
             .frame(width: cardSize, height: cardSize, alignment: .topLeading)
             .background(cardBackground)
             .clipShape(cardShape)
+            .shadow(
+                color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.12),
+                radius: isSelected ? 6 : 4,
+                x: 0,
+                y: isSelected ? 3 : 2
+            )
             .overlay(selectionBorder)
             .contentShape(cardShape)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)

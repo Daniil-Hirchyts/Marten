@@ -77,6 +77,12 @@ struct ItemCompactRow: View {
         .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
         .background(rowBackground)
         .clipShape(cardShape)
+        .shadow(
+            color: Color.black.opacity(colorScheme == .dark ? 0.2 : 0.1),
+            radius: isSelected ? 5 : 3,
+            x: 0,
+            y: isSelected ? 2 : 1
+        )
         .contentShape(cardShape)
         .overlay(selectionBorder)
         .onTapGesture {

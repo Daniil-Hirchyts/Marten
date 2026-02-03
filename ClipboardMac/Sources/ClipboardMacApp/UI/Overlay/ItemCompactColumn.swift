@@ -103,9 +103,9 @@ struct ItemCompactColumn: View {
                     }
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 16)
             .padding(.top, 8)
-            .padding(.bottom, 8)
+            .padding(.bottom, 16)
             .background(
                 GeometryReader { proxy in
                     Color.clear.preference(

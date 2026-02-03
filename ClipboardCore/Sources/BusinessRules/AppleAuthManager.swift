@@ -104,6 +104,10 @@ public final class AppleAuthManager: NSObject {
             return
         }
         
+        // Optimistically set signed-in state to prevent UI flickering
+        self.credentials = storedCredentials
+        self.isSignedIn = true
+        
         // Verify the credential is still valid
         Task {
             let provider = ASAuthorizationAppleIDProvider()
@@ -113,8 +117,8 @@ public final class AppleAuthManager: NSObject {
                 await MainActor.run {
                     switch credentialState {
                     case .authorized:
-                        self.credentials = storedCredentials
-                        self.isSignedIn = true
+                        // Confirmed valid, state is already correct
+                        break
                     case .revoked, .notFound, .transferred:
                         self.signOut()
                     @unknown default:

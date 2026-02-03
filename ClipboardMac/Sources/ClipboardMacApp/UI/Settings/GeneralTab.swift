@@ -120,12 +120,6 @@ struct GeneralSettingsContent: View {
                             .pickerStyle(.menu)
                             .labelsHidden()
                             .accessibilityIdentifier("settings.picker.pinboardUnlockDuration")
-
-                            Spacer()
-
-                            Text(durationLabel)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.secondary)
                         }
                         .onAppear {
                             normalizeUnlockDurationSelection()
@@ -264,21 +258,23 @@ private struct OverlayEdgeOptionView: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .strokeBorder(
-                                    isSelected ? Color.accentColor : Color.secondary.opacity(0.2),
-                                    lineWidth: isSelected ? 2 : 1
-                                )
-                        )
-
-                    Image(systemName: iconName)
-                        .font(.system(size: 20))
-                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                    Image(iconName)
+                        .resizable()
+                        .scaledToFit()
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .frame(width: 60, height: 44)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(
+                            isSelected ? Color.accentColor : Color.secondary.opacity(0.2),
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                )
 
                 Text(edge.settingsTitle)
                     .font(.system(size: 11, weight: isSelected ? .medium : .regular))
@@ -290,10 +286,10 @@ private struct OverlayEdgeOptionView: View {
 
     private var iconName: String {
         switch edge {
-        case .bottom: return "rectangle.bottom.third.inset.filled"
-        case .top: return "rectangle.top.third.inset.filled"
-        case .left: return "rectangle.left.third.inset.filled"
-        case .right: return "rectangle.right.third.inset.filled"
+        case .bottom: return "OverlayEdgeBottom"
+        case .top: return "OverlayEdgeTop"
+        case .left: return "OverlayEdgeLeft"
+        case .right: return "OverlayEdgeRight"
         }
     }
 }

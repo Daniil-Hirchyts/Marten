@@ -30,9 +30,9 @@ enum OverlayScreenEdge: String, CaseIterable, Identifiable {
         case .top:
             return "Top"
         case .left:
-            return "Left (Vertical)"
+            return "Left"
         case .right:
-            return "Right (Vertical)"
+            return "Right"
         }
     }
 }
