@@ -26,14 +26,30 @@ struct OverlayShellView: View {
     @State var renamePinboardID: NSManagedObjectID?
     @State var renamePinboardName = ""
     @State var renamePinboardColor = PinboardPalette.defaultHex
+    @State var renamePinboardIcon: String?
     @State var isCreatingPinboard = false
     @State var pendingPinboardItem: ClipItem?
+    @State var isVerticalPinboardCreatePresented = false
+    @State var verticalPinboardDraftName = ""
+    @State var verticalPinboardDraftColor = PinboardPalette.defaultHex
+    @State var verticalPinboardDraftIcon: String?
+    @State var shouldPresentVerticalPinboardStylePicker = false
+    @State var isVerticalPinboardEditPresented = false
+    @State var verticalPinboardEditDraftName = ""
+    @State var verticalPinboardEditDraftColor = PinboardPalette.defaultHex
+    @State var verticalPinboardEditDraftIcon: String?
+    @State var shouldPresentVerticalPinboardEditStylePicker = false
+    @State var isVerticalPinboardDropdownPresented = false
 
     // Item State
     @State var renameItemID: NSManagedObjectID?
 
     // Search State
+    @AppStorage(OverlayLayoutSettings.Keys.overlayScreenEdge)
+    var overlayScreenEdgeRawValue = OverlayLayoutSettings.defaultEdge.rawValue
     @FocusState var searchFocused: Bool
+    @FocusState var verticalPinboardNameFocused: Bool
+    @FocusState var verticalPinboardEditNameFocused: Bool
     @State var isSearchExpanded = false
     @State var isFilterPopoverPresented = false
 
@@ -80,7 +96,11 @@ struct OverlayShellView: View {
     var pinboards: FetchedResults<Pinboard>
 
     init(persistence: PersistenceController, store: ClipItemStore) {
-        let itemEditorWindowController = ItemEditorWindowController(clipItemEditor: store)
+        let appleIntelligence = AppleIntelligenceTextService()
+        let itemEditorWindowController = ItemEditorWindowController(
+            clipItemEditor: store,
+            appleIntelligence: appleIntelligence
+        )
         self.clipItemEditor = store
         self.itemOperationsHandler = ItemOperationsHandler(store: store)
         self.pinboardManager = PinboardManager(store: store, persistence: persistence)
@@ -113,6 +133,7 @@ struct OverlayShellView: View {
             .onChange(of: visiblePinboardIDs) { handleVisiblePinboardsChange($0, $1) }
             .onChange(of: itemsSourceAppsHash) { handleItemsSourceAppsChange($0, $1) }
             .onChange(of: viewModel.selectedItemIDs) { handleSelectionChange($0, $1) }
+            .onChange(of: overlayLayoutAxis) { handleOverlayLayoutAxisChange($0, $1) }
             .onReceive(eventBroadcaster.events, perform: handleBroadcasterEvent)
     }
 
@@ -120,57 +141,23 @@ struct OverlayShellView: View {
         ZStack {
             backgroundView.ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 14) {
-                headerBar
-
-                ItemGridSection(
-                    isSelectedPinboardAwaitingUnlock: isSelectedPinboardAwaitingUnlock,
-                    lockedPinboardTitle: lockedPinboardTitle,
-                    canUnlockLockedPinboard: selectedCustomPinboard != nil,
-                    isAuthenticatingLock: pinboardLockController.isAuthenticating,
-                    onUnlockLockedPinboard: handleUnlockTap,
-                    filteredItems: filteredItems,
-                    isSearchActive: isSearchActive,
-                    selectedPinboardID: searchModel.selectedPinboardID,
-                    movablePinboards: movablePinboards,
-                    mode: viewModel.mode,
-                    selectedItemIDs: viewModel.selectedItemIDs,
-                    editingItemID: renameItemID,
-                    allowPinning: allowPinning,
-                    clipItemEditor: clipItemEditor,
-                    isDragEnabled: isDragEnabled,
-                    isReorderingEnabled: isReorderingEnabled,
-                    onPaste: handleItemPaste,
-                    onPastePlainText: handleItemPastePlainText,
-                    onCopy: handleCopyItem,
-                    onDelete: handleDeleteItem,
-                    onTogglePin: handleTogglePin,
-                    onMoveToPinboard: handleMoveToPinboard,
-                    onCreatePinboard: beginPinboardCreate,
-                    onEdit: handleOpenEditor,
-                    onRename: { renameItemID = $0.objectID },
-                    onCommitRename: handleCommitItemRename,
-                    onTap: handleCardTap,
-                    onDoubleTap: handleCardDoubleTap,
-                    onReorder: handleReorderItems,
-                    onReorderEnd: pinboardManager.saveChanges,
-                    onDropToPinboard: handleDropToPinboard,
-                    onDropToAll: handleDropToAll,
-                    onPasteOutside: handlePasteOutside,
-                    coordinateSpaceName: overlayCoordinateSpaceName,
-                    pinboardFrames: dragCoordinator.pinboardFrames,
-                    allPinboardFrame: dragCoordinator.allPinboardFrame,
-                    window: window,
-                    dragPreviewData: $dragCoordinator.dragPreviewData,
-                    onPreviewUpdate: { dragCoordinator.updateDragPreviewWindow($0, parentWindow: window) },
-                    previewItemID: $previewCoordinator.previewItemID,
-                    isPreviewPopoverPresented: $previewCoordinator.isPreviewPopoverPresented,
-                    pinboardSelectionKey: pinboardSelectionKey
-                )
-
-                Spacer(minLength: 0)
+            Group {
+                if overlayLayoutAxis == .horizontal {
+                    VStack(alignment: .leading, spacing: 14) {
+                        horizontalHeaderBar
+                        itemGridSection
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.top, 14)
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        verticalToolbarRow
+                        verticalPinboardPickerRow
+                        itemGridSection
+                    }
+                    .padding(.top, 10)
+                }
             }
-            .padding(.top, 14)
             .padding(.bottom, 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
@@ -198,7 +185,56 @@ struct OverlayShellView: View {
         .environmentObject(frameCoordinator)
     }
 
-    private var headerBar: some View {
+    private var itemGridSection: some View {
+        ItemGridSection(
+            layoutAxis: overlayLayoutAxis,
+            isSelectedPinboardAwaitingUnlock: isSelectedPinboardAwaitingUnlock,
+            lockedPinboardTitle: lockedPinboardTitle,
+            canUnlockLockedPinboard: selectedCustomPinboard != nil,
+            isAuthenticatingLock: pinboardLockController.isAuthenticating,
+            onUnlockLockedPinboard: handleUnlockTap,
+            filteredItems: filteredItems,
+            isSearchActive: isSearchActive,
+            selectedPinboardID: searchModel.selectedPinboardID,
+            pinboards: visiblePinboards,
+            lockedPinboardIDs: lockedPinboardIDs,
+            mode: viewModel.mode,
+            selectedItemIDs: viewModel.selectedItemIDs,
+            editingItemID: renameItemID,
+            allowPinning: allowPinning,
+            clipItemEditor: clipItemEditor,
+            isDragEnabled: isDragEnabled,
+            isReorderingEnabled: isReorderingEnabled,
+            onPaste: handleItemPaste,
+            onPastePlainText: handleItemPastePlainText,
+            onCopy: handleCopyItem,
+            onDelete: handleDeleteItem,
+            onTogglePin: handleTogglePin,
+            onMoveToPinboard: handleMoveToPinboard,
+            onCreatePinboard: beginPinboardCreate,
+            onEdit: handleOpenEditor,
+            onRename: { renameItemID = $0.objectID },
+            onCommitRename: handleCommitItemRename,
+            onTap: handleCardTap,
+            onDoubleTap: handleCardDoubleTap,
+            onReorder: handleReorderItems,
+            onReorderEnd: pinboardManager.saveChanges,
+            onDropToPinboard: handleDropToPinboard,
+            onDropToAll: handleDropToAll,
+            onPasteOutside: handlePasteOutside,
+            coordinateSpaceName: overlayCoordinateSpaceName,
+            pinboardFrames: dragCoordinator.pinboardFrames,
+            allPinboardFrame: dragCoordinator.allPinboardFrame,
+            window: window,
+            dragPreviewData: $dragCoordinator.dragPreviewData,
+            onPreviewUpdate: { dragCoordinator.updateDragPreviewWindow($0, parentWindow: window) },
+            previewItemID: $previewCoordinator.previewItemID,
+            isPreviewPopoverPresented: $previewCoordinator.isPreviewPopoverPresented,
+            pinboardSelectionKey: pinboardSelectionKey
+        )
+    }
+
+    private var horizontalHeaderBar: some View {
         ZStack(alignment: .center) {
             PinboardTabBarSection(
                 pinboards: visiblePinboards,
@@ -209,6 +245,7 @@ struct OverlayShellView: View {
                 isCreating: $isCreatingPinboard,
                 draftName: $renamePinboardName,
                 draftColor: $renamePinboardColor,
+                draftIcon: $renamePinboardIcon,
                 isGlobalDragActive: dragCoordinator.dragPreviewData != nil,
                 window: window,
                 onPreviewUpdate: { dragCoordinator.updatePinboardDragPreviewWindow($0, parentWindow: window) },
@@ -219,6 +256,7 @@ struct OverlayShellView: View {
                 onLockNow: handleLockPinboardNow,
                 onRename: handlePinboardRenameStart,
                 onColorChange: pinboardManager.changePinboardColor,
+                onIconChange: pinboardManager.changePinboardIcon,
                 onDelete: handleDeletePinboard,
                 onReorder: handlePinboardReorder,
                 onReorderEnd: pinboardManager.saveChanges,
@@ -226,8 +264,8 @@ struct OverlayShellView: View {
                 onCommit: handlePinboardCommit,
                 onCancel: handlePinboardCancel,
                 coordinateSpaceName: overlayCoordinateSpaceName,
-                headerSideWidth: headerSideWidth,
-                headerButtonSize: headerButtonSize,
+                horizontalPadding: headerSideWidth,
+                rowHeight: headerButtonSize,
                 onPinboardLayoutChange: handlePinboardLayoutChange,
                 onSearchFieldFrameChange: { frame in
                     DispatchQueue.main.async { dragCoordinator.updateSearchFieldFrame(frame) }
@@ -259,28 +297,343 @@ struct OverlayShellView: View {
 
             HStack {
                 Spacer()
-                Group {
-                    if #available(macOS 14.0, *) {
-                        OverlaySettingsButton14(
-                            closeOverlay: { viewModel.closeOverlayForSettings(completion: $0) },
-                            label: AnyView(settingsIcon)
-                        )
-                    } else {
-                        Button { viewModel.closeOverlayForSettings(completion: openSettingsLegacy) }
-                        label: { settingsIcon }
-                    }
-                }
-                .buttonStyle(.plain)
-                .contentShape(Rectangle())
-                .accessibilityIdentifier("overlay.settings")
-                .accessibilityLabel("Settings")
-                .accessibilityHint("Opens settings")
+                settingsButton
             }
             .padding(.trailing, 4)
         }
         .padding(.horizontal, 14)
         .frame(height: headerButtonSize)
         .zIndex(1)
+    }
+
+    private var verticalToolbarRow: some View {
+        HStack(spacing: 8) {
+            OverlaySearchBarView(
+                isSearchExpanded: $isSearchExpanded,
+                isFilterPopoverPresented: $isFilterPopoverPresented,
+                searchText: $searchModel.searchText,
+                searchFocused: $searchFocused,
+                dateFilter: $searchModel.dateFilter,
+                typeFilters: $searchModel.typeFilters,
+                appFilters: $searchModel.appFilters,
+                appOptions: searchModel.appOptions,
+                hasActiveFilters: searchModel.hasActiveFilters,
+                headerButtonSize: headerButtonSize,
+                headerButtonIconSize: headerButtonIconSize,
+                searchCollapsedWidth: searchCollapsedWidth,
+                searchExpandedWidth: min(searchExpandedWidth, 260),
+                overlayCoordinateSpaceName: overlayCoordinateSpaceName,
+                onSearchButtonTap: handleSearchButtonTap,
+                onSearchClear: handleSearchClear,
+                onClearFilters: searchModel.clearFilters
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            settingsButton
+        }
+        .padding(.horizontal, 14)
+        .onPreferenceChange(SearchFieldFrameKey.self) { frame in
+            DispatchQueue.main.async { dragCoordinator.updateSearchFieldFrame(frame) }
+        }
+    }
+
+    private var verticalPinboardPickerRow: some View {
+        HStack(spacing: 8) {
+            verticalPinboardPickerMenu
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if shouldShowVerticalPinboardEditButton {
+                verticalPinboardEditButton
+                    .transition(.opacity.combined(with: .scale(scale: 0.92)))
+            }
+        }
+        .padding(.horizontal, 14)
+    }
+
+    private var verticalPinboardPickerMenu: some View {
+        Button {
+            isVerticalPinboardDropdownPresented.toggle()
+        } label: {
+            HStack(spacing: 8) {
+                if let selectedCustomPinboard {
+                    PinboardIndicator(
+                        colorHex: selectedCustomPinboard.colorHex,
+                        sign: selectedCustomPinboard.iconName,
+                        size: 15
+                    )
+                } else {
+                    Image(systemName: "tray")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 15, height: 15)
+                }
+
+                Text(verticalPinboardLabel)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 10)
+            .frame(height: headerButtonSize)
+            .background {
+                if #available(macOS 26.0, *) {
+                    Capsule()
+                        .fill(Color.clear)
+                        .glassNavigationStyle()
+                } else {
+                    Capsule()
+                        .fill(Color.white.opacity(DesignTokens.Opacity.backgroundMedium))
+                }
+            }
+            .overlay {
+                if #available(macOS 26.0, *) {
+                    EmptyView()
+                } else {
+                    Capsule()
+                        .stroke(Color.white.opacity(DesignTokens.Opacity.borderStrong), lineWidth: 1)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .popover(isPresented: $isVerticalPinboardDropdownPresented, arrowEdge: .top) {
+            verticalPinboardDropdownContent
+        }
+        .popover(isPresented: $isVerticalPinboardCreatePresented, arrowEdge: .top) {
+            verticalPinboardCreatePopover
+        }
+        .accessibilityIdentifier("overlay.pinboard.picker")
+        .accessibilityLabel("Pinboard")
+    }
+
+    private var verticalPinboardDropdownContent: some View {
+        VStack(spacing: 0) {
+            Button {
+                handlePinboardSelect(nil)
+                isVerticalPinboardDropdownPresented = false
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "tray")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 15, height: 15)
+                    Text("All Items")
+                    Spacer(minLength: 0)
+                    if searchModel.selectedPinboardID == nil {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+
+            ForEach(visiblePinboards) { pinboard in
+                let isSelected = searchModel.selectedPinboardID == pinboard.id
+                Button {
+                    handlePinboardSelect(pinboard.id)
+                    isVerticalPinboardDropdownPresented = false
+                } label: {
+                    HStack(spacing: 8) {
+                        PinboardIndicator(
+                            colorHex: pinboard.colorHex,
+                            sign: pinboard.iconName,
+                            size: 15
+                        )
+                        Text(pinboard.name)
+                        Spacer(minLength: 0)
+                        if pinboardLockController.isLocked(pinboardID: pinboard.id) {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        if isSelected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+            }
+
+            Divider()
+                .padding(.vertical, 2)
+
+            Button {
+                isVerticalPinboardDropdownPresented = false
+                DispatchQueue.main.async {
+                    handleCreatePinboardFromVerticalPicker()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    PinboardIndicator(
+                        colorHex: nextAvailablePinboardColorHex(),
+                        sign: nil,
+                        size: 15
+                    )
+                    Text("New Pinboard...")
+                    Spacer(minLength: 0)
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+            }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+        }
+        .frame(minWidth: 200)
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var verticalPinboardEditButton: some View {
+        Button {
+            presentVerticalPinboardEdit()
+        } label: {
+            Text("Edit")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $isVerticalPinboardEditPresented, arrowEdge: .top) {
+            verticalPinboardEditPopover
+        }
+        .accessibilityIdentifier("overlay.pinboard.picker.edit")
+        .accessibilityLabel("Edit selected pinboard")
+    }
+
+    private var verticalPinboardCreatePopover: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Create Pinboard")
+                .font(.system(size: 15, weight: .semibold))
+
+            HStack(spacing: 8) {
+                PinboardStylePickerButton(
+                    selectedColorHex: verticalPinboardDraftColor,
+                    selectedSign: verticalPinboardDraftIcon,
+                    shouldPresentOnAppear: $shouldPresentVerticalPinboardStylePicker,
+                    onColorSelect: { verticalPinboardDraftColor = $0 },
+                    onSignSelect: { verticalPinboardDraftIcon = $0 }
+                )
+
+                TextField("Pinboard name", text: $verticalPinboardDraftName)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($verticalPinboardNameFocused)
+                    .accessibilityIdentifier("overlay.pinboard.verticalCreate.name")
+            }
+
+            HStack {
+                Spacer()
+
+                Button("Cancel") {
+                    cancelVerticalPinboardCreate()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("Create") {
+                    commitVerticalPinboardCreate()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(verticalPinboardDraftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("overlay.pinboard.verticalCreate.commit")
+            }
+        }
+        .padding(14)
+        .frame(width: 340)
+        .onAppear {
+            DispatchQueue.main.async {
+                verticalPinboardNameFocused = true
+            }
+        }
+    }
+
+    private var verticalPinboardEditPopover: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Edit Pinboard")
+                .font(.system(size: 15, weight: .semibold))
+
+            HStack(spacing: 8) {
+                PinboardStylePickerButton(
+                    selectedColorHex: verticalPinboardEditDraftColor,
+                    selectedSign: verticalPinboardEditDraftIcon,
+                    shouldPresentOnAppear: $shouldPresentVerticalPinboardEditStylePicker,
+                    onColorSelect: { verticalPinboardEditDraftColor = $0 },
+                    onSignSelect: { verticalPinboardEditDraftIcon = $0 }
+                )
+
+                TextField("Pinboard name", text: $verticalPinboardEditDraftName)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($verticalPinboardEditNameFocused)
+                    .accessibilityIdentifier("overlay.pinboard.verticalEdit.name")
+            }
+
+            HStack {
+                Spacer()
+
+                Button("Cancel") {
+                    cancelVerticalPinboardEdit()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("Save") {
+                    commitVerticalPinboardEdit()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(verticalPinboardEditDraftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("overlay.pinboard.verticalEdit.commit")
+            }
+        }
+        .padding(14)
+        .frame(width: 340)
+        .onAppear {
+            DispatchQueue.main.async {
+                verticalPinboardEditNameFocused = true
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var settingsButton: some View {
+        Group {
+            if #available(macOS 14.0, *) {
+                OverlaySettingsButton14(
+                    closeOverlay: { viewModel.closeOverlayForSettings(completion: $0) },
+                    label: AnyView(settingsIcon)
+                )
+            } else {
+                Button { viewModel.closeOverlayForSettings(completion: openSettingsLegacy) }
+                label: { settingsIcon }
+            }
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .accessibilityIdentifier("overlay.settings")
+        .accessibilityLabel("Settings")
+        .accessibilityHint("Opens settings")
     }
 
     @ViewBuilder
@@ -329,6 +682,12 @@ private extension OverlayShellView {
         isFilterPopoverPresented = false
         isCreatingPinboard = false
         renamePinboardID = nil
+        renamePinboardIcon = nil
+        isVerticalPinboardCreatePresented = false
+        isVerticalPinboardDropdownPresented = false
+        shouldPresentVerticalPinboardStylePicker = false
+        isVerticalPinboardEditPresented = false
+        shouldPresentVerticalPinboardEditStylePicker = false
     }
 
     func handleWindowChange(_ oldValue: NSWindow?, _ newValue: NSWindow?) {
@@ -336,6 +695,10 @@ private extension OverlayShellView {
     }
 
     func handlePinboardSelectionChange(_ oldValue: UUID?, _ newValue: UUID?) {
+        if oldValue != newValue {
+            isVerticalPinboardEditPresented = false
+            shouldPresentVerticalPinboardEditStylePicker = false
+        }
         if isSelectedPinboardAwaitingUnlock {
             viewModel.clearSelection()
             previewCoordinator.closePreview()
@@ -376,6 +739,13 @@ private extension OverlayShellView {
     func handleSelectionChange(_ oldValue: Set<NSManagedObjectID>, _ newValue: Set<NSManagedObjectID>) {
         if previewCoordinator.isPreviewPopoverPresented {
             previewCoordinator.closePreview()
+        }
+    }
+
+    func handleOverlayLayoutAxisChange(_ oldValue: OverlayLayoutAxis, _ newValue: OverlayLayoutAxis) {
+        if newValue == .vertical {
+            frameCoordinator.clearCapturedPinboardLayout()
+            dragCoordinator.clearPinboardLayoutState()
         }
     }
 
@@ -432,6 +802,10 @@ private extension OverlayShellView {
         let handler: (NSEvent) -> Bool = { _ in
             if previewCoordinator.isPreviewPopoverPresented {
                 previewCoordinator.closePreview()
+                return true
+            }
+            if isCreatingPinboard || renamePinboardID != nil {
+                handlePinboardCancel()
                 return true
             }
             return false
@@ -540,14 +914,87 @@ private extension OverlayShellView {
 
     func handlePinboardCreateStart() {
         closeSearchIfEmpty()
-        let usedColors = Set(pinboards.map { $0.colorHex })
-        let availableColors = PinboardPalette.colors.filter { !usedColors.contains($0) }
-        renamePinboardColor = availableColors.first ?? PinboardPalette.colors.randomElement() ?? PinboardPalette.defaultHex
+        renamePinboardColor = nextAvailablePinboardColorHex()
 
         withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
             isCreatingPinboard = true
         }
         renamePinboardName = ""
+        renamePinboardIcon = nil
+    }
+
+    func handleCreatePinboardFromVerticalPicker() {
+        closeSearchIfEmpty()
+        verticalPinboardDraftName = nextAvailablePinboardName()
+        verticalPinboardDraftColor = nextAvailablePinboardColorHex()
+        verticalPinboardDraftIcon = nil
+        shouldPresentVerticalPinboardStylePicker = false
+        isVerticalPinboardCreatePresented = true
+    }
+
+    func commitVerticalPinboardCreate() {
+        let name = verticalPinboardDraftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+
+        let didCreate = pinboardManager.createPinboard(
+            name: name,
+            colorHex: verticalPinboardDraftColor,
+            iconName: verticalPinboardDraftIcon,
+            pendingItem: pendingPinboardItem
+        )
+        guard didCreate else { return }
+
+        pendingPinboardItem = nil
+        isVerticalPinboardCreatePresented = false
+        shouldPresentVerticalPinboardStylePicker = false
+
+        DispatchQueue.main.async {
+            let createdPinboard = visiblePinboards
+                .sorted { $0.sortOrder > $1.sortOrder }
+                .first(where: { $0.name == name })
+            if let createdPinboard {
+                withAnimation(.easeOut(duration: 0.14)) {
+                    searchModel.selectedPinboardID = createdPinboard.id
+                }
+            }
+        }
+    }
+
+    func cancelVerticalPinboardCreate() {
+        isVerticalPinboardCreatePresented = false
+        shouldPresentVerticalPinboardStylePicker = false
+        pendingPinboardItem = nil
+    }
+
+    func presentVerticalPinboardEdit() {
+        guard let selectedCustomPinboard else { return }
+        verticalPinboardEditDraftName = selectedCustomPinboard.name
+        verticalPinboardEditDraftColor = selectedCustomPinboard.colorHex
+        verticalPinboardEditDraftIcon = selectedCustomPinboard.iconName
+        shouldPresentVerticalPinboardEditStylePicker = false
+        isVerticalPinboardEditPresented = true
+    }
+
+    func commitVerticalPinboardEdit() {
+        guard let selectedCustomPinboard else { return }
+        let name = verticalPinboardEditDraftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+
+        let didSave = pinboardManager.renamePinboard(
+            objectID: selectedCustomPinboard.objectID,
+            name: name,
+            colorHex: verticalPinboardEditDraftColor,
+            iconName: verticalPinboardEditDraftIcon
+        )
+        guard didSave else { return }
+
+        isVerticalPinboardEditPresented = false
+        shouldPresentVerticalPinboardEditStylePicker = false
+    }
+
+    func cancelVerticalPinboardEdit() {
+        isVerticalPinboardEditPresented = false
+        shouldPresentVerticalPinboardEditStylePicker = false
     }
 
     func handleSetPinboardLock(_ pinboard: Pinboard, _ isEnabled: Bool) {
@@ -566,6 +1013,7 @@ private extension OverlayShellView {
         renamePinboardID = pinboard.objectID
         renamePinboardName = pinboard.name
         renamePinboardColor = pinboard.colorHex
+        renamePinboardIcon = pinboard.iconName
     }
 
     func handleDeletePinboard(_ pinboard: Pinboard) {
@@ -591,23 +1039,30 @@ private extension OverlayShellView {
 
     func handlePinboardCommit() {
         if isCreatingPinboard {
-            if actionHandlers.commitPinboardCreate(
+            let didCreate = actionHandlers.commitPinboardCreate(
                 name: renamePinboardName,
                 colorHex: renamePinboardColor,
+                iconName: renamePinboardIcon,
                 pendingItem: pendingPinboardItem
-            ) {
-                pendingPinboardItem = nil
-            }
+            )
+            guard didCreate else { return }
+
+            pendingPinboardItem = nil
             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                 isCreatingPinboard = false
             }
+            renamePinboardIcon = nil
         } else if let objectID = renamePinboardID {
-            actionHandlers.commitPinboardRename(
+            let didRename = actionHandlers.commitPinboardRename(
                 objectID: objectID,
                 name: renamePinboardName,
-                colorHex: renamePinboardColor
+                colorHex: renamePinboardColor,
+                iconName: renamePinboardIcon
             )
+            guard didRename else { return }
+
             renamePinboardID = nil
+            renamePinboardIcon = nil
         }
     }
 
@@ -616,6 +1071,7 @@ private extension OverlayShellView {
             isCreatingPinboard = false
         }
         renamePinboardID = nil
+        renamePinboardIcon = nil
     }
 
     func handlePinboardLayoutChange(_ layout: PinboardLayoutInfo) {
@@ -626,16 +1082,35 @@ private extension OverlayShellView {
     }
 
     func handleMoveToPinboard(_ item: ClipItem, _ pinboard: Pinboard) {
-        actionHandlers.handleMoveToPinboard(item, pinboard)
+        if !pinboardLockController.canAccess(pinboardID: pinboard.id) {
+            handleRequestPinboardUnlock(pinboard)
+            return
+        }
+
+        // If the clicked item is part of a multi-selection, move all selected items
+        let selectedIDs = viewModel.selectedItemIDs
+        if selectedIDs.count > 1, selectedIDs.contains(item.objectID) {
+            // Get all selected items from filteredItems
+            let selectedItems = filteredItems.filter { selectedIDs.contains($0.objectID) }
+            for selectedItem in selectedItems {
+                actionHandlers.handleMoveToPinboard(selectedItem, pinboard)
+            }
+        } else {
+            // Single item or clicked item not in selection
+            actionHandlers.handleMoveToPinboard(item, pinboard)
+        }
     }
 
     func beginPinboardCreate(for item: ClipItem?) {
         pendingPinboardItem = item
-        let usedColors = Set(pinboards.map { $0.colorHex })
-        let availableColors = PinboardPalette.colors.filter { !usedColors.contains($0) }
-        renamePinboardColor = availableColors.first ?? PinboardPalette.colors.randomElement() ?? PinboardPalette.defaultHex
-        renamePinboardName = ""
-        isCreatingPinboard = true
+        if overlayLayoutAxis == .vertical {
+            handleCreatePinboardFromVerticalPicker()
+        } else {
+            renamePinboardColor = nextAvailablePinboardColorHex()
+            renamePinboardName = ""
+            renamePinboardIcon = nil
+            isCreatingPinboard = true
+        }
     }
 }
 
@@ -704,6 +1179,35 @@ private extension OverlayShellView {
 // MARK: - Helper Methods
 
 private extension OverlayShellView {
+    var shouldShowVerticalPinboardEditButton: Bool {
+        selectedCustomPinboard != nil
+    }
+
+    func nextAvailablePinboardColorHex() -> String {
+        let usedColors = Set(pinboards.map { $0.colorHex })
+        let availableColors = PinboardPalette.colors.filter { !usedColors.contains($0) }
+        return availableColors.first ?? PinboardPalette.defaultHex
+    }
+
+    func nextAvailablePinboardName(base: String = "New Pinboard") -> String {
+        let normalizedNames = Set(
+            visiblePinboards.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        )
+        if !normalizedNames.contains(base.lowercased()) {
+            return base
+        }
+
+        var index = 2
+        while normalizedNames.contains("\(base) \(index)".lowercased()) {
+            index += 1
+        }
+        return "\(base) \(index)"
+    }
+
+    var verticalPinboardLabel: String {
+        selectedCustomPinboard?.name ?? "All Items"
+    }
+
     var lockedPinboardTitle: String {
         guard let selectedCustomPinboard else { return "Pinboard is locked" }
         return "\"\(selectedCustomPinboard.name)\" is locked"
@@ -761,6 +1265,10 @@ private extension OverlayShellView {
             !pinboardEditorFrame.contains(location)
         else { return }
 
-        handlePinboardCommit()
+        if isCreatingPinboard && renamePinboardName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            handlePinboardCancel()
+        } else {
+            handlePinboardCommit()
+        }
     }
 }

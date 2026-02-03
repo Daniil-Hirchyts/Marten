@@ -24,6 +24,7 @@ final class ClipItemUsageService {
                     continue
                 }
 
+                item.createdAt = now
                 item.modifiedAt = now
                 item.displayOrder = baseOrder - Int64(index)
             }

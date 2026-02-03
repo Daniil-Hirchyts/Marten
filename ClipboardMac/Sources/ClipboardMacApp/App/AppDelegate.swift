@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let services: AppServiceProviding
     private var overlayController: OverlayWindowController?
     private var menuBarController: MenuBarController?
+    private var itemEditorWindowController: ItemEditorWindowController?
     private var retentionTimer: Timer?
     private var cancellables: Set<AnyCancellable> = []
 
@@ -66,6 +67,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "ignoreConfidentialContent": true,
                 "ignoreTransientContent": true,
                 "showDuringScreenSharing": true,
+                OverlayLayoutSettings.Keys.overlayScreenEdge: OverlayLayoutSettings.defaultEdge.rawValue,
+                OverlayLayoutSettings.Keys.overlayWidth: OverlayLayoutSettings.defaultVerticalSize,
                 "retentionPolicy": "month",
                 PinboardSecuritySettings.unlockDurationSecondsKey:
                     PinboardSecuritySettings.defaultUnlockDurationSeconds,
@@ -82,6 +85,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             eventBroadcaster: eventBroadcaster,
             screenSharingManager: screenSharingManager,
             clipItemStore: clipItemStore
+        )
+
+        let appleIntelligence = AppleIntelligenceTextService()
+        itemEditorWindowController = ItemEditorWindowController(
+            clipItemEditor: clipItemStore,
+            appleIntelligence: appleIntelligence
         )
 
         let captureCoordinator = CaptureCoordinator(
@@ -148,7 +157,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     overlayController.hideForPaste(completion: completion)
                 }
             },
-            screenSharingManager: screenSharingManager
+            screenSharingManager: screenSharingManager,
+            pasteboardMonitor: pasteboardMonitor,
+            openNewTextItemHandler: { [weak self] in
+                Task { @MainActor in
+                    self?.openNewTextItem()
+                }
+            }
         )
 
         if ProcessInfo.processInfo.environment["PASTE_AUTOSHOW_OVERLAY"] == "1" {
@@ -290,6 +305,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.sendEvent(event)
             }
         }
+    }
+
+    @MainActor
+    private func openNewTextItem() {
+        itemEditorWindowController?.showNewTextItem(
+            onSave: { [weak self] text in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    do {
+                        try await self.pasteEngine.copyPlainTextToClipboard(text)
+                        Logger.app.info("New text item saved to clipboard")
+                    } catch {
+                        Logger.app.error("Failed to save text to clipboard: \(error.localizedDescription)")
+                    }
+                }
+            },
+            onClose: {
+                Logger.app.debug("New text item window closed")
+            }
+        )
     }
 
 }

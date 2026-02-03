@@ -16,14 +16,12 @@ struct PinboardTab: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                if let iconName {
+                if let colorHex {
+                    PinboardIndicator(colorHex: colorHex, sign: iconName, size: 16)
+                } else if let iconName {
                     Image(systemName: iconName)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(textColor)
-                } else if let colorHex {
-                    Circle()
-                        .fill(Color(hex: colorHex, fallback: .gray))
-                        .frame(width: 8, height: 8)
                 }
 
                 Text(title)

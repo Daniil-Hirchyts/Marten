@@ -14,8 +14,11 @@ extension Notification.Name {
 struct RichTextEditor: NSViewRepresentable {
     @Binding var text: String
     @Binding var attributedText: NSAttributedString?
+    @Binding var selection: NSRange?
     let initialAttributedText: NSAttributedString?
     let font: Font
+    let writingToolsBehavior: NSWritingToolsBehavior
+    let allowedWritingToolsResultOptions: NSWritingToolsResultOptions
     let onBold: () -> Void
     let onItalic: () -> Void
     let onUnderline: () -> Void
@@ -32,6 +35,8 @@ struct RichTextEditor: NSViewRepresentable {
         textView.isAutomaticTextReplacementEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false
         textView.isAutomaticLinkDetectionEnabled = false
+        textView.writingToolsBehavior = writingToolsBehavior
+        textView.allowedWritingToolsResultOptions = allowedWritingToolsResultOptions
 
         textView.textColor = .white
         textView.backgroundColor = .clear
@@ -55,15 +60,28 @@ struct RichTextEditor: NSViewRepresentable {
             context.coordinator.attributedText = textView.attributedString()
         }
 
+        selection = textView.selectedRange()
+
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         let textView = scrollView.documentView as! NSTextView
+        textView.writingToolsBehavior = writingToolsBehavior
+        textView.allowedWritingToolsResultOptions = allowedWritingToolsResultOptions
         if textView.string != text {
             let selectedRange = textView.selectedRange()
             textView.string = text
             textView.setSelectedRange(selectedRange)
+            selection = selectedRange
+        }
+
+        if
+            let requestedSelection = context.coordinator.normalizedSelection(
+                selection, in: textView),
+            requestedSelection != textView.selectedRange()
+        {
+            textView.setSelectedRange(requestedSelection)
         }
     }
 
@@ -71,6 +89,7 @@ struct RichTextEditor: NSViewRepresentable {
         Coordinator(
             text: $text,
             attributedText: $attributedText,
+            selection: $selection,
             onBold: onBold,
             onItalic: onItalic,
             onUnderline: onUnderline,
@@ -81,6 +100,7 @@ struct RichTextEditor: NSViewRepresentable {
     class Coordinator: NSObject, NSTextViewDelegate {
         @Binding var text: String
         @Binding var attributedText: NSAttributedString?
+        @Binding var selection: NSRange?
         let onBold: () -> Void
         let onItalic: () -> Void
         let onUnderline: () -> Void
@@ -92,6 +112,7 @@ struct RichTextEditor: NSViewRepresentable {
         init(
             text: Binding<String>,
             attributedText: Binding<NSAttributedString?>,
+            selection: Binding<NSRange?>,
             onBold: @escaping () -> Void,
             onItalic: @escaping () -> Void,
             onUnderline: @escaping () -> Void,
@@ -99,6 +120,7 @@ struct RichTextEditor: NSViewRepresentable {
         ) {
             _text = text
             _attributedText = attributedText
+            _selection = selection
             self.onBold = onBold
             self.onItalic = onItalic
             self.onUnderline = onUnderline
@@ -128,6 +150,25 @@ struct RichTextEditor: NSViewRepresentable {
             sanitizeUnsupportedAttributes(in: textView)
             text = textView.string
             attributedText = textView.attributedString()
+            selection = textView.selectedRange()
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            selection = textView.selectedRange()
+        }
+
+        func normalizedSelection(_ selection: NSRange?, in textView: NSTextView) -> NSRange? {
+            guard let selection, selection.location != NSNotFound, selection.location >= 0 else {
+                return nil
+            }
+
+            let textLength = (textView.string as NSString).length
+            guard selection.location <= textLength else { return nil }
+
+            let remainingLength = textLength - selection.location
+            let clampedLength = min(max(0, selection.length), remainingLength)
+            return NSRange(location: selection.location, length: clampedLength)
         }
 
         func sanitizeUnsupportedAttributes(in textView: NSTextView) {
@@ -148,6 +189,7 @@ struct RichTextEditor: NSViewRepresentable {
             textView.linkTextAttributes = [:]
             textView.setSelectedRange(selectedRange)
             attributedText = textView.attributedString()
+            selection = selectedRange
         }
 
         func applyFormatting(_ type: TextFormattingType) {
@@ -227,6 +269,7 @@ struct RichTextEditor: NSViewRepresentable {
             textView.setSelectedRange(selectedRange)
             text = textView.string
             attributedText = textView.attributedString()
+            selection = selectedRange
         }
 
         func toggleTrait(_ type: TextFormattingType) {

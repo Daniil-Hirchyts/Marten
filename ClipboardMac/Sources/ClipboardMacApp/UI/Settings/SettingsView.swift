@@ -87,6 +87,7 @@ struct SettingsView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 20)
+                .background(ScrollViewAppearanceConfigurator())
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle(currentTab.title)
@@ -149,15 +150,59 @@ struct SettingsSectionHeader: View {
         HStack(spacing: 6) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
             Text(title)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
         }
         .padding(.bottom, 8)
+    }
+}
+
+// MARK: - Scroll View Appearance Configurator
+
+private struct ScrollViewAppearanceConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        configureScrollView(from: view, remainingAttempts: 8)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        configureScrollView(from: nsView, remainingAttempts: 8)
+    }
+
+    private func configureScrollView(from view: NSView, remainingAttempts: Int) {
+        if let scrollView = findScrollView(from: view) {
+            if let scroller = scrollView.verticalScroller {
+                scroller.controlSize = .mini
+            }
+            return
+        }
+
+        guard remainingAttempts > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            configureScrollView(from: view, remainingAttempts: remainingAttempts - 1)
+        }
+    }
+
+    private func findScrollView(from view: NSView) -> NSScrollView? {
+        if let enclosing = view.enclosingScrollView {
+            return enclosing
+        }
+
+        var current = view.superview
+        while let node = current {
+            if let scroll = node as? NSScrollView {
+                return scroll
+            }
+            current = node.superview
+        }
+
+        return nil
     }
 }
 

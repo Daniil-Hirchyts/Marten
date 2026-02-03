@@ -6,6 +6,8 @@ struct GeneralSettingsContent: View {
     @AppStorage("openAtLogin") private var openAtLogin = false
     @AppStorage("alwaysPastePlainText") private var alwaysPastePlainText = false
     @AppStorage("soundEffectsEnabled") private var soundEffectsEnabled = true
+    @AppStorage(OverlayLayoutSettings.Keys.overlayScreenEdge)
+    private var overlayScreenEdgeRawValue = OverlayLayoutSettings.defaultEdge.rawValue
     @AppStorage("retentionPolicy") private var retentionPolicy = "month"
     @AppStorage(PinboardSecuritySettings.unlockDurationSecondsKey)
     private var unlockDurationSeconds = PinboardSecuritySettings.defaultUnlockDurationSeconds
@@ -57,6 +59,45 @@ struct GeneralSettingsContent: View {
                             isOn: $soundEffectsEnabled,
                             identifier: "settings.toggle.soundEffects"
                         )
+                    }
+                }
+            }
+
+            // Overlay Section
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsSectionHeader("Overlay", icon: "rectangle.3.group")
+
+                SettingsCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Overlay edge")
+                            .font(.system(size: 13, weight: .medium))
+
+                        HStack(spacing: 12) {
+                            ForEach(OverlayScreenEdge.allCases) { edge in
+                                OverlayEdgeOptionView(
+                                    edge: edge,
+                                    isSelected: overlayScreenEdgeRawValue == edge.rawValue
+                                ) {
+                                    overlayScreenEdgeRawValue = edge.rawValue
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        .accessibilityIdentifier("settings.picker.overlayScreenEdge")
+                        .onAppear {
+                            normalizeOverlayEdgeSelection()
+                        }
+                        .onChange(of: overlayScreenEdgeRawValue) { newValue, _ in
+                            if OverlayScreenEdge(rawValue: newValue) == nil {
+                                overlayScreenEdgeRawValue = OverlayLayoutSettings.defaultEdge.rawValue
+                            }
+                        }
+
+                        Text(
+                            "Top and Bottom keep the current horizontal layout. Left and Right use a compact vertical layout."
+                        )
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
                     }
                 }
             }
@@ -194,6 +235,12 @@ struct GeneralSettingsContent: View {
         }
         return "\(seconds)s"
     }
+
+    private func normalizeOverlayEdgeSelection() {
+        if OverlayScreenEdge(rawValue: overlayScreenEdgeRawValue) == nil {
+            overlayScreenEdgeRawValue = OverlayLayoutSettings.defaultEdge.rawValue
+        }
+    }
 }
 
 // Keep the old tab for compatibility
@@ -201,5 +248,52 @@ struct GeneralTab: View {
     var body: some View {
         GeneralSettingsContent()
             .padding()
+    }
+}
+
+// MARK: - Overlay Edge Option View
+
+private struct OverlayEdgeOptionView: View {
+    let edge: OverlayScreenEdge
+    let isSelected: Bool
+    let action: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .strokeBorder(
+                                    isSelected ? Color.accentColor : Color.secondary.opacity(0.2),
+                                    lineWidth: isSelected ? 2 : 1
+                                )
+                        )
+
+                    Image(systemName: iconName)
+                        .font(.system(size: 20))
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                }
+                .frame(width: 60, height: 44)
+
+                Text(edge.settingsTitle)
+                    .font(.system(size: 11, weight: isSelected ? .medium : .regular))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var iconName: String {
+        switch edge {
+        case .bottom: return "rectangle.bottom.third.inset.filled"
+        case .top: return "rectangle.top.third.inset.filled"
+        case .left: return "rectangle.left.third.inset.filled"
+        case .right: return "rectangle.right.third.inset.filled"
+        }
     }
 }

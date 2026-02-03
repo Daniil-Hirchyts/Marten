@@ -91,6 +91,33 @@ final class PinboardRepository {
         }
     }
 
+    func updatePinboard(
+        objectID: NSManagedObjectID,
+        name: String,
+        colorHex: String,
+        iconName: String?
+    ) throws {
+        let context = persistence.newBackgroundContext()
+
+        try context.performAndWaitThrowing {
+            guard let pinboard = try context.existingObject(with: objectID) as? Pinboard else {
+                throw ClipItemStoreError.missingItem
+            }
+
+            pinboard.name = name
+            pinboard.colorHex = colorHex
+            pinboard.iconName = iconName
+            try context.save()
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            if let pinboard = try? viewContext.existingObject(with: objectID) as? Pinboard {
+                viewContext.refresh(pinboard, mergeChanges: true)
+            }
+        }
+    }
+
     func deletePinboard(objectID: NSManagedObjectID) throws {
         let context = persistence.newBackgroundContext()
 

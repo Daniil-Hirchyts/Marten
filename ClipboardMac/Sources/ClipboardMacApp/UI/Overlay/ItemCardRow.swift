@@ -12,6 +12,7 @@ struct ItemCardRow: View {
 
     let items: [ClipItem]
     let pinboards: [Pinboard]
+    let lockedPinboardIDs: Set<UUID>
     let mode: OverlayMode
     let selectedItemIDs: Set<NSManagedObjectID>
     let editingItemID: NSManagedObjectID?
@@ -205,6 +206,7 @@ struct ItemCardRow: View {
             let base = ItemCard(
                 item: item,
                 pinboards: pinboards,
+                lockedPinboardIDs: lockedPinboardIDs,
                 isSelected: selectedItemIDs.contains(item.objectID),
                 isEditing: editingItemID == item.objectID,
                 badgeIndex: badgeIndex(for: index),
@@ -236,6 +238,7 @@ struct ItemCardRow: View {
                     item: item,
                     allowPinning: allowPinning,
                     pinboards: pinboards,
+                    lockedPinboardIDs: lockedPinboardIDs,
                     clipItemEditor: clipItemEditor,
                     onEdit: {
                         previewItemID = nil
@@ -755,12 +758,22 @@ struct DragPreviewData: Equatable {
     let cardSize: CGFloat
     let position: CGPoint
     let opacity: Double
+    let isCompactLayout: Bool
+
+    init(items: [ClipItem], pinboards: [Pinboard], cardSize: CGFloat, position: CGPoint, opacity: Double, isCompactLayout: Bool = false) {
+        self.items = items
+        self.pinboards = pinboards
+        self.cardSize = cardSize
+        self.position = position
+        self.opacity = opacity
+        self.isCompactLayout = isCompactLayout
+    }
 
     static func == (lhs: DragPreviewData, rhs: DragPreviewData) -> Bool {
         lhs.items.map { $0.objectID } == rhs.items.map { $0.objectID }
             && lhs.pinboards.map { $0.objectID } == rhs.pinboards.map { $0.objectID }
             && lhs.cardSize == rhs.cardSize && lhs.position == rhs.position
-            && lhs.opacity == rhs.opacity
+            && lhs.opacity == rhs.opacity && lhs.isCompactLayout == rhs.isCompactLayout
     }
 }
 
@@ -797,6 +810,7 @@ struct ItemCardDragPreview: View {
         ItemCard(
             item: item,
             pinboards: pinboards,
+            lockedPinboardIDs: [],
             isSelected: false,
             isEditing: false,
             badgeIndex: nil,
@@ -840,6 +854,7 @@ struct MultiItemCardDragPreview: View {
                 ItemCard(
                     item: item,
                     pinboards: pinboards,
+                    lockedPinboardIDs: [],
                     isSelected: false,
                     isEditing: false,
                     badgeIndex: nil,

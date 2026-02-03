@@ -254,6 +254,7 @@ enum PreviewFactory {
 struct ItemCard: View {
     let item: ClipItem
     let pinboards: [Pinboard]
+    let lockedPinboardIDs: Set<UUID>
     let isSelected: Bool
     let isEditing: Bool
     let badgeIndex: Int?
@@ -390,6 +391,7 @@ struct ItemCard: View {
                 allowPinning: allowPinning,
                 assignedPinboardIDs: assignedPinboardIDs,
                 pinboards: pinboards,
+                lockedPinboardIDs: lockedPinboardIDs,
                 onPaste: onPaste,
                 onPastePlainText: onPastePlainText,
                 onTogglePin: onTogglePin,

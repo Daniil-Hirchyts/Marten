@@ -118,61 +118,122 @@ struct RenameOverlayView: View {
 
 struct ResizeHandleView: View {
     let window: NSWindow?
-    @State private var isDragging = false
+    @AppStorage(OverlayLayoutSettings.Keys.overlayScreenEdge)
+    private var overlayScreenEdgeRawValue = OverlayLayoutSettings.defaultEdge.rawValue
 
-    @State private var anchorY: CGFloat = 0
-    @State private var clickOffsetY: CGFloat = 0
+    @State private var isDragging = false
+    @State private var anchorFrame: CGRect = .zero
+    @State private var clickOffset: CGFloat = 0
+
+    private var edge: OverlayScreenEdge {
+        OverlayScreenEdge(rawValue: overlayScreenEdgeRawValue) ?? OverlayLayoutSettings.defaultEdge
+    }
 
     var body: some View {
-        VStack {
-            ZStack {
-                ResizeHandleCursorView()
+        Group {
+            switch edge {
+            case .bottom:
+                VStack(spacing: 0) {
+                    horizontalHandle
+                    Spacer(minLength: 0)
+                }
+            case .top:
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    horizontalHandle
+                }
+            case .left:
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    verticalHandle
+                }
+            case .right:
+                HStack(spacing: 0) {
+                    verticalHandle
+                    Spacer(minLength: 0)
+                }
             }
-            .frame(height: 12)
-            .contentShape(Rectangle())
-            .accessibilityIdentifier("overlay.resizeHandle")
-            .accessibilityLabel("Resize overlay")
-            .accessibilityHint("Drag up or down to resize")
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        guard let window = window else { return }
+        }
+    }
 
-                        if !isDragging {
-                            isDragging = true
-                            anchorY = window.frame.minY
+    private var horizontalHandle: some View {
+        ZStack {
+            ResizeHandleCursorView(axis: .horizontal)
+        }
+        .frame(height: 12)
+        .contentShape(Rectangle())
+        .accessibilityIdentifier("overlay.resizeHandle")
+        .accessibilityLabel("Resize overlay")
+        .accessibilityHint("Drag to resize")
+        .gesture(resizeGesture)
+    }
 
-                            let currentTopY = window.frame.maxY
-                            let mouseScreenY = NSEvent.mouseLocation.y
-                            clickOffsetY = currentTopY - mouseScreenY
-                        }
+    private var verticalHandle: some View {
+        ZStack {
+            ResizeHandleCursorView(axis: .vertical)
+        }
+        .frame(width: 12)
+        .contentShape(Rectangle())
+        .accessibilityIdentifier("overlay.resizeHandle")
+        .accessibilityLabel("Resize overlay")
+        .accessibilityHint("Drag to resize")
+        .gesture(resizeGesture)
+    }
 
-                        let mouseScreenY = NSEvent.mouseLocation.y
-                        let targetTopY = mouseScreenY + clickOffsetY
-                        let newHeight = targetTopY - anchorY
+    private var resizeGesture: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { _ in
+                guard let window else { return }
 
-                        let screenHeight = window.screen?.visibleFrame.height ?? 800
-                        let maxHeight = min(screenHeight - 50, 400)
-                        let minHeight: CGFloat = 220
-                        let clamped = min(max(minHeight, newHeight), maxHeight)
+                if !isDragging {
+                    isDragging = true
+                    anchorFrame = window.frame
+                    clickOffset = initialPointerOffset(for: edge, frame: anchorFrame)
+                }
 
-                        var frame = window.frame
-                        if frame.size.height != clamped {
-                            frame.size.height = clamped
-                            window.setFrame(frame, display: true)
-                        }
-                    }
-                    .onEnded { _ in
-                        isDragging = false
-                        if let window = window {
-                            let height = window.frame.height
-                            UserDefaults.standard.set(height, forKey: "OverlayHeight")
-                            UserDefaults.standard.synchronize()
-                            Logger.ui.info("Saved overlay height: \(height, privacy: .public)")
-                        }
-                    }
-            )
-            Spacer()
+                let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+                let proposedPosition = proposedEdgePosition(for: edge, pointerOffset: clickOffset)
+                let result = OverlayFrameCalculator.resizedFrame(
+                    from: anchorFrame,
+                    visibleFrame: visibleFrame,
+                    edge: edge,
+                    proposedEdgePosition: proposedPosition
+                )
+                if !rectsApproximatelyEqual(window.frame, result.frame, tolerance: 0.5) {
+                    window.setFrame(result.frame, display: true)
+                }
+            }
+            .onEnded { _ in
+                isDragging = false
+                guard let window else { return }
+                let axis = edge.layoutAxis
+                let size = axis == .horizontal ? window.frame.height : window.frame.width
+                OverlayLayoutSettings().setPersistedSize(size, for: axis)
+                Logger.ui.info("Saved overlay size: \(size, privacy: .public) axis=\(axis.rawValue, privacy: .public)")
+            }
+    }
+
+    private func initialPointerOffset(for edge: OverlayScreenEdge, frame: CGRect) -> CGFloat {
+        let location = NSEvent.mouseLocation
+        switch edge {
+        case .bottom:
+            return frame.maxY - location.y
+        case .top:
+            return frame.minY - location.y
+        case .left:
+            return frame.maxX - location.x
+        case .right:
+            return frame.minX - location.x
+        }
+    }
+
+    private func proposedEdgePosition(for edge: OverlayScreenEdge, pointerOffset: CGFloat) -> CGFloat {
+        let location = NSEvent.mouseLocation
+        switch edge {
+        case .bottom, .top:
+            return location.y + pointerOffset
+        case .left, .right:
+            return location.x + pointerOffset
         }
     }
 }
@@ -203,16 +264,36 @@ final class ReturnKeyHandler {
 }
 
 struct ResizeHandleCursorView: NSViewRepresentable {
+    let axis: OverlayLayoutAxis
+
     func makeNSView(context: Context) -> NSView {
-        CursorRectView()
+        CursorRectView(axis: axis)
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_ nsView: NSView, context: Context) {
+        guard let view = nsView as? CursorRectView else { return }
+        view.axis = axis
+        view.discardCursorRects()
+        view.resetCursorRects()
+    }
 
     private final class CursorRectView: NSView {
+        var axis: OverlayLayoutAxis
+
+        init(axis: OverlayLayoutAxis) {
+            self.axis = axis
+            super.init(frame: .zero)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
         override func resetCursorRects() {
             super.resetCursorRects()
-            addCursorRect(bounds, cursor: .resizeUpDown)
+            let cursor: NSCursor = axis == .horizontal ? .resizeUpDown : .resizeLeftRight
+            addCursorRect(bounds, cursor: cursor)
         }
     }
 }

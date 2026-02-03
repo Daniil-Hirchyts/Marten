@@ -1,5 +1,6 @@
 import AppKit
 import ClipboardCore
+import Combine
 import Foundation
 import OSLog
 
@@ -15,6 +16,9 @@ public final class PasteboardMonitor: ObservableObject {
     private var lastActivity: Date?
     private var currentInterval: TimeInterval?
     private var isIdle = false
+    private var pauseTimer: Timer?
+
+    @Published public private(set) var isPaused: Bool = false
 
     public var pollInterval: TimeInterval = 0.4
     public var adaptivePollingEnabled = true
@@ -47,17 +51,43 @@ public final class PasteboardMonitor: ObservableObject {
     public func stop() {
         timer?.invalidate()
         timer = nil
+        pauseTimer?.invalidate()
+        pauseTimer = nil
         isMonitoring = false
         currentInterval = nil
+        isPaused = false
         Logger.pasteboard.info("Pasteboard monitor stopped")
     }
 
     public func pause() {
         isEnabled = false
+        isPaused = true
+        Logger.pasteboard.info("Pasteboard capture paused")
     }
 
     public func resume() {
+        pauseTimer?.invalidate()
+        pauseTimer = nil
         isEnabled = true
+        isPaused = false
+        lastChangeCount = pasteboard.changeCount
+        Logger.pasteboard.info("Pasteboard capture resumed")
+    }
+
+    /// Pauses capture for the given duration, or indefinitely when `duration` is `nil`.
+    /// Invalidates any previously scheduled auto-resume timer before starting a new one.
+    public func pauseForDuration(_ duration: TimeInterval?) {
+        pauseTimer?.invalidate()
+        pauseTimer = nil
+        pause()
+        guard let duration else { return }
+        pauseTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) {
+            [weak self] _ in
+            self?.resume()
+        }
+        if let timer = pauseTimer {
+            RunLoop.main.add(timer, forMode: .common)
+        }
     }
 
     /// Suppresses the next clipboard change detection and returns a token.

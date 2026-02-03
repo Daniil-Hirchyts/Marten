@@ -27,17 +27,34 @@ final class PinboardManager {
         return updatedSelection
     }
 
-    func renamePinboard(objectID: NSManagedObjectID, name: String, colorHex: String) {
+    func renamePinboard(
+        objectID: NSManagedObjectID,
+        name: String,
+        colorHex: String,
+        iconName: String?
+    ) -> Bool {
         do {
-            try store.renamePinboard(objectID: objectID, name: name, colorHex: colorHex)
+            try store.updatePinboard(
+                objectID: objectID,
+                name: name,
+                colorHex: colorHex,
+                iconName: iconName
+            )
+            return true
         } catch {
             Logger.app.error("Failed to rename pinboard: \(error.localizedDescription)")
+            return false
         }
     }
 
-    func createPinboard(name: String, colorHex: String, pendingItem: ClipItem?) -> Bool {
+    func createPinboard(
+        name: String,
+        colorHex: String,
+        iconName: String? = nil,
+        pendingItem: ClipItem?
+    ) -> Bool {
         do {
-            let pinboard = try store.createPinboard(name: name, colorHex: colorHex)
+            let pinboard = try store.createPinboard(name: name, colorHex: colorHex, iconName: iconName)
             if let pendingItem {
                 try? store.moveItem(objectID: pendingItem.objectID, toPinboard: pinboard.objectID)
             }
@@ -50,10 +67,27 @@ final class PinboardManager {
 
     func changePinboardColor(_ pinboard: Pinboard, hex: String) {
         do {
-            try store.renamePinboard(
-                objectID: pinboard.objectID, name: pinboard.name, colorHex: hex)
+            try store.updatePinboard(
+                objectID: pinboard.objectID,
+                name: pinboard.name,
+                colorHex: hex,
+                iconName: pinboard.iconName
+            )
         } catch {
             Logger.app.error("Failed to change pinboard color: \(error.localizedDescription)")
+        }
+    }
+
+    func changePinboardIcon(_ pinboard: Pinboard, iconName: String?) {
+        do {
+            try store.updatePinboard(
+                objectID: pinboard.objectID,
+                name: pinboard.name,
+                colorHex: pinboard.colorHex,
+                iconName: iconName
+            )
+        } catch {
+            Logger.app.error("Failed to change pinboard icon: \(error.localizedDescription)")
         }
     }
 

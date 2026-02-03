@@ -19,14 +19,48 @@ final class PinboardManagerTests: XCTestCase {
         )
         let manager = PinboardManager(services: services)
 
-        XCTAssertTrue(manager.createPinboard(name: "Test", colorHex: "#FF0000", pendingItem: item))
+        XCTAssertTrue(
+            manager.createPinboard(
+                name: "Test",
+                colorHex: "#FF0000",
+                iconName: "sparkles",
+                pendingItem: item
+            )
+        )
 
         let request = Pinboard.fetchRequest()
         request.predicate = NSPredicate(format: "name == %@", "Test")
         let pinboard = try persistence.viewContext.fetch(request).first
         XCTAssertNotNil(pinboard)
+        XCTAssertEqual(pinboard?.iconName, "sparkles")
         let itemURIs = Set(pinboard?.items?.map { $0.objectID.uriRepresentation() } ?? [])
         XCTAssertEqual(itemURIs, [item.objectID.uriRepresentation()])
+    }
+
+    func testRenamePinboardUpdatesIconMetadata() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let created = try store.createPinboard(name: "Ideas", colorHex: "#00AA88", iconName: "📌")
+
+        let services = TestAppServices(
+            persistence: persistence,
+            clipItemStore: store,
+            pasteEngine: PasteEngine(
+                pasteboard: NSPasteboard(name: .init("PinboardTests-\(UUID().uuidString)")))
+        )
+        let manager = PinboardManager(services: services)
+
+        _ = manager.renamePinboard(
+            objectID: created.objectID,
+            name: "Ideas",
+            colorHex: "#00AA88",
+            iconName: "star.fill"
+        )
+
+        let request = Pinboard.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", created.id as CVarArg)
+        let updated = try persistence.viewContext.fetch(request).first
+        XCTAssertEqual(updated?.iconName, "star.fill")
     }
 
     func testDeletePinboardReturnsNilWhenDeletingSelectedPinboard() throws {

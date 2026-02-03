@@ -20,6 +20,36 @@ final class PinboardTests: XCTestCase {
         XCTAssertTrue(remaining.isEmpty)
     }
 
+    func testCreateAndUpdatePinboardIcon() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+
+        let pinboard = try store.createPinboard(
+            name: "Design",
+            colorHex: "#3A86FF",
+            iconName: "sparkles"
+        )
+        XCTAssertEqual(pinboard.iconName, "sparkles")
+
+        try store.updatePinboard(
+            objectID: pinboard.objectID,
+            name: "Design",
+            colorHex: "#3A86FF",
+            iconName: "🎯"
+        )
+        let updated = try store.fetchPinboards().first { $0.objectID == pinboard.objectID }
+        XCTAssertEqual(updated?.iconName, "🎯")
+
+        try store.updatePinboard(
+            objectID: pinboard.objectID,
+            name: "Design",
+            colorHex: "#3A86FF",
+            iconName: nil
+        )
+        let cleared = try store.fetchPinboards().first { $0.objectID == pinboard.objectID }
+        XCTAssertNil(cleared?.iconName)
+    }
+
     func testAddAndRemoveItemFromPinboard() throws {
         let persistence = PersistenceController(inMemory: true)
         let store = ClipItemStore(persistence: persistence)

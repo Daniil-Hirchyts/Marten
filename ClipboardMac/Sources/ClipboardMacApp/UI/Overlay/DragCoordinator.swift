@@ -35,6 +35,12 @@ final class DragCoordinator: ObservableObject {
         }
     }
 
+    func clearPinboardLayoutState() {
+        pinboardFrames = [:]
+        allPinboardFrame = nil
+        pinboardEditorFrame = nil
+    }
+
     func ensurePreviewWindow() {
         if dragPreviewWindow == nil {
             dragPreviewWindow = DragPreviewWindow()

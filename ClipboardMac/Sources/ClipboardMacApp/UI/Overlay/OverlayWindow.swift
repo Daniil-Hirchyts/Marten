@@ -15,6 +15,7 @@ final class OverlayWindowController {
     private weak var hotkeyManager: HotkeyManager?
     private let eventBroadcaster: ClipboardEventBroadcaster
     private let screenSharingManager: ScreenSharingManager
+    private let layoutSettings: OverlayLayoutSettings
     private var cancellables: Set<AnyCancellable> = []
 
     init(
@@ -30,6 +31,7 @@ final class OverlayWindowController {
         self.hotkeyManager = hotkeyManager
         self.eventBroadcaster = eventBroadcaster
         self.screenSharingManager = screenSharingManager
+        self.layoutSettings = OverlayLayoutSettings()
         let initialFrame = NSRect(x: 0, y: 0, width: 800, height: 320)
         panel = OverlayPanel(
             contentRect: initialFrame,
@@ -91,6 +93,14 @@ final class OverlayWindowController {
                 }
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.handleLayoutSettingsChange()
+            }
+            .store(in: &cancellables)
     }
 
     func toggle() {
@@ -110,7 +120,8 @@ final class OverlayWindowController {
         guard screenSharingManager.shouldShowOverlay else { return }
         guard let screen = NSScreen.main else { return }
         let targetFrame = frame(for: screen)
-        let startFrame = targetFrame.offsetBy(dx: 0, dy: -24)
+        let showOffset = OverlayFrameCalculator.showOffset(for: layoutSettings.overlayScreenEdge)
+        let startFrame = targetFrame.offsetBy(dx: showOffset.width, dy: showOffset.height)
 
         panel.setFrame(startFrame, display: true)
         panel.alphaValue = 0
@@ -147,7 +158,8 @@ final class OverlayWindowController {
         }
         isVisible = false
 
-        let endFrame = panel.frame.offsetBy(dx: 0, dy: -14)
+        let hideOffset = OverlayFrameCalculator.hideOffset(for: layoutSettings.overlayScreenEdge)
+        let endFrame = panel.frame.offsetBy(dx: hideOffset.width, dy: hideOffset.height)
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.14
@@ -170,26 +182,31 @@ final class OverlayWindowController {
     }
 
     private func frame(for screen: NSScreen) -> NSRect {
-        let visible = screen.visibleFrame
-        let horizontalMargin: CGFloat = 8
-        let bottomMargin: CGFloat = 8
-        let width = max(visible.width - (horizontalMargin * 2), 320)
-
-        let savedHeight = UserDefaults.standard.double(forKey: "OverlayHeight")
-        Logger.ui.debug("Loading overlay height from defaults: \(savedHeight, privacy: .public)")
-        let preferredHeight = savedHeight > 0 ? CGFloat(savedHeight) : 320
-
-        let maxAllowedHeight = min(visible.height - 50, 400)
-        let minAllowedHeight: CGFloat = 220
-
-        let height = min(max(minAllowedHeight, preferredHeight), maxAllowedHeight)
-        Logger.ui.debug(
-            "Calculated overlay height: \(height, privacy: .public) (min: \(minAllowedHeight, privacy: .public), max: \(maxAllowedHeight, privacy: .public))"
+        let edge = layoutSettings.overlayScreenEdge
+        let frame = OverlayFrameCalculator.frame(
+            visibleFrame: screen.visibleFrame,
+            edge: edge,
+            preferredHorizontalSize: layoutSettings.horizontalSize,
+            preferredVerticalSize: layoutSettings.verticalSize
         )
+        Logger.ui.debug(
+            "Calculated overlay frame for edge=\(edge.rawValue, privacy: .public): \(NSStringFromRect(frame), privacy: .public)"
+        )
+        return frame
+    }
 
-        let x = visible.minX + horizontalMargin
-        let y = visible.minY + bottomMargin
-        return NSRect(x: x, y: y, width: width, height: height)
+    private func handleLayoutSettingsChange() {
+        guard isVisible else { return }
+        guard let screen = NSScreen.main else { return }
+
+        let targetFrame = frame(for: screen)
+        guard !rectsApproximatelyEqual(panel.frame, targetFrame, tolerance: 0.5) else { return }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.12
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(targetFrame, display: true)
+        }
     }
 
     private func startOutsideClickMonitor() {

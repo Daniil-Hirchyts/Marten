@@ -10,6 +10,7 @@ struct CardContextMenu: View {
     let allowPinning: Bool
     let assignedPinboardIDs: Set<UUID>
     let pinboards: [Pinboard]
+    let lockedPinboardIDs: Set<UUID>
     let onPaste: () -> Void
     let onPastePlainText: () -> Void
     let onTogglePin: () -> Void
@@ -53,13 +54,20 @@ struct CardContextMenu: View {
         Menu("Move to Pinboard") {
             ForEach(pinboards) { pinboard in
                 let isAssigned = assignedPinboardIDs.contains(pinboard.id)
+                let isLocked = lockedPinboardIDs.contains(pinboard.id)
                 Button {
                     onMoveToPinboard(pinboard)
                 } label: {
-                    if isAssigned {
-                        Label(pinboard.name, systemImage: "checkmark")
-                    } else {
+                    Label {
                         Text(pinboard.name)
+                    } icon: {
+                        Image(nsImage: NSImage.pinboardMenuIcon(
+                            colorHex: pinboard.colorHex,
+                            sign: pinboard.iconName,
+                            size: 16,
+                            isAssigned: isAssigned,
+                            isLocked: isLocked
+                        ))
                     }
                 }
                 .accessibilityIdentifier("\(identifierPrefix).move.\(pinboard.id.uuidString)")
@@ -116,7 +124,7 @@ struct PinboardContextMenu: View {
     let onUnlock: () -> Void
     let onLockNow: () -> Void
     let onRename: () -> Void
-    let onColorChange: (String) -> Void
+    let onCustomize: () -> Void
     let onDelete: () -> Void
 
     private var identifierPrefix: String {
@@ -150,24 +158,14 @@ struct PinboardContextMenu: View {
 
             Divider()
 
-            Menu("Color") {
-                ForEach(PinboardPalette.all, id: \.hex) { color in
-                    Button {
-                        onColorChange(color.hex)
-                    } label: {
-                        HStack {
-                            Image(nsImage: .colorCircle(hex: color.hex))
-                            Text(color.name)
-                        }
-                    }
-                    .accessibilityIdentifier("\(identifierPrefix).color.\(color.hex)")
-                }
-            }
-            .accessibilityIdentifier("\(identifierPrefix).color")
             Button("Rename") {
                 onRename()
             }
             .accessibilityIdentifier("\(identifierPrefix).rename")
+            Button("Customize…") {
+                onCustomize()
+            }
+            .accessibilityIdentifier("\(identifierPrefix).customize")
             Button("Delete") {
                 onDelete()
             }

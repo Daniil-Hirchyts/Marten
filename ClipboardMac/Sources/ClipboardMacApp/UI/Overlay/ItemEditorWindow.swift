@@ -1,5 +1,6 @@
 import AppKit
 import ClipboardCore
+import ClipboardMacServices
 import SwiftUI
 
 @MainActor
@@ -9,9 +10,14 @@ final class ItemEditorWindowController {
     private var onSave: ((String) -> Void)?
     private var onClose: (() -> Void)?
     private let clipItemEditor: any ClipItemEditing
+    private let appleIntelligence: any AppleIntelligenceTextTransforming
 
-    init(clipItemEditor: any ClipItemEditing) {
+    init(
+        clipItemEditor: any ClipItemEditing,
+        appleIntelligence: any AppleIntelligenceTextTransforming
+    ) {
         self.clipItemEditor = clipItemEditor
+        self.appleIntelligence = appleIntelligence
         let initialFrame = NSRect(x: 0, y: 0, width: 720, height: 520)
         panel = ItemEditorPanel(
             contentRect: initialFrame,
@@ -47,6 +53,54 @@ final class ItemEditorWindowController {
         let contentView = ItemEditorContentView(
             item: item,
             clipItemEditor: clipItemEditor,
+            appleIntelligence: appleIntelligence,
+            mode: .edit,
+            onCancel: { [weak self] in
+                self?.hide()
+            },
+            onSave: { [weak self] newText in
+                onSave(newText)
+                self?.hide()
+            }
+        )
+        .ignoresSafeArea()
+
+        let hostingView = NSHostingView(rootView: contentView)
+        hostingView.autoresizingMask = [.width, .height]
+        panel.contentView = hostingView
+
+        if let screen = NSScreen.main {
+            let screenFrame = screen.visibleFrame
+            let windowFrame = panel.frame
+            let x = screenFrame.midX - windowFrame.width / 2
+            let y = screenFrame.midY - windowFrame.height / 2
+            panel.setFrameOrigin(NSPoint(x: x, y: y))
+        }
+
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        panel.makeKey()
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+        }
+
+        isVisible = true
+    }
+
+    func showNewTextItem(onSave: @escaping (String) -> Void, onClose: @escaping () -> Void) {
+        guard !isVisible else { return }
+
+        self.onSave = onSave
+        self.onClose = onClose
+
+        let contentView = ItemEditorContentView(
+            item: nil,
+            clipItemEditor: clipItemEditor,
+            appleIntelligence: appleIntelligence,
+            mode: .createNew,
             onCancel: { [weak self] in
                 self?.hide()
             },

@@ -110,6 +110,20 @@ public final class ClipItemStore {
         try pinboardRepository.renamePinboard(objectID: objectID, name: name, colorHex: colorHex)
     }
 
+    public func updatePinboard(
+        objectID: NSManagedObjectID,
+        name: String,
+        colorHex: String,
+        iconName: String?
+    ) throws {
+        try pinboardRepository.updatePinboard(
+            objectID: objectID,
+            name: name,
+            colorHex: colorHex,
+            iconName: iconName
+        )
+    }
+
     public func deletePinboard(objectID: NSManagedObjectID) throws {
         try pinboardRepository.deletePinboard(objectID: objectID)
     }

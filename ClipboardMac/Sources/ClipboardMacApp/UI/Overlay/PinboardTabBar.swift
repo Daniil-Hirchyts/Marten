@@ -37,6 +37,7 @@ struct PinboardTabBar: View {
     @Binding var isCreating: Bool
     @Binding var draftName: String
     @Binding var draftColor: String
+    @Binding var draftIcon: String?
     var isGlobalDragActive: Bool = false  // True when any drag (including card drag) is happening
     let window: NSWindow?
     var onPreviewUpdate: ((PinboardDragPreviewData?) -> Void)? = nil
@@ -48,6 +49,7 @@ struct PinboardTabBar: View {
     let onLockNow: (Pinboard) -> Void
     let onRename: (Pinboard) -> Void
     let onColorChange: (Pinboard, String) -> Void
+    let onIconChange: (Pinboard, String?) -> Void
     let onDelete: (Pinboard) -> Void
     let onReorder: (Pinboard, Pinboard, Bool) -> Void
     let onReorderEnd: () -> Void
@@ -78,6 +80,10 @@ struct PinboardTabBar: View {
     @State private var autoScrollTimer: Timer?
     @State private var scrollViewBounds: CGRect = .zero
     @State private var currentScrollProxy: ScrollViewProxy?
+    @State private var shouldPresentStylePickerFromMenu = false
+    @State private var isStyleOnlyEditMode = false
+    @State private var pinnedEditorObjectID: NSManagedObjectID?
+    @State private var pinnedEditorWidth: CGFloat?
     @Environment(\.colorScheme) private var colorScheme
 
     private let autoScrollEdgeInset: CGFloat = 40
@@ -167,6 +173,17 @@ struct PinboardTabBar: View {
                     .onChange(of: dragState) { newDragState, _ in
                         handleAutoScrollStateChange(newDragState, scrollProxy: scrollProxy)
                     }
+                    .onChange(of: editingID) { _, newEditingID in
+                        guard let newEditingID else { return }
+                        guard let pinboard = pinboards.first(where: { $0.objectID == newEditingID }) else {
+                            return
+                        }
+                        DispatchQueue.main.async {
+                            withAnimation(.easeInOut(duration: 0.18)) {
+                                scrollProxy.scrollTo(pinboard.id, anchor: .center)
+                            }
+                        }
+                    }
                 }
                 .mask(
                     LinearGradient(
@@ -185,7 +202,12 @@ struct PinboardTabBar: View {
                     if isCreating {
                         editorView(pinboard: nil)
                     } else {
-                        Button(action: onCreate) {
+                        Button {
+                            isStyleOnlyEditMode = false
+                            pinnedEditorObjectID = nil
+                            pinnedEditorWidth = nil
+                            onCreate()
+                        } label: {
                             if #available(macOS 26.0, *) {
                                 Image(systemName: "plus")
                                     .font(.system(size: headerButtonIconSize, weight: .semibold))
@@ -252,6 +274,24 @@ struct PinboardTabBar: View {
             // Pinboard count changed, clear caches
             frameManager.clearCaches()
         }
+        .onChange(of: editingID) { _, newValue in
+            if let newValue {
+                if pinnedEditorObjectID != newValue {
+                    pinnedEditorObjectID = newValue
+                    pinnedEditorWidth = frameManager.latestTabFrames[newValue]?.width
+                }
+            } else {
+                shouldPresentStylePickerFromMenu = false
+                isStyleOnlyEditMode = false
+                pinnedEditorObjectID = nil
+                pinnedEditorWidth = nil
+            }
+        }
+        .onChange(of: isCreating) { _, newValue in
+            if newValue {
+                isStyleOnlyEditMode = false
+            }
+        }
         .onAppear {
             // Ensure clean state when view appears
             frameManager.clearCaches()
@@ -306,55 +346,90 @@ struct PinboardTabBar: View {
 
     @ViewBuilder
     private func editorView(pinboard: Pinboard?) -> some View {
+        let isStyleOnlyEditor = pinboard != nil && isStyleOnlyEditMode
+        let fixedEditorWidth = existingPinboardEditorWidth(pinboard)
+        let nameFieldMinWidth: CGFloat = pinboard == nil ? 40 : 0
+
         HStack(spacing: 6) {
-            ColorPicker(selectedHex: pinboard?.colorHex ?? draftColor) { newColor in
-                draftColor = newColor
-                if let pinboard {
-                    onColorChange(pinboard, newColor)
-                }
-                DispatchQueue.main.async {
-                    isFocused = true
-                }
-                commitState = .suppress
-            }
-
-            ZStack(alignment: .leading) {
-                Text(draftName.isEmpty ? "Name" : draftName)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.clear)
-                    .padding(.vertical, 0)
-                    .layoutPriority(1)
-
-                if draftName.isEmpty {
-                    Text("Name")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(editorPlaceholderColor)
-                        .allowsHitTesting(false)
-                }
-                TextField("", text: $draftName) { editing in
-                    if !editing {
-                        handleBlurCommit()
-                    }
-                } onCommit: {
-                    handleCommitButton()
-                }
-                .textFieldStyle(.plain)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(editorTextColor)
-                .tint(editorTextColor)
-                .focused($isFocused)
-                .accessibilityIdentifier("overlay.pinboard.editor.name")
-                .accessibilityLabel("Pinboard name")
-                .accessibilityValue(draftName.isEmpty ? "Empty" : draftName)
-                .accessibilityHint("Enter a pinboard name")
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            PinboardStylePickerButton(
+                selectedColorHex: draftColor,
+                selectedSign: draftIcon,
+                shouldPresentOnAppear: $shouldPresentStylePickerFromMenu,
+                onWillOpen: {
+                    commitState = .suppress
+                    DispatchQueue.main.async {
                         isFocused = true
                     }
+                },
+                onColorSelect: { newColor in
+                    draftColor = newColor
+                    if let pinboard {
+                        onColorChange(pinboard, newColor)
+                    }
+                    DispatchQueue.main.async {
+                        isFocused = true
+                    }
+                    commitState = .suppress
+                },
+                onSignSelect: { newSign in
+                    draftIcon = newSign
+                    if let pinboard {
+                        onIconChange(pinboard, newSign)
+                    }
+                    DispatchQueue.main.async {
+                        isFocused = true
+                    }
+                    commitState = .suppress
                 }
+            )
+
+            if isStyleOnlyEditor {
+                Text(pinboard?.name ?? draftName)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(editorTextColor.opacity(0.9))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(minWidth: nameFieldMinWidth, alignment: .leading)
+            } else {
+                ZStack(alignment: .leading) {
+                    Text(draftName.isEmpty ? "Name" : draftName)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.clear)
+                        .padding(.vertical, 0)
+                        .layoutPriority(1)
+
+                    if draftName.isEmpty {
+                        Text("Name")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(editorPlaceholderColor)
+                            .allowsHitTesting(false)
+                    }
+                    TextField("", text: $draftName) { editing in
+                        if !editing {
+                            handleBlurCommit()
+                        }
+                    } onCommit: {
+                        handleCommitButton()
+                    }
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(editorTextColor)
+                    .tint(editorTextColor)
+                    .focused($isFocused)
+                    .accessibilityIdentifier("overlay.pinboard.editor.name")
+                    .accessibilityLabel("Pinboard name")
+                    .accessibilityValue(draftName.isEmpty ? "Empty" : draftName)
+                    .accessibilityHint("Enter a pinboard name")
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            isFocused = true
+                        }
+                    }
+                }
+                .frame(minWidth: nameFieldMinWidth)
             }
-            .frame(minWidth: 40)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: tabContentHeight, alignment: .center)
         .padding(.vertical, tabVerticalPadding)
         .padding(.horizontal, tabHorizontalPadding)
@@ -382,8 +457,9 @@ struct PinboardTabBar: View {
                 }
             }
         )
-        .fixedSize(horizontal: true, vertical: false)
-        .frame(maxWidth: maxTabWidth, alignment: .leading)
+        .fixedSize(horizontal: fixedEditorWidth == nil, vertical: false)
+        .frame(width: fixedEditorWidth, alignment: .leading)
+        .frame(maxWidth: fixedEditorWidth == nil ? maxTabWidth : fixedEditorWidth, alignment: .leading)
         .frame(height: headerButtonSize)
         .background(
             GeometryReader { proxy in
@@ -395,6 +471,17 @@ struct PinboardTabBar: View {
         )
     }
 
+    private func existingPinboardEditorWidth(_ pinboard: Pinboard?) -> CGFloat? {
+        guard let pinboard else { return nil }
+        if pinnedEditorObjectID == pinboard.objectID, let pinnedEditorWidth, pinnedEditorWidth > 0 {
+            return min(pinnedEditorWidth, maxTabWidth)
+        }
+        guard let width = frameManager.latestTabFrames[pinboard.objectID]?.width, width > 0 else {
+            return nil
+        }
+        return min(width, maxTabWidth)
+    }
+
     @ViewBuilder
     private func pinboardView(pinboard: Pinboard, index: Int, isMeasuring: Bool = false)
         -> some View
@@ -404,7 +491,9 @@ struct PinboardTabBar: View {
         let unlocked = isUnlocked(pinboard)
 
         let base = PinboardTab(
-            title: pinboard.name, colorHex: pinboard.colorHex,
+            title: pinboard.name,
+            iconName: pinboard.iconName,
+            colorHex: pinboard.colorHex,
             trailingIconName: locked ? (unlocked ? "lock.open.fill" : "lock.fill") : nil,
             isSelected: selectedID == pinboard.id, maxWidth: maxTabWidth
         ) {
@@ -444,8 +533,21 @@ struct PinboardTabBar: View {
                 onSetLockEnabled: { enabled in onSetLockEnabled(pinboard, enabled) },
                 onUnlock: { onUnlock(pinboard) },
                 onLockNow: { onLockNow(pinboard) },
-                onRename: { onRename(pinboard) },
-                onColorChange: { color in onColorChange(pinboard, color) },
+                onRename: {
+                    isStyleOnlyEditMode = false
+                    pinnedEditorObjectID = pinboard.objectID
+                    pinnedEditorWidth = frameManager.latestTabFrames[pinboard.objectID]?.width
+                    onRename(pinboard)
+                },
+                onCustomize: {
+                    isStyleOnlyEditMode = true
+                    shouldPresentStylePickerFromMenu = true
+                    pinnedEditorObjectID = pinboard.objectID
+                    pinnedEditorWidth = frameManager.latestTabFrames[pinboard.objectID]?.width
+                    DispatchQueue.main.async {
+                        onRename(pinboard)
+                    }
+                },
                 onDelete: { onDelete(pinboard) }
             )
         }
@@ -591,6 +693,7 @@ struct PinboardTabBar: View {
         let data = PinboardDragPreviewData(
             title: pinboard.name,
             colorHex: pinboard.colorHex,
+            iconName: pinboard.iconName,
             size: localFrame.size,
             opacity: dragOpacity
         )
@@ -601,6 +704,12 @@ struct PinboardTabBar: View {
         guard isCreating || editingID != nil else { return }
 
         DispatchQueue.main.async {
+            if isStyleOnlyEditMode {
+                isStyleOnlyEditMode = false
+                onCancel()
+                return
+            }
+
             switch commitState {
             case .cancel:
                 commitState = .none
@@ -624,6 +733,11 @@ struct PinboardTabBar: View {
     }
 
     private func handleCommitButton() {
+        if isStyleOnlyEditMode {
+            isStyleOnlyEditMode = false
+            onCancel()
+            return
+        }
         commitState = .commit
         onCommit()
         isFocused = false
@@ -680,7 +794,11 @@ struct PinboardTabBar: View {
             let draggedItem = pinboards.first(where: { $0.objectID == dragState.itemID }),
             let localFrame = frameManager.latestTabFrames[draggedItem.objectID]
         {
-            PinboardTabPreview(title: draggedItem.name, colorHex: draggedItem.colorHex)
+            PinboardTabPreview(
+                title: draggedItem.name,
+                colorHex: draggedItem.colorHex,
+                iconName: draggedItem.iconName
+            )
                 .frame(width: localFrame.width, height: localFrame.height)
                 .position(
                     x: dragState.pointerLocation.x - dragState.cursorOffset.width,
@@ -791,52 +909,17 @@ struct PinboardTabBar: View {
     }
 }
 
-private struct ColorPicker: View {
-    let selectedHex: String
-    let onSelect: (String) -> Void
-
-    var body: some View {
-        Menu {
-            ForEach(PinboardPalette.all, id: \.hex) { color in
-                Button {
-                    onSelect(color.hex)
-                } label: {
-                    HStack {
-                        Image(nsImage: .colorCircle(hex: color.hex))
-                        Text(color.name)
-                    }
-                }
-                .accessibilityIdentifier("overlay.pinboard.editor.color.\(color.hex)")
-            }
-        } label: {
-            Image(nsImage: .colorCircle(hex: selectedHex))
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .accessibilityIdentifier("overlay.pinboard.editor.color")
-        .accessibilityLabel("Pinboard color")
-        .accessibilityValue(selectedColorName)
-        .accessibilityHint("Choose a pinboard color")
-    }
-
-    private var selectedColorName: String {
-        PinboardPalette.all.first(where: { $0.hex == selectedHex })?.name ?? selectedHex
-    }
-}
-
 private struct PinboardTabPreview: View {
     let title: String
     let colorHex: String?
+    let iconName: String?
     @Environment(\.colorScheme) private var colorScheme
 
 
     var body: some View {
         HStack(spacing: 6) {
             if let colorHex {
-                Circle()
-                    .fill(Color(hex: colorHex, fallback: .gray))
-                    .frame(width: 8, height: 8)
+                PinboardIndicator(colorHex: colorHex, sign: iconName, size: 16)
             }
 
             Text(title)

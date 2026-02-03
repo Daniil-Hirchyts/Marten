@@ -6,6 +6,7 @@ struct OverlayItemPreview: View {
     let item: ClipItem
     let allowPinning: Bool
     let pinboards: [Pinboard]
+    let lockedPinboardIDs: Set<UUID>
     let clipItemEditor: any ClipItemEditing
     let onEdit: () -> Void
     let onPaste: () -> Void

@@ -24,7 +24,7 @@ extension Color {
 }
 
 extension NSImage {
-    static func colorCircle(hex: String, size: CGFloat = 12) -> NSImage {
+    static func colorCircle(hex: String, size: CGFloat = 14) -> NSImage {
         let color = NSColor(hex: hex)
         let image = NSImage(size: NSSize(width: size, height: size))
         image.lockFocus()
@@ -33,6 +33,32 @@ extension NSImage {
         path.fill()
         image.unlockFocus()
         return image
+    }
+
+    /// Pre-renders [checkmark] [circle] [lock] as a single NSImage for native macOS menus.
+    /// Only the first Image in an NSMenuItem label is rendered; everything must live here.
+    /// Fixed-width frames + opacity keep all rows the same width for alignment.
+    @MainActor
+    static func pinboardMenuIcon(colorHex: String, sign: String?, size: CGFloat, isAssigned: Bool, isLocked: Bool) -> NSImage {
+        let indicatorSize = size * 0.68
+        let iconColor: Color = NSApp.effectiveAppearance.name == .darkAqua ? .white : .black
+        let renderer = ImageRenderer(content:
+            HStack(alignment: .center, spacing: 5) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: size * 0.62, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                    .frame(width: indicatorSize)
+                    .opacity(isAssigned ? 1 : 0)
+                PinboardIndicator(colorHex: colorHex, sign: sign, size: size, showBorder: false)
+                Image(systemName: "lock.fill")
+                    .font(.system(size: size * 0.6, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                    .frame(width: indicatorSize)
+                    .opacity(isLocked ? 1 : 0)
+            }
+        )
+        renderer.scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        return renderer.nsImage ?? colorCircle(hex: colorHex, size: size)
     }
 }
 
@@ -56,12 +82,23 @@ public struct PinboardColor: Hashable {
 public enum PinboardPalette {
     public static let all = [
         PinboardColor(name: "Blue", hex: "#3A86FF"),
+        PinboardColor(name: "Indigo", hex: "#5A67D8"),
+        PinboardColor(name: "Violet", hex: "#7C4DFF"),
         PinboardColor(name: "Purple", hex: "#8338EC"),
         PinboardColor(name: "Pink", hex: "#FF006E"),
+        PinboardColor(name: "Rose", hex: "#FF4D9D"),
+        PinboardColor(name: "Red", hex: "#E63946"),
+        PinboardColor(name: "Coral", hex: "#FF7F50"),
         PinboardColor(name: "Orange", hex: "#FB5607"),
-        PinboardColor(name: "Yellow", hex: "#FFBE0B")
+        PinboardColor(name: "Amber", hex: "#FF9F1C"),
+        PinboardColor(name: "Yellow", hex: "#FFBE0B"),
+        PinboardColor(name: "Lime", hex: "#9BC53D"),
+        PinboardColor(name: "Green", hex: "#2A9D8F"),
+        PinboardColor(name: "Teal", hex: "#00BFA6"),
+        PinboardColor(name: "Cyan", hex: "#48CAE4"),
+        PinboardColor(name: "Slate", hex: "#6C757D")
     ]
-    
+
     public static let colors = all.map { $0.hex }
     public static let defaultHex = all.first?.hex ?? "#8E8E93"
 }

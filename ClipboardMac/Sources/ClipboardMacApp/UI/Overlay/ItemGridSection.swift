@@ -5,6 +5,7 @@ import CoreData
 import SwiftUI
 
 struct ItemGridSection: View {
+    let layoutAxis: OverlayLayoutAxis
     let isSelectedPinboardAwaitingUnlock: Bool
     let lockedPinboardTitle: String
     let canUnlockLockedPinboard: Bool
@@ -15,7 +16,8 @@ struct ItemGridSection: View {
     let isSearchActive: Bool
     let selectedPinboardID: UUID?
 
-    let movablePinboards: [Pinboard]
+    let pinboards: [Pinboard]
+    let lockedPinboardIDs: Set<UUID>
     let mode: OverlayMode
     let selectedItemIDs: Set<NSManagedObjectID>
     let editingItemID: NSManagedObjectID?
@@ -72,42 +74,84 @@ struct ItemGridSection: View {
                 .padding(.horizontal, 14)
                 .transition(.opacity)
             } else {
-                ItemCardRow(
-                    items: filteredItems,
-                    pinboards: movablePinboards,
-                    mode: mode,
-                    selectedItemIDs: selectedItemIDs,
-                    editingItemID: editingItemID,
-                    allowPinning: allowPinning,
-                    clipItemEditor: clipItemEditor,
-                    isDragEnabled: isDragEnabled,
-                    isReorderingEnabled: isReorderingEnabled,
-                    onPaste: onPaste,
-                    onPastePlainText: onPastePlainText,
-                    onCopy: onCopy,
-                    onDelete: onDelete,
-                    onTogglePin: onTogglePin,
-                    onMoveToPinboard: onMoveToPinboard,
-                    onCreatePinboard: onCreatePinboard,
-                    onEdit: onEdit,
-                    onRename: onRename,
-                    onCommitRename: onCommitRename,
-                    onTap: onTap,
-                    onDoubleTap: onDoubleTap,
-                    onReorder: onReorder,
-                    onReorderEnd: onReorderEnd,
-                    onDropToPinboard: onDropToPinboard,
-                    onDropToAll: onDropToAll,
-                    onPasteOutside: onPasteOutside,
-                    coordinateSpaceName: coordinateSpaceName,
-                    pinboardFrames: pinboardFrames,
-                    allPinboardFrame: allPinboardFrame,
-                    window: window,
-                    dragPreviewData: $dragPreviewData,
-                    onPreviewUpdate: onPreviewUpdate,
-                    previewItemID: $previewItemID,
-                    isPreviewPopoverPresented: $isPreviewPopoverPresented
-                )
+                Group {
+                    if layoutAxis == .horizontal {
+                        ItemCardRow(
+                            items: filteredItems,
+                            pinboards: pinboards,
+                            lockedPinboardIDs: lockedPinboardIDs,
+                            mode: mode,
+                            selectedItemIDs: selectedItemIDs,
+                            editingItemID: editingItemID,
+                            allowPinning: allowPinning,
+                            clipItemEditor: clipItemEditor,
+                            isDragEnabled: isDragEnabled,
+                            isReorderingEnabled: isReorderingEnabled,
+                            onPaste: onPaste,
+                            onPastePlainText: onPastePlainText,
+                            onCopy: onCopy,
+                            onDelete: onDelete,
+                            onTogglePin: onTogglePin,
+                            onMoveToPinboard: onMoveToPinboard,
+                            onCreatePinboard: onCreatePinboard,
+                            onEdit: onEdit,
+                            onRename: onRename,
+                            onCommitRename: onCommitRename,
+                            onTap: onTap,
+                            onDoubleTap: onDoubleTap,
+                            onReorder: onReorder,
+                            onReorderEnd: onReorderEnd,
+                            onDropToPinboard: onDropToPinboard,
+                            onDropToAll: onDropToAll,
+                            onPasteOutside: onPasteOutside,
+                            coordinateSpaceName: coordinateSpaceName,
+                            pinboardFrames: pinboardFrames,
+                            allPinboardFrame: allPinboardFrame,
+                            window: window,
+                            dragPreviewData: $dragPreviewData,
+                            onPreviewUpdate: onPreviewUpdate,
+                            previewItemID: $previewItemID,
+                            isPreviewPopoverPresented: $isPreviewPopoverPresented
+                        )
+                    } else {
+                        ItemCompactColumn(
+                            items: filteredItems,
+                            pinboards: pinboards,
+                            lockedPinboardIDs: lockedPinboardIDs,
+                            selectedItemIDs: selectedItemIDs,
+                            editingItemID: editingItemID,
+                            allowPinning: allowPinning,
+                            clipItemEditor: clipItemEditor,
+                            isDragEnabled: isDragEnabled,
+                            isReorderingEnabled: isReorderingEnabled,
+                            onPaste: onPaste,
+                            onPastePlainText: onPastePlainText,
+                            onCopy: onCopy,
+                            onDelete: onDelete,
+                            onTogglePin: onTogglePin,
+                            onMoveToPinboard: onMoveToPinboard,
+                            onCreatePinboard: onCreatePinboard,
+                            onEdit: onEdit,
+                            onRename: onRename,
+                            onCommitRename: onCommitRename,
+                            onTap: onTap,
+                            onDoubleTap: onDoubleTap,
+                            onReorder: onReorder,
+                            onReorderEnd: onReorderEnd,
+                            onDropToPinboard: onDropToPinboard,
+                            onDropToAll: onDropToAll,
+                            onPasteOutside: onPasteOutside,
+                            coordinateSpaceName: coordinateSpaceName,
+                            pinboardFrames: pinboardFrames,
+                            allPinboardFrame: allPinboardFrame,
+                            window: window,
+                            dragPreviewData: $dragPreviewData,
+                            onPreviewUpdate: onPreviewUpdate,
+                            previewItemID: $previewItemID,
+                            isPreviewPopoverPresented: $isPreviewPopoverPresented
+                        )
+                    }
+                }
                 .frame(maxHeight: .infinity, alignment: .topLeading)
                 .transition(.opacity)
             }

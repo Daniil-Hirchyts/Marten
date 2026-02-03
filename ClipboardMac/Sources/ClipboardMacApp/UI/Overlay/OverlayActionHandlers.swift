@@ -59,15 +59,26 @@ struct OverlayActionHandlers {
         return newID
     }
 
-    func commitPinboardRename(objectID: NSManagedObjectID, name: String, colorHex: String) {
+    func commitPinboardRename(
+        objectID: NSManagedObjectID,
+        name: String,
+        colorHex: String,
+        iconName: String?
+    ) -> Bool {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return }
-        pinboardManager.renamePinboard(objectID: objectID, name: trimmedName, colorHex: colorHex)
+        guard !trimmedName.isEmpty else { return false }
+        return pinboardManager.renamePinboard(
+            objectID: objectID,
+            name: trimmedName,
+            colorHex: colorHex,
+            iconName: iconName
+        )
     }
 
     func commitPinboardCreate(
         name: String,
         colorHex: String,
+        iconName: String?,
         pendingItem: ClipItem?
     ) -> Bool {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -76,6 +87,7 @@ struct OverlayActionHandlers {
         return pinboardManager.createPinboard(
             name: trimmedName,
             colorHex: colorHex,
+            iconName: iconName,
             pendingItem: pendingItem
         )
     }
@@ -166,11 +178,9 @@ struct OverlayActionHandlers {
 
     func sortItems(_ items: [ClipItem], selectedPinboardID: UUID?, allowPinning: Bool) -> [ClipItem] {
         guard selectedPinboardID != nil else {
+            // In "All" view, always sort by time only
             return items.sorted { lhs, rhs in
-                if lhs.displayOrder != rhs.displayOrder {
-                    return lhs.displayOrder > rhs.displayOrder
-                }
-                return lhs.createdAt > rhs.createdAt
+                lhs.createdAt > rhs.createdAt
             }
         }
 

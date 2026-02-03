@@ -25,6 +25,13 @@ final class FrameCoordinator: ObservableObject {
         currentPinboardScrollOffset = offset
     }
 
+    func clearCapturedPinboardLayout() {
+        capturedPinboardFrames = [:]
+        capturedAllPinboardFrame = nil
+        capturedPinboardScrollOffset = 0
+        currentPinboardScrollOffset = 0
+    }
+
     func updateLatestItemFrames(_ frames: [NSManagedObjectID: CGRect]) {
         latestItemFrames = frames
     }

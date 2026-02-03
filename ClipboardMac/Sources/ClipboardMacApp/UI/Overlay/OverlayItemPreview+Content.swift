@@ -253,16 +253,20 @@ extension OverlayItemPreview {
             } else {
                 ForEach(pinboards) { pinboard in
                     let isAssigned = assignedPinboardIDs.contains(pinboard.id)
+                    let isLocked = lockedPinboardIDs.contains(pinboard.id)
                     Button {
                         onMoveToPinboard(pinboard)
                     } label: {
-                        HStack(spacing: 8) {
-                            pinboardSelectionCircle(
-                                colorHex: pinboard.colorHex,
-                                isFilled: isAssigned,
-                                size: 10
-                            )
+                        Label {
                             Text(pinboard.name)
+                        } icon: {
+                            Image(nsImage: NSImage.pinboardMenuIcon(
+                                colorHex: pinboard.colorHex,
+                                sign: pinboard.iconName,
+                                size: 14,
+                                isAssigned: isAssigned,
+                                isLocked: isLocked
+                            ))
                         }
                     }
                 }
@@ -276,11 +280,16 @@ extension OverlayItemPreview {
         } label: {
             Group {
                 if let colorHex = primaryAssignedPinboardColorHex {
-                    pinboardSelectionCircle(colorHex: colorHex, isFilled: true, size: 13)
+                    pinboardSelectionIndicator(
+                        colorHex: colorHex,
+                        iconName: primaryAssignedPinboardIconName,
+                        isAssigned: true,
+                        size: 16
+                    )
                 } else {
                     Circle()
                         .strokeBorder(Color.secondary.opacity(0.75), lineWidth: 1.5)
-                        .frame(width: 13, height: 13)
+                        .frame(width: 16, height: 16)
                 }
             }
             .frame(width: 32, height: 32)
@@ -292,20 +301,20 @@ extension OverlayItemPreview {
         .accessibilityLabel("Quick add to pinboards")
     }
 
-    func pinboardSelectionCircle(colorHex: String, isFilled: Bool, size: CGFloat)
+    func pinboardSelectionIndicator(
+        colorHex: String,
+        iconName: String?,
+        isAssigned: Bool,
+        size: CGFloat
+    )
         -> some View
     {
-        let color = Color(hex: colorHex, fallback: .gray)
-        return ZStack {
-            Circle()
-                .strokeBorder(color.opacity(0.95), lineWidth: 1.5)
-            if isFilled {
-                Circle()
-                    .fill(color)
-                    .padding(2)
-            }
-        }
-        .frame(width: size, height: size)
+        PinboardIndicator(
+            colorHex: colorHex,
+            sign: iconName,
+            size: size,
+            isAssigned: isAssigned
+        )
     }
 
     var assignedPinboards: [Pinboard] {
@@ -316,6 +325,10 @@ extension OverlayItemPreview {
 
     var primaryAssignedPinboardColorHex: String? {
         assignedPinboards.first?.colorHex
+    }
+
+    var primaryAssignedPinboardIconName: String? {
+        assignedPinboards.first?.iconName
     }
 
     var assignedPinboardIDs: Set<UUID> {

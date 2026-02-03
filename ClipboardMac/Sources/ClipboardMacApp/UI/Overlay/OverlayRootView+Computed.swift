@@ -4,6 +4,14 @@ import AppKit
 import SwiftUI
 
 extension OverlayShellView {
+    var overlayScreenEdge: OverlayScreenEdge {
+        OverlayScreenEdge(rawValue: overlayScreenEdgeRawValue) ?? OverlayLayoutSettings.defaultEdge
+    }
+
+    var overlayLayoutAxis: OverlayLayoutAxis {
+        overlayScreenEdge.layoutAxis
+    }
+
     var filteredItems: [ClipItem] {
         let selectedPinboardID = searchModel.selectedPinboardID
         let sourceItems = searchModel.isSearchTextActive ? searchModel.searchResults : Array(items)
@@ -28,6 +36,10 @@ extension OverlayShellView {
 
     var movablePinboards: [Pinboard] {
         visiblePinboards.filter { pinboardLockController.canAccess(pinboardID: $0.id) }
+    }
+
+    var lockedPinboardIDs: Set<UUID> {
+        Set(visiblePinboards.filter { !pinboardLockController.canAccess(pinboardID: $0.id) }.map(\.id))
     }
 
     var selectedCustomPinboard: Pinboard? {
@@ -59,7 +71,7 @@ extension OverlayShellView {
     }
 
     var isReorderingEnabled: Bool {
-        !isSearchActive && searchModel.selectedPinboardID == nil
+        !isSearchActive && searchModel.selectedPinboardID != nil
     }
 
     var pinboardSelectionKey: String {

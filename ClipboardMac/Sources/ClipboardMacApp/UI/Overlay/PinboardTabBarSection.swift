@@ -13,6 +13,7 @@ struct PinboardTabBarSection: View {
     @Binding var isCreating: Bool
     @Binding var draftName: String
     @Binding var draftColor: String
+    @Binding var draftIcon: String?
     let isGlobalDragActive: Bool
     let window: NSWindow?
 
@@ -24,6 +25,7 @@ struct PinboardTabBarSection: View {
     let onLockNow: (Pinboard) -> Void
     let onRename: (Pinboard) -> Void
     let onColorChange: (Pinboard, String) -> Void
+    let onIconChange: (Pinboard, String?) -> Void
     let onDelete: (Pinboard) -> Void
     let onReorder: (Pinboard, Pinboard, Bool) -> Void
     let onReorderEnd: () -> Void
@@ -32,8 +34,8 @@ struct PinboardTabBarSection: View {
     let onCancel: () -> Void
 
     let coordinateSpaceName: String
-    let headerSideWidth: CGFloat
-    let headerButtonSize: CGFloat
+    let horizontalPadding: CGFloat
+    let rowHeight: CGFloat
     let onPinboardLayoutChange: (PinboardLayoutInfo) -> Void
     let onSearchFieldFrameChange: (CGRect?) -> Void
 
@@ -47,6 +49,7 @@ struct PinboardTabBarSection: View {
             isCreating: $isCreating,
             draftName: $draftName,
             draftColor: $draftColor,
+            draftIcon: $draftIcon,
             isGlobalDragActive: isGlobalDragActive,
             window: window,
             onPreviewUpdate: onPreviewUpdate,
@@ -57,6 +60,7 @@ struct PinboardTabBarSection: View {
             onLockNow: onLockNow,
             onRename: onRename,
             onColorChange: onColorChange,
+            onIconChange: onIconChange,
             onDelete: onDelete,
             onReorder: onReorder,
             onReorderEnd: onReorderEnd,
@@ -65,8 +69,8 @@ struct PinboardTabBarSection: View {
             onCancel: onCancel,
             coordinateSpaceName: coordinateSpaceName
         )
-        .padding(.horizontal, headerSideWidth)
-        .frame(height: headerButtonSize, alignment: .center)
+        .padding(.horizontal, horizontalPadding)
+        .frame(height: rowHeight, alignment: .center)
         .onPreferenceChange(PinboardLayoutInfoKey.self) { layout in
             onPinboardLayoutChange(layout)
         }
