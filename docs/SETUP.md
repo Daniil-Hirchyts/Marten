@@ -32,7 +32,10 @@ swift run ClipboardMac
 
 CloudKit requires a signed `.app` with correct entitlements.
 
-1. Open `ClipboardMacWrapper/ClipboardMacWrapper.xcodeproj` in Xcode
+This repo includes the wrapper resources (Info.plist, entitlements, asset catalogs) under `ClipboardMacWrapper/ClipboardMacWrapper/`, but the wrapper **Xcode project is intentionally not checked in** (the repo ignores `*.xcodeproj`).
+
+If you already have a local wrapper project:
+1. Open your local `ClipboardMacWrapper.xcodeproj` in Xcode
 2. Select the app target
 3. In **Signing & Capabilities**:
    - Choose your Team
@@ -42,7 +45,14 @@ CloudKit requires a signed `.app` with correct entitlements.
      - Select/create a container (e.g., `iCloud.com.yourcompany.paste`)
    - Add **Push Notifications** capability (required for CloudKit subscriptions)
 4. Update container ID in `ClipboardCore/Sources/Sync/CloudKitConfiguration.swift` if different
-5. Build & Run in Xcode (produces signed `.app` with entitlements)
+5. Build & Run (produces a signed `.app` with entitlements)
+
+If you do not have a local wrapper project yet:
+- Create a macOS app wrapper project locally (do not commit it) and wire it to build/ship the `ClipboardMac` executable from `ClipboardMac/`.
+- Reuse the included resources:
+  - `ClipboardMacWrapper/ClipboardMacWrapper/Info.plist`
+  - `ClipboardMacWrapper/ClipboardMacWrapper/ClipboardMacWrapper.entitlements`
+  - `ClipboardMacWrapper/ClipboardMacWrapper/Assets.xcassets`
 
 ---
 
@@ -87,6 +97,8 @@ Paste/
 │   │   ├── ClipboardMacApp/      UI & app lifecycle
 │   │   └── ClipboardMacServices/ System services
 │   └── Tests/              Unit & UI tests
+
+├── ClipboardMacWrapper/    Wrapper resources (Info.plist, entitlements, assets)
 │
 └── docs/                   Documentation
 ```

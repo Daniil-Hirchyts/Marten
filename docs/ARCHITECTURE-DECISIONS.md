@@ -1,7 +1,7 @@
 # Architecture Decision Records (ADRs)
 
 **Project:** Paste Clipboard Manager  
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Last Updated:** 2026-02-03
 
 ---
@@ -480,15 +480,98 @@ Each ADR includes:
 
 ---
 
+## ADR-013: Apple Intelligence Text Transforms vs External AI
+
+**Date:** 2026-02-03  
+**Status:** Accepted  
+**Context:** Provide optional “summarize/proofread/rewrite/shorten” for text items without sending clipboard content to third-party services.
+
+**Options Considered:**
+1. **On-device Apple Intelligence (SystemLanguageModel / FoundationModels)**
+2. **Third-party LLM API** (OpenAI/Anthropic/etc.)
+3. **No AI features**
+
+**Decision:** On-device Apple Intelligence (when available), otherwise no AI actions.
+
+**Rationale:**
+- Clipboard content is sensitive by default; avoiding network egress is the safest default.
+- On-device inference keeps data local and aligns with a privacy-first clipboard manager.
+- Availability is platform/OS dependent; feature is optional and gated by runtime checks.
+
+**Consequences:**
+- ✅ Strong privacy properties (no remote AI calls)
+- ✅ No API key management or billing surface
+- ❌ Feature availability depends on OS/device support
+- ❌ Requires clear UX for “not available” states
+
+**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/AppleIntelligence/`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemEditorAITextEditing.swift`
+
+---
+
+## ADR-014: Pinboard Lock via LocalAuthentication
+
+**Date:** 2026-02-03  
+**Status:** Accepted  
+**Context:** Users need a way to hide specific pinboards during normal browsing, especially when screen sharing or working in public.
+
+**Options Considered:**
+1. **LocalAuthentication gate (Touch ID / password)**
+2. **Full encryption-at-rest per pinboard**
+3. **No lock feature**
+
+**Decision:** LocalAuthentication gate for viewing/unlocking locked pinboards.
+
+**Rationale:**
+- Provides immediate privacy improvements with minimal complexity.
+- Uses system authentication UX and security primitives.
+- Avoids the complexity of key management and encrypted Core Data partitions.
+
+**Consequences:**
+- ✅ Simple, familiar UX (system prompt)
+- ✅ Works without custom cryptography
+- ❌ Not full encryption; data still exists in the local store
+- ❌ Requires careful state handling (temporary unlock + expiration)
+
+**References:** `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/PinboardLockController.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayPinboardLockHandler.swift`
+
+---
+
+## ADR-015: Screen Sharing Mode (Overlay Visibility Gating)
+
+**Date:** 2026-02-03  
+**Status:** Accepted  
+**Context:** When users are presenting or screen sharing, the overlay can expose clipboard history. Users need a fast toggle and a default behavior.
+
+**Options Considered:**
+1. **Screen sharing mode toggle + setting for overlay visibility**
+2. **Always hide overlay when active**
+3. **No special handling**
+
+**Decision:** Provide a mode toggle and a user setting controlling whether overlay is shown.
+
+**Rationale:**
+- Keeps a quick, explicit user-controlled escape hatch.
+- Supports different preferences (some users still want overlay while presenting).
+- Makes overlay behavior deterministic and testable.
+
+**Consequences:**
+- ✅ Fast to toggle from menu bar/shortcut
+- ✅ Predictable overlay visibility rules
+- ❌ Adds another global mode that must be reflected in UI
+
+**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/ScreenSharing/ScreenSharingManager.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayWindow.swift`
+
+---
+
 ## Future ADRs
 
 Topics to document as decisions are made:
 
-- **ADR-013:** In-app purchase architecture (when implemented)
-- **ADR-014:** Analytics approach (if added)
-- **ADR-015:** Localization strategy (for internationalization)
-- **ADR-016:** Accessibility testing approach (VoiceOver automation)
-- **ADR-017:** End-to-end encryption (if added for sensitive data)
+- **ADR-016:** In-app purchase architecture (when implemented)
+- **ADR-017:** Analytics approach (if added)
+- **ADR-018:** Localization strategy (for internationalization)
+- **ADR-019:** Accessibility testing approach (VoiceOver automation)
+- **ADR-020:** End-to-end encryption (if added for sensitive data)
 
 ---
 
@@ -501,4 +584,4 @@ Topics to document as decisions are made:
 ---
 
 **Maintained By:** Engineering Team  
-**Last Updated:** 2026-02-02
+**Last Updated:** 2026-02-03

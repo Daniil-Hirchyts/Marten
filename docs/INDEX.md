@@ -40,7 +40,7 @@
 
 ## Key Metrics
 
-**Code:** 219 Swift files across both packages (Sources + Tests)
+**Code:** 240 Swift files across both packages (Sources + Tests)
 **Entities:** 6 Core Data entities
 **Services:** Domain services + repositories in `ClipboardCore`, system services in `ClipboardMacServices`, UI in `ClipboardMacApp`
 **Performance:** All targets met ✅
@@ -52,8 +52,9 @@
 ## Features
 
 **Core:** Clipboard monitoring, deduplication, retention, overlay UI, pinboards, search, paste engine, hotkeys, quick paste (1-9), paste stack  
-**Privacy:** Ignored apps, confidential content detection, link previews, settings, onboarding  
+**Privacy:** Ignored apps, confidential/transient content detection, link previews, onboarding, screen sharing mode, pinboard lock (Touch ID/password)  
 **Sync:** CloudKit bi-directional, conflict resolution, asset sync, error handling  
+**Power:** Share sheet + “Save As…” export actions, in-app shortcut recorder, Apple Intelligence text transforms (optional)  
 **Hardening:** Performance optimization, UI tests, VoiceOver, migration, crash reporting
 
 ---

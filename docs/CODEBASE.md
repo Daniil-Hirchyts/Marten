@@ -20,7 +20,7 @@ Paste/
 │   │   └── ClipboardMacValidation/ Validation executable
 │   └── Tests/              Unit + UI tests
 │
-├── ClipboardMacWrapper/    Xcode wrapper project (signing, entitlements, assets)
+├── ClipboardMacWrapper/    Wrapper resources (signing/entitlements/assets; Xcode project not checked in)
 │
 └── docs/                   Documentation
     ├── INDEX.md           Main navigation
@@ -50,6 +50,16 @@ Paste/
 | **CloudKit sync** | `ClipboardCore/Sources/Sync/SyncCoordinator.swift` |
 | **Password detection** | `ClipboardCore/Sources/BusinessRules/Classifiers/` |
 | **Thumbnails** | `ClipboardMac/Sources/ClipboardMacServices/Services/Thumbnails/` |
+| **Menu bar app** | `ClipboardMac/Sources/ClipboardMacApp/App/MenuBarController.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/MenuBar/` |
+| **Screen sharing mode** | `ClipboardMac/Sources/ClipboardMacServices/Services/ScreenSharing/`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayWindow.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Settings/PrivacyTab.swift` |
+| **Pinboard lock (Touch ID / password)** | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/PinboardLockController.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayPinboardLockHandler.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Settings/GeneralTab.swift` |
+| **Onboarding** | `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/OnboardingCoordinator.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Onboarding/` |
+| **Permissions manager** | `ClipboardMac/Sources/ClipboardMacServices/Services/Permissions/PermissionManager.swift` |
+| **Crash reporting / diagnostics** | `ClipboardMac/Sources/ClipboardMacServices/Services/CrashReporter.swift`, `ClipboardMac/Sources/ClipboardMacServices/Services/Logging/Loggers.swift` |
+| **Apple Intelligence (text transforms)** | `ClipboardMac/Sources/ClipboardMacServices/Services/AppleIntelligence/`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemEditorAITextEditing.swift` |
+| **Share / Save As… actions** | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayItemPreview+Actions.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemEditorContentView.swift` |
+| **Shortcut recorder + preferences** | `ClipboardMac/Sources/ClipboardMacApp/UI/Settings/ShortcutsTab.swift`, `ClipboardMac/Sources/ClipboardMacApp/App/HotkeyPreferences.swift` |
+| **Sign in with Apple (sync gating)** | `ClipboardCore/Sources/BusinessRules/AppleAuthManager.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Settings/AccountTab.swift` |
 
 ---
 
@@ -64,6 +74,19 @@ Paste/
 - **ClipItemDeduplicationService** — Duplicate detection
 - **ClipItemRetentionService** — Retention policy enforcement
 - **ClipItemUsageService** — Usage tracking
+- **IgnoredAppsManager** — Per-app capture exclusion list
+- **LinkPreviewFetcher** — URL metadata fetch and store
+- **AppleAuthManager** — Sign in with Apple credentials (sync gating)
+
+### System Services (ClipboardMac/Sources/ClipboardMacServices/Services/)
+- **PasteboardMonitor** — Polls NSPasteboard and emits changes
+- **HotkeyManager** — Global hotkey capture (CGEvent tap)
+- **PasteEngine** — Pasteboard write + Cmd+V injection
+- **PermissionManager** — Accessibility + Input Monitoring checks/requests
+- **ScreenSharingManager** — Screen sharing mode state and overlay gating
+- **ThumbnailService** — Image/URL thumbnail generation and caching
+- **AppleIntelligenceTextService** — On-device text transforms (summarize/rewrite/etc.)
+- **CrashReporter** — Crash/diagnostic logging and exception handler
 
 ### Coordinators (ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/)
 - **CaptureCoordinator** — Orchestrates capture pipeline
@@ -101,6 +124,21 @@ Multiple formats of the same content (text + RTF + HTML).
 User-created folders for organization.
 - **Entity:** `Pinboard`
 - **Special:** "All Items", "Favorites", "Paste Stack"
+
+### Locked Pinboards
+Per-pinboard privacy control using Touch ID / password.
+- **Storage:** locked pinboard IDs persisted in settings
+- **Behavior:** locked pinboard items can be hidden from "All Items" depending on user state
+
+### Screen Sharing Mode
+Privacy mode that controls overlay visibility when presenting/sharing.
+- **Toggle:** menu bar item and keyboard shortcut
+- **Setting:** "Show during screen sharing" (can auto-hide overlay)
+
+### AI Text Transforms
+Optional on-device Apple Intelligence actions integrated into the item editor.
+- **Actions:** summarize, proofread, rewrite, shorten
+- **Apply:** preview output and replace selection or keep original
 
 ### Other Entities
 - **LinkPreview:** URL metadata (title, description, image)
@@ -202,7 +240,7 @@ See [`ARCHITECTURE-DECISIONS.md`](./ARCHITECTURE-DECISIONS.md) for full ADRs:
 ## Dependencies
 
 **ClipboardCore:** Foundation, CoreData, CloudKit, CryptoKit, Combine  
-**ClipboardMac:** AppKit, SwiftUI, AVFoundation, CoreGraphics
+**ClipboardMac:** AppKit, SwiftUI, AVFoundation, CoreGraphics, LocalAuthentication, OSLog, FoundationModels
 
 **No third-party dependencies**
 
@@ -231,9 +269,8 @@ See [`ARCHITECTURE-DECISIONS.md`](./ARCHITECTURE-DECISIONS.md) for full ADRs:
 - `IntegrityCheckService`: Startup checks
 
 ### Overlay Decomposition
-- `OverlayShellView` reduced from 799 → 766 lines
-- Extracted coordinators for preview, lock handling, actions
-- Reduced mixed responsibilities by moving focused behavior into dedicated types
+- Extracted coordinators/handlers for preview, lock handling, and user actions
+- Centralized editor-related logic (including AI transforms) to keep overlay state manageable
 
 ### Settings Provider Pattern
 - Removed @AppStorage from services layer
