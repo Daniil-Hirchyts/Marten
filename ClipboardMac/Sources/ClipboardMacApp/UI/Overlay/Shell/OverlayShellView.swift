@@ -122,8 +122,12 @@ struct OverlayShellView: View {
             .onChange(of: keyHandlerRefreshToken) { handleKeyHandlerRefresh($0, $1) }
             .onChange(of: visiblePinboardIDs) { handleVisiblePinboardsChange($0, $1) }
             .onChange(of: itemsSourceAppsHash) { handleItemsSourceAppsChange($0, $1) }
+            .onChange(of: filteredItemSelectionSignature) { handleFilteredItemsChange($0, $1) }
             .onChange(of: viewModel.selectedItemIDs) { handleSelectionChange($0, $1) }
             .onChange(of: overlayLayoutAxis) { handleOverlayLayoutAxisChange($0, $1) }
+            .onChange(of: pinboardLockController.isAuthenticating) { _, newValue in
+                viewModel.isAuthenticating = newValue
+            }
             .onReceive(eventBroadcaster.events, perform: handleBroadcasterEvent)
     }
 
@@ -224,4 +228,3 @@ struct OverlayShellView: View {
         )
     }
 }
-

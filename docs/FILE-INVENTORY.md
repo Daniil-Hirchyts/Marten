@@ -10,9 +10,9 @@
 
 - `ClipboardCore/Sources`: 61 Swift files / 7,872 LOC
 - `ClipboardCore/Tests`: 27 Swift files / 4,454 LOC
-- `ClipboardMac/Sources`: 150 Swift files / 21,259 LOC
-- `ClipboardMac/Tests`: 40 Swift files / 3,225 LOC
-- **Total:** 278 Swift files / 36,810 LOC
+- `ClipboardMac/Sources`: 158 Swift files / 22,449 LOC
+- `ClipboardMac/Tests`: 45 Swift files / 3,843 LOC
+- **Total:** 291 Swift files / 38,618 LOC
 
 ---
 
@@ -137,10 +137,11 @@
   - `ClipboardMac/Sources/ClipboardMacApp/App/MenuBarController.swift`
   - `ClipboardMac/Sources/ClipboardMacApp/App/PinboardSecuritySettings.swift`
   - `ClipboardMac/Sources/ClipboardMacApp/App/SyncConfigurationProviding.swift`
-- **`ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/`** (4)
+- **`ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/`** (5)
   - `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/CaptureCoordinator.swift`
   - `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/HotkeyCoordinator.swift`
   - `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/IntegrityCheckService.swift`
+  - `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/OCRCaptureCoordinator.swift`
   - `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/OnboardingCoordinator.swift`
 - **`ClipboardMac/Sources/ClipboardMacApp/App/Protocols/`** (1)
   - `ClipboardMac/Sources/ClipboardMacApp/App/Protocols/SettingsOpening.swift`
@@ -158,6 +159,8 @@
 - **`ClipboardMac/Sources/ClipboardMacApp/UI/Onboarding/`** (2)
   - `ClipboardMac/Sources/ClipboardMacApp/UI/Onboarding/OnboardingFlow.swift`
   - `ClipboardMac/Sources/ClipboardMacApp/UI/Onboarding/OnboardingScreens.swift`
+- **`ClipboardMac/Sources/ClipboardMacApp/UI/OCR/`** (1)
+  - `ClipboardMac/Sources/ClipboardMacApp/UI/OCR/OCRSelectionOverlayController.swift`
 - **`ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/`** (45)
   - `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/AppIconCache.swift`
   - `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ClipItemEditing.swift`
@@ -274,6 +277,12 @@
   - `ClipboardMac/Sources/ClipboardMacServices/Services/HotkeyManager/HotkeyManager.swift`
 - **`ClipboardMac/Sources/ClipboardMacServices/Services/Logging/`** (1)
   - `ClipboardMac/Sources/ClipboardMacServices/Services/Logging/Loggers.swift`
+- **`ClipboardMac/Sources/ClipboardMacServices/Services/OCR/`** (5)
+  - `ClipboardMac/Sources/ClipboardMacServices/Services/OCR/OCRCaptureMode.swift`
+  - `ClipboardMac/Sources/ClipboardMacServices/Services/OCR/ScreenImageCapturing.swift`
+  - `ClipboardMac/Sources/ClipboardMacServices/Services/OCR/SelectionImageCropper.swift`
+  - `ClipboardMac/Sources/ClipboardMacServices/Services/OCR/TextRecognizing.swift`
+  - `ClipboardMac/Sources/ClipboardMacServices/Services/OCR/VisionTextRecognizer.swift`
 - **`ClipboardMac/Sources/ClipboardMacServices/Services/PasteEngine/`** (2)
   - `ClipboardMac/Sources/ClipboardMacServices/Services/PasteEngine/ActiveAppTracker.swift`
   - `ClipboardMac/Sources/ClipboardMacServices/Services/PasteEngine/PasteEngine.swift`
@@ -296,9 +305,10 @@
   - `ClipboardMac/Sources/ClipboardMacServices/Services/Protocols/CrashReporting.swift`
 - **`ClipboardMac/Sources/ClipboardMacServices/Services/ScreenSharing/`** (1)
   - `ClipboardMac/Sources/ClipboardMacServices/Services/ScreenSharing/ScreenSharingManager.swift`
-- **`ClipboardMac/Sources/ClipboardMacServices/Services/Settings/`** (4)
+- **`ClipboardMac/Sources/ClipboardMacServices/Services/Settings/`** (5)
   - `ClipboardMac/Sources/ClipboardMacServices/Services/Settings/CaptureSettingsProviding.swift`
   - `ClipboardMac/Sources/ClipboardMacServices/Services/Settings/LinkPreviewSettingsProviding.swift`
+  - `ClipboardMac/Sources/ClipboardMacServices/Services/Settings/OCRSettingsProviding.swift`
   - `ClipboardMac/Sources/ClipboardMacServices/Services/Settings/PasteSettingsProviding.swift`
   - `ClipboardMac/Sources/ClipboardMacServices/Services/Settings/ScreenSharingSettingsProviding.swift`
 - **`ClipboardMac/Sources/ClipboardMacServices/Services/SoundEffects/`** (1)
@@ -310,8 +320,9 @@
 
 ### `ClipboardMac/Tests`
 
-- **`ClipboardMac/Tests/ClipboardMacAppTests/`** (19)
+- **`ClipboardMac/Tests/ClipboardMacAppTests/`** (21)
   - `ClipboardMac/Tests/ClipboardMacAppTests/ClipItemStoreDeleteAllItemsTests.swift`
+  - `ClipboardMac/Tests/ClipboardMacAppTests/HotkeyCoordinatorTests.swift`
   - `ClipboardMac/Tests/ClipboardMacAppTests/HotkeyPreferencesTests.swift`
   - `ClipboardMac/Tests/ClipboardMacAppTests/ItemCardRowPaginationTests.swift`
   - `ClipboardMac/Tests/ClipboardMacAppTests/ItemEditorAIReplacementTests.swift`
@@ -319,6 +330,7 @@
   - `ClipboardMac/Tests/ClipboardMacAppTests/ItemSelectionHandlerTests.swift`
   - `ClipboardMac/Tests/ClipboardMacAppTests/OverlayFrameCalculatorTests.swift`
   - `ClipboardMac/Tests/ClipboardMacAppTests/OverlayLayoutSettingsTests.swift`
+  - `ClipboardMac/Tests/ClipboardMacAppTests/OCRCaptureCoordinatorTests.swift`
   - `ClipboardMac/Tests/ClipboardMacAppTests/OverlayResizeBehaviorTests.swift`
   - `ClipboardMac/Tests/ClipboardMacAppTests/OverlaySearchViewModelTests.swift`
   - `ClipboardMac/Tests/ClipboardMacAppTests/OverlayViewModelTests.swift`
@@ -330,20 +342,23 @@
   - `ClipboardMac/Tests/ClipboardMacAppTests/PinboardSignCatalogTests.swift`
   - `ClipboardMac/Tests/ClipboardMacAppTests/SyncStatusIndicatorTests.swift`
   - `ClipboardMac/Tests/ClipboardMacAppTests/TestDoubles.swift`
-- **`ClipboardMac/Tests/ClipboardMacTests/`** (13)
+- **`ClipboardMac/Tests/ClipboardMacTests/`** (16)
   - `ClipboardMac/Tests/ClipboardMacTests/AppleIntelligenceTextServiceTests.swift`
   - `ClipboardMac/Tests/ClipboardMacTests/CapturePipelineIntegrationTests.swift`
   - `ClipboardMac/Tests/ClipboardMacTests/CrashReporterTests.swift`
   - `ClipboardMac/Tests/ClipboardMacTests/HotkeyManagerTests.swift`
   - `ClipboardMac/Tests/ClipboardMacTests/LinkPreviewSettingsProviderTests.swift`
   - `ClipboardMac/Tests/ClipboardMacTests/LoggingPolicyTests.swift`
+  - `ClipboardMac/Tests/ClipboardMacTests/OCRSettingsProviderTests.swift`
   - `ClipboardMac/Tests/ClipboardMacTests/PasteEngineClipboardModeTests.swift`
   - `ClipboardMac/Tests/ClipboardMacTests/PasteEngineTests.swift`
   - `ClipboardMac/Tests/ClipboardMacTests/PasteSettingsProviderTests.swift`
   - `ClipboardMac/Tests/ClipboardMacTests/PasteboardExtractorTests.swift`
   - `ClipboardMac/Tests/ClipboardMacTests/ScreenSharingManagerTests.swift`
+  - `ClipboardMac/Tests/ClipboardMacTests/SelectionImageCropperTests.swift`
   - `ClipboardMac/Tests/ClipboardMacTests/TestDoubles.swift`
   - `ClipboardMac/Tests/ClipboardMacTests/ThumbnailGeneratorTests.swift`
+  - `ClipboardMac/Tests/ClipboardMacTests/VisionTextRecognizerTests.swift`
 - **`ClipboardMac/Tests/ClipboardMacUITests/`** (8)
   - `ClipboardMac/Tests/ClipboardMacUITests/ClipboardMacUITestCase.swift`
   - `ClipboardMac/Tests/ClipboardMacUITests/ItemCardTests.swift`
@@ -353,4 +368,3 @@
   - `ClipboardMac/Tests/ClipboardMacUITests/PinboardTests.swift`
   - `ClipboardMac/Tests/ClipboardMacUITests/SearchModeTests.swift`
   - `ClipboardMac/Tests/ClipboardMacUITests/SettingsTests.swift`
-

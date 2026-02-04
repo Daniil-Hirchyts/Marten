@@ -21,7 +21,8 @@ final class OverlayWindowControllerTests: XCTestCase {
             itemOperations: ItemOperationsHandler(store: store),
             pinboards: PinboardManager(store: store, persistence: persistence),
             previewCoordinator: OverlayPreviewCoordinator(itemEditorWindowController: itemEditorWindowController),
-            appleIntelligence: appleIntelligence
+            appleIntelligence: appleIntelligence,
+            soundPlayer: SoundEffectPlayer()
         )
         let controller = OverlayWindowController(
             persistence: persistence,

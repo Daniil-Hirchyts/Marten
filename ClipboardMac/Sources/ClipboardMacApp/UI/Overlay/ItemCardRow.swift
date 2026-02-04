@@ -13,6 +13,7 @@ struct ItemCardRow: View {
     let items: [ClipItem]
     let pinboards: [Pinboard]
     let lockedPinboardIDs: Set<UUID>
+    let selectedPinboardID: UUID?
     let mode: OverlayMode
     let selectedItemIDs: Set<NSManagedObjectID>
     let editingItemID: NSManagedObjectID?
@@ -91,11 +92,9 @@ struct ItemCardRow: View {
                             .spring(response: 0.32, dampingFraction: 0.86),
                             value: items.map(\.displayOrder)
                         )
-                        .scrollTargetLayout()
                     }
                 }
                 .contentMargins(.horizontal, placeholderInset, for: .scrollContent)
-                .scrollTargetBehavior(.viewAligned)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ScrollViewReader { proxy in
@@ -213,6 +212,7 @@ struct ItemCardRow: View {
                 item: item,
                 pinboards: pinboards,
                 lockedPinboardIDs: lockedPinboardIDs,
+                selectedPinboardID: selectedPinboardID,
                 isSelected: selectedItemIDs.contains(item.objectID),
                 isEditing: editingItemID == item.objectID,
                 badgeIndex: badgeIndex(for: index),
@@ -421,6 +421,9 @@ struct ItemCardRow: View {
         }
 
         // Update drop targets WITHOUT animation for better performance
+        let previousDropTarget = dropTarget
+        let previousPinboardDropTarget = pinboardDropTarget
+
         if let pinboardTarget = computePinboardDropTarget(overlayLocation: overlayPointer) {
             pinboardDropTarget = pinboardTarget
             dropTarget = nil
@@ -431,6 +434,12 @@ struct ItemCardRow: View {
             dropTarget = target
         } else {
             dropTarget = nil
+        }
+
+        if dropTarget != previousDropTarget && dropTarget != nil {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+        } else if pinboardDropTarget != previousPinboardDropTarget && pinboardDropTarget != nil {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
         }
     }
 
@@ -817,6 +826,7 @@ struct ItemCardDragPreview: View {
             item: item,
             pinboards: pinboards,
             lockedPinboardIDs: [],
+            selectedPinboardID: nil,
             isSelected: false,
             isEditing: false,
             badgeIndex: nil,
@@ -861,6 +871,7 @@ struct MultiItemCardDragPreview: View {
                     item: item,
                     pinboards: pinboards,
                     lockedPinboardIDs: [],
+                    selectedPinboardID: nil,
                     isSelected: false,
                     isEditing: false,
                     badgeIndex: nil,

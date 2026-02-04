@@ -136,4 +136,60 @@ final class OverlayViewModelTests: XCTestCase {
         viewModel.clearSelection()
         XCTAssertTrue(viewModel.selectedItemIDs.isEmpty)
     }
+
+    func testEnsureDefaultSelectionSelectsFirstOrderedItemWhenSelectionIsEmpty() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let itemA = try store.createTextItem(text: "a")
+        let itemB = try store.createTextItem(text: "b")
+
+        let viewModel = OverlayViewModel(
+            persistence: persistence,
+            pasteEngine: TestPasteEngine(),
+            permissionManager: PermissionManager()
+        ) { completion in
+            completion()
+        }
+
+        viewModel.ensureDefaultSelection(in: [itemB, itemA])
+        XCTAssertEqual(viewModel.selectedItemIDs, [itemB.objectID])
+    }
+
+    func testEnsureDefaultSelectionPreservesVisibleSelection() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let itemA = try store.createTextItem(text: "a")
+        let itemB = try store.createTextItem(text: "b")
+
+        let viewModel = OverlayViewModel(
+            persistence: persistence,
+            pasteEngine: TestPasteEngine(),
+            permissionManager: PermissionManager()
+        ) { completion in
+            completion()
+        }
+
+        viewModel.restoreSelection([itemA.objectID], in: [itemA, itemB])
+        viewModel.ensureDefaultSelection(in: [itemB, itemA])
+        XCTAssertEqual(viewModel.selectedItemIDs, [itemA.objectID])
+    }
+
+    func testEnsureDefaultSelectionReplacesSelectionWhenNoItemsRemainVisible() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let itemA = try store.createTextItem(text: "a")
+        let itemB = try store.createTextItem(text: "b")
+
+        let viewModel = OverlayViewModel(
+            persistence: persistence,
+            pasteEngine: TestPasteEngine(),
+            permissionManager: PermissionManager()
+        ) { completion in
+            completion()
+        }
+
+        viewModel.restoreSelection([itemA.objectID], in: [itemA, itemB])
+        viewModel.ensureDefaultSelection(in: [itemB])
+        XCTAssertEqual(viewModel.selectedItemIDs, [itemB.objectID])
+    }
 }

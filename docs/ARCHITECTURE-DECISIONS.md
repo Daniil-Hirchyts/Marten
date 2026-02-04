@@ -441,12 +441,43 @@ with `PasteboardExtractor` as composition shell.
 
 ---
 
+## ADR-016: OCR Text Capture via Selection Overlay + Vision OCR
+
+**Date:** 2026-02-04  
+**Status:** Accepted
+
+**Context:** Users need a direct "capture text from screen region" workflow from menu/shortcut, including multi-language support and predictable behavior for static vs live screen capture.
+
+**Options Considered:**
+1. Route OCR through existing clipboard monitor capture pipeline
+2. Add a dedicated OCR pipeline with selection overlay, screen capture service, and Vision recognizer
+3. Use third-party OCR SDK/service
+
+**Decision:** Add a dedicated OCR pipeline in `ClipboardMacApp` + `ClipboardMacServices` using AppKit overlay selection and Apple Vision OCR.
+
+**Rationale:**
+- OCR selection/capture is interactionally different from clipboard polling and should remain isolated.
+- Keeps module boundaries intact: orchestration/UI in app target, system/OCR engines in services target.
+- Uses Apple Vision language support with auto-detect first and optional preferred-language fallback.
+- Keeps privacy posture aligned with project standards (metadata-only logging; no recognized text logging).
+
+**Consequences:**
+- ✅ Menu item + global hotkey can trigger OCR capture without coupling to clipboard monitor internals.
+- ✅ Supports two modes (static snapshot and live screen) with explicit user/default setting.
+- ✅ Better testability via protocol boundaries (`TextRecognizing`, `ScreenImageCapturing`, settings providers).
+- ❌ Requires Screen Recording permission for OCR flows and user guidance when denied.
+
+**References:** `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/OCRCaptureCoordinator.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/OCR/OCRSelectionOverlayController.swift`, `ClipboardMac/Sources/ClipboardMacServices/Services/OCR/`, `ClipboardMac/Sources/ClipboardMacServices/Services/Settings/OCRSettingsProviding.swift`
+
+---
+
 ## Changelog
 
 **1.3.0** (2026-02-04)
 - Refreshed ADR metadata and references for post-refactor architecture.
 - Added ADRs for lifecycle orchestration, composition/provider boundaries, and split capture pipeline.
 - Updated polling interval details and current implementation references.
+- Added ADR for OCR text capture (selection overlay, mode split, Vision-based recognition, and permission gating).
 
 **1.0.0** (2026-02-02)
 - Initial ADR set.

@@ -121,10 +121,11 @@ public final class PasteboardMonitor: ObservableObject {
 
         lastChangeCount = currentCount
 
-        // Only suppress if we have a token and this is the immediate next change
-        // (changeCount is exactly one more than when suppression was requested)
+        // Suppress any change that follows the suppression request.
+        // clearContents() + write can bump changeCount by 2 in a single run-loop tick,
+        // so we match any count greater than the snapshot taken at suppression time.
         if let suppressionCount = changeCountAtSuppression,
-            currentCount == suppressionCount + 1
+            currentCount > suppressionCount
         {
             Logger.pasteboard.info(
                 "Suppressing change detection (token: \(String(describing: self.suppressToken), privacy: .public))"

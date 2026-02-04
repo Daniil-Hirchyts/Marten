@@ -98,14 +98,16 @@ final class PinboardLockController: ObservableObject {
         withAnimation(transitionAnimation) {
             isAuthenticating = true
         }
-        defer {
-            withAnimation(transitionAnimation) {
-                isAuthenticating = false
-            }
-        }
 
         let reason = "Unlock \"\(pinboardName)\" in Paste"
         let authenticated = await authenticator.authenticate(reason: reason)
+
+        // Brief delay to let app regain focus before we allow overlay to hide
+        try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3 seconds
+        withAnimation(transitionAnimation) {
+            isAuthenticating = false
+        }
+
         guard authenticated else { return false }
 
         applyTemporaryUnlock(for: pinboardID)

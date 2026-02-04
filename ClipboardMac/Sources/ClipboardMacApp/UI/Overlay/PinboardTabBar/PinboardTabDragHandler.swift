@@ -1,3 +1,4 @@
+import AppKit
 import ClipboardCore
 import OSLog
 import SwiftUI
@@ -24,6 +25,8 @@ extension PinboardTabBar {
             x: value.startLocation.x + value.translation.width,
             y: value.startLocation.y + value.translation.height
         )
+
+        let previousDropTarget = dropTarget
 
         if dragState == nil {
             guard let localFrame = frameManager.latestTabFrames[pinboard.objectID] else {
@@ -85,6 +88,10 @@ extension PinboardTabBar {
             if let scrollProxy = currentScrollProxy {
                 checkAutoScroll(at: localPointer, scrollProxy: scrollProxy)
             }
+        }
+
+        if dropTarget != previousDropTarget && dropTarget != nil {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
         }
     }
 

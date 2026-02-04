@@ -9,6 +9,7 @@ extension OverlayShellView {
         modifierMonitor.start()
         pinboardLockController.reconcile(validPinboardIDs: visiblePinboardIDs)
         ensureValidSelection()
+        viewModel.ensureDefaultSelection(in: filteredItems)
         dragCoordinator.ensurePreviewWindow()
         dragCoordinator.ensurePinboardPreviewWindow()
         installKeyboardHandlers()
@@ -81,6 +82,10 @@ extension OverlayShellView {
         }
     }
 
+    func handleFilteredItemsChange(_ oldValue: [URL], _ newValue: [URL]) {
+        viewModel.ensureDefaultSelection(in: filteredItems)
+    }
+
     func handleSelectionChange(_ oldValue: Set<NSManagedObjectID>, _ newValue: Set<NSManagedObjectID>) {
         if previewCoordinator.isPreviewPopoverPresented {
             previewCoordinator.closePreview()
@@ -97,8 +102,8 @@ extension OverlayShellView {
     func handleBroadcasterEvent(_ event: ClipboardEvent) {
         if event == .overlayDidShow {
             searchFocused = true
+            viewModel.ensureDefaultSelection(in: filteredItems)
             announceOverlayItemCount()
         }
     }
 }
-

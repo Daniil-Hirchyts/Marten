@@ -32,24 +32,28 @@ struct HotkeyPreference: Codable, Equatable {
 
 enum HotkeyPreferenceKey: Hashable {
     case showClipboard
+    case ocrCapture
     case quickPaste(Int)
 
     var rawValue: String {
         switch self {
         case .showClipboard:
             return "hotkey.showClipboard"
+        case .ocrCapture:
+            return "hotkey.ocrCapture"
         case .quickPaste(let index):
             return "hotkey.quickPaste\(index)"
         }
     }
 
     static var allCases: [HotkeyPreferenceKey] {
-        [.showClipboard] + (1...9).map { .quickPaste($0) }
+        [.showClipboard, .ocrCapture] + (1...9).map { .quickPaste($0) }
     }
 }
 
 final class HotkeyPreferencesStore: ObservableObject {
     @Published var showClipboard: HotkeyPreference
+    @Published var ocrCapture: HotkeyPreference
     @Published var quickPaste1: HotkeyPreference
     @Published var quickPaste2: HotkeyPreference
     @Published var quickPaste3: HotkeyPreference
@@ -64,6 +68,10 @@ final class HotkeyPreferencesStore: ObservableObject {
 
     private static let defaultShowClipboard = HotkeyPreference(
         keyCode: UInt16(kVK_ANSI_V),
+        modifiers: [.command, .shift]
+    )
+    private static let defaultOCRCapture = HotkeyPreference(
+        keyCode: UInt16(kVK_ANSI_O),
         modifiers: [.command, .shift]
     )
 
@@ -83,6 +91,11 @@ final class HotkeyPreferencesStore: ObservableObject {
             key: .showClipboard,
             userDefaults: userDefaults,
             defaultValue: Self.defaultShowClipboard
+        )
+        self.ocrCapture = Self.load(
+            key: .ocrCapture,
+            userDefaults: userDefaults,
+            defaultValue: Self.defaultOCRCapture
         )
         self.quickPaste1 = Self.load(key: .quickPaste(1), userDefaults: userDefaults, defaultValue: Self.defaultQuickPaste(1))
         self.quickPaste2 = Self.load(key: .quickPaste(2), userDefaults: userDefaults, defaultValue: Self.defaultQuickPaste(2))
@@ -132,6 +145,12 @@ final class HotkeyPreferencesStore: ObservableObject {
             Self.save(showClipboard, key: .showClipboard, userDefaults: userDefaults)
         }
 
+        if ocrCapture == Self.defaultOCRCapture {
+            userDefaults.removeObject(forKey: HotkeyPreferenceKey.ocrCapture.rawValue)
+        } else {
+            Self.save(ocrCapture, key: .ocrCapture, userDefaults: userDefaults)
+        }
+
         for i in 1...9 {
             let current = quickPaste(i)
             let defaultValue = Self.defaultQuickPaste(i)
@@ -145,10 +164,12 @@ final class HotkeyPreferencesStore: ObservableObject {
 
     func resetToDefaults() {
         userDefaults.removeObject(forKey: HotkeyPreferenceKey.showClipboard.rawValue)
+        userDefaults.removeObject(forKey: HotkeyPreferenceKey.ocrCapture.rawValue)
         for i in 1...9 {
             userDefaults.removeObject(forKey: HotkeyPreferenceKey.quickPaste(i).rawValue)
         }
         showClipboard = Self.defaultShowClipboard
+        ocrCapture = Self.defaultOCRCapture
         quickPaste1 = Self.defaultQuickPaste(1)
         quickPaste2 = Self.defaultQuickPaste(2)
         quickPaste3 = Self.defaultQuickPaste(3)
@@ -169,6 +190,12 @@ final class HotkeyPreferencesStore: ObservableObject {
                 key: key,
                 userDefaults: userDefaults,
                 defaultValue: Self.defaultShowClipboard
+            ).hotkey
+        case .ocrCapture:
+            return load(
+                key: key,
+                userDefaults: userDefaults,
+                defaultValue: Self.defaultOCRCapture
             ).hotkey
         case .quickPaste(let index):
             return load(

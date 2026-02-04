@@ -86,4 +86,8 @@ extension OverlayShellView {
     var keyHandlerRefreshToken: String {
         "\(isCreatingPinboard)-\(renamePinboardID?.description ?? "")-\(renameItemID?.description ?? "")-\(isSearchExpanded)-\(searchFocused)-\(previewCoordinator.isPreviewPopoverPresented)"
     }
+
+    var filteredItemSelectionSignature: [URL] {
+        filteredItems.map { $0.objectID.uriRepresentation() }
+    }
 }

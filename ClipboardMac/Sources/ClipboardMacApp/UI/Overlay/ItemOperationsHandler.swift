@@ -34,6 +34,7 @@ final class ItemOperationsHandler {
         eventBroadcaster.publish(.clipboardWillWrite)
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        soundPlayer.play(.copy)
 
         do {
             try store.markItemUsed(objectID: item.objectID)
@@ -117,6 +118,7 @@ final class ItemOperationsHandler {
         eventBroadcaster.publish(.clipboardWillWrite)
         pasteboard.clearContents()
         pasteboard.setString(texts.joined(separator: "\n"), forType: .string)
+        soundPlayer.play(.copy)
 
         let ids = itemsToCopy.map(\.objectID)
         do {

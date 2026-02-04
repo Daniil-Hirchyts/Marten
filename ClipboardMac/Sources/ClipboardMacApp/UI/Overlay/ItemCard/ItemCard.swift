@@ -1,11 +1,13 @@
 import AppKit
 import ClipboardCore
 import SwiftUI
+import CoreData
 
 struct ItemCard: View {
     let item: ClipItem
     let pinboards: [Pinboard]
     let lockedPinboardIDs: Set<UUID>
+    let selectedPinboardID: UUID?
     let isSelected: Bool
     let isEditing: Bool
     let badgeIndex: Int?
@@ -107,6 +109,13 @@ struct ItemCard: View {
         }
         .onReceive(item.objectWillChange) { _ in
             DispatchQueue.main.async {
+                if item.isDeleted || item.managedObjectContext == nil { return }
+                
+                if let currentPinboardID = selectedPinboardID {
+                    let isInCurrent = item.pinboards?.contains { $0.id == currentPinboardID } ?? false
+                    if !isInCurrent { return }
+                }
+
                 cachedProps = CachedItemProperties(item: item)
                 refreshURLBannerImage()
                 refreshStyledPreviewText()

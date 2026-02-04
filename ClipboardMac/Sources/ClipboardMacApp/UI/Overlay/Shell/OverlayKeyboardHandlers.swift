@@ -8,6 +8,7 @@ extension OverlayShellView {
         installReturnKeyHandler()
         installSpaceKeyHandler()
         installEscapeKeyHandler()
+        installDeleteKeyHandler()
     }
 
     func installReturnKeyHandler() {
@@ -55,6 +56,33 @@ extension OverlayShellView {
             return false
         }
         objc_setAssociatedObject(window, &EscapeKeyHandlerKey, handler as Any, .OBJC_ASSOCIATION_RETAIN)
+    }
+
+    func installDeleteKeyHandler() {
+        guard let window else { return }
+        let handler: (NSEvent) -> Bool = { [weak viewModel] _ in
+            // Don't delete when editing text
+            if isCreatingPinboard || renamePinboardID != nil || renameItemID != nil {
+                return false
+            }
+            if isSearchExpanded, searchFocused {
+                return false
+            }
+            guard let viewModel else { return false }
+            // Need at least one selected item to delete
+            guard !viewModel.selectedItemIDs.isEmpty else { return false }
+            // Get first selected item to trigger deletion
+            guard let firstSelectedID = viewModel.selectedItemIDs.first,
+                  let item = filteredItems.first(where: { $0.objectID == firstSelectedID })
+            else { return false }
+            actionHandlers.deleteItem(
+                item,
+                selectedItemIDs: viewModel.selectedItemIDs,
+                onClearSelection: viewModel.clearSelection
+            )
+            return true
+        }
+        objc_setAssociatedObject(window, &DeleteKeyHandlerKey, handler as Any, .OBJC_ASSOCIATION_RETAIN)
     }
 }
 

@@ -12,4 +12,5 @@ public extension Logger {
     static let preferences = Logger(subsystem: "com.paste.clipboard", category: "Preferences")
     static let thumbnails = Logger(subsystem: "com.paste.clipboard", category: "Thumbnails")
     static let integrity = Logger(subsystem: "com.paste.clipboard", category: "Integrity")
+    static let ocr = Logger(subsystem: "com.paste.clipboard", category: "OCR")
 }

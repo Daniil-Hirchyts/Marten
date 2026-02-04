@@ -19,6 +19,7 @@ final class CaptureCoordinator {
     private let linkPreviewSettings: any LinkPreviewSettingsProviding
 
     private var cancellables: Set<AnyCancellable> = []
+    private var lastCapturedHash: String?
 
     init(
         pasteboardMonitor: PasteboardMonitor,
@@ -43,12 +44,15 @@ final class CaptureCoordinator {
     }
 
     func start() {
+        // No receive(on:) — suppression must run synchronously before the pasteboard
+        // write that follows the publish.  All clipboardWillWrite publishes happen on the
+        // main actor, so the PassthroughSubject delivers the sink on the main thread already.
         eventBroadcaster.events
-            .receive(on: RunLoop.main)
             .sink { [weak self] event in
                 guard let self else { return }
                 guard event == .clipboardWillWrite else { return }
-                self.pasteboardMonitor.suppressNextChange()
+                // Pause momentarily to ignore our own write (which involves clear + set, potentially multiple change counts)
+                self.pasteboardMonitor.pauseForDuration(1.0)
             }
             .store(in: &cancellables)
 
@@ -100,6 +104,8 @@ final class CaptureCoordinator {
             return
         }
 
+        let payloadHash = Self.computePayloadHash(payload)
+
         let clipItemStore = clipItemStore
         let thumbnailGenerator = thumbnailGenerator
         captureQueue.async { [weak self] in
@@ -113,7 +119,8 @@ final class CaptureCoordinator {
                 }
 
                 DispatchQueue.main.async { [weak self] in
-                    self?.soundPlayer.play(.capture)
+                    self?.lastCapturedHash = payloadHash
+                    self?.soundPlayer.play(.copy)
                 }
 
                 if linkPreviewEnabled, payload.needsLinkPreview, let text = payload.primaryText,
@@ -151,6 +158,23 @@ final class CaptureCoordinator {
             return nil
         }
         return try? thumbnailGenerator.generateThumbnail(from: data).get()
+    }
+
+    /// Mirrors the hash logic in ClipItemDeduplicationService so that CaptureCoordinator
+    /// can detect duplicate content without a round-trip into Core Data.
+    nonisolated private static func computePayloadHash(_ payload: ClipItemPayload) -> String {
+        if let text = payload.primaryText, !text.isEmpty {
+            return Data(text.utf8).sha256Hex()
+        }
+        for rep in payload.representations.sorted(by: { $0.displayOrder < $1.displayOrder }) {
+            if let text = rep.text, !text.isEmpty {
+                return Data(text.utf8).sha256Hex()
+            }
+            if let data = rep.data, !data.isEmpty {
+                return data.sha256Hex()
+            }
+        }
+        return ""
     }
 
     nonisolated private static func scheduleLinkPreviewFetch(

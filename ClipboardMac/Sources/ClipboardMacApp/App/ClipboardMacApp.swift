@@ -19,6 +19,13 @@ struct ClipboardMacApp: App {
                     openWindow(id: "settings")
                 }
                 .keyboardShortcut(",", modifiers: .command)
+
+                Button("Capture Text (OCR)") {
+                    Task { @MainActor in
+                        appDelegate.openOCRCapture()
+                    }
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
             }
         }
     }

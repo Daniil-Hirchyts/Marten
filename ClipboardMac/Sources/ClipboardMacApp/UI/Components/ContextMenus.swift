@@ -26,32 +26,48 @@ struct CardContextMenu: View {
     }
 
     var body: some View {
-        Button("Paste") {
+        Button {
             onPaste()
+        } label: {
+            Label("Paste", systemImage: "arrow.turn.up.left")
         }
         .accessibilityIdentifier("\(identifierPrefix).paste")
-        Button("Paste as Plain Text") {
+
+        Button {
             onPastePlainText()
+        } label: {
+            Label("Paste as Plain Text", systemImage: "textformat")
         }
         .accessibilityIdentifier("\(identifierPrefix).pastePlainText")
+
         Divider()
+
         if item.itemTypeValue == .url {
-            Button("Open Link") {
+            Button {
                 openLink()
+            } label: {
+                Label("Open Link", systemImage: "safari")
             }
             .accessibilityIdentifier("\(identifierPrefix).openLink")
         }
+
         if allowPinning {
-            Button(isPinned ? "Unpin" : "Pin") {
+            Button {
                 onTogglePin()
+            } label: {
+                Label(isPinned ? "Unpin" : "Pin", systemImage: isPinned ? "pin.slash" : "pin")
             }
             .accessibilityIdentifier("\(identifierPrefix).pin")
         }
-        Button("Copy") {
+
+        Button {
             onCopy()
+        } label: {
+            Label("Copy", systemImage: "doc.on.doc")
         }
         .accessibilityIdentifier("\(identifierPrefix).copy")
-        Menu("Move to Pinboard") {
+
+        Menu {
             ForEach(pinboards) { pinboard in
                 let isAssigned = assignedPinboardIDs.contains(pinboard.id)
                 let isLocked = lockedPinboardIDs.contains(pinboard.id)
@@ -73,23 +89,37 @@ struct CardContextMenu: View {
                 .accessibilityIdentifier("\(identifierPrefix).move.\(pinboard.id.uuidString)")
             }
             Divider()
-            Button("New Pinboard...") {
+            Button {
                 onCreatePinboard()
+            } label: {
+                Label("New Pinboard...", systemImage: "plus")
             }
             .accessibilityIdentifier("\(identifierPrefix).move.new")
+        } label: {
+            Label("Move to Pinboard", systemImage: "folder")
         }
         .accessibilityIdentifier("\(identifierPrefix).move")
+
         Divider()
-        Button("Edit...") {
+
+        Button {
             onEdit()
+        } label: {
+            Label("Edit...", systemImage: "square.and.pencil")
         }
         .accessibilityIdentifier("\(identifierPrefix).edit")
-        Button("Rename...") {
+
+        Button {
             onRename()
+        } label: {
+            Label("Rename...", systemImage: "character.cursor.ibeam")
         }
         .accessibilityIdentifier("\(identifierPrefix).rename")
-        Button("Delete") {
+
+        Button {
             onDelete()
+        } label: {
+            Label("Delete", systemImage: "trash")
         }
         .accessibilityIdentifier("\(identifierPrefix).delete")
     }

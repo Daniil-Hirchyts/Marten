@@ -39,6 +39,7 @@ Logger.pasteboard.info("Captured item (type=\(itemType.rawValue, privacy: .publi
 
 - **Accessibility** gates paste injection (`PasteEngine`).
 - **Input Monitoring** gates global hotkeys (`HotkeyManager`).
+- **Screen Recording** gates OCR text capture workflows.
 - Request permissions only when the feature is needed.
 - Provide graceful degraded behavior when denied.
 
@@ -166,6 +167,7 @@ Services must not use SwiftUI property wrappers.
 Use provider protocols in `ClipboardMacServices/Services/Settings/`:
 - `CaptureSettingsProviding`
 - `LinkPreviewSettingsProviding`
+- `OCRSettingsProviding`
 - `PasteSettingsProviding`
 - `ScreenSharingSettingsProviding`
 

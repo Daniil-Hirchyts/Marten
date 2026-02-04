@@ -5,6 +5,7 @@ import Foundation
 public final class PermissionManager: ObservableObject {
     @Published public private(set) var hasAccessibility = false
     @Published public private(set) var hasInputMonitoring = false
+    @Published public private(set) var hasScreenRecording = false
 
     private var timer: Timer?
 
@@ -37,9 +38,25 @@ public final class PermissionManager: ObservableObject {
         return granted
     }
 
+    @discardableResult
+    public func checkScreenRecording(prompt: Bool = false) -> Bool {
+        let granted = prompt ? CGRequestScreenCaptureAccess() : CGPreflightScreenCaptureAccess()
+        hasScreenRecording = granted
+        return granted
+    }
+
+    public func requestScreenRecordingSettings() {
+        if let url = URL(
+            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+        ) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     public func refresh() {
         _ = checkAccessibility(prompt: false)
         _ = checkInputMonitoring(prompt: false)
+        _ = checkScreenRecording(prompt: false)
     }
 
     public func startMonitoring(interval: TimeInterval = 1.0) {

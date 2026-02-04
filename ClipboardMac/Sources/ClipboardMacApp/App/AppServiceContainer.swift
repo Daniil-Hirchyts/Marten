@@ -29,6 +29,7 @@ public protocol OverlayServicesProviding: AnyObject {
     var pasteEngine: any PasteEngineProtocol { get }
     var screenSharingManager: ScreenSharingManager { get }
     var eventBroadcaster: any ClipboardEventBroadcaster { get }
+    var soundPlayer: SoundEffectPlayer { get }
 }
 
 @MainActor
@@ -37,8 +38,17 @@ public protocol SyncServicesProviding: AnyObject {
 }
 
 @MainActor
+public protocol OCRServicesProviding: AnyObject {
+    var screenImageCapturer: any ScreenImageCapturing { get }
+    var textRecognizer: any TextRecognizing { get }
+    var ocrSettings: any OCRSettingsProviding { get }
+    var selectionImageCropper: SelectionImageCropper { get }
+}
+
+@MainActor
 public protocol AppServiceProviding: CaptureServicesProviding, PasteServicesProviding,
     OverlayServicesProviding,
+    OCRServicesProviding,
     SyncServicesProviding
 {}
 
@@ -53,6 +63,11 @@ final class AppServiceContainer: AppServiceProviding {
     var permissionManager: any AccessibilityPermissionChecking { permissionManagerImpl }
     let activeAppTracker: ActiveAppTracker
     let eventBroadcaster: any ClipboardEventBroadcaster
+    let soundPlayer: SoundEffectPlayer
+    let screenImageCapturer: any ScreenImageCapturing
+    let textRecognizer: any TextRecognizing
+    let ocrSettings: any OCRSettingsProviding
+    let selectionImageCropper: SelectionImageCropper
 
     let syncCoordinator: SyncCoordinator?
 
@@ -77,6 +92,11 @@ final class AppServiceContainer: AppServiceProviding {
         permissionManager: PermissionManager = PermissionManager(),
         activeAppTracker: ActiveAppTracker = ActiveAppTracker(),
         eventBroadcaster: any ClipboardEventBroadcaster = ClipboardEventBroadcasterImpl(),
+        soundPlayer: SoundEffectPlayer = SoundEffectPlayer(),
+        screenImageCapturer: any ScreenImageCapturing = SystemScreenImageCapturer(),
+        textRecognizer: any TextRecognizing = VisionTextRecognizer(),
+        ocrSettings: any OCRSettingsProviding = UserDefaultsOCRSettingsProvider(),
+        selectionImageCropper: SelectionImageCropper = SelectionImageCropper(),
         syncConfigurationProvider: any SyncConfigurationProviding =
             DefaultSyncConfigurationProvider()
     ) {
@@ -88,6 +108,11 @@ final class AppServiceContainer: AppServiceProviding {
         self.permissionManagerImpl = permissionManager
         self.activeAppTracker = activeAppTracker
         self.eventBroadcaster = eventBroadcaster
+        self.soundPlayer = soundPlayer
+        self.screenImageCapturer = screenImageCapturer
+        self.textRecognizer = textRecognizer
+        self.ocrSettings = ocrSettings
+        self.selectionImageCropper = selectionImageCropper
         let cloudKitConfiguration = CloudKitConfiguration.default
         if syncConfigurationProvider.canUseCloudKit(
             containerIdentifier: cloudKitConfiguration.containerIdentifier

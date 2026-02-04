@@ -7,6 +7,11 @@ public enum DefaultHotkey {
         modifiers: [.command, .shift]
     )
 
+    public static let ocrCapture = HotkeyManager.Hotkey(
+        keyCode: UInt16(kVK_ANSI_O),
+        modifiers: [.command, .shift]
+    )
+
     public static let nextPinboard = HotkeyManager.Hotkey(
         keyCode: UInt16(kVK_RightArrow),
         modifiers: [.command]

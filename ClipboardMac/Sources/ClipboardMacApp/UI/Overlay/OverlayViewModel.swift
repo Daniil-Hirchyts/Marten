@@ -10,12 +10,13 @@ final class OverlayViewModel: ObservableObject {
     @MainActor @Published var showAccessibilityAlert = false
     @MainActor @Published var isPasting = false
     @MainActor @Published var syncError: Error?
+    @MainActor @Published var isAuthenticating = false
 
     private let clipItemStore: ClipItemStore
     private let pasteEngine: any PasteEngineProtocol
     private let permissionManager: PermissionManager
     private let closeOverlayForPaste: (@escaping () -> Void) -> Void
-    private let soundPlayer = SoundEffectPlayer()
+    private let soundPlayer: SoundEffectPlayer
     private let selectionHandler = ItemSelectionHandler()
 
     private let userDefaults = UserDefaults.standard
@@ -27,11 +28,13 @@ final class OverlayViewModel: ObservableObject {
         persistence: PersistenceController,
         pasteEngine: any PasteEngineProtocol,
         permissionManager: PermissionManager,
+        soundPlayer: SoundEffectPlayer = SoundEffectPlayer(),
         closeOverlayForPaste: @escaping (@escaping () -> Void) -> Void
     ) {
         self.clipItemStore = ClipItemStore(persistence: persistence)
         self.pasteEngine = pasteEngine
         self.permissionManager = permissionManager
+        self.soundPlayer = soundPlayer
         self.closeOverlayForPaste = closeOverlayForPaste
     }
 
@@ -47,6 +50,7 @@ final class OverlayViewModel: ObservableObject {
             persistence: services.persistence,
             pasteEngine: services.pasteEngine,
             permissionManager: permissionManager,
+            soundPlayer: services.soundPlayer,
             closeOverlayForPaste: closeOverlayForPaste
         )
     }
@@ -84,6 +88,26 @@ final class OverlayViewModel: ObservableObject {
     @MainActor
     func clearSelection() {
         selectedItemIDs.removeAll()
+    }
+
+    @MainActor
+    func ensureDefaultSelection(in orderedItems: [ClipItem]) {
+        guard !orderedItems.isEmpty else {
+            selectedItemIDs.removeAll()
+            return
+        }
+
+        let visibleIDs = Set(orderedItems.map(\.objectID))
+        let validSelection = selectedItemIDs.intersection(visibleIDs)
+
+        if !validSelection.isEmpty {
+            if validSelection != selectedItemIDs {
+                selectedItemIDs = validSelection
+            }
+            return
+        }
+
+        selectedItemIDs = [orderedItems[0].objectID]
     }
 
     @MainActor

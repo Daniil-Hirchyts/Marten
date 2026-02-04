@@ -13,7 +13,9 @@ struct CachedItemProperties {
     let statsLabel: String
     let shouldShowPrimaryTitle: Bool
     let primaryPinboardColor: Color?
+    let primaryPinboardColorHex: String?
     let primaryPinboardName: String?
+    let primaryPinboardSign: String?
     let sourceLabel: String?
 
     init(item: ClipItem) {
@@ -36,7 +38,9 @@ struct CachedItemProperties {
 
         let pinboardInfo = Self.computePrimaryPinboard(for: item)
         self.primaryPinboardColor = pinboardInfo.color
+        self.primaryPinboardColorHex = pinboardInfo.colorHex
         self.primaryPinboardName = pinboardInfo.name
+        self.primaryPinboardSign = pinboardInfo.sign
 
         self.sourceLabel = Self.computeSourceLabel(for: item)
     }
@@ -145,11 +149,11 @@ struct CachedItemProperties {
         }
     }
 
-    private static func computePrimaryPinboard(for item: ClipItem) -> (color: Color?, name: String?) {
+    private static func computePrimaryPinboard(for item: ClipItem) -> (color: Color?, colorHex: String?, name: String?, sign: String?) {
         let pinboards = item.pinboards?.filter { !$0.isSystemClipboard } ?? []
         let sorted = pinboards.sorted { $0.sortOrder < $1.sortOrder }
-        guard let pinboard = sorted.first else { return (nil, nil) }
-        return (Color(hex: pinboard.colorHex, fallback: .gray), pinboard.name)
+        guard let pinboard = sorted.first else { return (nil, nil, nil, nil) }
+        return (Color(hex: pinboard.colorHex, fallback: .gray), pinboard.colorHex, pinboard.name, pinboard.iconName)
     }
 
     private static func computeSourceLabel(for item: ClipItem) -> String? {
@@ -265,7 +269,15 @@ extension ItemCard {
 
             Spacer()
 
-            if cached.primaryPinboardColor == nil,
+            if let primaryColorHex = cached.primaryPinboardColorHex,
+               let primarySign = cached.primaryPinboardSign
+            {
+                PinboardIndicator(
+                    colorHex: primaryColorHex,
+                    sign: primarySign,
+                    size: 30
+                )
+            } else if cached.primaryPinboardColor == nil,
                 let bundleID = item.sourceAppBundleID,
                 !bundleID.isEmpty
             {

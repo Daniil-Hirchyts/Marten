@@ -1,5 +1,6 @@
 import AppKit
 import ClipboardCore
+import ClipboardMacServices
 import OSLog
 import SwiftUI
 
@@ -292,8 +293,16 @@ struct ResizeHandleCursorView: NSViewRepresentable {
 
         override func resetCursorRects() {
             super.resetCursorRects()
+            guard !OCRSelectionSessionState.isActive else {
+                Logger.ui.debug("Overlay resize cursor rect skipped (active OCR selection)")
+                return
+            }
             let cursor: NSCursor = axis == .horizontal ? .resizeUpDown : .resizeLeftRight
             addCursorRect(bounds, cursor: cursor)
+            let axisLabel = self.axis == .horizontal ? "horizontal" : "vertical"
+            Logger.ui.debug(
+                "Overlay resize cursor rect reset (axis=\(axisLabel, privacy: .public))"
+            )
         }
     }
 }

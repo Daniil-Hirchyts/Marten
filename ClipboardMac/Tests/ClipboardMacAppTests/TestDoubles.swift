@@ -95,6 +95,11 @@ final class TestAppServices: AppServiceProviding {
     let eventBroadcaster: any ClipboardEventBroadcaster
     let pasteEngine: any PasteEngineProtocol
     let screenSharingManager: ScreenSharingManager
+    let soundPlayer: SoundEffectPlayer
+    let screenImageCapturer: any ScreenImageCapturing
+    let textRecognizer: any TextRecognizing
+    let ocrSettings: any OCRSettingsProviding
+    let selectionImageCropper: SelectionImageCropper
     let syncCoordinator: SyncCoordinator?
 
     init(
@@ -116,6 +121,11 @@ final class TestAppServices: AppServiceProviding {
         self.eventBroadcaster = eventBroadcaster
         self.pasteEngine = pasteEngine
         self.screenSharingManager = ScreenSharingManager()
+        self.soundPlayer = SoundEffectPlayer()
+        self.screenImageCapturer = SystemScreenImageCapturer()
+        self.textRecognizer = VisionTextRecognizer()
+        self.ocrSettings = UserDefaultsOCRSettingsProvider(userDefaults: UserDefaults.standard)
+        self.selectionImageCropper = SelectionImageCropper()
         self.syncCoordinator = nil
     }
 }

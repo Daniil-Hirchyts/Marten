@@ -11,6 +11,7 @@ final class MenuBarController: NSObject {
     private let screenSharingManager: ScreenSharingManager
     private let pasteboardMonitor: PasteboardMonitor
     private let openNewTextItemHandler: () -> Void
+    private let captureOCRTextHandler: () -> Void
     private var screenSharingMenuItem: NSMenuItem?
     private var pauseMenuItem: NSMenuItem?
     private var pauseSubmenu: NSMenu?
@@ -24,7 +25,8 @@ final class MenuBarController: NSObject {
         settingsOpener: any SettingsOpening,
         screenSharingManager: ScreenSharingManager,
         pasteboardMonitor: PasteboardMonitor,
-        openNewTextItemHandler: @escaping () -> Void = {}
+        openNewTextItemHandler: @escaping () -> Void = {},
+        captureOCRTextHandler: @escaping () -> Void = {}
     ) {
         self.toggleHandler = toggleHandler
         self.hideOverlayHandler = hideOverlayHandler
@@ -32,6 +34,7 @@ final class MenuBarController: NSObject {
         self.screenSharingManager = screenSharingManager
         self.pasteboardMonitor = pasteboardMonitor
         self.openNewTextItemHandler = openNewTextItemHandler
+        self.captureOCRTextHandler = captureOCRTextHandler
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
         configureStatusItem()
@@ -43,6 +46,9 @@ final class MenuBarController: NSObject {
                 systemSymbolName: "doc.on.doc", accessibilityDescription: "Clipboard")
             button.imagePosition = .imageOnly
         }
+
+        // Observe hide menu bar icon setting
+        observeHideMenuBarIconSetting()
 
         let menu = NSMenu()
         menu.autoenablesItems = false
@@ -60,6 +66,17 @@ final class MenuBarController: NSObject {
         newTextItem.image = NSImage(
             systemSymbolName: "square.and.pencil", accessibilityDescription: nil)
         menu.addItem(newTextItem)
+
+        let captureTextItem = NSMenuItem(
+            title: "Capture Text (OCR)",
+            action: #selector(captureOCRText),
+            keyEquivalent: "o"
+        )
+        captureTextItem.keyEquivalentModifierMask = [.command, .shift]
+        captureTextItem.target = self
+        captureTextItem.image = NSImage(
+            systemSymbolName: "text.viewfinder", accessibilityDescription: nil)
+        menu.addItem(captureTextItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -135,6 +152,10 @@ final class MenuBarController: NSObject {
 
     @objc private func openNewTextItem() {
         openNewTextItemHandler()
+    }
+
+    @objc private func captureOCRText() {
+        captureOCRTextHandler()
     }
 
     @objc private func toggleScreenSharingMode() {
@@ -236,4 +257,24 @@ final class MenuBarController: NSObject {
         ("30 Minutes", 1800),
         ("1 Hour", 3600),
     ]
+
+    // MARK: - Menu Bar Icon Visibility
+
+    private static let hideMenuBarIconKey = "hideMenuBarIcon"
+
+    private func observeHideMenuBarIconSetting() {
+        // Apply initial value
+        let isHidden = UserDefaults.standard.bool(forKey: MenuBarController.hideMenuBarIconKey)
+        statusItem.isVisible = !isHidden
+
+        // Observe changes
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                let isHidden = UserDefaults.standard.bool(forKey: MenuBarController.hideMenuBarIconKey)
+                self.statusItem.isVisible = !isHidden
+            }
+            .store(in: &cancellables)
+    }
 }

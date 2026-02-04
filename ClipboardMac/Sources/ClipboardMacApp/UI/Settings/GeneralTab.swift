@@ -1,4 +1,5 @@
 import ClipboardCore
+import ClipboardMacServices
 import ServiceManagement
 import SwiftUI
 
@@ -6,11 +7,18 @@ struct GeneralSettingsContent: View {
     @AppStorage("openAtLogin") private var openAtLogin = false
     @AppStorage("alwaysPastePlainText") private var alwaysPastePlainText = false
     @AppStorage("soundEffectsEnabled") private var soundEffectsEnabled = true
+    @AppStorage("hideMenuBarIcon") private var hideMenuBarIcon = false
     @AppStorage(OverlayLayoutSettings.Keys.overlayScreenEdge)
     private var overlayScreenEdgeRawValue = OverlayLayoutSettings.defaultEdge.rawValue
     @AppStorage("retentionPolicy") private var retentionPolicy = "month"
     @AppStorage(PinboardSecuritySettings.unlockDurationSecondsKey)
     private var unlockDurationSeconds = PinboardSecuritySettings.defaultUnlockDurationSeconds
+    @AppStorage(OCRSettingsKeys.defaultMode)
+    private var ocrDefaultModeRawValue = OCRCaptureMode.staticSnapshot.rawValue
+    @AppStorage(OCRSettingsKeys.preferredLanguage)
+    private var ocrPreferredLanguageCode = OCRLanguage.auto.rawValue
+    @AppStorage(OCRSettingsKeys.showCaptureNotification)
+    private var ocrShowCaptureNotification = true
 
     @State private var showEraseConfirmation = false
 
@@ -59,6 +67,16 @@ struct GeneralSettingsContent: View {
                             isOn: $soundEffectsEnabled,
                             identifier: "settings.toggle.soundEffects"
                         )
+
+                        Divider()
+                            .background(Color.primary.opacity(0.1))
+
+                        SettingsToggleRow(
+                            "Hide menu bar icon",
+                            description: "Use keyboard shortcuts to access Paste",
+                            isOn: $hideMenuBarIcon,
+                            identifier: "settings.toggle.hideMenuBarIcon"
+                        )
                     }
                 }
             }
@@ -98,6 +116,66 @@ struct GeneralSettingsContent: View {
                         )
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+
+            // OCR Section
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsSectionHeader("OCR", icon: "text.viewfinder")
+
+                SettingsCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Default capture mode")
+                                .font(.system(size: 13, weight: .medium))
+                            Spacer()
+                            Picker("", selection: $ocrDefaultModeRawValue) {
+                                ForEach(OCRCaptureMode.allCases, id: \.rawValue) { mode in
+                                    Text(mode.settingsTitle)
+                                        .tag(mode.rawValue)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                        }
+                        .accessibilityIdentifier("settings.picker.ocrDefaultMode")
+                        .onAppear {
+                            normalizeOCRModeSelection()
+                        }
+                        .onChange(of: ocrDefaultModeRawValue) { newValue, _ in
+                            if OCRCaptureMode(rawValue: newValue) == nil {
+                                ocrDefaultModeRawValue = OCRCaptureMode.staticSnapshot.rawValue
+                            }
+                        }
+
+                        Divider()
+                            .background(Color.primary.opacity(0.1))
+
+                        HStack {
+                            Text("Language")
+                                .font(.system(size: 13, weight: .medium))
+                            Spacer()
+                            Picker("", selection: $ocrPreferredLanguageCode) {
+                                ForEach(OCRLanguage.allCases, id: \.rawValue) { language in
+                                    Text(language.displayName)
+                                        .tag(language.rawValue)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                        }
+                        .accessibilityIdentifier("settings.picker.ocrPreferredLanguage")
+
+                        Divider()
+                            .background(Color.primary.opacity(0.1))
+
+                        SettingsToggleRow(
+                            "Show capture notification",
+                            description: "Display a notification when text is captured",
+                            isOn: $ocrShowCaptureNotification,
+                            identifier: "settings.toggle.ocrShowCaptureNotification"
+                        )
                     }
                 }
             }
@@ -233,6 +311,12 @@ struct GeneralSettingsContent: View {
     private func normalizeOverlayEdgeSelection() {
         if OverlayScreenEdge(rawValue: overlayScreenEdgeRawValue) == nil {
             overlayScreenEdgeRawValue = OverlayLayoutSettings.defaultEdge.rawValue
+        }
+    }
+
+    private func normalizeOCRModeSelection() {
+        if OCRCaptureMode(rawValue: ocrDefaultModeRawValue) == nil {
+            ocrDefaultModeRawValue = OCRCaptureMode.staticSnapshot.rawValue
         }
     }
 }

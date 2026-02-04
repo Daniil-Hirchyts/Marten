@@ -17,7 +17,6 @@ public final class AppCoordinator: SettingsOpening {
     private var cancellables: Set<AnyCancellable> = []
 
     private let captureQueue = DispatchQueue(label: "paste.app.capture", qos: .utility)
-    private let soundPlayer = SoundEffectPlayer()
     private let linkPreviewFetcher = LinkPreviewFetcher()
 
     private var permissionManagerImpl: PermissionManager?
@@ -25,6 +24,7 @@ public final class AppCoordinator: SettingsOpening {
     private var onboardingCoordinator: OnboardingCoordinator?
     private var captureCoordinator: CaptureCoordinator?
     private var hotkeyCoordinator: HotkeyCoordinator?
+    private var ocrCaptureCoordinator: OCRCaptureCoordinator?
     private var integrityCheckService: IntegrityCheckService?
 
     private var persistence: PersistenceController { services.persistence }
@@ -54,6 +54,9 @@ public final class AppCoordinator: SettingsOpening {
                 "ignoreConfidentialContent": true,
                 "ignoreTransientContent": true,
                 "showDuringScreenSharing": true,
+                "hideMenuBarIcon": false,
+                OCRSettingsKeys.defaultMode: OCRCaptureMode.staticSnapshot.rawValue,
+                OCRSettingsKeys.preferredLanguage: "",
                 OverlayLayoutSettings.Keys.overlayScreenEdge: OverlayLayoutSettings.defaultEdge.rawValue,
                 OverlayLayoutSettings.Keys.overlayWidth: OverlayLayoutSettings.defaultVerticalSize,
                 "retentionPolicy": "month",
@@ -83,7 +86,8 @@ public final class AppCoordinator: SettingsOpening {
             itemOperations: ItemOperationsHandler(store: clipItemStore),
             pinboards: PinboardManager(store: clipItemStore, persistence: persistence),
             previewCoordinator: previewCoordinator,
-            appleIntelligence: appleIntelligence
+            appleIntelligence: appleIntelligence,
+            soundPlayer: services.soundPlayer
         )
 
         overlayController = OverlayWindowController(
@@ -103,12 +107,25 @@ public final class AppCoordinator: SettingsOpening {
             thumbnailGenerator: thumbnailGenerator,
             eventBroadcaster: eventBroadcaster,
             captureQueue: captureQueue,
-            soundPlayer: soundPlayer,
+            soundPlayer: services.soundPlayer,
             linkPreviewFetcher: linkPreviewFetcher,
             linkPreviewSettings: UserDefaultsLinkPreviewSettingsProvider()
         )
         self.captureCoordinator = captureCoordinator
         captureCoordinator.start()
+
+        let ocrCaptureCoordinator = OCRCaptureCoordinator(
+            permissionChecker: permissionManager,
+            textRecognizer: services.textRecognizer,
+            screenImageCapturer: services.screenImageCapturer,
+            selectionImageCropper: services.selectionImageCropper,
+            pasteEngine: pasteEngine,
+            historyStore: clipItemStore,
+            resultIndicator: OCRCaptureResultIndicatorController(),
+            ocrSettings: services.ocrSettings,
+            soundPlayer: services.soundPlayer
+        )
+        self.ocrCaptureCoordinator = ocrCaptureCoordinator
 
         let hotkeyCoordinator = HotkeyCoordinator(
             hotkeyManager: hotkeyManager,
@@ -124,6 +141,11 @@ public final class AppCoordinator: SettingsOpening {
             hideOverlayForPaste: { [weak self] completion in
                 Task { @MainActor in
                     self?.overlayController?.hideForPaste(completion: completion)
+                }
+            },
+            triggerOCRCapture: { [weak self] in
+                Task { @MainActor in
+                    self?.startOCRCapture()
                 }
             }
         )
@@ -171,6 +193,11 @@ public final class AppCoordinator: SettingsOpening {
                 Task { @MainActor in
                     self?.openNewTextItem()
                 }
+            },
+            captureOCRTextHandler: { [weak self] in
+                Task { @MainActor in
+                    self?.startOCRCapture()
+                }
             }
         )
 
@@ -200,6 +227,7 @@ public final class AppCoordinator: SettingsOpening {
 
         captureCoordinator?.stop()
         hotkeyCoordinator?.stop()
+        ocrCaptureCoordinator?.stop()
 
         permissionManagerImpl?.stopMonitoring()
         retentionTimer?.invalidate()
@@ -235,6 +263,14 @@ public final class AppCoordinator: SettingsOpening {
                 NSApp.sendEvent(event)
             }
         }
+    }
+
+    public func startOCRCapture(modeOverride: OCRCaptureMode? = nil) {
+        let isOverlayVisible = overlayController?.isVisibleForTesting ?? false
+        Logger.ocr.debug(
+            "OCR capture requested (modeOverride=\(modeOverride?.rawValue ?? "default", privacy: .public), overlayVisible=\(isOverlayVisible, privacy: .public))"
+        )
+        ocrCaptureCoordinator?.startCapture(modeOverride: modeOverride)
     }
 
     private func toggleOverlay() {

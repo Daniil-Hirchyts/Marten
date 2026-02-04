@@ -65,6 +65,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func openSettingsWindow() {
         coordinator.openSettings()
     }
+
+    @MainActor
+    @objc func openOCRCapture() {
+        coordinator.startOCRCapture()
+    }
 }
 
 // SAFETY: AppDelegate is UI-owned and only used from the main actor.

@@ -63,19 +63,22 @@ public struct OverlayDependencies {
     public let pinboards: any PinboardManaging
     public let previewCoordinator: OverlayPreviewCoordinator
     public let appleIntelligence: any AppleIntelligenceTextServicing
+    public let soundPlayer: SoundEffectPlayer
 
     public init(
         clipItemStore: any ClipItemStoring,
         itemOperations: any ItemOperating,
         pinboards: any PinboardManaging,
         previewCoordinator: OverlayPreviewCoordinator,
-        appleIntelligence: any AppleIntelligenceTextServicing
+        appleIntelligence: any AppleIntelligenceTextServicing,
+        soundPlayer: SoundEffectPlayer
     ) {
         self.clipItemStore = clipItemStore
         self.itemOperations = itemOperations
         self.pinboards = pinboards
         self.previewCoordinator = previewCoordinator
         self.appleIntelligence = appleIntelligence
+        self.soundPlayer = soundPlayer
     }
 }
 

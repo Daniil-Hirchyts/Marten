@@ -68,7 +68,7 @@ Paste uses runtime permission requests when related features are used.
 
 - **Accessibility** - required for synthetic paste (Cmd+V injection)
 - **Input Monitoring** - required for global hotkeys
-- **Screen Recording** - optional, for screen-sharing workflows
+- **Screen Recording** - required for OCR text capture; optional for screen-sharing mode
 
 ---
 
@@ -90,7 +90,7 @@ Use Xcode Test Navigator for UI suites.
 ### Current Validation Snapshot (2026-02-04)
 
 - `ClipboardCore`: 189 tests executed, 0 failures
-- `ClipboardMac`: 152 tests executed, 0 failures, 10 skipped
+- `ClipboardMac`: 167 tests executed, 0 failures, 10 skipped
 - Skipped tests are host-dependent UI tests in plain SwiftPM runs
 
 ---
@@ -136,6 +136,10 @@ For detailed paths and ownership:
 ### Hotkeys Not Triggering
 - Verify Input Monitoring permission is granted.
 - Confirm shortcuts in Settings do not conflict with system/global shortcuts.
+
+### OCR Capture Doesn't Start
+- Verify Screen Recording permission is granted for the app.
+- If denied, reopen OCR capture and use the in-app shortcut to System Settings.
 
 ### Swift Tests Pass but UI Tests Do Not Run
 - Expected for `swift test` on UI-hosted suites.

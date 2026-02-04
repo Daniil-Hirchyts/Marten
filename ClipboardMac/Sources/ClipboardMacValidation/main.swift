@@ -26,6 +26,7 @@ private final class ValidationRunner {
         defer {
             restorePasteboard(originalString)
         }
+// ...
 
         monitor.onClipboardChange = { [weak self] _ in
             self?.lastDetectionTime = Date()

@@ -4,26 +4,34 @@ import AppKit
 import Foundation
 import OSLog
 
+protocol HotkeyPermissionManaging: AccessibilityPermissionChecking {
+    func requestAccessibility()
+}
+
+extension PermissionManager: HotkeyPermissionManaging {}
+
 @MainActor
 final class HotkeyCoordinator {
     private let hotkeyManager: HotkeyManager
-    private let permissionManager: PermissionManager
+    private let permissionManager: any HotkeyPermissionManaging
     private let clipItemStore: ClipItemStore
     private let pasteEngine: any PasteEngineProtocol
     private let pasteSettings: any PasteSettingsProviding
     private let hideOverlayForPaste: (@escaping () -> Void) -> Void
     private let toggleOverlay: () -> Void
+    private let triggerOCRCapture: () -> Void
 
     private var hotkeyRetryTimer: Timer?
 
     init(
         hotkeyManager: HotkeyManager,
-        permissionManager: PermissionManager,
+        permissionManager: any HotkeyPermissionManaging,
         clipItemStore: ClipItemStore,
         pasteEngine: any PasteEngineProtocol,
         pasteSettings: any PasteSettingsProviding,
         toggleOverlay: @escaping () -> Void,
-        hideOverlayForPaste: @escaping (@escaping () -> Void) -> Void
+        hideOverlayForPaste: @escaping (@escaping () -> Void) -> Void,
+        triggerOCRCapture: @escaping () -> Void
     ) {
         self.hotkeyManager = hotkeyManager
         self.permissionManager = permissionManager
@@ -32,6 +40,7 @@ final class HotkeyCoordinator {
         self.pasteSettings = pasteSettings
         self.toggleOverlay = toggleOverlay
         self.hideOverlayForPaste = hideOverlayForPaste
+        self.triggerOCRCapture = triggerOCRCapture
     }
 
     func start() {
@@ -57,6 +66,14 @@ final class HotkeyCoordinator {
             hotkeyManager.register(action: "showClipboard", hotkey: hotkey) { [weak self] _ in
                 Task { @MainActor in
                     self?.toggleOverlay()
+                }
+            }
+        }
+
+        if let hotkey = HotkeyPreferencesStore.effectiveHotkey(for: .ocrCapture) {
+            hotkeyManager.register(action: "ocrCapture", hotkey: hotkey) { [weak self] _ in
+                Task { @MainActor in
+                    self?.triggerOCRCapture()
                 }
             }
         }

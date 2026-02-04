@@ -240,6 +240,9 @@ struct ItemCompactColumn: View {
             updateDragPreview(useCallback: true)
         }
 
+        let previousDropTarget = dropTarget
+        let previousPinboardDropTarget = pinboardDropTarget
+
         if let pinboardTarget = computePinboardDropTarget(overlayLocation: overlayPointer) {
             pinboardDropTarget = pinboardTarget
             dropTarget = nil
@@ -252,6 +255,12 @@ struct ItemCompactColumn: View {
             dropTarget = target
         } else {
             dropTarget = nil
+        }
+
+        if dropTarget != previousDropTarget && dropTarget != nil {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+        } else if pinboardDropTarget != previousPinboardDropTarget && pinboardDropTarget != nil {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
         }
     }
 

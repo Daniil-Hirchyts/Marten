@@ -39,13 +39,13 @@ Paste/
 
 ## Current Architecture Snapshot
 
-- **Swift files (Sources + Tests):** 278
-- **Swift LOC (Sources + Tests):** 36,810
+- **Swift files (Sources + Tests):** 291
+- **Swift LOC (Sources + Tests):** 38,618
 - **Module footprint:**
   - `ClipboardCore/Sources` - 61 files / 7,872 LOC
   - `ClipboardCore/Tests` - 27 files / 4,454 LOC
-  - `ClipboardMac/Sources` - 150 files / 21,259 LOC
-  - `ClipboardMac/Tests` - 40 files / 3,225 LOC
+  - `ClipboardMac/Sources` - 158 files / 22,449 LOC
+  - `ClipboardMac/Tests` - 45 files / 3,843 LOC
 - **Type map (major declarations):**
   - `ClipboardCore/Sources` - 106 protocol/class/struct/actor declarations
   - `ClipboardMac/Sources` - 238 protocol/class/struct/actor declarations
@@ -67,6 +67,10 @@ For the complete file appendix, see [`FILE-INVENTORY.md`](./FILE-INVENTORY.md).
 | Clipboard monitoring | `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/PasteboardMonitor.swift` |
 | Capture orchestration | `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/CaptureCoordinator.swift` |
 | Capture extraction/filter/classification | `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/PasteboardRepresentationExtractor.swift`, `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/ClipboardContentFilter.swift`, `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/ItemTypeClassifier.swift` |
+| OCR capture orchestration | `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/OCRCaptureCoordinator.swift` |
+| OCR selection overlay | `ClipboardMac/Sources/ClipboardMacApp/UI/OCR/OCRSelectionOverlayController.swift` |
+| OCR recognition and capture services | `ClipboardMac/Sources/ClipboardMacServices/Services/OCR/` |
+| OCR settings provider | `ClipboardMac/Sources/ClipboardMacServices/Services/Settings/OCRSettingsProviding.swift` |
 | Paste engine | `ClipboardMac/Sources/ClipboardMacServices/Services/PasteEngine/PasteEngine.swift` |
 | Global hotkeys | `ClipboardMac/Sources/ClipboardMacServices/Services/HotkeyManager/HotkeyManager.swift` |
 | Hotkey orchestration | `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/HotkeyCoordinator.swift` |
@@ -112,6 +116,7 @@ For the complete file appendix, see [`FILE-INVENTORY.md`](./FILE-INVENTORY.md).
 - `ClipboardMac/Sources/ClipboardMacApp/App/AppServiceContainer.swift` composes app dependencies.
 - Provider protocols define scoped boundaries:
   - `CaptureServicesProviding`
+  - `OCRServicesProviding`
   - `PasteServicesProviding`
   - `OverlayServicesProviding`
   - `SyncServicesProviding`
@@ -143,6 +148,13 @@ For the complete file appendix, see [`FILE-INVENTORY.md`](./FILE-INVENTORY.md).
 - `ClipboardContentFilter` - transient/confidential filtering policy
 - `ItemTypeClassifier` - item type classification
 - `PasteboardExtractor` composes the above into `ClipItemPayload`
+
+### OCR Capture Pipeline Split
+
+- `OCRCaptureCoordinator` - permission gate + overlay lifecycle + clipboard write orchestration
+- `OCRSelectionOverlayController` - crosshair/coordinate/drag selection UI
+- `ScreenImageCapturing` + `SelectionImageCropper` - screen snapshot/live region capture + coordinate conversion
+- `TextRecognizing` (`VisionTextRecognizer`) - OCR recognition with auto-detect first and preferred-language fallback
 
 ### Sync Orchestration
 
@@ -201,6 +213,17 @@ HotkeyManager -> HotkeyCoordinator -> OverlayWindowController/OverlayRootView
   -> clipboard write + target app activation + synthetic Cmd+V
 ```
 
+### OCR Text Capture
+
+```text
+Menu command / OCR hotkey -> OCRCaptureCoordinator
+  -> PermissionManager (Screen Recording)
+  -> OCRSelectionOverlayController (crosshair + drag region)
+  -> ScreenImageCapturing + SelectionImageCropper
+  -> VisionTextRecognizer (auto language, optional preferred fallback)
+  -> PasteEngine.copyPlainTextToClipboard
+```
+
 ### Sync (Inbound)
 
 ```text
@@ -222,7 +245,7 @@ Push notification/App trigger -> AppCoordinator -> SyncCoordinator
 
 **Current validation snapshot (2026-02-04):**
 - `ClipboardCore`: `swift test` passed (189 tests, 0 failures)
-- `ClipboardMac`: `swift test` passed (152 tests, 0 failures, 10 skipped)
+- `ClipboardMac`: `swift test` passed (167 tests, 0 failures, 10 skipped)
 - UI tests require Xcode host runner and are skipped in plain SwiftPM test runs
 
 ---
@@ -230,7 +253,7 @@ Push notification/App trigger -> AppCoordinator -> SyncCoordinator
 ## Dependencies
 
 - **ClipboardCore:** Foundation, CoreData, CloudKit, CryptoKit, Combine
-- **ClipboardMac:** AppKit, SwiftUI, AVFoundation, CoreGraphics, LocalAuthentication, OSLog, FoundationModels
+- **ClipboardMac:** AppKit, SwiftUI, AVFoundation, CoreGraphics, LocalAuthentication, OSLog, Vision, FoundationModels
 - **Third-party dependencies:** None
 
 ---
@@ -239,7 +262,7 @@ Push notification/App trigger -> AppCoordinator -> SyncCoordinator
 
 - **Accessibility:** required for paste injection
 - **Input Monitoring:** required for global hotkeys
-- **Screen Recording:** optional for screen sharing-related workflows
+- **Screen Recording:** required for OCR text capture; optional for screen sharing mode
 
 ---
 

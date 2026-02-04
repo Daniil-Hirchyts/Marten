@@ -65,14 +65,15 @@ final class OverlayWindowController {
             let model = OverlayViewModel(
                 persistence: persistence,
                 pasteEngine: pasteEngine,
-                permissionManager: permissionManager
-            ) { [weak self] completion in
+                permissionManager: permissionManager,
+                soundPlayer: overlayDependencies.soundPlayer,
+                closeOverlayForPaste: { [weak self] completion in
                 guard let self else {
                     completion()
                     return
                 }
                 self.hide(resetState: false, completion: completion)
-            }
+            })
             viewModel = model
             let contentView = AnyView(
                 OverlayRootView(persistence: persistence, dependencies: overlayDependencies)
@@ -252,6 +253,10 @@ final class OverlayWindowController {
                 }
                 if app.processIdentifier != currentPID {
                     Task { @MainActor in
+                        // Don't hide if authenticating for pinboard unlock
+                        if self.viewModel?.isAuthenticating == true {
+                            return
+                        }
                         if self.isVisible {
                             self.hide()
                         }
@@ -266,6 +271,10 @@ final class OverlayWindowController {
             ) { [weak self] _ in
                 guard let self else { return }
                 Task { @MainActor in
+                    // Don't hide if authenticating for pinboard unlock
+                    if self.viewModel?.isAuthenticating == true {
+                        return
+                    }
                     if self.isVisible {
                         self.hide()
                     }
@@ -326,6 +335,17 @@ private final class OverlayPanel: NSPanel {
 
         if event.keyCode == 53 {
             if let handler = objc_getAssociatedObject(self, &EscapeKeyHandlerKey)
+                as? ((NSEvent) -> Bool)
+            {
+                if handler(event) {
+                    return
+                }
+            }
+        }
+
+        // Backspace (51) and forward delete (117) keys
+        if event.keyCode == 51 || event.keyCode == 117 {
+            if let handler = objc_getAssociatedObject(self, &DeleteKeyHandlerKey)
                 as? ((NSEvent) -> Bool)
             {
                 if handler(event) {

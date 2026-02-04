@@ -16,7 +16,10 @@
       "WebFetch(domain:medium.com)",
       "Bash(swift package clean:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(swift -e:*)",
+      "WebSearch",
+      "Bash(swiftc:*)"
     ]
   }
 }

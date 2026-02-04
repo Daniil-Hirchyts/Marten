@@ -39,13 +39,13 @@
 
 ## Current Metrics
 
-- **Swift files (Sources + Tests):** 278
-- **Swift LOC (Sources + Tests):** 36,810
+- **Swift files (Sources + Tests):** 291
+- **Swift LOC (Sources + Tests):** 38,618
 - **Module breakdown:**
   - `ClipboardCore/Sources` - 61 files / 7,872 LOC
   - `ClipboardCore/Tests` - 27 files / 4,454 LOC
-  - `ClipboardMac/Sources` - 150 files / 21,259 LOC
-  - `ClipboardMac/Tests` - 40 files / 3,225 LOC
+  - `ClipboardMac/Sources` - 158 files / 22,449 LOC
+  - `ClipboardMac/Tests` - 45 files / 3,843 LOC
 - **Core Data entities:** 6 (`ClipItem`, `ClipRepresentation`, `Pinboard`, `LinkPreview`, `StackSession`, `StackEntry`)
 
 ---
@@ -53,7 +53,7 @@
 ## Validation Snapshot (2026-02-04)
 
 - `ClipboardCore`: `swift test` passed (189 tests, 0 failures)
-- `ClipboardMac`: `swift test` passed (152 tests, 0 failures, 10 skipped)
+- `ClipboardMac`: `swift test` passed (167 tests, 0 failures, 10 skipped)
 - UI tests in `ClipboardMacUITests` require an Xcode host runner and are skipped in plain SwiftPM runs
 
 ---
@@ -63,7 +63,7 @@
 - **Core:** Clipboard monitoring, deduplication, retention policies, pinboards, search, paste stack
 - **Privacy:** Confidential/transient filtering, ignored apps, locked pinboards, screen sharing mode
 - **Sync:** Manual CloudKit orchestration with inbound/outbound engines and asset synchronization
-- **Power Tools:** Shortcut recorder, share/save actions, optional Apple Intelligence text transforms
+- **Power Tools:** Shortcut recorder, OCR text capture (static/live modes), share/save actions, optional Apple Intelligence text transforms
 
 ---
 

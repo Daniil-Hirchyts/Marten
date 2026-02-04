@@ -19,7 +19,8 @@ let package = Package(
         .target(
             name: "ClipboardMacServices",
             dependencies: ["ClipboardCore"],
-            path: "Sources/ClipboardMacServices"
+            path: "Sources/ClipboardMacServices",
+            resources: [.process("Resources")]
         ),
         .executableTarget(
             name: "ClipboardMac",

@@ -11,11 +11,22 @@ struct ShortcutsSettingsContent: View {
                 SettingsSectionHeader("Global Shortcuts", icon: "globe")
 
                 SettingsCard {
-                    SettingsHotkeyRow(
-                        title: "Show Clipboard",
-                        identifier: "settings.hotkey.showClipboard",
-                        value: $model.showClipboard
-                    )
+                    VStack(alignment: .leading, spacing: 12) {
+                        SettingsHotkeyRow(
+                            title: "Show Clipboard",
+                            identifier: "settings.hotkey.showClipboard",
+                            value: $model.showClipboard
+                        )
+
+                        Divider()
+                            .background(Color.primary.opacity(0.1))
+
+                        SettingsHotkeyRow(
+                            title: "Capture Text (OCR)",
+                            identifier: "settings.hotkey.ocrCapture",
+                            value: $model.ocrCapture
+                        )
+                    }
                 }
             }
 
@@ -64,6 +75,7 @@ struct ShortcutsSettingsContent: View {
             }
         }
         .onChange(of: model.showClipboard) { model.save() }
+        .onChange(of: model.ocrCapture) { model.save() }
         .onChange(of: model.quickPaste1) { model.save() }
         .onChange(of: model.quickPaste2) { model.save() }
         .onChange(of: model.quickPaste3) { model.save() }

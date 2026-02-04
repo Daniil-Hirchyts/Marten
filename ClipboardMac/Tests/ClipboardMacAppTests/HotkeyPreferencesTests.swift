@@ -13,6 +13,8 @@ final class HotkeyPreferencesTests: XCTestCase {
         let store = HotkeyPreferencesStore(userDefaults: defaults)
         store.showClipboard = HotkeyPreference(
             keyCode: UInt16(kVK_ANSI_K), modifiers: [.command, .shift])
+        store.ocrCapture = HotkeyPreference(
+            keyCode: UInt16(kVK_ANSI_O), modifiers: [.command, .option])
         store.setQuickPaste(
             1,
             HotkeyPreference(
@@ -21,6 +23,7 @@ final class HotkeyPreferencesTests: XCTestCase {
 
         let store2 = HotkeyPreferencesStore(userDefaults: defaults)
         XCTAssertEqual(store2.showClipboard, store.showClipboard)
+        XCTAssertEqual(store2.ocrCapture, store.ocrCapture)
         XCTAssertEqual(store2.quickPaste(1), store.quickPaste(1))
     }
 
@@ -55,6 +58,24 @@ final class HotkeyPreferencesTests: XCTestCase {
         XCTAssertTrue(hotkey.modifiers.contains(.command))
     }
 
+    func testEffectiveHotkeyUsesDefaultForOCRCapture() {
+        let suite = "test.hotkeys.ocr.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let hotkey = HotkeyPreferencesStore.effectiveHotkey(
+            for: .ocrCapture,
+            userDefaults: defaults
+        )
+
+        XCTAssertNotNil(hotkey)
+        guard let hotkey else { return }
+
+        XCTAssertEqual(hotkey.keyCode, UInt16(kVK_ANSI_O))
+        XCTAssertTrue(hotkey.modifiers.contains(.command))
+        XCTAssertTrue(hotkey.modifiers.contains(.shift))
+    }
+
     func testResetToDefaultsClearsSavedValues() {
         let suite = "test.hotkeys.reset.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -70,7 +91,9 @@ final class HotkeyPreferencesTests: XCTestCase {
         store.save()
 
         XCTAssertNil(defaults.data(forKey: HotkeyPreferenceKey.showClipboard.rawValue))
+        XCTAssertNil(defaults.data(forKey: HotkeyPreferenceKey.ocrCapture.rawValue))
         XCTAssertEqual(store.showClipboard.keyCode, UInt16(kVK_ANSI_V))
+        XCTAssertEqual(store.ocrCapture.keyCode, UInt16(kVK_ANSI_O))
     }
 
     func testDisplayStringIncludesModifiersAndKey() {

@@ -80,6 +80,7 @@ struct ItemGridSection: View {
                             items: filteredItems,
                             pinboards: pinboards,
                             lockedPinboardIDs: lockedPinboardIDs,
+                            selectedPinboardID: selectedPinboardID,
                             mode: mode,
                             selectedItemIDs: selectedItemIDs,
                             editingItemID: editingItemID,
