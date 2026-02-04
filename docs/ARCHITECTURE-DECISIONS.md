@@ -1,587 +1,457 @@
 # Architecture Decision Records (ADRs)
 
 **Project:** Paste Clipboard Manager  
-**Version:** 1.1.0  
-**Last Updated:** 2026-02-03
+**Version:** 1.3.0  
+**Last Updated:** 2026-02-04
 
 ---
 
 ## Purpose
 
-This document records significant architectural decisions made during the development of Paste. Each decision includes context, options considered, decision made, and rationale.
+This document records architectural decisions that shape the current implementation of Paste. Each ADR captures context, options, decision, rationale, and consequences.
 
 ---
 
 ## ADR Format
 
 Each ADR includes:
-- **Context:** The issue requiring a decision
-- **Options Considered:** Alternative approaches evaluated
-- **Decision:** What was chosen
-- **Rationale:** Why this choice was made
-- **Consequences:** Trade-offs and implications
+- **Context** - decision problem
+- **Options Considered** - alternatives evaluated
+- **Decision** - selected approach
+- **Rationale** - why this approach was selected
+- **Consequences** - trade-offs and implications
 
 ---
 
-## ADR-001: Core Data vs SwiftData
+## ADR-001: Core Data as Primary Persistence Layer
 
 **Date:** 2026-01-09  
-**Status:** Accepted  
-**Context:** Need a local persistence layer for clipboard items that supports CloudKit synchronization.
+**Status:** Accepted
+
+**Context:** The app needs local persistence for rich clipboard data and reliable integration with CloudKit synchronization.
 
 **Options Considered:**
-1. **SwiftData** - Modern, declarative, less boilerplate
-2. **Core Data** - Mature, CloudKit-compatible, full control
-3. **SQLite.swift** - Third-party, lightweight
-4. **Realm** - Third-party, sync-capable
+1. SwiftData
+2. Core Data
+3. Third-party stores (Realm/SQLite wrappers)
 
-**Decision:** Core Data
+**Decision:** Core Data.
 
 **Rationale:**
-- CloudKit integration requires Core Data (NSPersistentCloudKitContainer or manual CloudKit API)
-- SwiftData's CloudKit support is immature (as of macOS 13/14)
-- Manual CloudKit with Core Data provides fine-grained control over:
-  - Conflict resolution policies
-  - Asset management
-  - Error handling
-  - Sync timing
-- Mature tooling and extensive documentation
-- No third-party dependencies
+- Mature tooling and migration model.
+- Strong integration with existing CloudKit workflows.
+- Fine-grained fetch/update control needed by sync and retention services.
 
 **Consequences:**
-- ✅ Full control over sync behavior
-- ✅ Predictable conflict resolution
-- ✅ First-party framework support
-- ❌ More boilerplate code (entities, fetch requests)
-- ❌ Steeper learning curve than SwiftData
+- ✅ Predictable persistence behavior and migration support.
+- ✅ Good fit for repository/service layering.
+- ❌ More boilerplate than SwiftData.
 
-**References:** `ClipboardCore/Sources/DataModel/`, `ClipboardCore/Sources/Sync/`
+**References:** `ClipboardCore/Sources/Persistence/`, `ClipboardCore/Sources/DataModel/`
 
 ---
 
-## ADR-002: Direct CloudKit vs NSPersistentCloudKitContainer
+## ADR-002: Manual CloudKit Orchestration
 
 **Date:** 2026-01-09  
-**Status:** Accepted  
-**Context:** Need to sync clipboard items across devices via iCloud.
+**Status:** Accepted
+
+**Context:** Sync requires explicit conflict behavior and operational visibility.
 
 **Options Considered:**
-1. **NSPersistentCloudKitContainer** - Automatic CloudKit sync
-2. **Manual CloudKit API** - Direct control over records and sync
-3. **Third-party sync** - Firebase, Realm Sync
+1. `NSPersistentCloudKitContainer`
+2. Manual CloudKit engine orchestration
 
-**Decision:** Manual CloudKit API
+**Decision:** Manual orchestration using `SyncCoordinator` + inbound/outbound engines.
 
 **Rationale:**
-- NSPersistentCloudKitContainer limitations:
-  - Opaque conflict resolution (limited customization)
-  - No control over sync timing (automatic, unpredictable)
-  - Limited error handling visibility
-  - Asset management constraints
-- Manual CloudKit provides:
-  - Explicit conflict resolution policies (append-only for ClipItems, last-writer-wins for Pinboards)
-  - Controlled sync timing (debounced, batched)
-  - Detailed error reporting to user
-  - Custom asset upload/download logic
-  - Zone subscription management
+- Explicit control of scheduling, retries, and conflict handling.
+- Clear operational boundaries (`CloudKitManager`, `OutboundSyncEngine`, `InboundSyncEngine`, `AssetSyncManager`).
+- Testable engine boundaries with injectable collaborators.
 
 **Consequences:**
-- ✅ Deterministic conflict resolution
-- ✅ Explicit error handling
-- ✅ Fine-grained asset control
-- ✅ Testable sync engine (mockable)
-- ❌ More code (~2000 LOC for sync engine)
-- ❌ More complexity to maintain
+- ✅ Deterministic sync pipeline with visible control points.
+- ✅ Better fit for custom behaviors (assets, conflict policies).
+- ❌ More implementation complexity.
 
-**References:** `ClipboardCore/Sources/Sync/`
+**References:** `ClipboardCore/Sources/Sync/SyncCoordinator.swift`, `ClipboardCore/Sources/Sync/OutboundSyncEngine.swift`, `ClipboardCore/Sources/Sync/InboundSyncEngine.swift`
 
 ---
 
-## ADR-003: Polling vs Notifications for Pasteboard Monitoring
+## ADR-003: Swift Package Modular Architecture
 
 **Date:** 2026-01-09  
-**Status:** Accepted  
-**Context:** Need to detect when user copies content to system clipboard.
+**Status:** Accepted
+
+**Context:** Separate cross-platform domain logic from macOS-specific runtime/UI.
 
 **Options Considered:**
-1. **Polling** - Check NSPasteboard.changeCount on timer
-2. **NSPasteboard Notifications** - React to clipboard changes
-3. **CGEventTap** - Intercept Cmd+C events
+1. Monolithic target
+2. Swift package modularization
 
-**Decision:** Polling with adaptive intervals
+**Decision:** Two primary local packages:
+- `ClipboardCore`
+- `ClipboardMac` (`ClipboardMacApp` + `ClipboardMacServices` + validation executable)
 
 **Rationale:**
-- **NSPasteboard does NOT provide change notifications** - No official API exists
-- CGEventTap for Cmd+C is unreliable (doesn't catch context menu copies, drag-and-drop, programmatic copies)
-- Polling is the only reliable method used by all major clipboard managers
-- Adaptive intervals minimize CPU usage:
-  - 100ms when app is active (responsive)
-  - 1s when app is in background (battery-friendly)
+- Clear compile-time boundaries.
+- Better test segmentation.
+- Supports future reuse of `ClipboardCore`.
 
 **Consequences:**
-- ✅ Reliable capture of all clipboard changes
-- ✅ Adaptive intervals balance responsiveness and efficiency
-- ✅ Works for all copy methods (keyboard, menu, drag-drop, programmatic)
-- ❌ ~100ms latency (acceptable trade-off)
-- ❌ Constant background polling (mitigated by adaptive intervals)
+- ✅ Cleaner architecture and dependency direction.
+- ✅ Faster targeted builds/tests.
+- ❌ More package wiring overhead.
+
+**References:** `ClipboardCore/Package.swift`, `ClipboardMac/Package.swift`
+
+---
+
+## ADR-004: Hybrid AppKit + SwiftUI UI Stack
+
+**Date:** 2026-01-09  
+**Status:** Accepted
+
+**Context:** The app needs both modern SwiftUI composition and low-level macOS control for overlay windows, menu bar integration, and system pasteboard behavior.
+
+**Options Considered:**
+1. Pure SwiftUI
+2. Pure AppKit
+3. Hybrid AppKit + SwiftUI
+
+**Decision:** Hybrid stack.
+
+**Rationale:**
+- AppKit is required for `NSPanel`, `NSStatusItem`, and system integrations.
+- SwiftUI is preferred for UI composition, state-driven views, and maintainability.
+- Current architecture cleanly bridges the two via controller/coordinator boundaries.
+
+**Consequences:**
+- ✅ Best fit for macOS utility UX.
+- ✅ Modern UI composition with required system control.
+- ❌ Requires careful boundary discipline between frameworks.
+
+**References:** `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayWindow.swift`, `ClipboardMac/Sources/ClipboardMacApp/App/MenuBarController.swift`
+
+---
+
+## ADR-005: AppCoordinator-Centric Lifecycle
+
+**Date:** 2026-02-04  
+**Status:** Accepted
+
+**Context:** Startup/lifecycle responsibilities grew beyond what should live in `AppDelegate`.
+
+**Options Considered:**
+1. Keep behavior inside `AppDelegate`
+2. Move orchestration to dedicated coordinator
+
+**Decision:** Keep `AppDelegate` thin and move lifecycle orchestration to `AppCoordinator`.
+
+**Rationale:**
+- Improves lifecycle testability and readability.
+- Consolidates startup flows (capture/hotkeys/onboarding/menu/sync wiring) into a single actor-isolated coordinator.
+- Aligns with composition-root architecture.
+
+**Consequences:**
+- ✅ Cleaner lifecycle boundaries.
+- ✅ Easier reasoning about startup/shutdown side effects.
+- ❌ Requires explicit dependency interfaces at app boundary.
+
+**References:** `ClipboardMac/Sources/ClipboardMacApp/App/AppDelegate.swift`, `ClipboardMac/Sources/ClipboardMacApp/App/AppCoordinator.swift`
+
+---
+
+## ADR-006: Protocol-First Composition with Service Providers
+
+**Date:** 2026-02-04  
+**Status:** Accepted
+
+**Context:** Feature code should depend on scoped interfaces, not broad concrete service graphs.
+
+**Options Considered:**
+1. Concrete service access everywhere
+2. Provider protocol boundaries + composition container
+
+**Decision:** `AppServiceContainer` + scoped provider protocols.
+
+**Rationale:**
+- Keeps dependency direction explicit.
+- Supports test doubles and incremental refactors.
+- Limits surface area exposed to each workflow.
+
+**Consequences:**
+- ✅ Better DIP/ISP adherence.
+- ✅ Easier test setup for coordinators/view models.
+- ❌ Requires maintenance of protocol boundaries.
+
+**References:** `ClipboardMac/Sources/ClipboardMacApp/App/AppServiceContainer.swift`
+
+---
+
+## ADR-007: Clipboard Monitoring by Polling with Adaptive Intervals
+
+**Date:** 2026-01-09  
+**Status:** Accepted
+
+**Context:** macOS does not provide reliable push-style clipboard change notifications for this use case.
+
+**Options Considered:**
+1. Polling `NSPasteboard.changeCount`
+2. Event taps / indirect copy detection
+
+**Decision:** Polling in `PasteboardMonitor` with adaptive intervals.
+
+**Rationale:**
+- Reliable across copy sources (keyboard, menu, programmatic).
+- Simple and controllable behavior.
+- Adaptive intervals reduce idle overhead.
+
+**Current interval defaults:**
+- Active: 0.4s (`fastPollInterval`)
+- Idle: 1.5s (`idlePollInterval`)
+- Idle threshold: 5.0s
+
+**Consequences:**
+- ✅ Reliable capture behavior.
+- ✅ Bounded CPU overhead with adaptive polling.
+- ❌ Polling latency is inherent.
+
+**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/PasteboardMonitor.swift`
+
+---
+
+## ADR-008: Split Capture Extraction/Filtering/Classification
+
+**Date:** 2026-02-04  
+**Status:** Accepted
+
+**Context:** Capture policy and payload formation should be extensible and testable without a monolithic extractor.
+
+**Options Considered:**
+1. Single extractor with embedded policy/classification logic
+2. Split extraction pipeline components
+
+**Decision:** Split into:
+- `PasteboardRepresentationExtractor`
+- `ClipboardContentFilter`
+- `ItemTypeClassifier`
+with `PasteboardExtractor` as composition shell.
+
+**Rationale:**
+- Better SRP boundaries.
+- Isolated unit testing.
+- Clear extension points for new representation types or policy behavior.
+
+**Consequences:**
+- ✅ Cleaner capture architecture.
+- ✅ Easier maintainability and testing.
+- ❌ More component wiring.
 
 **References:** `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/`
 
 ---
 
-## ADR-004: AppKit + SwiftUI Hybrid vs Pure SwiftUI
+## ADR-009: Repository/Service Layer in ClipboardCore
 
-**Date:** 2026-01-09  
-**Status:** Accepted  
-**Context:** Need to build a macOS app with overlay window, menu bar integration, and system clipboard access.
+**Date:** 2026-02-04  
+**Status:** Accepted
+
+**Context:** Domain logic needed clearer separation between CRUD, usage, retention, assets, and search concerns.
 
 **Options Considered:**
-1. **Pure SwiftUI** - Modern, declarative
-2. **Pure AppKit** - Full system control
-3. **Hybrid (AppKit + SwiftUI)** - Best of both
+1. Single catch-all store/repository implementation
+2. Dedicated services + facade boundaries
 
-**Decision:** Hybrid (NSPanel + NSMenu with SwiftUI content)
+**Decision:** Keep a thin `ClipItemStore` facade over dedicated repository/services with protocol boundaries.
 
 **Rationale:**
-- SwiftUI limitations for our use case:
-  - No way to create NSPanel-style overlay window (frameless, floating)
-  - NSPasteboard requires AppKit
-  - Menu bar integration requires NSMenu/NSStatusItem
-  - Global hotkeys require CGEventTap (AppKit)
-- AppKit provides:
-  - NSPanel for overlay window behavior
-  - NSPasteboard for clipboard access
-  - NSMenu for menu bar
-  - Full control over window level, key handling
-- SwiftUI provides:
-  - Declarative UI for content
-  - @FetchRequest for Core Data integration
-  - Modern layout and animation
-  - Faster development for complex UIs
+- Operations are grouped by responsibility (`ClipItemRepository`, retention, usage, assets, search, pinboards).
+- Callers can consume protocol boundaries (`ClipItemStoring`, `ClipItemRepositoryProtocol`, etc.).
 
 **Consequences:**
-- ✅ Best of both frameworks
-- ✅ Full system integration (AppKit)
-- ✅ Modern UI development (SwiftUI)
-- ❌ Mixing paradigms (requires bridging)
-- ❌ Some boilerplate (NSViewRepresentable, NSHostingView)
+- ✅ Cleaner domain partitioning.
+- ✅ Better testability and substitution.
+- ❌ More abstractions to maintain.
 
-**References:** `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayWindow.swift`
+**References:** `ClipboardCore/Sources/BusinessRules/ClipItemStore.swift`, `ClipboardCore/Sources/BusinessRules/Protocols/`
 
 ---
 
-## ADR-005: Heuristic Classifiers vs Machine Learning
-
-**Date:** 2026-01-09  
-**Status:** Accepted  
-**Context:** Need to detect confidential content (passwords, credit cards, API keys) to prevent capturing.
-
-**Options Considered:**
-1. **Heuristic pattern matching** - Regex, Luhn algorithm, entropy
-2. **Machine Learning** - Train model on sensitive data patterns
-3. **Third-party service** - API call to detection service
-
-**Decision:** Heuristic pattern matching
-
-**Rationale:**
-- ML trade-offs for MVP:
-  - Requires training data (sensitive content collection)
-  - Model size overhead (storage, memory)
-  - Inference latency (slower than heuristics)
-  - Privacy concerns (model trained on user data)
-- Heuristic advantages:
-  - Fast (<1ms per item)
-  - On-device (privacy-preserving)
-  - Deterministic (predictable behavior)
-  - No training data required
-  - Sufficient for 99% of cases
-- Implementation:
-  - Password detection: Shannon entropy > 3.5
-  - Credit cards: Luhn algorithm validation
-  - OTP codes: 6-digit patterns
-  - API keys: JWT, GitHub token, AWS key patterns
-
-**Consequences:**
-- ✅ Fast, privacy-preserving, deterministic
-- ✅ No model overhead or training required
-- ✅ Sufficient accuracy for MVP
-- ❌ May miss edge cases (novel patterns)
-- ❌ Potential false positives (high-entropy text)
-- 🔄 Can add ML in future if needed
-
-**References:** `ClipboardCore/Sources/BusinessRules/Classifiers/`
-
----
-
-## ADR-006: SHA-256 Hashing for Deduplication
-
-**Date:** 2026-01-09  
-**Status:** Accepted  
-**Context:** Need to prevent duplicate clipboard items from being stored.
-
-**Options Considered:**
-1. **SHA-256 hashing** - Cryptographic hash of content
-2. **Exact string comparison** - Compare primaryText directly
-3. **MD5 hashing** - Faster but less collision-resistant
-4. **Perceptual hashing** - For images (pHash)
-
-**Decision:** SHA-256 for text/data, exact comparison for small content
-
-**Rationale:**
-- SHA-256 advantages:
-  - Collision-resistant (practically zero chance of collision)
-  - Fixed size (32 bytes) regardless of content size
-  - Fast (CryptoKit optimized, ~0.3ms per hash)
-  - Standard across all content types
-- Core Data index on `contentHash` enables fast lookup
-- Normalization before hashing (trim whitespace, lowercase for case-insensitive)
-
-**Consequences:**
-- ✅ Reliable deduplication (no false duplicates)
-- ✅ Fast lookup via indexed hash
-- ✅ Works for all content types
-- ✅ Content-based (not metadata-based)
-- ❌ Hash computation overhead (~0.3ms, acceptable)
-- ❌ Normalized comparison may merge intentionally different items (rare)
-
-**References:** `ClipboardCore/Sources/DataModel/Extensions/Data+SHA256.swift`
-
----
-
-## ADR-007: Asset Threshold (256KB)
-
-**Date:** 2026-01-09  
-**Status:** Accepted  
-**Context:** Need to decide when to store content in Core Data vs external files.
-
-**Options Considered:**
-1. **All in Core Data** - Simple, but bloats database
-2. **All in files** - Lightweight database, but more file I/O
-3. **Hybrid with threshold** - Small in DB, large in files
-
-**Decision:** Hybrid with 256KB threshold
-
-**Rationale:**
-- Core Data SQLite has performance degradation with large BLOBs
-- File storage for large assets:
-  - Keeps Core Data database lightweight
-  - Faster backups (database only, assets separate)
-  - Easier CloudKit asset management (CKAsset for files)
-- Threshold rationale:
-  - Most text items: <10KB (fits in DB)
-  - Most RTF/HTML: <100KB (fits in DB)
-  - Most screenshots: >500KB (goes to files)
-  - 256KB is safe middle ground
-- Implementation:
-  - `ClipRepresentation.data` for <256KB
-  - `ClipRepresentation.assetPath` for ≥256KB (stored via AssetStore)
-
-**Consequences:**
-- ✅ Database stays small and fast
-- ✅ Large assets don't bloat Core Data
-- ✅ CloudKit CKAsset for large files (proper resumable uploads)
-- ❌ Two storage locations to manage
-- ❌ Orphaned assets possible (mitigated by retention cleanup)
-
-**References:** `ClipboardCore/Sources/Assets/AssetStore.swift`
-
----
-
-## ADR-008: CGEvent Synthetic Paste vs Pasteboard-Only
+## ADR-010: Synthetic Cmd+V Paste Engine
 
 **Date:** 2026-01-10  
-**Status:** Accepted  
-**Context:** Need to paste clipboard items into active applications.
+**Status:** Accepted
+
+**Context:** Selecting an item should immediately paste into the previously active app with minimal friction.
 
 **Options Considered:**
-1. **CGEvent Cmd+V simulation** - Send synthetic keyboard event
-2. **Pasteboard-only** - Copy to pasteboard, user manually pastes
-3. **AppleScript** - Script-based paste
-4. **Accessibility API** - Direct text insertion
+1. Clipboard write only (manual user paste)
+2. Synthetic Cmd+V after clipboard write
 
-**Decision:** CGEvent Cmd+V simulation (with Accessibility permission)
+**Decision:** Use synthetic Cmd+V with activation checks/retries in `PasteEngine`.
 
 **Rationale:**
-- Pasteboard-only: Poor UX (requires two-step: select item, then Cmd+V)
-- AppleScript: Unreliable, slow, requires per-app scripting
-- Accessibility API: Limited to text fields, doesn't work for rich content
-- CGEvent advantages:
-  - Universal (works in all apps that respond to Cmd+V)
-  - Fast (<50ms)
-  - Supports all content types (text, images, files)
-  - Native feel (indistinguishable from real Cmd+V)
-- Implementation:
-  1. Copy item to pasteboard
-  2. Send CGEvent (keyDown + keyUp for Cmd+V)
-  3. Wait 100ms for paste completion
-  4. Optionally restore previous pasteboard
+- Preserves utility speed and expected UX.
+- Works across target apps that support standard paste shortcuts.
+- Current engine includes target activation checks and validation events.
 
 **Consequences:**
-- ✅ Seamless UX (feels like native paste)
-- ✅ Works for all content types
-- ✅ Works in all apps
-- ❌ Requires Accessibility permission
-- ❌ May not work in sandboxed apps (fallback to pasteboard-only)
-- ❌ 100ms delay to ensure paste completes
+- ✅ Fast one-step paste workflow.
+- ✅ Works with preserved/plain-text modes and stack paste.
+- ❌ Requires Accessibility permission and robust failure handling.
 
-**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/PasteEngine/`
+**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/PasteEngine/PasteEngine.swift`
 
 ---
 
-## ADR-009: Menu Bar App vs Dock App
-
-**Date:** 2026-01-10  
-**Status:** Accepted  
-**Context:** Decide app presentation style (menu bar, dock, or both).
-
-**Options Considered:**
-1. **Menu bar only** - No dock icon (LSUIElement = YES)
-2. **Dock only** - Traditional app
-3. **Both** - Allow user to choose
-
-**Decision:** Menu bar only (LSUIElement = YES)
-
-**Rationale:**
-- Clipboard manager is a utility, not a document-based app
-- Menu bar apps:
-  - Always accessible (no window switching)
-  - Don't clutter dock
-  - Standard for utilities (Dropbox, Alfred, Bartender)
-- Global hotkey is primary access method (not dock icon)
-- Menu bar provides:
-  - Quick access to recent items
-  - Settings shortcut
-  - Sync status indicator
-
-**Consequences:**
-- ✅ Always accessible via menu bar
-- ✅ Doesn't clutter dock
-- ✅ Standard utility app pattern
-- ❌ Less discoverable for new users (mitigated by onboarding)
-- ❌ No dock badge for notifications (not needed for this app)
-
-**References:** `ClipboardMac/Sources/ClipboardMacApp/App/AppDelegate.swift`
-
----
-
-## ADR-010: Retention Policy Enforcement
-
-**Date:** 2026-01-10  
-**Status:** Accepted  
-**Context:** Decide when and how to delete old clipboard items.
-
-**Options Considered:**
-1. **Manual only** - User deletes items themselves
-2. **Fixed retention** - Auto-delete after 30 days
-3. **User-configurable retention** - User chooses policy
-4. **Unlimited** - Keep everything forever
-
-**Decision:** User-configurable retention with background cleanup
-
-**Rationale:**
-- Users have different needs:
-  - Some want short retention (privacy)
-  - Some want long-term clipboard history
-- Default: 30 days (balances privacy and utility)
-- Options: 30 days, 90 days, 1 year, forever
-- Implementation:
-  - Background cleanup runs daily
-  - Respects favorites (never delete)
-  - Respects pinned items (never delete)
-  - Deletes expired items based on `createdAt` timestamp
-
-**Consequences:**
-- ✅ User choice (flexibility)
-- ✅ Privacy-friendly default
-- ✅ Respects favorites and pins
-- ❌ Background cleanup overhead (mitigated: runs daily, ~86ms)
-- ❌ Potential data loss if user forgets to favorite
-
-**References:** `ClipboardCore/Sources/BusinessRules/RetentionPolicy.swift`
-
----
-
-## ADR-011: Swift Package Manager for Modularization
+## ADR-011: Hybrid Asset Storage Threshold
 
 **Date:** 2026-01-09  
-**Status:** Accepted  
-**Context:** Decide how to structure code for cross-platform sharing.
+**Status:** Accepted
+
+**Context:** Large payloads in Core Data can degrade DB performance.
 
 **Options Considered:**
-1. **Swift Package Manager** - Native, local packages
-2. **CocoaPods** - Third-party dependency manager
-3. **Carthage** - Decentralized dependency manager
-4. **Monolithic Xcode project** - All code in one target
+1. Store all payloads in Core Data blobs
+2. Store all payloads in files
+3. Hybrid threshold approach
 
-**Decision:** Swift Package Manager with local packages
+**Decision:** Hybrid approach with 256KB threshold.
 
 **Rationale:**
-- SPM advantages:
-  - First-party tool (built into Xcode)
-  - Local packages (no need to publish)
-  - Cross-platform by default (macOS, iOS, watchOS)
-  - Clean module boundaries
-  - Fast builds (incremental compilation per package)
-- ClipboardCore as SPM package:
-  - Can be imported by ClipboardMac (macOS)
-  - Future: Import by ClipboardiOS, ClipboardWatch
-  - No platform-specific code in Core
-- No external dependencies:
-  - Reduces supply chain risk
-  - Faster builds (no CocoaPods/Carthage overhead)
-  - Simpler onboarding
+- Small payloads stay inline for fast fetches.
+- Large payloads move to asset storage for DB health and sync handling.
 
 **Consequences:**
-- ✅ Clean module separation
-- ✅ Cross-platform ready
-- ✅ Fast incremental builds
-- ✅ No third-party dependency management
-- ❌ Xcode workspace required (vs single project)
-- ❌ Slightly more setup for new developers
+- ✅ Better DB size/performance profile.
+- ✅ Better handling for large binary data.
+- ❌ Requires asset lifecycle cleanup.
 
-**References:** `docs/CODEBASE.md`, `ClipboardCore/Package.swift`, `ClipboardMac/Package.swift`
+**References:** `ClipboardCore/Sources/BusinessRules/ClipItemRepository.swift`, `ClipboardCore/Sources/Assets/AssetStore.swift`
 
 ---
 
-## ADR-012: OSLog for Logging vs Third-Party
-
-**Date:** 2026-01-15  
-**Status:** Accepted  
-**Context:** Need structured logging for debugging and crash analysis.
-
-**Options Considered:**
-1. **OSLog** - Native Apple logging framework
-2. **CocoaLumberjack** - Popular third-party logger
-3. **SwiftyBeaver** - Third-party logger with remote features
-4. **print() statements** - Simple but limited
-
-**Decision:** OSLog with structured subsystems/categories
-
-**Rationale:**
-- OSLog advantages:
-  - Native (no dependencies)
-  - Integrates with Console.app
-  - Structured logging (subsystem, category, levels)
-  - Performance-optimized (zero overhead when disabled)
-  - Privacy-aware (redacts sensitive data)
-- Subsystem: `com.paste.clipboard`
-- Categories: `capture`, `paste`, `sync`, `database`, `ui`, `error`
-- Log levels: debug, info, error, fault
-- No remote logging needed (privacy-first app)
-
-**Consequences:**
-- ✅ Native, performant, privacy-aware
-- ✅ Integrates with macOS debugging tools
-- ✅ Structured logging for easy filtering
-- ✅ No third-party dependencies
-- ❌ No remote logging/crash service (mitigated: can add Sentry/Crashlytics later if needed)
-
-**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/Logging/Loggers.swift`, `ClipboardMac/Sources/ClipboardMacServices/Services/CrashReporter.swift`
-
----
-
-## ADR-013: Apple Intelligence Text Transforms vs External AI
+## ADR-012: Privacy-First Optional Apple Intelligence
 
 **Date:** 2026-02-03  
-**Status:** Accepted  
-**Context:** Provide optional “summarize/proofread/rewrite/shorten” for text items without sending clipboard content to third-party services.
+**Status:** Accepted
+
+**Context:** Users requested text transformation tools without cloud data egress.
 
 **Options Considered:**
-1. **On-device Apple Intelligence (SystemLanguageModel / FoundationModels)**
-2. **Third-party LLM API** (OpenAI/Anthropic/etc.)
-3. **No AI features**
+1. External LLM API integration
+2. On-device Apple Intelligence only
+3. No AI features
 
-**Decision:** On-device Apple Intelligence (when available), otherwise no AI actions.
+**Decision:** Optional on-device Apple Intelligence transformations only.
 
 **Rationale:**
-- Clipboard content is sensitive by default; avoiding network egress is the safest default.
-- On-device inference keeps data local and aligns with a privacy-first clipboard manager.
-- Availability is platform/OS dependent; feature is optional and gated by runtime checks.
+- Keeps clipboard content local.
+- Avoids API key, billing, and network-data handling complexity.
+- Graceful unavailability states are explicit in API (`AppleIntelligenceAvailability`).
 
 **Consequences:**
-- ✅ Strong privacy properties (no remote AI calls)
-- ✅ No API key management or billing surface
-- ❌ Feature availability depends on OS/device support
-- ❌ Requires clear UX for “not available” states
+- ✅ Strong privacy posture.
+- ✅ No third-party AI dependencies.
+- ❌ Feature availability depends on device/OS capability.
 
-**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/AppleIntelligence/`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemEditorAITextEditing.swift`
+**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/AppleIntelligence/`
 
 ---
 
-## ADR-014: Pinboard Lock via LocalAuthentication
+## ADR-013: Locked Pinboards via LocalAuthentication Gate
 
 **Date:** 2026-02-03  
-**Status:** Accepted  
-**Context:** Users need a way to hide specific pinboards during normal browsing, especially when screen sharing or working in public.
+**Status:** Accepted
+
+**Context:** Users need quick privacy controls for selected pinboards.
 
 **Options Considered:**
-1. **LocalAuthentication gate (Touch ID / password)**
-2. **Full encryption-at-rest per pinboard**
-3. **No lock feature**
+1. LocalAuthentication gate for access
+2. Encrypted per-pinboard storage
+3. No lock feature
 
-**Decision:** LocalAuthentication gate for viewing/unlocking locked pinboards.
+**Decision:** LocalAuthentication access gate with unlock duration policy.
 
 **Rationale:**
-- Provides immediate privacy improvements with minimal complexity.
-- Uses system authentication UX and security primitives.
-- Avoids the complexity of key management and encrypted Core Data partitions.
+- Practical privacy gain with lower implementation complexity.
+- Uses native macOS auth flows (Touch ID/password).
 
 **Consequences:**
-- ✅ Simple, familiar UX (system prompt)
-- ✅ Works without custom cryptography
-- ❌ Not full encryption; data still exists in the local store
-- ❌ Requires careful state handling (temporary unlock + expiration)
+- ✅ Fast, familiar UX.
+- ✅ Good privacy control for interactive use.
+- ❌ Not equivalent to encrypted-at-rest partitioning.
 
-**References:** `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/PinboardLockController.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayPinboardLockHandler.swift`
+**References:** `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/PinboardLockController.swift`, `ClipboardMac/Sources/ClipboardMacApp/App/PinboardSecuritySettings.swift`
 
 ---
 
-## ADR-015: Screen Sharing Mode (Overlay Visibility Gating)
+## ADR-014: Screen Sharing Mode for Overlay Visibility
 
 **Date:** 2026-02-03  
-**Status:** Accepted  
-**Context:** When users are presenting or screen sharing, the overlay can expose clipboard history. Users need a fast toggle and a default behavior.
+**Status:** Accepted
+
+**Context:** Clipboard overlays can expose sensitive history while presenting.
 
 **Options Considered:**
-1. **Screen sharing mode toggle + setting for overlay visibility**
-2. **Always hide overlay when active**
-3. **No special handling**
+1. User-controlled screen sharing mode with visibility preference
+2. Always hide overlay
+3. No behavior change
 
-**Decision:** Provide a mode toggle and a user setting controlling whether overlay is shown.
+**Decision:** Dedicated mode + preference (`showDuringScreenSharing`).
 
 **Rationale:**
-- Keeps a quick, explicit user-controlled escape hatch.
-- Supports different preferences (some users still want overlay while presenting).
-- Makes overlay behavior deterministic and testable.
+- Gives explicit quick control with predictable behavior.
+- Supports different user preferences.
 
 **Consequences:**
-- ✅ Fast to toggle from menu bar/shortcut
-- ✅ Predictable overlay visibility rules
-- ❌ Adds another global mode that must be reflected in UI
+- ✅ Better presentation privacy controls.
+- ✅ Deterministic behavior and clear settings surface.
+- ❌ Adds global state that must be reflected in UI and menu bar.
 
-**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/ScreenSharing/ScreenSharingManager.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayWindow.swift`
+**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/ScreenSharing/ScreenSharingManager.swift`, `ClipboardMac/Sources/ClipboardMacApp/App/MenuBarController.swift`
 
 ---
 
-## Future ADRs
+## ADR-015: Menu Bar Accessory App Presentation
 
-Topics to document as decisions are made:
+**Date:** 2026-01-10  
+**Status:** Accepted
 
-- **ADR-016:** In-app purchase architecture (when implemented)
-- **ADR-017:** Analytics approach (if added)
-- **ADR-018:** Localization strategy (for internationalization)
-- **ADR-019:** Accessibility testing approach (VoiceOver automation)
-- **ADR-020:** End-to-end encryption (if added for sensitive data)
+**Context:** Primary workflow is hotkey/menu-bar driven utility usage.
+
+**Options Considered:**
+1. Menu bar accessory app (`LSUIElement` style behavior)
+2. Dock-first app
+3. Dual-mode presentation
+
+**Decision:** Menu bar utility presentation with overlay window and settings window.
+
+**Rationale:**
+- Matches clipboard utility interaction model.
+- Reduces Dock clutter and keeps always-available status controls.
+
+**Consequences:**
+- ✅ Fast utility-style access pattern.
+- ✅ Clean background presence.
+- ❌ Discoverability relies on onboarding and shortcuts.
+
+**References:** `ClipboardMac/Sources/ClipboardMacApp/App/AppCoordinator.swift`, `ClipboardMac/Sources/ClipboardMacApp/App/MenuBarController.swift`
 
 ---
 
 ## Changelog
 
+**1.3.0** (2026-02-04)
+- Refreshed ADR metadata and references for post-refactor architecture.
+- Added ADRs for lifecycle orchestration, composition/provider boundaries, and split capture pipeline.
+- Updated polling interval details and current implementation references.
+
 **1.0.0** (2026-02-02)
-- Initial ADR document with 12 decisions
-- Covers: persistence, sync, monitoring, UI, security, modularization, logging
+- Initial ADR set.
 
 ---
 
 **Maintained By:** Engineering Team  
-**Last Updated:** 2026-02-03
+**Last Updated:** 2026-02-04

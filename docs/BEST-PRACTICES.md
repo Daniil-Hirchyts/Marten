@@ -1,506 +1,231 @@
 # Paste - Development Best Practices
 
-**Last Updated:** 2026-02-03
-**Audience:** All developers and contributors
+**Last Updated:** 2026-02-04  
+**Audience:** All contributors  
 **Status:** Active guidelines
 
-This document establishes security, architecture, and quality standards for the Paste codebase. These practices reflect the current application architecture and the security/privacy requirements of a clipboard manager.
+These standards reflect the current post-refactor architecture (`ClipboardCore` + `ClipboardMacServices` + `ClipboardMacApp`) and the privacy requirements of a clipboard manager.
 
 ---
 
 ## 1. Security & Privacy
 
-### 1.1 Clipboard Content Protection
+### 1.1 Never Log Clipboard Content
 
-**Rule:** Never log clipboard content or derived text.
+Clipboard data is sensitive by default.
 
-Clipboard payloads must be treated as sensitive by default. Do not include clipboard text, file paths, URLs, or derived content in logs, error messages, or debug output.
+- Do not log copied text, URL strings, file paths, HTML payloads, or image bytes.
+- Log metadata only (counts, durations, state transitions).
 
-**Examples:**
 ```swift
 import OSLog
 
-// ❌ BAD - logs clipboard content
-Logger.pasteboard.info("Captured text: \(clipboardText)")
+// BAD
+Logger.pasteboard.info("Captured text: \(text)")
 
-// ✅ GOOD - log metadata only
-Logger.pasteboard.info("Captured text item (length=\(clipboardText.count, privacy: .public))")
+// GOOD
+Logger.pasteboard.info("Captured item (type=\(itemType.rawValue, privacy: .public), bytes=\(byteCount, privacy: .public))")
 ```
 
 ### 1.2 Logging Policy
 
-**Rule:** Use OSLog with privacy redaction. Never use `print()` in production code.
+- Use `OSLog` categories from `ClipboardMacServices/Services/Logging/Loggers.swift`.
+- Never ship `print()` in production targets.
+- Use privacy annotations:
+  - `.private` for user-originated strings and app identifiers
+  - `.public` only for safe operational metadata
 
-**Privacy Defaults:**
-- `privacy: .private` — for all user-originated strings, file paths, URLs
-- `privacy: .public` — only for safe metadata (counts, durations, sizes, booleans, enums)
+### 1.3 Permission-Gated Behavior
 
-**Log Levels:**
-- `.debug` — high-volume instrumentation, noisy lifecycle events
-- `.info` — normal operational events (capture, paste, sync)
-- `.error` — failures requiring investigation
-- `.fault` — critical failures (data loss, corruption)
+- **Accessibility** gates paste injection (`PasteEngine`).
+- **Input Monitoring** gates global hotkeys (`HotkeyManager`).
+- Request permissions only when the feature is needed.
+- Provide graceful degraded behavior when denied.
 
-**Examples:**
-```swift
-import OSLog
+### 1.4 Sensitive Content Filtering Rules
 
-// ❌ BAD - uses print()
-print("Pasteboard changed: \(changeCount)")
+Capture filtering is split into dedicated components and should stay that way:
 
-// ❌ BAD - logs sensitive data as public
-Logger.pasteboard.info("Captured URL: \(url)")
+- `PasteboardRepresentationExtractor` - extraction only
+- `ClipboardContentFilter` - transient/confidential filtering policy
+- `ItemTypeClassifier` - classification only
 
-// ✅ GOOD - logs safe metadata
-Logger.pasteboard.info("Pasteboard changed (changeCount=\(changeCount, privacy: .public))")
-
-// ✅ GOOD - redacts sensitive data
-Logger.pasteboard.info("Captured URL: \(url, privacy: .private)")
-Logger.pasteboard.info("Captured URL host: \(url.host ?? "unknown", privacy: .private)")
-```
-
-**Enforcement:**
-- No `print()` statements allowed in production targets
-- Use static analysis (grep) to prevent introduction of risky logging
-
-### 1.3 Settings Access
-
-**Rule:** Never use SwiftUI property wrappers in non-UI modules.
-
-Services and business logic must not depend on `@AppStorage`, `@Environment`, or other SwiftUI-specific APIs. Use protocol-based settings providers instead.
-
-**Before (❌ BAD):**
-```swift
-import SwiftUI
-
-public final class PasteboardExtractor {
-    @AppStorage("ignoreConfidentialContent") private var ignoreConfidentialContent = true
-    @AppStorage("ignoreTransientContent") private var ignoreTransientContent = true
-}
-```
-
-**After (✅ GOOD):**
-```swift
-public protocol CaptureSettingsProviding {
-    var ignoreConfidentialContent: Bool { get }
-    var ignoreTransientContent: Bool { get }
-}
-
-public struct UserDefaultsCaptureSettingsProvider: CaptureSettingsProviding {
-    private let userDefaults: UserDefaults
-    public init(userDefaults: UserDefaults = .standard) { self.userDefaults = userDefaults }
-
-    public var ignoreConfidentialContent: Bool { userDefaults.bool(forKey: "ignoreConfidentialContent") }
-    public var ignoreTransientContent: Bool { userDefaults.bool(forKey: "ignoreTransientContent") }
-}
-
-public final class PasteboardExtractor {
-    private let settings: CaptureSettingsProviding
-
-    public init(settings: CaptureSettingsProviding = UserDefaultsCaptureSettingsProvider()) {
-        self.settings = settings
-    }
-}
-```
-
-**Benefits:**
-- Testable (inject fake settings in tests)
-- No SwiftUI dependency in non-UI code
-- Explicit dependencies
-
-### 1.4 Permissions & Entitlements
-
-**Required Permissions:**
-- **Accessibility** — Required for paste injection (CGEvent Cmd+V synthesis)
-- **Input Monitoring** — Required for global hotkey capture
-- **Screen Recording** — Optional, for screen sharing mode
-
-**Rules:**
-- Request permissions only when features are first used (not at launch)
-- Provide graceful fallbacks when permissions denied
-- Gate CloudKit/push code paths at composition layer only (not in core)
-
-**Examples:**
-```swift
-// ✅ GOOD - check permission before paste
-guard await permissionManager.hasAccessibilityPermission() else {
-    logger.warning("Accessibility permission denied, cannot paste")
-    throw PasteError.permissionDenied
-}
-
-// ✅ GOOD - graceful fallback for hotkeys
-guard hotkeyManager.canRegisterHotkeys else {
-    logger.info("Input Monitoring permission not granted, hotkeys disabled")
-    return
-}
-```
+Do not collapse these responsibilities into a single monolith.
 
 ---
 
 ## 2. Architecture & Code Organization
 
-### 2.1 Dependency Injection
+### 2.1 Module Boundaries
 
-**Rule:** Inject dependencies via initializers. Avoid direct instantiation of services in views/controllers.
+Current module layering is strict:
 
-**Before (❌ BAD):**
-```swift
-private struct ItemEditorContentView: View {
-    private let store = ClipItemStore()  // ❌ Hidden dependency
-}
-```
+1. **ClipboardCore** - persistence, domain services, sync engines
+2. **ClipboardMacServices** - AppKit/system integrations
+3. **ClipboardMacApp** - lifecycle orchestration and UI composition
 
-**After (✅ GOOD):**
-```swift
-protocol ClipItemStoring {
-    func updateText(objectID: NSManagedObjectID, text: String) throws
-}
+Rules:
+- `ClipboardCore` and `ClipboardMacServices` must remain SwiftUI-free.
+- App-level wiring belongs in `AppCoordinator` and `AppServiceContainer`.
+- UI code should depend on protocols/handlers, not deep concrete service construction.
 
-extension ClipItemStore: ClipItemStoring {}
+### 2.2 Lifecycle and Composition
 
-private struct ItemEditorContentView: View {
-    private let store: ClipItemStoring  // ✅ Injected dependency
+- Keep `AppDelegate` thin (forward lifecycle only).
+- Keep startup orchestration in `AppCoordinator`.
+- Keep service construction in `AppServiceContainer`.
 
-    init(item: ClipItem, store: ClipItemStoring, onCancel: @escaping () -> Void) {
-        self.store = store
-        // ...
-    }
-}
-```
+Preferred app boundary protocols:
+- `AppServiceProviding`
+- `CaptureServicesProviding`
+- `PasteServicesProviding`
+- `OverlayServicesProviding`
+- `SyncServicesProviding`
 
-**Benefits:**
-- Dependencies are explicit
-- Testable (inject mocks/fakes)
-- Reduces coupling
+### 2.3 Dependency Injection
 
-**Avoid:**
-- `.shared` singletons in production code (except for true app-wide singletons)
-- Direct `ClipItemStore()` construction in views
-- Hidden `UserDefaults.standard` access scattered throughout code
-
-### 2.2 SOLID Principles
-
-#### Single Responsibility Principle (SRP)
-**Rule:** Each file/class should have one clear responsibility.
-
-**Examples:**
-- ✅ `PasteEngine` — focused on paste/activation/keystroke sending
-- ✅ `PersistenceController` — encapsulates Core Data stack
-- ❌ `AppDelegate` doing composition + orchestration + startup checks (split into coordinators)
-
-**Target:** Keep files under 400 lines when possible. Extract coordinators/services when responsibilities grow.
-
-#### Dependency Inversion Principle (DIP)
-**Rule:** Depend on protocols, not concrete types.
-
-**Examples:**
-```swift
-// ✅ GOOD - depends on protocol
-class OverlayViewModel {
-    private let pasteEngine: any PasteEngineProtocol
-
-    init(pasteEngine: any PasteEngineProtocol) {
-        self.pasteEngine = pasteEngine
-    }
-}
-
-// ❌ BAD - depends on concrete type
-class OverlayViewModel {
-    private let pasteEngine = PasteEngine()  // Hard dependency
-}
-```
-
-#### Interface Segregation Principle (ISP)
-**Rule:** Create narrow protocols for specific use cases. Avoid "kitchen sink" protocols.
-
-**Before (❌ BAD):**
-```swift
-protocol AppServiceProviding {
-    var persistence: PersistenceController { get }
-    var clipItemStore: ClipItemStore { get }
-    var pasteboardMonitor: PasteboardMonitor { get }
-    var pasteEngine: PasteEngine { get }
-    var syncCoordinator: SyncCoordinator? { get }
-    // ... 10 more properties
-}
-```
-
-**After (✅ GOOD):**
-```swift
-protocol CaptureServicesProviding {
-    var pasteboardMonitor: PasteboardMonitor { get }
-    var clipItemStore: ClipItemStore { get }
-}
-
-protocol PasteServicesProviding {
-    var pasteEngine: PasteEngine { get }
-    var permissionManager: PermissionManager { get }
-}
-
-// Compose at app root only
-typealias AppServiceProviding = CaptureServicesProviding & PasteServicesProviding
-```
-
-### 2.3 File Size Guidelines
-
-**Targets:**
-- SwiftUI views: < 400 lines (composition may exceed, but extract logic)
-- Services/repositories: < 500 lines
-- Coordinators: < 300 lines
-
-**When to extract:**
-- File exceeds target and has multiple responsibilities
-- Logic can be tested independently
-- Code would be reused elsewhere
-
-**Tools:**
-- Use `MARK:` sections for navigation in larger files
-- Extract view models, coordinators, or services when views grow
-
-### 2.4 Module Boundaries
-
-**3-Layer Architecture:**
-1. **ClipboardCore** — platform-agnostic business rules, persistence, sync
-2. **ClipboardMacServices** — macOS system integrations (pasteboard, paste engine, hotkeys)
-3. **ClipboardMacApp** — SwiftUI/AppKit UI composition
-
-**Rules:**
-- Keep non-UI modules free of SwiftUI imports
-- Core should not depend on Services or App
-- Services should not depend on App
-
----
-
-## 3. Testing & Verification
-
-### 3.1 Test Requirements
-
-**Build Requirements:**
-- `swift build` must pass for `ClipboardCore` and `ClipboardMac`
-- `swift test` must pass for all unit tests
-- No compiler warnings in production builds
-
-**UI Test Requirements:**
-- UI tests must be executed via Xcode when UI changes are made
-- SwiftPM `swift test` skips UI tests (Xcode host runner required)
-
-**Test Coverage:**
-- Add regression tests for bug fixes
-- Add unit tests for new services/coordinators
-- Justify why tests are unchanged for mechanical refactors
-
-### 3.2 Performance Targets
-
-**UX-Critical Flows:**
-| Flow | Target | Measurement |
-|------|--------|-------------|
-| Overlay open | < 500ms | Time from hotkey to first render |
-| Capture | < 50ms | Pasteboard poll to store write |
-| Search | < 100ms | Keystroke to filtered results |
-| Hashing (dedupe) | < 1ms | SHA-256 of typical text payload |
-
-**Enforcement:**
-- Profile with Instruments when performance degrades
-- Add performance regression tests for critical paths
-
-### 3.3 Testing Best Practices
-
-**Unit Tests:**
-```swift
-// ✅ GOOD - tests with injected fake
-func testCaptureWithConfidentialContentIgnored() {
-    let fakeSettings = FakeCaptureSettings(ignoreConfidentialContent: true)
-    let extractor = PasteboardExtractor(settings: fakeSettings)
-    // ...
-}
-
-// ❌ BAD - tests with real UserDefaults
-func testCapture() {
-    UserDefaults.standard.set(true, forKey: "ignoreConfidentialContent")
-    let extractor = PasteboardExtractor()
-    // ...
-}
-```
-
-**Integration Tests:**
-- Use `ClipboardMacValidation` for stress/regression runs
-- Test capture → paste → sync flows end-to-end
-- Validate CloudKit sync with real container (manual testing)
-
----
-
-## 4. Compliance & Quality
-
-### 4.1 Code Review Checklist
-
-Before submitting a PR, verify:
-
-- [ ] No `print()` statements in production code
-- [ ] No clipboard content in logs
-- [ ] Settings providers used (not `@AppStorage` in services)
-- [ ] Dependencies injected (not constructed inline)
-- [ ] Tests added/updated for behavior changes
-- [ ] `MARK:` sections added for navigation in files > 200 lines
-- [ ] File size targets met (or extraction justified)
-- [ ] No compiler warnings
-- [ ] `swift build` and `swift test` pass
-
-### 4.2 Security Framework Validation
-
-**Secure SDLC Compliance:**
-- Map changes to [NIST SSDF](https://csrc.nist.gov/pubs/sp/800/218/final) (SP 800-218)
-- Review threat model for paste injection surface
-- Validate data protection for stored clipboard artifacts
-
-**Categories:**
-- **PO** (Prepare the Organization) — training, policy, tooling
-- **PS** (Protect the Software) — secure repository, build, dependencies
-- **PW** (Produce Well-Secured Software) — design, implementation, testing
-- **RV** (Respond to Vulnerabilities) — detection, response, recovery
-
-### 4.3 Operational Quality
-
-**Logging in Production:**
-- Avoid high-volume logs in normal usage
-- Use `.debug` for noisy instrumentation
-- Treat OS/system logs (entitlement warnings, XPC noise) as non-actionable unless correlated with failures
-
-**Error Handling:**
-- Validate at system boundaries (user input, external APIs)
-- Trust internal code and framework guarantees
-- Don't add error handling for scenarios that can't happen
-
-**Backwards Compatibility:**
-- Delete unused code completely (no `_unused` renames, no `// removed` comments)
-- Prefer clean changes over backwards-compatibility hacks
-
----
-
-## 5. Common Patterns
-
-### 5.1 Settings Provider Pattern
-
-**Use for:** UserDefaults access from services
-
-```swift
-// 1. Define protocol
-protocol FeatureSettingsProviding {
-    var settingName: Bool { get }
-}
-
-// 2. Implement with UserDefaults
-struct UserDefaultsFeatureSettings: FeatureSettingsProviding {
-    private let defaults: UserDefaults
-    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
-
-    var settingName: Bool {
-        defaults.bool(forKey: "settingName")
-    }
-}
-
-// 3. Inject in service
-class FeatureService {
-    private let settings: FeatureSettingsProviding
-    init(settings: FeatureSettingsProviding = UserDefaultsFeatureSettings()) {
-        self.settings = settings
-    }
-}
-
-// 4. Test with fake
-struct FakeFeatureSettings: FeatureSettingsProviding {
-    var settingName: Bool
-}
-```
-
-### 5.2 Coordinator Pattern
-
-**Use for:** Orchestrating workflows (capture, hotkeys, onboarding)
+Inject dependencies with protocol-first interfaces.
 
 ```swift
 @MainActor
-final class FeatureCoordinator {
-    private let serviceA: ServiceA
-    private let serviceB: ServiceB
+protocol ClipItemStoring {
+    @discardableResult
+    func createItem(payload: ClipItemPayload, sourceApp: SourceAppInfo?, isUserCreated: Bool) throws -> ClipItem
+}
 
-    init(serviceA: ServiceA, serviceB: ServiceB) {
-        self.serviceA = serviceA
-        self.serviceB = serviceB
-    }
+struct ExampleView {
+    private let store: any ClipItemStoring
 
-    func start() {
-        // Wire services together
-        serviceA.onEvent = { [weak self] event in
-            self?.serviceB.handle(event)
-        }
-    }
-
-    func stop() {
-        // Cleanup
+    init(store: any ClipItemStoring) {
+        self.store = store
     }
 }
 ```
 
-### 5.3 Repository Pattern
+Avoid constructing heavyweight services directly in views when wiring can happen in the composition root.
 
-**Use for:** Abstracting persistence (ClipItemRepository, PinboardRepository)
+### 2.4 Overlay Dependency Pattern
 
-```swift
-protocol ClipItemRepositoryProtocol {
-    func create(payload: ClipItemPayload) throws -> ClipItem
-    func fetch(objectID: NSManagedObjectID) throws -> ClipItem?
-    func delete(objectID: NSManagedObjectID) throws
-}
+Use `OverlayDependencies` to pass operational collaborators into overlay UI:
 
-final class ClipItemRepository: ClipItemRepositoryProtocol {
-    private let persistence: PersistenceController
+- `any ClipItemStoring`
+- `any ItemOperating`
+- `any PinboardManaging`
+- `OverlayPreviewCoordinator`
+- `any AppleIntelligenceTextServicing`
 
-    init(persistence: PersistenceController = .shared) {
-        self.persistence = persistence
-    }
+This keeps `OverlayShellView` focused on UI state and interaction.
 
-    // CRUD operations
-}
+### 2.5 Event Bus Injection Safety
 
-// Use thin façade if needed for legacy compatibility
-final class ClipItemStore {
-    private let repository: ClipItemRepositoryProtocol
+`clipboardEventBroadcaster` uses a sentinel default (`MissingClipboardEventBroadcaster`) that asserts when not injected.
 
-    init(repository: ClipItemRepositoryProtocol = ClipItemRepository()) {
-        self.repository = repository
-    }
+Rule: always inject `.environment(\.clipboardEventBroadcaster, services.eventBroadcaster)` at the root where overlay/content trees are built.
 
-    func createItem(payload: ClipItemPayload) throws -> ClipItem {
-        try repository.create(payload: payload)
-    }
-}
-```
+### 2.6 SOLID in Practice
 
----
+- **SRP:** keep extraction, filtering, classification, orchestration, and rendering as separate units.
+- **DIP:** prefer interfaces like `PasteEngineProtocol`, `ClipItemStoring`, `SyncCoordinating`.
+- **ISP:** favor narrow protocols (`CaptureSettingsProviding`, `PasteSettingsProviding`, etc.).
+- **OCP:** extend by adding extractor/classifier strategies, not rewriting central switch blocks.
 
-## 6. References
+### 2.7 File Size and Decomposition
 
-- **[CODEBASE.md](./CODEBASE.md)** — Architecture overview and navigation
-- **[ARCHITECTURE-DECISIONS.md](./ARCHITECTURE-DECISIONS.md)** — ADRs explaining key decisions
-- **[NIST SSDF](https://csrc.nist.gov/pubs/sp/800/218/final)** — Secure Software Development Framework
+Target guidance (not hard limits):
+- Coordinators: < 350 lines
+- Services/repositories: < 600 lines
+- SwiftUI views: < 450 lines
+
+When larger files are unavoidable, split by concern into focused extensions/files (current overlay shell pattern is the model).
 
 ---
 
-## 7. Enforcement
+## 3. Concurrency & Isolation
 
-These practices are enforced through:
+### 3.1 Actor/MainActor Discipline
 
-1. **Code review** — checklist above applied to all PRs
-2. **Static analysis** — grep for `print()`, risky logging patterns
-3. **Build validation** — `swift build` and `swift test` must pass
-4. **Performance testing** — critical flows measured against targets
-5. **Security review** — SSDF validation for releases
+- UI state owners should be `@MainActor` (`AppCoordinator`, view models, controllers with UI state).
+- Async pipelines should avoid unnecessary main-thread work.
+- Use detached work only for true background boundaries (for example, async link-preview fetches).
 
-**Violations:** Should be addressed in code review or follow-up PRs.
+### 3.2 `Sendable` and `@unchecked Sendable`
 
-**Exceptions:** Require justification and approval from engineering owner.
+`@unchecked Sendable` is present in several types for pragmatic reasons.
+
+Rules:
+- Add a safety comment explaining why unchecked conformance is valid.
+- Ensure mutable shared state is synchronized (lock/queue/actor confinement).
+- Prefer true `Sendable` designs for new components.
 
 ---
 
-**Last Updated:** 2026-02-03
-**Maintained By:** Engineering Team
+## 4. Settings Access Pattern
+
+Services must not use SwiftUI property wrappers.
+
+Use provider protocols in `ClipboardMacServices/Services/Settings/`:
+- `CaptureSettingsProviding`
+- `LinkPreviewSettingsProviding`
+- `PasteSettingsProviding`
+- `ScreenSharingSettingsProviding`
+
+Inject fake providers in tests instead of mutating global `UserDefaults` directly.
+
+---
+
+## 5. Testing & Verification
+
+### 5.1 Required Local Checks
+
+Before merging behavior changes:
+
+- `swift test` in `ClipboardCore`
+- `swift test` in `ClipboardMac`
+- Run Xcode-hosted UI tests when UI behavior changes (`ClipboardMacUITests`)
+
+### 5.2 Test Strategy
+
+- Unit-test repositories/services with controlled persistence contexts.
+- Unit-test coordinators and handlers with injected fakes.
+- Use `ClipboardMacValidation` for non-UI validation and performance sanity checks.
+
+### 5.3 Regression Rules
+
+- Bug fixes require a failing test or a clear reason a test cannot be added.
+- If behavior changed intentionally, update both tests and docs in the same PR.
+
+---
+
+## 6. Code Review Checklist
+
+- [ ] No clipboard content leakage in logs
+- [ ] No `print()` in production targets
+- [ ] Correct module boundaries maintained
+- [ ] Dependencies injected through protocols/containers
+- [ ] UI lifecycle logic stays in `AppCoordinator`/coordinators
+- [ ] Capture extractor/filter/classifier responsibilities remain separated
+- [ ] Tests added/updated for behavior changes
+- [ ] Build/test commands pass locally
+- [ ] Docs updated when architectural behavior changes
+
+---
+
+## 7. References
+
+- [`CODEBASE.md`](./CODEBASE.md)
+- [`FILE-INVENTORY.md`](./FILE-INVENTORY.md)
+- [`ARCHITECTURE-DECISIONS.md`](./ARCHITECTURE-DECISIONS.md)
+- [`SETUP.md`](./SETUP.md)
+
+---
+
+## 8. Enforcement
+
+These practices are enforced via:
+
+1. Code review against the checklist
+2. Local build/test validation
+3. Ongoing architecture documentation maintenance
+4. Release hardening passes
+
 **Next Review:** 2026-06-01 (quarterly)

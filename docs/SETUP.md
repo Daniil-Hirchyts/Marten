@@ -5,135 +5,152 @@
 - macOS 26.0+
 - Xcode 26.0+
 - Swift 5.9+
-- Apple Developer account (for code signing and CloudKit)
+- Apple Developer account (for signed CloudKit builds)
 
 ---
 
 ## Quick Start
 
-### 1. Build and Run (Command Line)
+### 1) Build and Test (Unsigned Development)
 
 ```bash
-# Build + test ClipboardCore
+# ClipboardCore
 cd ClipboardCore
 swift build
 swift test
 
-# Build + test ClipboardMac
+# ClipboardMac
 cd ../ClipboardMac
 swift build
 swift test
 
-# Run the app (unsigned, no iCloud sync)
+# Run unsigned executable (local development)
 swift run ClipboardMac
 ```
 
-### 2. Build Signed App (Required for iCloud Sync)
+Notes:
+- Unsigned `swift run ClipboardMac` is useful for local workflow validation.
+- iCloud sync and push workflows require a signed app with proper entitlements.
 
-CloudKit requires a signed `.app` with correct entitlements.
+### 2) Signed Build for CloudKit Sync
 
-This repo includes the wrapper resources (Info.plist, entitlements, asset catalogs) under `ClipboardMacWrapper/ClipboardMacWrapper/`, but the wrapper **Xcode project is intentionally not checked in** (the repo ignores `*.xcodeproj`).
+CloudKit requires a signed `.app` with matching entitlements/container.
+
+This repo includes wrapper resources under `ClipboardMacWrapper/ClipboardMacWrapper/`:
+- `ClipboardMacWrapper/ClipboardMacWrapper/Info.plist`
+- `ClipboardMacWrapper/ClipboardMacWrapper/ClipboardMacWrapper.entitlements`
+- `ClipboardMacWrapper/ClipboardMacWrapper/Assets.xcassets`
+
+The wrapper Xcode project itself is intentionally not checked in.
 
 If you already have a local wrapper project:
-1. Open your local `ClipboardMacWrapper.xcodeproj` in Xcode
-2. Select the app target
+1. Open `ClipboardMacWrapper.xcodeproj` locally.
+2. Select your app target.
 3. In **Signing & Capabilities**:
-   - Choose your Team
-   - Set a bundle identifier you own (e.g., `com.yourcompany.paste`)
-   - Add **iCloud** capability:
-     - Enable **CloudKit**
-     - Select/create a container (e.g., `iCloud.com.yourcompany.paste`)
-   - Add **Push Notifications** capability (required for CloudKit subscriptions)
-4. Update container ID in `ClipboardCore/Sources/Sync/CloudKitConfiguration.swift` if different
-5. Build & Run (produces a signed `.app` with entitlements)
+   - choose your Team
+   - set a bundle identifier you own (e.g. `com.yourcompany.paste`)
+   - add **iCloud** + **CloudKit**
+   - set/select your CloudKit container (e.g. `iCloud.com.yourcompany.paste`)
+   - add **Push Notifications**
+4. If needed, update container ID in `ClipboardCore/Sources/Sync/CloudKitConfiguration.swift`.
+5. Build and run signed app.
 
-If you do not have a local wrapper project yet:
-- Create a macOS app wrapper project locally (do not commit it) and wire it to build/ship the `ClipboardMac` executable from `ClipboardMac/`.
-- Reuse the included resources:
-  - `ClipboardMacWrapper/ClipboardMacWrapper/Info.plist`
-  - `ClipboardMacWrapper/ClipboardMacWrapper/ClipboardMacWrapper.entitlements`
-  - `ClipboardMacWrapper/ClipboardMacWrapper/Assets.xcassets`
+If you do not yet have a local wrapper project:
+- Create one locally (do not commit it).
+- Wire it to package/build the `ClipboardMac` executable target.
+- Reuse the provided wrapper resources above.
 
 ---
 
 ## Permissions
 
-The app requires these system permissions:
+Paste uses runtime permission requests when related features are used.
 
-- **Accessibility** — Required for paste injection (CGEvent Cmd+V)
-- **Input Monitoring** — Required for global hotkeys
-- **Screen Recording** — Optional, for screen sharing mode
-
-Permissions are requested at runtime when features are first used.
+- **Accessibility** - required for synthetic paste (Cmd+V injection)
+- **Input Monitoring** - required for global hotkeys
+- **Screen Recording** - optional, for screen-sharing workflows
 
 ---
 
 ## Development Workflow
 
-### Running Tests
+### Test Commands
 
 ```bash
-# Unit tests (ClipboardCore + ClipboardMac)
+# from ClipboardCore/
 swift test
 
-# UI tests (requires Xcode)
-# Open in Xcode and use Test Navigator (⌘6)
+# from ClipboardMac/
+swift test
 ```
 
-### Project Structure
+UI tests in `ClipboardMac/Tests/ClipboardMacUITests` require an Xcode host runner.
+Use Xcode Test Navigator for UI suites.
 
-```
+### Current Validation Snapshot (2026-02-04)
+
+- `ClipboardCore`: 189 tests executed, 0 failures
+- `ClipboardMac`: 152 tests executed, 0 failures, 10 skipped
+- Skipped tests are host-dependent UI tests in plain SwiftPM runs
+
+---
+
+## Project Structure
+
+```text
 Paste/
-├── ClipboardCore/          Swift package (business logic)
+├── ClipboardCore/
 │   ├── Sources/
-│   │   ├── BusinessRules/      Stores, repositories, services
-│   │   ├── DataModel/          Core Data entities
-│   │   ├── Persistence/        Core Data stack
-│   │   └── Sync/               CloudKit sync
-│   └── Tests/              Unit tests
-│
-├── ClipboardMac/           Swift package (macOS app)
+│   └── Tests/
+├── ClipboardMac/
 │   ├── Sources/
-│   │   ├── ClipboardMacApp/      UI & app lifecycle
-│   │   └── ClipboardMacServices/ System services
-│   └── Tests/              Unit & UI tests
-
-├── ClipboardMacWrapper/    Wrapper resources (Info.plist, entitlements, assets)
-│
-└── docs/                   Documentation
+│   └── Tests/
+├── ClipboardMacWrapper/
+└── docs/
 ```
 
-### Build Configurations
+For detailed paths and ownership:
+- [`CODEBASE.md`](./CODEBASE.md)
+- [`FILE-INVENTORY.md`](./FILE-INVENTORY.md)
 
-- **Debug:** Local development, verbose logging
-- **Release:** Optimized, privacy-safe logging only
+---
+
+## Build Configurations
+
+- **Debug:** local development and diagnostics
+- **Release:** optimized build settings for distribution
 
 ---
 
 ## Troubleshooting
 
 ### "CloudKit Sync Unavailable"
-- Ensure app is signed with correct entitlements
-- Verify CloudKit container ID matches configuration
-- Check iCloud account is signed in (System Settings)
+- Confirm app is signed with iCloud + push entitlements.
+- Verify container identifier matches `CloudKitConfiguration`.
+- Confirm iCloud account is signed in on the machine.
 
 ### "Accessibility Permission Denied"
-- Go to System Settings → Privacy & Security → Accessibility
-- Add the app and enable
+- Open System Settings -> Privacy & Security -> Accessibility.
+- Ensure the signed app binary has permission enabled.
 
-### Tests Fail
-- Run `swift build` first to ensure clean build
-- Check test output for specific failures
-- UI tests require Xcode runner (can't run via `swift test`)
+### Hotkeys Not Triggering
+- Verify Input Monitoring permission is granted.
+- Confirm shortcuts in Settings do not conflict with system/global shortcuts.
+
+### Swift Tests Pass but UI Tests Do Not Run
+- Expected for `swift test` on UI-hosted suites.
+- Run UI tests from Xcode with host app context.
 
 ---
 
 ## References
 
-- [CODEBASE.md](./CODEBASE.md) — Architecture overview
-- [BEST-PRACTICES.md](./BEST-PRACTICES.md) — Development guidelines
-- [ARCHITECTURE-DECISIONS.md](./ARCHITECTURE-DECISIONS.md) — Design decisions
+- [`INDEX.md`](./INDEX.md)
+- [`CODEBASE.md`](./CODEBASE.md)
+- [`FILE-INVENTORY.md`](./FILE-INVENTORY.md)
+- [`BEST-PRACTICES.md`](./BEST-PRACTICES.md)
+- [`ARCHITECTURE-DECISIONS.md`](./ARCHITECTURE-DECISIONS.md)
 
 ---
 
-**Last Updated:** 2026-02-03
+**Last Updated:** 2026-02-04
