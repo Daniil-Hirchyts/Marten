@@ -10,6 +10,8 @@ public protocol SyncTokenStoring: Sendable {
 }
 
 /// UserDefaults-based implementation of token storage.
+// SAFETY: UserDefaults is thread-safe for concurrent reads/writes; this type adds no additional
+// shared mutable state.
 public final class UserDefaultsSyncTokenStorage: SyncTokenStoring, @unchecked Sendable {
     private let userDefaults: UserDefaults
     private let keyPrefix: String
@@ -265,4 +267,6 @@ public final class SyncTokenManager {
     }
 }
 
+// SAFETY: SyncTokenManager protects its in-memory cache with `lock` and only uses `storage` via the
+// Sendable `SyncTokenStoring` abstraction.
 extension SyncTokenManager: @unchecked Sendable {}

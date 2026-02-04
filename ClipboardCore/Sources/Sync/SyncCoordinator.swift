@@ -180,7 +180,8 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
 
     // MARK: - Private State
 
-    private var periodicSyncTask: Task<Void, Never>?
+    private let periodicScheduler = PeriodicSyncScheduler()
+    private var stateMachine = SyncStateMachine()
     private var isSyncInProgress = false
     private let syncLock = NSLock()
     private var cancellables = Set<AnyCancellable>()
@@ -227,7 +228,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     }
 
     deinit {
-        periodicSyncTask?.cancel()
+        periodicScheduler.stop()
     }
 
     // MARK: - Public Methods
@@ -285,8 +286,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         log("Stopping sync...")
 
         // Stop periodic sync
-        periodicSyncTask?.cancel()
-        periodicSyncTask = nil
+        periodicScheduler.stop()
 
         // Stop outbound engine
         outboundEngine.stop()
@@ -411,8 +411,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     /// Called when the app enters the background.
     public func handleAppWillResignActive() {
         log("App will resign active, pausing periodic sync")
-        periodicSyncTask?.cancel()
-        periodicSyncTask = nil
+        periodicScheduler.stop()
     }
 
     /// Called when network becomes available.
@@ -453,21 +452,14 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     }
 
     private func startPeriodicInboundSync() {
-        periodicSyncTask?.cancel()
+        periodicScheduler.start(interval: configuration.periodicFetchInterval) { [weak self] in
+            await MainActor.run {
+                guard let self else { return }
+                guard self.syncEnabled, self.isSetUp else { return }
 
-        periodicSyncTask = Task { [weak self] in
-            guard let self else { return }
-
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(nanoseconds: UInt64(self.configuration.periodicFetchInterval * 1_000_000_000))
-
-                    guard !Task.isCancelled else { break }
-                    guard self.syncEnabled, self.isSetUp else { continue }
-
+                Task { [weak self] in
+                    guard let self else { return }
                     await self.performPeriodicInboundSync()
-                } catch {
-                    break
                 }
             }
         }
@@ -507,11 +499,13 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     }
 
     private func updateStatus(_ newStatus: SyncStatus) {
-        status = newStatus
+        stateMachine.transition(to: newStatus)
+        status = stateMachine.status
     }
 
     private func updateProgress(_ newProgress: SyncProgress) {
-        progress = newProgress
+        stateMachine.updateProgress(newProgress)
+        progress = stateMachine.progress
     }
 
     private func handleError(_ error: CloudKitSyncError) {

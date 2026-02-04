@@ -2,14 +2,30 @@ import CoreData
 import Foundation
 
 public final class ClipItemStore {
-    private let repository: ClipItemRepository
-    private let pinboardRepository: PinboardRepository
-    private let assetManagementService: AssetManagementService
-    private let retentionService: ClipItemRetentionService
-    private let usageService: ClipItemUsageService
-    private let searchService: SearchService
+    private let repository: any ClipItemRepositoryProtocol
+    private let pinboardRepository: any PinboardRepositoryProtocol
+    private let assetManagementService: any AssetManagementServicing
+    private let retentionService: any ClipItemRetentionServicing
+    private let usageService: any ClipItemUsageServicing
+    private let searchService: any SearchServicing
 
-    public init(persistence: PersistenceController = .shared, assetStore: AssetStore = .shared) {
+    public init(
+        repository: any ClipItemRepositoryProtocol,
+        retentionService: any ClipItemRetentionServicing,
+        usageService: any ClipItemUsageServicing,
+        assetManagementService: any AssetManagementServicing,
+        pinboardRepository: any PinboardRepositoryProtocol,
+        searchService: any SearchServicing
+    ) {
+        self.repository = repository
+        self.retentionService = retentionService
+        self.usageService = usageService
+        self.assetManagementService = assetManagementService
+        self.pinboardRepository = pinboardRepository
+        self.searchService = searchService
+    }
+
+    public convenience init(persistence: PersistenceController = .shared, assetStore: AssetStore = .shared) {
         let pinboardRepository = PinboardRepository(persistence: persistence)
         let searchService = SearchService(persistence: persistence)
         let assetManagementService = AssetManagementService(
@@ -17,21 +33,27 @@ public final class ClipItemStore {
             assetStore: assetStore
         )
 
-        self.repository = ClipItemRepository(
+        let repository = ClipItemRepository(
             persistence: persistence,
             assetStore: assetStore,
             pinboardRepository: pinboardRepository,
             searchService: searchService,
             assetManagementService: assetManagementService
         )
-        self.pinboardRepository = pinboardRepository
-        self.assetManagementService = assetManagementService
-        self.retentionService = ClipItemRetentionService(
+        let retentionService = ClipItemRetentionService(
             persistence: persistence,
             assetManagementService: assetManagementService
         )
-        self.usageService = ClipItemUsageService(persistence: persistence)
-        self.searchService = searchService
+        let usageService = ClipItemUsageService(persistence: persistence)
+
+        self.init(
+            repository: repository,
+            retentionService: retentionService,
+            usageService: usageService,
+            assetManagementService: assetManagementService,
+            pinboardRepository: pinboardRepository,
+            searchService: searchService
+        )
     }
 
     @discardableResult
@@ -91,6 +113,20 @@ public final class ClipItemStore {
 
     public func deleteItem(objectID: NSManagedObjectID) throws {
         try repository.deleteItem(objectID: objectID)
+    }
+
+    public func updateItem(_ item: ClipItem, with payload: ClipItemPayload) throws {
+        _ = try repository.updateItem(objectID: item.objectID, payload: payload)
+    }
+
+    public func toggleFavorite(_ item: ClipItem) throws {
+        try repository.toggleFavorite(objectID: item.objectID)
+    }
+
+    public func moveItemsToPinboard(_ items: [ClipItem], pinboard: Pinboard) throws {
+        for item in items {
+            try pinboardRepository.moveItem(objectID: item.objectID, toPinboard: pinboard.objectID)
+        }
     }
 
     public func fetchPinboards() throws -> [Pinboard] {
@@ -220,4 +256,8 @@ public final class ClipItemStore {
     }
 }
 
+// SAFETY: ClipItemStore is a thin, immutable facade that forwards into services which serialize
+// Core Data access on their context queues (via `performAndWaitThrowing`).
 extension ClipItemStore: @unchecked Sendable {}
+
+extension ClipItemStore: ClipItemStoring {}

@@ -44,3 +44,9 @@ final class ClipItemRetentionService {
         return deletedCount
     }
 }
+
+// SAFETY: ClipItemRetentionService is immutable after initialization. All Core Data mutations are
+// performed on a private background context via `performAndWaitThrowing`.
+extension ClipItemRetentionService: @unchecked Sendable {}
+
+extension ClipItemRetentionService: ClipItemRetentionServicing {}

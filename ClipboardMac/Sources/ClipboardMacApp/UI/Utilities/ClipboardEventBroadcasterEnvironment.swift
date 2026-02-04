@@ -2,7 +2,7 @@ import ClipboardMacServices
 import SwiftUI
 
 private struct ClipboardEventBroadcasterKey: EnvironmentKey {
-    static let defaultValue: any ClipboardEventBroadcaster = ClipboardEventBroadcasterImpl()
+    static let defaultValue: any ClipboardEventBroadcaster = MissingClipboardEventBroadcaster()
 }
 
 extension EnvironmentValues {

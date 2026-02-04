@@ -90,18 +90,18 @@ final class TestAppServices: AppServiceProviding {
     let thumbnailGenerator: ThumbnailGenerator
 
     let hotkeyManager: HotkeyManager
-    let permissionManager: PermissionManager
+    let permissionManager: any AccessibilityPermissionChecking
     let activeAppTracker: ActiveAppTracker
     let eventBroadcaster: any ClipboardEventBroadcaster
-    let pasteEngine: PasteEngine
+    let pasteEngine: any PasteEngineProtocol
     let screenSharingManager: ScreenSharingManager
     let syncCoordinator: SyncCoordinator?
 
     init(
         persistence: PersistenceController,
         clipItemStore: ClipItemStore,
-        pasteEngine: PasteEngine,
-        permissionManager: PermissionManager = PermissionManager(),
+        pasteEngine: any PasteEngineProtocol,
+        permissionManager: any AccessibilityPermissionChecking = PermissionManager(),
         activeAppTracker: ActiveAppTracker = ActiveAppTracker(),
         eventBroadcaster: any ClipboardEventBroadcaster = ClipboardEventBroadcasterImpl()
     ) {

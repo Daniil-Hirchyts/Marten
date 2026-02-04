@@ -3,13 +3,47 @@ import OSLog
 
 /// CrashReporter provides centralized error logging and crash reporting
 /// using OSLog for production diagnostics.
-public final class CrashReporter: @unchecked Sendable {
+// SAFETY: CrashReporter synchronizes access to its mutable state using `stateLock`.
+public final class CrashReporter: CrashReporting, @unchecked Sendable {
     
     public static let shared = CrashReporter()
     
     private let logger = Logger(subsystem: "com.paste.clipboard", category: "crash")
+
+    private let stateLock = NSLock()
+    private var currentUserID: String?
     
     private init() {}
+
+    public func setup() {
+        setupGlobalExceptionHandler()
+    }
+
+    public func recordError(_ error: Error, userInfo: [String: Any]?) {
+        let errorDescription = "\(error)"
+        let userID = getUserID()
+        let info = userInfo?.map { "\($0.key): \(String(describing: $0.value))" }.joined(separator: ", ") ?? ""
+        logger.error("[ERROR] userID: \(userID ?? "-", privacy: .public) | \(errorDescription, privacy: .public) | \(info, privacy: .public)")
+    }
+
+    public func recordEvent(_ name: String, parameters: [String: Any]?) {
+        let userID = getUserID()
+        let params = parameters?.map { "\($0.key): \(String(describing: $0.value))" }.joined(separator: ", ") ?? ""
+        logger.info("[EVENT] \(name, privacy: .public) userID: \(userID ?? "-", privacy: .public) | \(params, privacy: .public)")
+    }
+
+    public func setUserID(_ userID: String?) {
+        stateLock.lock()
+        currentUserID = userID
+        stateLock.unlock()
+    }
+
+    private func getUserID() -> String? {
+        stateLock.lock()
+        let value = currentUserID
+        stateLock.unlock()
+        return value
+    }
     
     /// Records a non-fatal error that was handled gracefully
     public func recordError(

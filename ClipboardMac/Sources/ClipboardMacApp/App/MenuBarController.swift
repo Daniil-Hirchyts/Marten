@@ -7,6 +7,7 @@ final class MenuBarController: NSObject {
     private let statusItem: NSStatusItem
     private let toggleHandler: () -> Void
     private let hideOverlayHandler: (@escaping () -> Void) -> Void
+    private let settingsOpener: any SettingsOpening
     private let screenSharingManager: ScreenSharingManager
     private let pasteboardMonitor: PasteboardMonitor
     private let openNewTextItemHandler: () -> Void
@@ -20,12 +21,14 @@ final class MenuBarController: NSObject {
     init(
         toggleHandler: @escaping () -> Void,
         hideOverlayHandler: @escaping (@escaping () -> Void) -> Void,
+        settingsOpener: any SettingsOpening,
         screenSharingManager: ScreenSharingManager,
         pasteboardMonitor: PasteboardMonitor,
         openNewTextItemHandler: @escaping () -> Void = {}
     ) {
         self.toggleHandler = toggleHandler
         self.hideOverlayHandler = hideOverlayHandler
+        self.settingsOpener = settingsOpener
         self.screenSharingManager = screenSharingManager
         self.pasteboardMonitor = pasteboardMonitor
         self.openNewTextItemHandler = openNewTextItemHandler
@@ -140,8 +143,9 @@ final class MenuBarController: NSObject {
 
     @objc private func openSettings() {
         hideOverlayHandler {
-            // Call the AppDelegate method to open settings
-            NSApp.sendAction(#selector(AppDelegate.openSettingsWindow), to: nil, from: nil)
+            Task { @MainActor in
+                self.settingsOpener.openSettings()
+            }
         }
     }
 

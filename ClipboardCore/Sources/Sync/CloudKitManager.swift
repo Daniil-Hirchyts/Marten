@@ -20,6 +20,8 @@ public protocol CloudKitContainerProviding: Sendable {
 }
 
 /// Wrapper to make CKContainer conform to CloudKitContainerProviding.
+// SAFETY: CKContainer is treated as thread-safe by CloudKit. This wrapper only forwards calls and
+// holds no additional mutable state.
 public final class SystemCloudKitContainer: CloudKitContainerProviding, @unchecked Sendable {
     private let container: CKContainer
 
@@ -384,4 +386,6 @@ public final class CloudKitManager {
     }
 }
 
+// SAFETY: CloudKitManager protects its mutable state with `stateLock` and is safe to share across
+// tasks. Delegates must marshal to the main thread when touching UI.
 extension CloudKitManager: @unchecked Sendable {}

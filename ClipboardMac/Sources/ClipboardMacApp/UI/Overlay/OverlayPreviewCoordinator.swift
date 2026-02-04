@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Coordinates preview popover state and operations
 @MainActor
-final class OverlayPreviewCoordinator: ObservableObject {
+public final class OverlayPreviewCoordinator: ObservableObject {
     @Published var previewItemID: NSManagedObjectID?
     @Published var isPreviewPopoverPresented = false
 

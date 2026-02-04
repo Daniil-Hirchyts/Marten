@@ -173,4 +173,6 @@ public final class StackSessionStore {
     }
 }
 
+// SAFETY: StackSessionStore is immutable after initialization and runs Core Data work on the
+// correct context queue via `performAndWaitThrowing`.
 extension StackSessionStore: @unchecked Sendable {}

@@ -36,4 +36,6 @@ public final class SoundEffectPlayer {
     }
 }
 
+// SAFETY: SoundEffectPlayer is expected to be used from the main thread/UI. It maintains an
+// internal cache of NSSound instances which is not synchronized.
 extension SoundEffectPlayer: @unchecked Sendable {}

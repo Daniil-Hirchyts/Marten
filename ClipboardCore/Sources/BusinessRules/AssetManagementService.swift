@@ -226,4 +226,9 @@ final class AssetManagementService {
     }
 }
 
+// SAFETY: AssetManagementService is immutable after initialization. All Core Data work is executed
+// on the owning context queue via `performAndWaitThrowing`, and file operations are delegated to
+// `AssetStore`/`FileManager`.
 extension AssetManagementService: @unchecked Sendable {}
+
+extension AssetManagementService: AssetManagementServicing {}

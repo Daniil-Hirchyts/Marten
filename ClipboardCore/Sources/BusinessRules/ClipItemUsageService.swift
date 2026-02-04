@@ -78,4 +78,8 @@ final class ClipItemUsageService {
     }
 }
 
+// SAFETY: ClipItemUsageService is immutable after initialization and uses a private background
+// context for mutations; view-context refreshes are performed via `performAndWaitThrowing`.
 extension ClipItemUsageService: @unchecked Sendable {}
+
+extension ClipItemUsageService: ClipItemUsageServicing {}

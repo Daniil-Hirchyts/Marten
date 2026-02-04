@@ -51,4 +51,9 @@ final class SearchService {
     }
 }
 
+// SAFETY: SearchService is immutable after initialization. Core Data access is performed via
+// `PersistenceController.viewContext.performAndWaitThrowing`, which serializes work onto the
+// context's queue.
 extension SearchService: @unchecked Sendable {}
+
+extension SearchService: SearchServicing {}

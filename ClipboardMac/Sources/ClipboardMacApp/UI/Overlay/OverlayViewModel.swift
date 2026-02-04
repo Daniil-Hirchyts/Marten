@@ -40,10 +40,13 @@ final class OverlayViewModel: ObservableObject {
         services: any AppServiceProviding,
         closeOverlayForPaste: @escaping (@escaping () -> Void) -> Void
     ) {
+        guard let permissionManager = services.permissionManager as? PermissionManager else {
+            preconditionFailure("AppServiceProviding.permissionManager must be a PermissionManager")
+        }
         self.init(
             persistence: services.persistence,
             pasteEngine: services.pasteEngine,
-            permissionManager: services.permissionManager,
+            permissionManager: permissionManager,
             closeOverlayForPaste: closeOverlayForPaste
         )
     }
@@ -181,4 +184,6 @@ final class OverlayViewModel: ObservableObject {
     }
 }
 
+// SAFETY: OverlayViewModel is UI-owned and only accessed on the main actor.
+@MainActor
 extension OverlayViewModel: @unchecked Sendable {}

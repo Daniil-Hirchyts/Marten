@@ -1,0 +1,27 @@
+import ClipboardCore
+import SwiftUI
+
+extension ItemCard {
+    @ViewBuilder
+    var contextMenuContent: some View {
+        CardContextMenu(
+            item: item,
+            itemID: item.id,
+            isPinned: item.isPinned,
+            allowPinning: allowPinning,
+            assignedPinboardIDs: assignedPinboardIDs,
+            pinboards: pinboards,
+            lockedPinboardIDs: lockedPinboardIDs,
+            onPaste: onPaste,
+            onPastePlainText: onPastePlainText,
+            onTogglePin: onTogglePin,
+            onCopy: onCopy,
+            onMoveToPinboard: onMoveToPinboard,
+            onCreatePinboard: onCreatePinboard,
+            onEdit: onEdit,
+            onRename: onRename,
+            onDelete: onDelete
+        )
+    }
+}
+

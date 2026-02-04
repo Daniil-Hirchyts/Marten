@@ -33,4 +33,6 @@ final class ClipItemDeduplicationService {
     }
 }
 
-extension ClipItemDeduplicationService: @unchecked Sendable {}
+extension ClipItemDeduplicationService: Sendable {}
+
+extension ClipItemDeduplicationService: ClipItemDeduplicationServicing {}

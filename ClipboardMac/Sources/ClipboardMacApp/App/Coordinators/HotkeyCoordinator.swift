@@ -9,7 +9,7 @@ final class HotkeyCoordinator {
     private let hotkeyManager: HotkeyManager
     private let permissionManager: PermissionManager
     private let clipItemStore: ClipItemStore
-    private let pasteEngine: PasteEngine
+    private let pasteEngine: any PasteEngineProtocol
     private let pasteSettings: any PasteSettingsProviding
     private let hideOverlayForPaste: (@escaping () -> Void) -> Void
     private let toggleOverlay: () -> Void
@@ -20,7 +20,7 @@ final class HotkeyCoordinator {
         hotkeyManager: HotkeyManager,
         permissionManager: PermissionManager,
         clipItemStore: ClipItemStore,
-        pasteEngine: PasteEngine,
+        pasteEngine: any PasteEngineProtocol,
         pasteSettings: any PasteSettingsProviding,
         toggleOverlay: @escaping () -> Void,
         hideOverlayForPaste: @escaping (@escaping () -> Void) -> Void

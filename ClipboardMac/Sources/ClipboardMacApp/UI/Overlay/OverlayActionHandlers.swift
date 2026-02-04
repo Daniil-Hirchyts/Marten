@@ -6,8 +6,8 @@ import SwiftUI
 /// Consolidated action handlers for overlay operations
 @MainActor
 struct OverlayActionHandlers {
-    let itemOperationsHandler: ItemOperationsHandler
-    let pinboardManager: PinboardManager
+    let itemOperationsHandler: any ItemOperating
+    let pinboardManager: any PinboardManaging
     let pasteStackManager: PasteStackManager
     let pinboardLockController: PinboardLockController
     let searchModel: OverlaySearchViewModel

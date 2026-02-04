@@ -2,13 +2,13 @@ import AppKit
 import ClipboardCore
 
 /// Result from a pasteboard type extraction
-struct ExtractionResult {
-    let representation: ClipRepresentationPayload
-    let primaryText: String?
-    let needsLinkPreview: Bool
-    let textLooksLikeCode: Bool
+public struct ExtractionResult {
+    public let representation: ClipRepresentationPayload
+    public let primaryText: String?
+    public let needsLinkPreview: Bool
+    public let textLooksLikeCode: Bool
     
-    init(
+    public init(
         representation: ClipRepresentationPayload,
         primaryText: String? = nil,
         needsLinkPreview: Bool = false,
@@ -22,7 +22,7 @@ struct ExtractionResult {
 }
 
 /// Protocol for extracting specific content types from the pasteboard
-protocol PasteboardTypeExtractor {
+public protocol PasteboardTypeExtractor {
     /// Attempts to extract content from the pasteboard
     /// - Parameters:
     ///   - pasteboard: The pasteboard to extract from

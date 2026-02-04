@@ -20,6 +20,8 @@ public protocol ZoneChangeTokenStoring: Sendable {
     func clear() throws
 }
 
+// SAFETY: SyncTokenZoneStore is immutable after initialization and delegates all mutable state to
+// SyncTokenManager, which internally synchronizes access.
 public final class SyncTokenZoneStore: ZoneChangeTokenStoring, @unchecked Sendable {
     private let tokenManager: SyncTokenManager
     private let zoneID: CKRecordZone.ID
@@ -67,6 +69,8 @@ public protocol ZoneChangesFetching: Sendable {
     ) async throws -> Data?
 }
 
+// SAFETY: CKDatabase operations are expected to be thread-safe; this wrapper holds no mutable state
+// beyond its immutable configuration.
 public final class CloudKitZoneChangesFetcher: ZoneChangesFetching, @unchecked Sendable {
     private let database: CKDatabase
     private let resultsLimit: Int

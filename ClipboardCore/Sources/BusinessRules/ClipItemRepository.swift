@@ -20,19 +20,19 @@ public enum ClipItemStoreError: Error {
 final class ClipItemRepository {
     private let persistence: PersistenceController
     private let assetStore: AssetStore
-    private let pinboardRepository: PinboardRepository
-    private let searchService: SearchService
-    private let assetManagementService: AssetManagementService
-    private let deduplicationService: ClipItemDeduplicationService
+    private let pinboardRepository: any PinboardRepositoryProtocol
+    private let searchService: any SearchServicing
+    private let assetManagementService: any AssetManagementServicing
+    private let deduplicationService: any ClipItemDeduplicationServicing
     private let assetThresholdBytes = 256 * 1024
 
     init(
         persistence: PersistenceController,
         assetStore: AssetStore,
-        pinboardRepository: PinboardRepository,
-        searchService: SearchService,
-        assetManagementService: AssetManagementService,
-        deduplicationService: ClipItemDeduplicationService = ClipItemDeduplicationService()
+        pinboardRepository: any PinboardRepositoryProtocol,
+        searchService: any SearchServicing,
+        assetManagementService: any AssetManagementServicing,
+        deduplicationService: any ClipItemDeduplicationServicing = ClipItemDeduplicationService()
     ) {
         self.persistence = persistence
         self.assetStore = assetStore
@@ -414,6 +414,137 @@ final class ClipItemRepository {
         return try fetchRefreshedItemInViewContext(objectID: updatedObjectID)
     }
 
+    @discardableResult
+    func updateItem(objectID: NSManagedObjectID, payload: ClipItemPayload) throws -> ClipItem {
+        guard !payload.representations.isEmpty else {
+            throw ClipItemStoreError.missingContent
+        }
+
+        let now = Date()
+        let displayOrder = currentDisplayOrder(reference: now)
+        let hash = try deduplicationService.computeContentHash(
+            primaryText: payload.primaryText,
+            representations: payload.representations
+        )
+
+        let context = persistence.newBackgroundContext()
+        var updatedObjectID: NSManagedObjectID?
+
+        try context.performAndWaitThrowing {
+            guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                throw ClipItemStoreError.missingItem
+            }
+
+            assetManagementService.removeAssets(for: item)
+            for rep in item.representations ?? [] {
+                item.removeFromRepresentations(rep)
+                context.delete(rep)
+            }
+
+            item.modifiedAt = now
+            item.displayOrder = displayOrder
+            item.itemTypeValue = payload.itemType
+            item.primaryText = payload.primaryText
+            item.searchableText = searchService.deriveSearchableText(
+                primaryText: payload.primaryText,
+                representations: payload.representations
+            )
+            item.contentHash = hash
+            item.needsLinkPreview = payload.needsLinkPreview
+            item.isSensitive = payload.isSensitive
+            item.isTransient = payload.isTransient
+
+            var totalBytes: Int64 = 0
+            let sortedRepresentations = payload.representations.sorted {
+                $0.displayOrder < $1.displayOrder
+            }
+
+            for repPayload in sortedRepresentations {
+                guard
+                    let representation = NSEntityDescription.insertNewObject(
+                        forEntityName: "ClipRepresentation",
+                        into: context
+                    ) as? ClipRepresentation
+                else {
+                    throw ClipItemStoreError.creationFailed
+                }
+
+                representation.id = UUID()
+                representation.uti = repPayload.uti
+                representation.kindValue = repPayload.kind
+                representation.displayOrder = repPayload.displayOrder
+                representation.fileExtension = repPayload.fileExtension
+                representation.clipItem = item
+
+                var repBytes: Int64 = 0
+
+                if let text = repPayload.text, !text.isEmpty {
+                    let textData = Data(text.utf8)
+                    representation.textData = textData
+                    repBytes += Int64(textData.count)
+                } else {
+                    representation.textData = nil
+                }
+
+                if let data = repPayload.data {
+                    repBytes += Int64(data.count)
+                    if data.count > assetThresholdBytes {
+                        representation.assetRef = try assetStore.store(
+                            data: data,
+                            fileExtension: repPayload.fileExtension
+                        )
+                        representation.binaryData = nil
+                    } else {
+                        representation.binaryData = data
+                        representation.assetRef = nil
+                    }
+                } else {
+                    representation.binaryData = nil
+                    representation.assetRef = nil
+                }
+
+                representation.byteCount = repBytes
+                totalBytes += repBytes
+                item.addToRepresentations(representation)
+            }
+
+            item.byteCount = totalBytes
+
+            try context.save()
+            updatedObjectID = item.objectID
+        }
+
+        guard let updatedObjectID else {
+            throw ClipItemStoreError.missingItem
+        }
+
+        return try fetchRefreshedItemInViewContext(objectID: updatedObjectID)
+    }
+
+    func toggleFavorite(objectID: NSManagedObjectID) throws {
+        let context = persistence.newBackgroundContext()
+
+        try context.performAndWaitThrowing {
+            guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                throw ClipItemStoreError.missingItem
+            }
+
+            item.isPinned.toggle()
+            item.modifiedAt = Date()
+
+            if context.hasChanges {
+                try context.save()
+            }
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            if let item = try? viewContext.existingObject(with: objectID) as? ClipItem {
+                viewContext.refresh(item, mergeChanges: true)
+            }
+        }
+    }
+
     func deleteItem(objectID: NSManagedObjectID) throws {
         let context = persistence.newBackgroundContext()
 
@@ -533,4 +664,8 @@ final class ClipItemRepository {
     }
 }
 
+// SAFETY: ClipItemRepository is immutable after initialization. Core Data and file-system work is
+// performed on the appropriate context queue via `performAndWaitThrowing`.
 extension ClipItemRepository: @unchecked Sendable {}
+
+extension ClipItemRepository: ClipItemRepositoryProtocol {}

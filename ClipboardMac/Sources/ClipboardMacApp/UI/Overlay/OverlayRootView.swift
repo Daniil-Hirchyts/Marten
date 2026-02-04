@@ -3,14 +3,14 @@ import SwiftUI
 
 struct OverlayRootView: View {
     private let persistence: PersistenceController
-    private let store: ClipItemStore
+    private let dependencies: OverlayDependencies
 
-    init(persistence: PersistenceController, store: ClipItemStore) {
+    init(persistence: PersistenceController, dependencies: OverlayDependencies) {
         self.persistence = persistence
-        self.store = store
+        self.dependencies = dependencies
     }
 
     var body: some View {
-        OverlayShellView(persistence: persistence, store: store)
+        OverlayShellView(persistence: persistence, dependencies: dependencies)
     }
 }

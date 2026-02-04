@@ -13,19 +13,19 @@ final class OverlayWindowController {
     private var outsideClickMonitor: Any?
     private var activationObservers: [NSObjectProtocol] = []
     private weak var hotkeyManager: HotkeyManager?
-    private let eventBroadcaster: ClipboardEventBroadcaster
+    private let eventBroadcaster: any ClipboardEventBroadcaster
     private let screenSharingManager: ScreenSharingManager
     private let layoutSettings: OverlayLayoutSettings
     private var cancellables: Set<AnyCancellable> = []
 
     init(
-        persistence: PersistenceController = OverlayWindowController.defaultPersistence(),
-        pasteEngine: PasteEngine = PasteEngine(),
-        permissionManager: PermissionManager = PermissionManager(),
-        hotkeyManager: HotkeyManager? = nil,
-        eventBroadcaster: ClipboardEventBroadcaster = ClipboardEventBroadcasterImpl(),
-        screenSharingManager: ScreenSharingManager = ScreenSharingManager(),
-        clipItemStore: ClipItemStore? = nil,
+        persistence: PersistenceController,
+        pasteEngine: any PasteEngineProtocol,
+        permissionManager: PermissionManager,
+        hotkeyManager: HotkeyManager?,
+        eventBroadcaster: any ClipboardEventBroadcaster,
+        screenSharingManager: ScreenSharingManager,
+        overlayDependencies: OverlayDependencies,
         rootView: AnyView? = nil
     ) {
         self.hotkeyManager = hotkeyManager
@@ -62,7 +62,6 @@ final class OverlayWindowController {
         if let rootView {
             panel.contentView = NSHostingView(rootView: rootView)
         } else {
-            let resolvedClipItemStore = clipItemStore ?? ClipItemStore(persistence: persistence)
             let model = OverlayViewModel(
                 persistence: persistence,
                 pasteEngine: pasteEngine,
@@ -76,7 +75,7 @@ final class OverlayWindowController {
             }
             viewModel = model
             let contentView = AnyView(
-                OverlayRootView(persistence: persistence, store: resolvedClipItemStore)
+                OverlayRootView(persistence: persistence, dependencies: overlayDependencies)
                     .environment(\.managedObjectContext, persistence.viewContext)
                     .environment(\.clipboardEventBroadcaster, eventBroadcaster)
                     .environmentObject(model)
@@ -285,12 +284,6 @@ final class OverlayWindowController {
         activationObservers.removeAll()
     }
 
-    nonisolated private static func defaultPersistence() -> PersistenceController {
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
-            return PersistenceController(inMemory: true)
-        }
-        return .shared
-    }
 }
 
 private final class OverlayPanel: NSPanel {

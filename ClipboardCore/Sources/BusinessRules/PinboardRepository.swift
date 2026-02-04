@@ -261,4 +261,8 @@ final class PinboardRepository {
     }
 }
 
+// SAFETY: PinboardRepository is immutable after initialization and performs all Core Data access
+// via `performAndWaitThrowing` on the appropriate context queue.
 extension PinboardRepository: @unchecked Sendable {}
+
+extension PinboardRepository: PinboardRepositoryProtocol {}

@@ -110,4 +110,4 @@ public final class ThumbnailGenerator {
     }
 }
 
-extension ThumbnailGenerator: @unchecked Sendable {}
+extension ThumbnailGenerator: Sendable {}

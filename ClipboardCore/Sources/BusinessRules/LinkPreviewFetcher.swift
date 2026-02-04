@@ -142,4 +142,6 @@ public final class LinkPreviewFetcher {
     }
 }
 
+// SAFETY: LinkPreviewFetcher stores preferences in UserDefaults (thread-safe) and performs all
+// fetch operations using local variables.
 extension LinkPreviewFetcher: @unchecked Sendable {}
