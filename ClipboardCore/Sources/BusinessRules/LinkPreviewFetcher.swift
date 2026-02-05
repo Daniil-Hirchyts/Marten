@@ -51,6 +51,9 @@ public enum LinkPreviewError: Error, LocalizedError {
 }
 
 public final class LinkPreviewFetcher {
+    private static let fetchTimeoutNanoseconds: UInt64 = 10_000_000_000 // 10 seconds
+    private static let imageTimeoutNanoseconds: UInt64 = 5_000_000_000 // 5 seconds
+
     private let userDefaults: UserDefaults
     private let userDefaultsKey = "generateLinkPreviews"
 
@@ -80,7 +83,9 @@ public final class LinkPreviewFetcher {
 
         let metadata: LPLinkMetadata
         do {
-            metadata = try await provider.startFetchingMetadata(for: url)
+            metadata = try await withDeadline(nanoseconds: Self.fetchTimeoutNanoseconds) {
+                try await provider.startFetchingMetadata(for: url)
+            }
         } catch {
             throw LinkPreviewError.fetchFailed(error)
         }
@@ -119,17 +124,19 @@ public final class LinkPreviewFetcher {
     }
 
     private func loadImage(from provider: NSItemProvider) async throws -> Data? {
-        let image: NSImage = try await withCheckedThrowingContinuation { continuation in
-            provider.loadObject(ofClass: NSImage.self) { object, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
+        let image: NSImage = try await withDeadline(nanoseconds: Self.imageTimeoutNanoseconds) {
+            try await withCheckedThrowingContinuation { continuation in
+                provider.loadObject(ofClass: NSImage.self) { object, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    guard let image = object as? NSImage else {
+                        continuation.resume(throwing: LinkPreviewError.noMetadata)
+                        return
+                    }
+                    continuation.resume(returning: image)
                 }
-                guard let image = object as? NSImage else {
-                    continuation.resume(throwing: LinkPreviewError.noMetadata)
-                    return
-                }
-                continuation.resume(returning: image)
             }
         }
 
@@ -139,6 +146,26 @@ public final class LinkPreviewFetcher {
         }
 
         return bitmap.representation(using: .png, properties: [:])
+    }
+
+    private func withDeadline<T>(nanoseconds: UInt64, _ body: @escaping () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await body()
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: nanoseconds)
+                throw LinkPreviewError.fetchFailed(
+                    NSError(domain: "LinkPreviewFetcher", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Link preview fetch timed out"])
+                )
+            }
+            guard let result = try await group.next() else {
+                throw LinkPreviewError.noMetadata
+            }
+            group.cancelAll()
+            return result
+        }
     }
 }
 

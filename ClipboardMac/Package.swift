@@ -9,7 +9,6 @@ let package = Package(
     ],
     products: [
         .library(name: "ClipboardMacServices", targets: ["ClipboardMacServices"]),
-        .executable(name: "ClipboardMac", targets: ["ClipboardMac"]),
         .executable(name: "ClipboardMacValidation", targets: ["ClipboardMacValidation"]),
     ],
     dependencies: [

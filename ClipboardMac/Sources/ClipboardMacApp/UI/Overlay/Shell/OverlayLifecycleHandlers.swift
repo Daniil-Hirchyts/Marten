@@ -5,10 +5,13 @@ import SwiftUI
 
 extension OverlayShellView {
     func handleAppear() {
+        perfController.start()
         searchFocused = true
         modifierMonitor.start()
         pinboardLockController.reconcile(validPinboardIDs: visiblePinboardIDs)
         ensureValidSelection()
+        lastFilterInputHash = filterInputHash
+        cachedFilteredItems = computeFilteredItems()
         viewModel.ensureDefaultSelection(in: filteredItems)
         dragCoordinator.ensurePreviewWindow()
         dragCoordinator.ensurePinboardPreviewWindow()
@@ -16,6 +19,7 @@ extension OverlayShellView {
     }
 
     func handleDisappear() {
+        perfController.stop()
         modifierMonitor.stop()
         dragCoordinator.cleanupPreviewWindow()
         dragCoordinator.cleanupPinboardPreviewWindow()

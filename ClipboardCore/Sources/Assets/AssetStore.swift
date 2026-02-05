@@ -33,10 +33,21 @@ public final class AssetStore {
 
     public func delete(assetRef: UUID, fileExtension: String? = nil) throws {
         let url = urlForAsset(assetRef, fileExtension: fileExtension)
-        guard fileManager.fileExists(atPath: url.path) else {
-            throw AssetStoreError.missingAsset
+        if fileManager.fileExists(atPath: url.path) {
+            try fileManager.removeItem(at: url)
+            return
         }
-        try fileManager.removeItem(at: url)
+
+        let uuidString = assetRef.uuidString
+        let contents = try fileManager.contentsOfDirectory(at: baseURL, includingPropertiesForKeys: nil, options: [])
+        for item in contents {
+            if item.deletingPathExtension().lastPathComponent == uuidString {
+                try fileManager.removeItem(at: item)
+                return
+            }
+        }
+
+        throw AssetStoreError.missingAsset
     }
 
     public func urlForAsset(_ assetRef: UUID, fileExtension: String? = nil) -> URL {

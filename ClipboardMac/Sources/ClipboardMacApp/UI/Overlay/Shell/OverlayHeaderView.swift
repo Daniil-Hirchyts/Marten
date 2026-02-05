@@ -111,7 +111,7 @@ extension OverlayShellView {
             if #available(macOS 14.0, *) {
                 OverlaySettingsButton14(
                     closeOverlay: { viewModel.closeOverlayForSettings(completion: $0) },
-                    label: AnyView(settingsIcon)
+                    label: { settingsIcon }
                 )
             } else {
                 Button { viewModel.closeOverlayForSettings(completion: openSettingsLegacy) }
@@ -144,4 +144,3 @@ extension OverlayShellView {
         }
     }
 }
-

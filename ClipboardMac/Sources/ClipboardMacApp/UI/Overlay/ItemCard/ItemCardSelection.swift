@@ -148,9 +148,7 @@ extension ItemCard {
     }
 
     var timeAgo: String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: item.modifiedAt, relativeTo: Date())
+        ItemCardFormatters.relativeDate.localizedString(for: item.modifiedAt, relativeTo: Date())
     }
 
     var accessibilityLabelText: String {
@@ -185,6 +183,14 @@ extension ItemCard {
         }
         return trimmed
     }
+}
+
+private enum ItemCardFormatters {
+    static let relativeDate: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter
+    }()
 }
 
 enum ClipboardHexColor {

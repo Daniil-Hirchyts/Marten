@@ -15,6 +15,7 @@ public protocol PinboardRepositoryProtocol: Sendable {
     func addItem(objectID: NSManagedObjectID, toPinboard pinboardID: NSManagedObjectID) throws
     func removeItem(objectID: NSManagedObjectID, fromPinboard pinboardID: NSManagedObjectID) throws
     func moveItem(objectID: NSManagedObjectID, toPinboard pinboardID: NSManagedObjectID) throws
+    func moveItems(objectIDs: [NSManagedObjectID], toPinboard pinboardID: NSManagedObjectID) throws
     func reorderPinboards(orderedIDs: [NSManagedObjectID]) throws
 
     func fetchOrCreateSystemClipboardPinboard(in context: NSManagedObjectContext) throws -> Pinboard

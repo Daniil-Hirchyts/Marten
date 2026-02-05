@@ -11,6 +11,7 @@ struct ItemCardRow: View {
     private let localCoordinateSpaceName = "ItemRowLocalSpace"
 
     let items: [ClipItem]
+    let pinboardSelectionKey: String
     let pinboards: [Pinboard]
     let lockedPinboardIDs: Set<UUID>
     let selectedPinboardID: UUID?
@@ -57,12 +58,14 @@ struct ItemCardRow: View {
     @State private var centeringTimer: Timer?
     @State private var dropTarget: DropTarget?
     @State private var pinboardDropTarget: PinboardDropTarget?
+    @State private var isMeasuringItemFrames = false
     @State private var loadedItemCount: Int = 0
     @State private var lastVisibleIndex: Int = 0
     @State private var currentPage: Int = 0
 
-    @State private var pendingItemFrames: [NSManagedObjectID: CGRect]?
-    @State private var isItemFramesUpdateScheduled = false
+    @StateObject private var itemFramesBuffer = ItemFramesBuffer()
+
+    private let leadingAnchorID = "ItemCardRow.leadingAnchor"
 
     var body: some View {
         GeometryReader { geometry in
@@ -85,13 +88,21 @@ struct ItemCardRow: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ScrollViewReader { proxy in
                         LazyHStack(alignment: .center, spacing: cardSpacing) {
+                            Color.clear
+                                .frame(width: 0, height: 0)
+                                .id(leadingAnchorID)
                             cardViews(size: cardSize, proxy: proxy, items: visibleItems)
                         }
                         .padding(.vertical, verticalPadding)
                         .animation(
-                            .spring(response: 0.32, dampingFraction: 0.86),
-                            value: items.map(\.displayOrder)
+                            dragState != nil
+                                ? .spring(response: 0.32, dampingFraction: 0.86)
+                                : nil,
+                            value: visibleItemsOrderSignature(visibleItems)
                         )
+                        .onChange(of: pinboardSelectionKey) { _, _ in
+                            proxy.scrollTo(leadingAnchorID, anchor: .leading)
+                        }
                     }
                 }
                 .contentMargins(.horizontal, placeholderInset, for: .scrollContent)
@@ -99,14 +110,22 @@ struct ItemCardRow: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ScrollViewReader { proxy in
                         LazyHStack(alignment: .center, spacing: cardSpacing) {
+                            Color.clear
+                                .frame(width: 0, height: 0)
+                                .id(leadingAnchorID)
                             cardViews(size: cardSize, proxy: proxy, items: visibleItems)
                         }
                         .padding(.vertical, verticalPadding)
                         .animation(
-                            .spring(response: 0.32, dampingFraction: 0.86),
-                            value: items.map(\.displayOrder)
+                            dragState != nil
+                                ? .spring(response: 0.32, dampingFraction: 0.86)
+                                : nil,
+                            value: visibleItemsOrderSignature(visibleItems)
                         )
                         .padding(.horizontal, placeholderInset)
+                        .onChange(of: pinboardSelectionKey) { _, _ in
+                            proxy.scrollTo(leadingAnchorID, anchor: .leading)
+                        }
                     }
                 }
             }
@@ -124,13 +143,7 @@ struct ItemCardRow: View {
             placeholderView()
         }
         .onPreferenceChange(ItemFrameKey.self) { frames in
-            pendingItemFrames = frames
-            guard !isItemFramesUpdateScheduled else { return }
-            isItemFramesUpdateScheduled = true
-            DispatchQueue.main.async {
-                isItemFramesUpdateScheduled = false
-                guard let latest = pendingItemFrames else { return }
-                pendingItemFrames = nil
+            itemFramesBuffer.submit(frames) { latest in
                 applyItemFramesPreference(latest)
             }
         }
@@ -145,11 +158,11 @@ struct ItemCardRow: View {
         }
         // Note: All preview updates now happen directly via callback in drag handlers and timer
         // This avoids triggering parent re-renders through the binding
-        .onChange(of: items.map(\.objectID)) { oldIDs, newIDs in
+        .onChange(of: itemsSignature) { _, _ in
             // Reset item frames when items change (e.g., after search clears or filter changes)
             // This ensures the drag gesture works with fresh frame data
             let currentIDs = Set(itemFrames.keys)
-            let newIDSet = Set(newIDs)
+            let newIDSet = Set(items.map(\.objectID))
             if currentIDs != newIDSet {
                 itemFrames = [:]
                 frameCoordinator.clearLatestItemFrames()
@@ -175,6 +188,37 @@ struct ItemCardRow: View {
             lastVisibleIndex = 0
             currentPage = 0
         }
+        .onChange(of: pinboardSelectionKey) { _, _ in
+            dropTarget = nil
+            pinboardDropTarget = nil
+            dragState = nil
+            isMeasuringItemFrames = false
+            itemFrames = [:]
+            frameCoordinator.clearLatestItemFrames()
+        }
+    }
+
+    private var itemsSignature: Int {
+        var hasher = Hasher()
+        hasher.combine(items.count)
+        hasher.combine(items.first?.objectID)
+        hasher.combine(items.last?.objectID)
+        hasher.combine(selectedPinboardID)
+        return hasher.finalize()
+    }
+
+    private func visibleItemsOrderSignature(_ visibleItems: [ClipItem]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(visibleItems.count)
+        if let first = visibleItems.first {
+            hasher.combine(first.objectID)
+            hasher.combine(first.displayOrder)
+        }
+        if let last = visibleItems.last {
+            hasher.combine(last.objectID)
+            hasher.combine(last.displayOrder)
+        }
+        return hasher.finalize()
     }
 
     private func applyItemFramesPreference(_ frames: [NSManagedObjectID: CGRect]) {
@@ -285,15 +329,20 @@ struct ItemCardRow: View {
                 )
                 .frame(width: 560, height: 380)
             }
-            .id(item.objectID)
             .frame(width: size, height: size)
             .opacity(isDragging ? 0.25 : 1)
             .background(
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: ItemFrameKey.self,
-                        value: [item.objectID: proxy.frame(in: .named(localCoordinateSpaceName))]
-                    )
+                Group {
+                    if isMeasuringItemFrames || dragState != nil {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: ItemFrameKey.self,
+                                value: [
+                                    item.objectID: proxy.frame(in: .named(localCoordinateSpaceName))
+                                ]
+                            )
+                        }
+                    }
                 }
             )
             .onAppear {
@@ -351,7 +400,7 @@ struct ItemCardRow: View {
         if dragState == nil {
             // Use latest frames from non-reactive storage
             guard let frame = frameCoordinator.latestItemFrames[item.objectID] else {
-                Logger.drag.debug("Drag start failed: no frame for item")
+                isMeasuringItemFrames = true
                 return
             }
 
@@ -517,6 +566,9 @@ struct ItemCardRow: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             if dragState?.primaryItemID == itemID {
                 dragState = nil
+                isMeasuringItemFrames = false
+                itemFrames = [:]
+                frameCoordinator.clearLatestItemFrames()
             }
         }
     }
@@ -695,7 +747,6 @@ struct ItemCardRow: View {
                 .frame(width: placeholderWidth, height: height)
                 .offset(x: dropTarget.placeholderX - placeholderWidth / 2, y: 8)
                 .transition(.opacity)
-                .animation(.easeOut(duration: 0.06), value: dropTarget)
         }
     }
 
@@ -745,6 +796,29 @@ struct ItemCardRow: View {
             callback(data)
         } else {
             dragPreviewData = data
+        }
+    }
+}
+
+@MainActor
+private final class ItemFramesBuffer: ObservableObject {
+    private var pending: [NSManagedObjectID: CGRect]?
+    private var scheduled = false
+
+    func submit(
+        _ frames: [NSManagedObjectID: CGRect],
+        apply: @escaping @MainActor ([NSManagedObjectID: CGRect]) -> Void
+    ) {
+        pending = frames
+        guard !scheduled else { return }
+        scheduled = true
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.scheduled = false
+            guard let latest = self.pending else { return }
+            self.pending = nil
+            apply(latest)
         }
     }
 }

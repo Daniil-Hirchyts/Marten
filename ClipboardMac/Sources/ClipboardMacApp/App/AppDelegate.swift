@@ -27,6 +27,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.start()
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        // Prevent clicking the dock icon from re-showing the settings window.
+        true
+    }
+
     func application(
         _ application: NSApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data

@@ -78,6 +78,7 @@ struct ItemGridSection: View {
                     if layoutAxis == .horizontal {
                         ItemCardRow(
                             items: filteredItems,
+                            pinboardSelectionKey: pinboardSelectionKey,
                             pinboards: pinboards,
                             lockedPinboardIDs: lockedPinboardIDs,
                             selectedPinboardID: selectedPinboardID,
@@ -117,6 +118,7 @@ struct ItemGridSection: View {
                     } else {
                         ItemCompactColumn(
                             items: filteredItems,
+                            pinboardSelectionKey: pinboardSelectionKey,
                             pinboards: pinboards,
                             lockedPinboardIDs: lockedPinboardIDs,
                             selectedItemIDs: selectedItemIDs,
@@ -159,9 +161,7 @@ struct ItemGridSection: View {
         }
         .animation(.easeInOut(duration: 0.2), value: isSelectedPinboardAwaitingUnlock)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .id(pinboardSelectionKey)
         .transition(.opacity)
-        .animation(.easeOut(duration: 0.14), value: pinboardSelectionKey)
     }
 }
 

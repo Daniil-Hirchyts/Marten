@@ -36,6 +36,7 @@ struct ItemCard: View {
     @State var thumbnailImage: NSImage?
     @State var fileIconImage: NSImage?
     @State var urlBannerImage: NSImage?
+    @State var lastLoadedThumbnailPath: String?
     @State var lastLoadedURLBannerPath: String?
     @State var lastFetchedURLBannerURLString: String?
     @State var styledPreviewText: AttributedString?
@@ -79,49 +80,55 @@ struct ItemCard: View {
             }
         }
         .onAppear {
-            cachedProps = CachedItemProperties(item: item)
+            cachedProps = OverlayPerformanceSignposts.measure("CachedItemProperties") {
+                CachedItemProperties(item: item)
+            }
             appColorLoader.load(bundleID: item.sourceAppBundleID)
             refreshPreviewAssets()
             refreshStyledPreviewText()
         }
-        .onChange(of: item.objectID) { _, _ in
-            cachedProps = CachedItemProperties(item: item)
-            appColorLoader.load(bundleID: item.sourceAppBundleID)
-            refreshPreviewAssets()
-            refreshStyledPreviewText()
-        }
-        .onChange(of: item.linkPreview?.imagePath) { _, _ in
-            refreshURLBannerImage()
-        }
-        .onChange(of: item.thumbnailPath) { _, _ in
-            refreshThumbnailImage()
-        }
-        .onChange(of: item.modifiedAt) { _, _ in
-            refreshPreviewAssets()
-            refreshStyledPreviewText()
-        }
-        .onChange(of: item.primaryText) { _, _ in
-            resetURLBannerState()
-            refreshURLBannerImage()
-        }
-        .onChange(of: item.sourceAppBundleID) { newValue, _ in
-            appColorLoader.load(bundleID: newValue)
-        }
-        .onReceive(item.objectWillChange) { _ in
-            DispatchQueue.main.async {
-                if item.isDeleted || item.managedObjectContext == nil { return }
-                
-                if let currentPinboardID = selectedPinboardID {
-                    let isInCurrent = item.pinboards?.contains { $0.id == currentPinboardID } ?? false
-                    if !isInCurrent { return }
-                }
+        .onChange(of: contentSignature) { oldValue, newValue in
+            if item.isDeleted || item.managedObjectContext == nil { return }
 
-                cachedProps = CachedItemProperties(item: item)
+            if let currentPinboardID = selectedPinboardID {
+                let isInCurrent = item.pinboards?.contains { $0.id == currentPinboardID } ?? false
+                if !isInCurrent { return }
+            }
+
+            cachedProps = OverlayPerformanceSignposts.measure("CachedItemProperties") {
+                CachedItemProperties(item: item)
+            }
+
+            if oldValue.sourceAppBundleID != newValue.sourceAppBundleID {
+                appColorLoader.load(bundleID: newValue.sourceAppBundleID)
+            }
+
+            if oldValue.primaryText != newValue.primaryText {
+                resetURLBannerState()
+            }
+
+            if oldValue.thumbnailPath != newValue.thumbnailPath {
+                refreshThumbnailImage()
+            }
+
+            if oldValue.linkPreviewImagePath != newValue.linkPreviewImagePath
+                || oldValue.primaryText != newValue.primaryText
+            {
                 refreshURLBannerImage()
+            }
+
+            if oldValue.modifiedAt != newValue.modifiedAt || oldValue.itemType != newValue.itemType {
+                refreshPreviewAssets()
+            }
+
+            if oldValue.primaryText != newValue.primaryText
+                || oldValue.customTitle != newValue.customTitle
+                || oldValue.modifiedAt != newValue.modifiedAt
+                || oldValue.itemType != newValue.itemType
+            {
                 refreshStyledPreviewText()
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
         .accessibilityElement(children: isEditing ? .contain : .ignore)
         .accessibilityIdentifier("overlay.itemCard.\(item.id.uuidString)")
         .accessibilityLabel(accessibilityLabelText)
@@ -155,5 +162,29 @@ struct ItemCard: View {
     var assignedPinboardIDs: Set<UUID> {
         let assigned = item.pinboards?.filter { !$0.isSystemClipboard } ?? []
         return Set(assigned.map(\.id))
+    }
+
+    private var contentSignature: ContentSignature {
+        ContentSignature(item: item)
+    }
+}
+
+private struct ContentSignature: Equatable {
+    let primaryText: String?
+    let thumbnailPath: String?
+    let customTitle: String?
+    let linkPreviewImagePath: String?
+    let sourceAppBundleID: String?
+    let modifiedAt: Date
+    let itemType: ItemType
+
+    init(item: ClipItem) {
+        primaryText = item.primaryText
+        thumbnailPath = item.thumbnailPath
+        customTitle = item.customTitle
+        linkPreviewImagePath = item.linkPreview?.imagePath
+        sourceAppBundleID = item.sourceAppBundleID
+        modifiedAt = item.modifiedAt
+        itemType = item.itemTypeValue
     }
 }

@@ -13,6 +13,7 @@ struct ClipboardMacApp: App {
         .defaultSize(width: 720, height: 520)
         .defaultPosition(.center)
         .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.suppressed)
         .commands {
             CommandGroup(after: .appSettings) {
                 Button("Settings...") {

@@ -10,10 +10,11 @@ final class SearchService {
 
     func searchItems(query: String, limit: Int = 50, pinboardID: UUID? = nil) throws -> [ClipItem] {
         let normalized = query.normalizedForSearch()
-        let context = persistence.viewContext
-        var results: [ClipItem] = []
 
-        try context.performAndWaitThrowing {
+        let bgContext = persistence.newBackgroundContext()
+        var fetchedIDs: [NSManagedObjectID] = []
+
+        try bgContext.performAndWaitThrowing {
             let request = ClipItem.fetchRequest()
             var predicates: [NSPredicate] = [
                 NSPredicate(format: "searchableText CONTAINS[cd] %@", normalized)
@@ -31,8 +32,18 @@ final class SearchService {
                 NSSortDescriptor(key: "createdAt", ascending: false),
             ]
             request.fetchLimit = limit
-            request.relationshipKeyPathsForPrefetching = ["representations", "pinboards"]
-            results = try context.fetch(request)
+            request.relationshipKeyPathsForPrefetching = []
+            let items = try bgContext.fetch(request)
+            fetchedIDs = items.map { $0.objectID }
+        }
+
+        let viewContext = persistence.viewContext
+        var results: [ClipItem] = []
+
+        try viewContext.performAndWaitThrowing {
+            results = try fetchedIDs.compactMap { id in
+                try viewContext.existingObject(with: id) as? ClipItem
+            }
         }
 
         return results
@@ -52,8 +63,7 @@ final class SearchService {
 }
 
 // SAFETY: SearchService is immutable after initialization. Core Data access is performed via
-// `PersistenceController.viewContext.performAndWaitThrowing`, which serializes work onto the
-// context's queue.
+// `performAndWaitThrowing` on the appropriate context queue.
 extension SearchService: @unchecked Sendable {}
 
 extension SearchService: SearchServicing {}

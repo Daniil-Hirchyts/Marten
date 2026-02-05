@@ -104,17 +104,6 @@ final class ClipItemRepository {
                 existing.displayOrder = displayOrder
                 try context.save()
                 createdObjectID = existing.objectID
-                
-                // Synchronously update viewContext to trigger @FetchRequest re-sort
-                let objectID = existing.objectID
-                let viewContext = persistence.viewContext
-                try viewContext.performAndWaitThrowing {
-                    if let viewItem = try viewContext.existingObject(with: objectID) as? ClipItem {
-                        viewItem.modifiedAt = now
-                        viewItem.displayOrder = displayOrder
-                        try viewContext.save()
-                    }
-                }
                 return
             }
 
@@ -208,11 +197,6 @@ final class ClipItemRepository {
         }
 
         return try fetchRefreshedItemInViewContext(objectID: objectID)
-    }
-
-    static func deleteAll() {
-        let repository = ClipItemRepository()
-        try? repository.deleteAllItems()
     }
 
     func deleteAllItems() throws {

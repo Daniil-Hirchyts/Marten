@@ -15,6 +15,7 @@ DerivedData/
 *.moved-aside
 *.xcuserstate
 *.xcscmblueprint
+*.pbxproj.backup
 *.hmap
 *.ipa
 *.dSYM.zip

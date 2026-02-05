@@ -193,6 +193,33 @@ final class PinboardRepository {
         }
     }
 
+    func moveItems(objectIDs: [NSManagedObjectID], toPinboard pinboardID: NSManagedObjectID) throws {
+        guard !objectIDs.isEmpty else { return }
+
+        let context = persistence.newBackgroundContext()
+
+        try context.performAndWaitThrowing {
+            guard let target = try context.existingObject(with: pinboardID) as? Pinboard else {
+                throw ClipItemStoreError.missingItem
+            }
+
+            for objectID in objectIDs {
+                guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                    continue
+                }
+
+                for pinboard in item.pinboards ?? []
+                where !pinboard.isSystemClipboard && pinboard.objectID != target.objectID {
+                    item.removeFromPinboards(pinboard)
+                }
+
+                item.addToPinboards(target)
+            }
+
+            try context.save()
+        }
+    }
+
     func reorderPinboards(orderedIDs: [NSManagedObjectID]) throws {
         guard !orderedIDs.isEmpty else { return }
 

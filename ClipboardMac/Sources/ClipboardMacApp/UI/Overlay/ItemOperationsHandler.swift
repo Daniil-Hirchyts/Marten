@@ -8,10 +8,11 @@ import OSLog
 final class ItemOperationsHandler {
     private let store: ClipItemStore
     private let pasteboard: NSPasteboard
-    private let soundPlayer = SoundEffectPlayer()
+    private let soundPlayer: SoundEffectPlayer
 
-    init(store: ClipItemStore, pasteboard: NSPasteboard = .general) {
+    init(store: ClipItemStore, soundPlayer: SoundEffectPlayer, pasteboard: NSPasteboard = .general) {
         self.store = store
+        self.soundPlayer = soundPlayer
         self.pasteboard = pasteboard
     }
 

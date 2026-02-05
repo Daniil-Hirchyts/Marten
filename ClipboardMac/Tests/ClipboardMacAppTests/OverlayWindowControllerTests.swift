@@ -18,7 +18,7 @@ final class OverlayWindowControllerTests: XCTestCase {
         )
         let overlayDependencies = OverlayDependencies(
             clipItemStore: store,
-            itemOperations: ItemOperationsHandler(store: store),
+            itemOperations: ItemOperationsHandler(store: store, soundPlayer: SoundEffectPlayer()),
             pinboards: PinboardManager(store: store, persistence: persistence),
             previewCoordinator: OverlayPreviewCoordinator(itemEditorWindowController: itemEditorWindowController),
             appleIntelligence: appleIntelligence,

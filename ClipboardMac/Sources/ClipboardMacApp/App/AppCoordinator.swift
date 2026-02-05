@@ -83,7 +83,7 @@ public final class AppCoordinator: SettingsOpening {
         )
         let overlayDependencies = OverlayDependencies(
             clipItemStore: clipItemStore,
-            itemOperations: ItemOperationsHandler(store: clipItemStore),
+            itemOperations: ItemOperationsHandler(store: clipItemStore, soundPlayer: services.soundPlayer),
             pinboards: PinboardManager(store: clipItemStore, persistence: persistence),
             previewCoordinator: previewCoordinator,
             appleIntelligence: appleIntelligence,
@@ -247,6 +247,7 @@ public final class AppCoordinator: SettingsOpening {
         }
 
         if #available(macOS 14.0, *) {
+            // Synthesise Cmd+, to trigger SwiftUI's openWindow via the menu command.
             let event = NSEvent.keyEvent(
                 with: .keyDown,
                 location: .zero,
@@ -261,6 +262,14 @@ public final class AppCoordinator: SettingsOpening {
             )
             if let event {
                 NSApp.sendEvent(event)
+            }
+
+            // openWindow creates the window asynchronously; bring it to front
+            // on the next run-loop tick once SwiftUI has finished creating it.
+            DispatchQueue.main.async {
+                if let w = NSApp.windows.first(where: { $0.identifier?.rawValue == "settings" }) {
+                    w.makeKeyAndOrderFront(nil)
+                }
             }
         }
     }

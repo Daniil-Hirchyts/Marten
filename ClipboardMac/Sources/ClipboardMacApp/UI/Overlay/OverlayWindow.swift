@@ -75,12 +75,10 @@ final class OverlayWindowController {
                 self.hide(resetState: false, completion: completion)
             })
             viewModel = model
-            let contentView = AnyView(
-                OverlayRootView(persistence: persistence, dependencies: overlayDependencies)
-                    .environment(\.managedObjectContext, persistence.viewContext)
-                    .environment(\.clipboardEventBroadcaster, eventBroadcaster)
-                    .environmentObject(model)
-            )
+            let contentView = OverlayRootView(persistence: persistence, dependencies: overlayDependencies)
+                .environment(\.managedObjectContext, persistence.viewContext)
+                .environment(\.clipboardEventBroadcaster, eventBroadcaster)
+                .environmentObject(model)
             panel.contentView = NSHostingView(rootView: contentView)
         }
 

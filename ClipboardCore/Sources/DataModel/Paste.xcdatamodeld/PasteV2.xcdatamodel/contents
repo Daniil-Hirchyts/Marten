@@ -50,6 +50,13 @@
             <fetchIndexElement property="itemType" type="Binary"/>
             <fetchIndexElement property="createdAt" type="Binary"/>
         </fetchIndex>
+        <fetchIndex name="ClipItemByDisplayOrder">
+            <fetchIndexElement property="displayOrder" type="Binary"/>
+        </fetchIndex>
+        <fetchIndex name="ClipItemByDisplayOrderCreatedAt">
+            <fetchIndexElement property="displayOrder" type="Binary"/>
+            <fetchIndexElement property="createdAt" type="Binary"/>
+        </fetchIndex>
     </entity>
     <entity name="ClipRepresentation" representedClassName="ClipRepresentation" syncable="YES">
         <attribute name="id" optional="NO" attributeType="UUID" usesScalarValueType="NO"/>

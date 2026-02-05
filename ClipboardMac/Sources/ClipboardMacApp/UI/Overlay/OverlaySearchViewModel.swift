@@ -90,8 +90,10 @@ final class OverlaySearchViewModel: ObservableObject {
 
     func updateAppOptions(from allItems: [ClipItem]) {
         let selectedPinboardID = self.selectedPinboardID
-        var signature = selectedPinboardID?.hashValue ?? 0
-        var signatureCount = 0
+
+        var hasher = Hasher()
+        hasher.combine(selectedPinboardID)
+        var count = 0
 
         for item in allItems {
             if let selectedPinboardID {
@@ -102,12 +104,13 @@ final class OverlaySearchViewModel: ObservableObject {
             }
             guard let key = appFilterKey(for: item) else { continue }
             let name = item.sourceAppName?.isEmpty == false ? item.sourceAppName! : key
-            signature ^= key.hashValue
-            signature ^= name.hashValue
-            signature ^= (item.sourceAppBundleID?.hashValue ?? 0)
-            signatureCount += 1
+            hasher.combine(key)
+            hasher.combine(name)
+            hasher.combine(item.sourceAppBundleID)
+            count += 1
         }
-        signature ^= signatureCount &* 31
+        hasher.combine(count)
+        let signature = hasher.finalize()
 
         if let lastAppOptionsSignature, lastAppOptionsSignature == signature {
             return

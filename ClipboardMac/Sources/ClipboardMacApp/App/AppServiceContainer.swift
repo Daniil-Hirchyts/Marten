@@ -83,7 +83,7 @@ final class AppServiceContainer: AppServiceProviding {
 
     init(
         persistence: PersistenceController = .shared,
-        pasteboardMonitor: PasteboardMonitor = PasteboardMonitor(),
+        pasteboardMonitor: PasteboardMonitor? = nil,
         pasteboardExtractor: PasteboardExtractor = PasteboardExtractor(
             settings: UserDefaultsCaptureSettingsProvider()
         ),
@@ -101,7 +101,7 @@ final class AppServiceContainer: AppServiceProviding {
             DefaultSyncConfigurationProvider()
     ) {
         self.persistence = persistence
-        self.pasteboardMonitor = pasteboardMonitor
+        self.pasteboardMonitor = pasteboardMonitor ?? PasteboardMonitor(activeAppTracker: activeAppTracker)
         self.pasteboardExtractor = pasteboardExtractor
         self.thumbnailGenerator = thumbnailGenerator
         self.hotkeyManager = hotkeyManager

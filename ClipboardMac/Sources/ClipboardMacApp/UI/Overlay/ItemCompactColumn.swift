@@ -11,6 +11,7 @@ struct ItemCompactColumn: View {
     private let scrollCoordinateSpaceName = "ItemCompactColumnScrollSpace"
 
     let items: [ClipItem]
+    let pinboardSelectionKey: String
     let pinboards: [Pinboard]
     let lockedPinboardIDs: Set<UUID>
     let selectedItemIDs: Set<NSManagedObjectID>
@@ -55,65 +56,74 @@ struct ItemCompactColumn: View {
     @State private var dragOpacity: Double = 0
     @State private var pendingRowFrames: [NSManagedObjectID: CGRect]?
     @State private var isRowFrameUpdateScheduled = false
-    @State private var scrollContentOffset: CGFloat = 0
+    @State private var isMeasuringRowFrames = false
+
+    private let topAnchorID = "ItemCompactColumn.topAnchor"
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: rowSpacing) {
-                ForEach(items, id: \.objectID) { item in
-                    let isDragging = dragState?.itemIDs.contains(item.objectID) ?? false
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: rowSpacing) {
+                    Color.clear
+                        .frame(width: 0, height: 0)
+                        .id(topAnchorID)
 
-                    let row = ItemCompactRow(
-                        item: item,
-                        pinboards: pinboards,
-                        lockedPinboardIDs: lockedPinboardIDs,
-                        isSelected: selectedItemIDs.contains(item.objectID),
-                        isEditing: editingItemID == item.objectID,
-                        allowPinning: allowPinning,
-                        clipItemEditor: clipItemEditor,
-                        onPaste: { onPaste(item) },
-                        onPastePlainText: { onPastePlainText(item) },
-                        onCopy: { onCopy(item) },
-                        onDelete: { onDelete(item) },
-                        onTogglePin: { onTogglePin(item) },
-                        onMoveToPinboard: { onMoveToPinboard(item, $0) },
-                        onCreatePinboard: { onCreatePinboard(item) },
-                        onEdit: { onEdit(item) },
-                        onRename: { onRename(item) },
-                        onCommitRename: { onCommitRename(item, $0) },
-                        onTap: { onTap(item) },
-                        onDoubleTap: { onDoubleTap(item) },
-                        previewItemID: $previewItemID,
-                        isPreviewPopoverPresented: $isPreviewPopoverPresented
-                    )
-                    .opacity(isDragging ? 0.25 : 1)
-                    .background(
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: ItemCompactFrameKey.self,
-                                value: [item.objectID: proxy.frame(in: .named(localCoordinateSpaceName))]
-                            )
+                    ForEach(items, id: \.objectID) { item in
+                        let isDragging = dragState?.itemIDs.contains(item.objectID) ?? false
+
+                        let row = ItemCompactRow(
+                            item: item,
+                            pinboards: pinboards,
+                            lockedPinboardIDs: lockedPinboardIDs,
+                            isSelected: selectedItemIDs.contains(item.objectID),
+                            isEditing: editingItemID == item.objectID,
+                            allowPinning: allowPinning,
+                            clipItemEditor: clipItemEditor,
+                            onPaste: { onPaste(item) },
+                            onPastePlainText: { onPastePlainText(item) },
+                            onCopy: { onCopy(item) },
+                            onDelete: { onDelete(item) },
+                            onTogglePin: { onTogglePin(item) },
+                            onMoveToPinboard: { onMoveToPinboard(item, $0) },
+                            onCreatePinboard: { onCreatePinboard(item) },
+                            onEdit: { onEdit(item) },
+                            onRename: { onRename(item) },
+                            onCommitRename: { onCommitRename(item, $0) },
+                            onTap: { onTap(item) },
+                            onDoubleTap: { onDoubleTap(item) },
+                            previewItemID: $previewItemID,
+                            isPreviewPopoverPresented: $isPreviewPopoverPresented
+                        )
+                        .opacity(isDragging ? 0.25 : 1)
+                        .background(
+                            Group {
+                                if isMeasuringRowFrames || dragState != nil {
+                                    GeometryReader { proxy in
+                                        Color.clear.preference(
+                                            key: ItemCompactFrameKey.self,
+                                            value: [
+                                                item.objectID: proxy.frame(in: .named(localCoordinateSpaceName))
+                                            ]
+                                        )
+                                    }
+                                }
+                            }
+                        )
+
+                        if isDragEnabled {
+                            row.simultaneousGesture(dragGesture(for: item))
+                        } else {
+                            row
                         }
-                    )
-
-                    if isDragEnabled {
-                        row.simultaneousGesture(dragGesture(for: item))
-                    } else {
-                        row
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 16)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 16)
-            .background(
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: ItemCompactScrollOffsetKey.self,
-                        value: proxy.frame(in: .named(scrollCoordinateSpaceName)).minY
-                    )
-                }
-            )
+            .onChange(of: pinboardSelectionKey) { _, _ in
+                proxy.scrollTo(topAnchorID, anchor: .top)
+            }
         }
         .coordinateSpace(name: scrollCoordinateSpaceName)
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -149,13 +159,7 @@ struct ItemCompactColumn: View {
                 columnFrame = frame
             }
         }
-        .onPreferenceChange(ItemCompactScrollOffsetKey.self) { offset in
-            let normalizedOffset = abs(offset) < 0.5 ? 0 : offset
-            if abs(normalizedOffset - scrollContentOffset) > 0.5 {
-                scrollContentOffset = normalizedOffset
-            }
-        }
-        .onChange(of: items.map(\.objectID)) { _, _ in
+        .onChange(of: itemsSignature) { _, _ in
             let currentIDs = Set(rowFrames.keys)
             let newIDs = Set(items.map(\.objectID))
             if currentIDs != newIDs {
@@ -163,11 +167,28 @@ struct ItemCompactColumn: View {
                 frameCoordinator.clearLatestItemFrames()
             }
         }
+        .onChange(of: pinboardSelectionKey) { _, _ in
+            dropTarget = nil
+            pinboardDropTarget = nil
+            dragState = nil
+            dragOpacity = 0
+            isMeasuringRowFrames = false
+            rowFrames = [:]
+            frameCoordinator.clearLatestItemFrames()
+        }
         .onChange(of: dragPreviewData) { newData, _ in
             if newData == nil {
                 dragState = nil
             }
         }
+    }
+
+    private var itemsSignature: Int {
+        var hasher = Hasher()
+        hasher.combine(items.count)
+        hasher.combine(items.first?.objectID)
+        hasher.combine(items.last?.objectID)
+        return hasher.finalize()
     }
 
     private var scrollTopDivider: some View {
@@ -185,6 +206,10 @@ struct ItemCompactColumn: View {
         let keysChanged = Set(frames.keys) != Set(rowFrames.keys)
         if countChanged || keysChanged {
             rowFrames = frames
+        }
+
+        if isMeasuringRowFrames, !frames.isEmpty {
+            isMeasuringRowFrames = false
         }
     }
 
@@ -212,7 +237,10 @@ struct ItemCompactColumn: View {
         let overlayPointer = overlayPointerLocation(localPointer: localPointer)
 
         if dragState == nil {
-            guard let frame = frameCoordinator.latestItemFrames[item.objectID] else { return }
+            guard let frame = frameCoordinator.latestItemFrames[item.objectID] else {
+                isMeasuringRowFrames = true
+                return
+            }
             rowFrames = frameCoordinator.latestItemFrames
             columnFrame = frameCoordinator.latestItemRowFrame
 
@@ -233,6 +261,7 @@ struct ItemCompactColumn: View {
             )
             dragOpacity = 1
             updateDragPreview(useCallback: false)
+            isMeasuringRowFrames = false
         } else if var state = dragState {
             state.pointerLocation = overlayPointer
             state.translation = value.translation
@@ -320,6 +349,9 @@ struct ItemCompactColumn: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             if dragState?.primaryItemID == itemID {
                 dragState = nil
+                isMeasuringRowFrames = false
+                rowFrames = [:]
+                frameCoordinator.clearLatestItemFrames()
             }
         }
     }
@@ -526,14 +558,6 @@ private struct ItemCompactColumnFrameKey: PreferenceKey {
     static var defaultValue: CGRect { .zero }
 
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        value = nextValue()
-    }
-}
-
-private struct ItemCompactScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat { 0 }
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
 }

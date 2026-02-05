@@ -14,7 +14,7 @@ final class ItemOperationsHandlerTests: XCTestCase {
         let item = try store.createTextItem(text: "Hello")
 
         let pasteboard = NSPasteboard.withUniqueName()
-        let handler = ItemOperationsHandler(store: store, pasteboard: pasteboard)
+        let handler = ItemOperationsHandler(store: store, soundPlayer: SoundEffectPlayer(), pasteboard: pasteboard)
 
         let broadcaster = TestBroadcaster()
         handler.copyItem(
@@ -35,7 +35,7 @@ final class ItemOperationsHandlerTests: XCTestCase {
         let itemB = try store.createTextItem(text: "b")
 
         let pasteboard = NSPasteboard.withUniqueName()
-        let handler = ItemOperationsHandler(store: store, pasteboard: pasteboard)
+        let handler = ItemOperationsHandler(store: store, soundPlayer: SoundEffectPlayer(), pasteboard: pasteboard)
         let broadcaster = TestBroadcaster()
 
         let selected: Set<NSManagedObjectID> = [itemA.objectID, itemB.objectID]
@@ -54,7 +54,7 @@ final class ItemOperationsHandlerTests: XCTestCase {
         let store = ClipItemStore(persistence: persistence)
         let item = try store.createTextItem(text: "x")
 
-        let handler = ItemOperationsHandler(store: store, pasteboard: .withUniqueName())
+        let handler = ItemOperationsHandler(store: store, soundPlayer: SoundEffectPlayer(), pasteboard: .withUniqueName())
         handler.deleteItem(item, selectedItemIDs: []) {}
 
         let fetched = try store.fetchRecentItems(limit: 10)
@@ -68,7 +68,7 @@ final class ItemOperationsHandlerTests: XCTestCase {
         let itemB = try store.createTextItem(text: "b")
 
         var didClearSelection = false
-        let handler = ItemOperationsHandler(store: store, pasteboard: .withUniqueName())
+        let handler = ItemOperationsHandler(store: store, soundPlayer: SoundEffectPlayer(), pasteboard: .withUniqueName())
         handler.deleteItem(
             itemA,
             selectedItemIDs: [itemA.objectID, itemB.objectID]
@@ -86,7 +86,7 @@ final class ItemOperationsHandlerTests: XCTestCase {
         let store = ClipItemStore(persistence: persistence)
         let item = try store.createTextItem(text: "x")
 
-        let handler = ItemOperationsHandler(store: store, pasteboard: .withUniqueName())
+        let handler = ItemOperationsHandler(store: store, soundPlayer: SoundEffectPlayer(), pasteboard: .withUniqueName())
         handler.commitItemRename(itemID: item.objectID, newTitle: "  ")
 
         let fetched = try store.fetchRecentItems(limit: 10)
@@ -99,7 +99,7 @@ final class ItemOperationsHandlerTests: XCTestCase {
         let item = try store.createTextItem(text: "x")
         XCTAssertFalse(item.isPinned)
 
-        let handler = ItemOperationsHandler(store: store, pasteboard: .withUniqueName())
+        let handler = ItemOperationsHandler(store: store, soundPlayer: SoundEffectPlayer(), pasteboard: .withUniqueName())
         handler.togglePin(item, allowPinning: true)
 
         XCTAssertTrue(item.isPinned)

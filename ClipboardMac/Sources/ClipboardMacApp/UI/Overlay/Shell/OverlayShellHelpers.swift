@@ -39,7 +39,7 @@ extension OverlayShellView {
     }
 
     var allItemsVisibleInAllPinboard: [ClipItem] {
-        Array(items).filter { !lockHandler.isItemVisible($0, selectedPinboardID: nil) == false }
+        Array(items).filter { lockHandler.isItemVisible($0, selectedPinboardID: nil) }
     }
 
     func handleUnlockTap() {

@@ -21,6 +21,8 @@ struct OverlayShellView: View {
     @StateObject var pinboardLockController = PinboardLockController()
     @StateObject var previewCoordinator: OverlayPreviewCoordinator
 
+    @StateObject var perfController = OverlayPerfController()
+
     @State var renamePinboardID: NSManagedObjectID?
     @State var renamePinboardName = ""
     @State var renamePinboardColor = PinboardPalette.defaultHex
@@ -43,11 +45,16 @@ struct OverlayShellView: View {
 
     @AppStorage(OverlayLayoutSettings.Keys.overlayScreenEdge)
     var overlayScreenEdgeRawValue = OverlayLayoutSettings.defaultEdge.rawValue
+
+    @AppStorage("overlayPerfHUD")
+    private var overlayPerfHUD: Bool = false
     @FocusState var searchFocused: Bool
     @FocusState var verticalPinboardNameFocused: Bool
     @FocusState var verticalPinboardEditNameFocused: Bool
     @State var isSearchExpanded = false
     @State var isFilterPopoverPresented = false
+    @State var cachedFilteredItems: [ClipItem] = []
+    @State var lastFilterInputHash: Int = 0
 
     @State var window: NSWindow?
 
@@ -79,13 +86,13 @@ struct OverlayShellView: View {
             NSSortDescriptor(key: "createdAt", ascending: false),
         ],
         predicate: NSPredicate(format: "isTransient == NO"),
-        animation: .default
+        animation: nil
     )
     var items: FetchedResults<ClipItem>
 
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(key: "sortOrder", ascending: true)],
-        animation: .default
+        animation: nil
     )
     var pinboards: FetchedResults<Pinboard>
 
@@ -112,6 +119,23 @@ struct OverlayShellView: View {
     }
 
     var body: some View {
+        lifecycleModifiedContent
+            .onChange(of: filterInputHash) { _, newHash in
+                if newHash != lastFilterInputHash {
+                    lastFilterInputHash = newHash
+                    cachedFilteredItems = computeFilteredItems()
+                    viewModel.ensureDefaultSelection(in: cachedFilteredItems)
+                }
+            }
+            .onChange(of: viewModel.selectedItemIDs) { handleSelectionChange($0, $1) }
+            .onChange(of: overlayLayoutAxis) { handleOverlayLayoutAxisChange($0, $1) }
+            .onChange(of: pinboardLockController.isAuthenticating) { _, newValue in
+                viewModel.isAuthenticating = newValue
+            }
+            .onReceive(eventBroadcaster.events, perform: handleBroadcasterEvent)
+    }
+
+    private var lifecycleModifiedContent: some View {
         mainContent
             .onAppear(perform: handleAppear)
             .onDisappear(perform: handleDisappear)
@@ -121,14 +145,7 @@ struct OverlayShellView: View {
             .onChange(of: isSearchExpanded) { handleSearchExpandedChange($0, $1) }
             .onChange(of: keyHandlerRefreshToken) { handleKeyHandlerRefresh($0, $1) }
             .onChange(of: visiblePinboardIDs) { handleVisiblePinboardsChange($0, $1) }
-            .onChange(of: itemsSourceAppsHash) { handleItemsSourceAppsChange($0, $1) }
-            .onChange(of: filteredItemSelectionSignature) { handleFilteredItemsChange($0, $1) }
-            .onChange(of: viewModel.selectedItemIDs) { handleSelectionChange($0, $1) }
-            .onChange(of: overlayLayoutAxis) { handleOverlayLayoutAxisChange($0, $1) }
-            .onChange(of: pinboardLockController.isAuthenticating) { _, newValue in
-                viewModel.isAuthenticating = newValue
-            }
-            .onReceive(eventBroadcaster.events, perform: handleBroadcasterEvent)
+            .onChange(of: itemsChangeSignature) { handleItemsSourceAppsChange($0, $1) }
     }
 
     private var mainContent: some View {
@@ -177,6 +194,15 @@ struct OverlayShellView: View {
             Text("Paste needs Accessibility permission to paste into other apps.")
         }
         .environmentObject(frameCoordinator)
+#if DEBUG
+        .overlay(alignment: .topTrailing) {
+            if overlayPerfHUD {
+                OverlayPerformanceHUD()
+                    .padding(.top, 10)
+                    .padding(.trailing, 10)
+            }
+        }
+#endif
     }
 
     private var itemGridSection: some View {

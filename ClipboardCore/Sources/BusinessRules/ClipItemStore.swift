@@ -83,7 +83,7 @@ public final class ClipItemStore {
     }
 
     public static func deleteAll() {
-        ClipItemRepository.deleteAll()
+        try? ClipItemStore().deleteAllItems()
     }
 
     public func deleteAllItems() throws {
@@ -124,9 +124,10 @@ public final class ClipItemStore {
     }
 
     public func moveItemsToPinboard(_ items: [ClipItem], pinboard: Pinboard) throws {
-        for item in items {
-            try pinboardRepository.moveItem(objectID: item.objectID, toPinboard: pinboard.objectID)
-        }
+        try pinboardRepository.moveItems(
+            objectIDs: items.map { $0.objectID },
+            toPinboard: pinboard.objectID
+        )
     }
 
     public func fetchPinboards() throws -> [Pinboard] {

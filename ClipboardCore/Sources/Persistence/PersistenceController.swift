@@ -19,12 +19,7 @@ public final class PersistenceController {
     }
 
     public init(inMemory: Bool = false, storeURL: URL? = nil) {
-        let bundle = Bundle.module
-        let modelURL =
-            bundle.url(forResource: "Paste", withExtension: "momd", subdirectory: "DataModel")
-            ?? bundle.url(forResource: "Paste", withExtension: "mom", subdirectory: "DataModel")
-            ?? bundle.url(forResource: "Paste", withExtension: "momd")
-            ?? bundle.url(forResource: "Paste", withExtension: "mom")
+        let modelURL = Self.modelURL
 
         guard let modelURL else {
             fatalError("Missing Core Data model resource Paste.momd")

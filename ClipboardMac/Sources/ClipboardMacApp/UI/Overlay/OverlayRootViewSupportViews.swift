@@ -27,21 +27,34 @@ struct WindowAccessor: NSViewRepresentable {
 }
 
 @available(macOS 14.0, *)
-struct OverlaySettingsButton14: View {
+struct OverlaySettingsButton14<Label: View>: View {
     let closeOverlay: (@escaping () -> Void) -> Void
-    let label: AnyView
+    let label: () -> Label
 
     @Environment(\.openWindow) private var openWindow
+
+    init(
+        closeOverlay: @escaping (@escaping () -> Void) -> Void,
+        @ViewBuilder label: @escaping () -> Label
+    ) {
+        self.closeOverlay = closeOverlay
+        self.label = label
+    }
 
     var body: some View {
         Button {
             closeOverlay {
                 NSApp.activate(ignoringOtherApps: true)
                 openWindow(id: "settings")
+                // openWindow shows the window but does not make it key; bring it
+                // to front on the next tick after SwiftUI finishes creating it.
+                DispatchQueue.main.async {
+                    if let w = NSApp.windows.first(where: { $0.identifier?.rawValue == "settings" }) {
+                        w.makeKeyAndOrderFront(nil)
+                    }
+                }
             }
-        } label: {
-            label
-        }
+        } label: { label() }
     }
 }
 
@@ -272,7 +285,7 @@ struct ResizeHandleCursorView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        guard let view = nsView as? CursorRectView else { return }
+        guard let view = nsView as? CursorRectView, view.axis != axis else { return }
         view.axis = axis
         view.discardCursorRects()
         view.resetCursorRects()
@@ -293,16 +306,9 @@ struct ResizeHandleCursorView: NSViewRepresentable {
 
         override func resetCursorRects() {
             super.resetCursorRects()
-            guard !OCRSelectionSessionState.isActive else {
-                Logger.ui.debug("Overlay resize cursor rect skipped (active OCR selection)")
-                return
-            }
+            guard !OCRSelectionSessionState.isActive else { return }
             let cursor: NSCursor = axis == .horizontal ? .resizeUpDown : .resizeLeftRight
             addCursorRect(bounds, cursor: cursor)
-            let axisLabel = self.axis == .horizontal ? "horizontal" : "vertical"
-            Logger.ui.debug(
-                "Overlay resize cursor rect reset (axis=\(axisLabel, privacy: .public))"
-            )
         }
     }
 }

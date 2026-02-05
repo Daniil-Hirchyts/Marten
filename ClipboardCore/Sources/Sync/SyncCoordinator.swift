@@ -17,7 +17,7 @@ public enum SyncStatus: Equatable, Sendable {
         case (.idle, .idle), (.syncing, .syncing), (.synced, .synced):
             return true
         case (.error(let lhsError), .error(let rhsError)):
-            return lhsError.localizedDescription == rhsError.localizedDescription
+            return String(describing: lhsError) == String(describing: rhsError)
         default:
             return false
         }
@@ -183,7 +183,6 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     private let periodicScheduler = PeriodicSyncScheduler()
     private var stateMachine = SyncStateMachine()
     private var isSyncInProgress = false
-    private let syncLock = NSLock()
     private var cancellables = Set<AnyCancellable>()
     private let errorSubject = PassthroughSubject<CloudKitSyncError, Never>()
     private var isSetUp = false
@@ -321,11 +320,8 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         updateStatus(.syncing)
 
         do {
-            // Flush outbound changes first
-            outboundEngine.flushNow()
-
-            // Wait a brief moment for outbound to process
-            try await Task.sleep(nanoseconds: 100_000_000)
+            // Flush outbound changes and wait for completion
+            await outboundEngine.flushAndAwait()
 
             // Perform inbound sync
             let result = try await inboundEngine.syncInbound()
@@ -515,20 +511,13 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     }
 
     private func acquireSyncLock() -> Bool {
-        syncLock.lock()
-        defer { syncLock.unlock() }
-
-        if isSyncInProgress {
-            return false
-        }
+        guard !isSyncInProgress else { return false }
         isSyncInProgress = true
         return true
     }
 
     private func releaseSyncLock() {
-        syncLock.lock()
         isSyncInProgress = false
-        syncLock.unlock()
     }
 
     private func log(_ message: String) {

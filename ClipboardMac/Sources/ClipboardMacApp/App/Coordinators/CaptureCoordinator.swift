@@ -177,6 +177,24 @@ final class CaptureCoordinator {
         return ""
     }
 
+    private nonisolated static let maxConcurrentLinkPreviews = 3
+    private nonisolated static let linkPreviewLock = NSLock()
+    nonisolated(unsafe) private static var activeLinkPreviewCount = 0
+
+    private nonisolated static func tryAcquireLinkPreviewSlot() -> Bool {
+        linkPreviewLock.lock()
+        defer { linkPreviewLock.unlock() }
+        guard activeLinkPreviewCount < maxConcurrentLinkPreviews else { return false }
+        activeLinkPreviewCount += 1
+        return true
+    }
+
+    private nonisolated static func releaseLinkPreviewSlot() {
+        linkPreviewLock.lock()
+        activeLinkPreviewCount -= 1
+        linkPreviewLock.unlock()
+    }
+
     nonisolated private static func scheduleLinkPreviewFetch(
         itemID: NSManagedObjectID,
         url: URL,
@@ -186,8 +204,13 @@ final class CaptureCoordinator {
         guard let linkPreviewFetcher else {
             return
         }
+        guard tryAcquireLinkPreviewSlot() else {
+            Logger.pasteboard.debug("Link preview slot full, skipping fetch for \(url)")
+            return
+        }
 
         Task.detached(priority: .utility) {
+            defer { Self.releaseLinkPreviewSlot() }
             do {
                 let preview = try await linkPreviewFetcher.fetchPreview(for: url)
                 try clipItemStore.updateLinkPreview(objectID: itemID, payload: preview)
