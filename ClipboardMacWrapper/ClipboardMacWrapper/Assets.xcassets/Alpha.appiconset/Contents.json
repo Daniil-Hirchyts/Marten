@@ -1,0 +1,308 @@
+{
+  "images" : [
+    {
+      "size" : "16x16",
+      "idiom" : "mac",
+      "filename" : "AppIcon-16.png",
+      "scale" : "1x"
+    },
+    {
+      "size" : "16x16",
+      "idiom" : "mac",
+      "filename" : "AppIcon-32.png",
+      "scale" : "2x"
+    },
+    {
+      "size" : "32x32",
+      "idiom" : "mac",
+      "filename" : "AppIcon-32.png",
+      "scale" : "1x"
+    },
+    {
+      "size" : "32x32",
+      "idiom" : "mac",
+      "filename" : "AppIcon-64.png",
+      "scale" : "2x"
+    },
+    {
+      "size" : "128x128",
+      "idiom" : "mac",
+      "filename" : "AppIcon-128.png",
+      "scale" : "1x"
+    },
+    {
+      "size" : "128x128",
+      "idiom" : "mac",
+      "filename" : "AppIcon-256.png",
+      "scale" : "2x"
+    },
+    {
+      "size" : "256x256",
+      "idiom" : "mac",
+      "filename" : "AppIcon-256.png",
+      "scale" : "1x"
+    },
+    {
+      "size" : "256x256",
+      "idiom" : "mac",
+      "filename" : "AppIcon-512.png",
+      "scale" : "2x"
+    },
+    {
+      "size" : "512x512",
+      "idiom" : "mac",
+      "filename" : "AppIcon-512.png",
+      "scale" : "1x"
+    },
+    {
+      "size" : "512x512",
+      "idiom" : "mac",
+      "filename" : "AppIcon-1024.png",
+      "scale" : "2x"
+    },
+    {
+      "size" : "16x16",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Dark-16.png",
+      "scale" : "1x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ]
+    },
+    {
+      "size" : "16x16",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Dark-32.png",
+      "scale" : "2x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ]
+    },
+    {
+      "size" : "32x32",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Dark-32.png",
+      "scale" : "1x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ]
+    },
+    {
+      "size" : "32x32",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Dark-64.png",
+      "scale" : "2x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ]
+    },
+    {
+      "size" : "128x128",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Dark-128.png",
+      "scale" : "1x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ]
+    },
+    {
+      "size" : "128x128",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Dark-256.png",
+      "scale" : "2x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ]
+    },
+    {
+      "size" : "256x256",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Dark-256.png",
+      "scale" : "1x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ]
+    },
+    {
+      "size" : "256x256",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Dark-512.png",
+      "scale" : "2x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ]
+    },
+    {
+      "size" : "512x512",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Dark-512.png",
+      "scale" : "1x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ]
+    },
+    {
+      "size" : "512x512",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Dark-1024.png",
+      "scale" : "2x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ]
+    },
+    {
+      "size" : "16x16",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Tinted-16.png",
+      "scale" : "1x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ]
+    },
+    {
+      "size" : "16x16",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Tinted-32.png",
+      "scale" : "2x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ]
+    },
+    {
+      "size" : "32x32",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Tinted-32.png",
+      "scale" : "1x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ]
+    },
+    {
+      "size" : "32x32",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Tinted-64.png",
+      "scale" : "2x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ]
+    },
+    {
+      "size" : "128x128",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Tinted-128.png",
+      "scale" : "1x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ]
+    },
+    {
+      "size" : "128x128",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Tinted-256.png",
+      "scale" : "2x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ]
+    },
+    {
+      "size" : "256x256",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Tinted-256.png",
+      "scale" : "1x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ]
+    },
+    {
+      "size" : "256x256",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Tinted-512.png",
+      "scale" : "2x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ]
+    },
+    {
+      "size" : "512x512",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Tinted-512.png",
+      "scale" : "1x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ]
+    },
+    {
+      "size" : "512x512",
+      "idiom" : "mac",
+      "filename" : "AppIcon-Tinted-1024.png",
+      "scale" : "2x",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ]
+    }
+  ],
+  "info" : {
+    "version" : 1,
+    "author" : "xcode"
+  }
+}
