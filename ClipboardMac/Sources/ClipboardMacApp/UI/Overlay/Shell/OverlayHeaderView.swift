@@ -3,7 +3,40 @@ import SwiftUI
 
 extension OverlayShellView {
     var horizontalHeaderBar: some View {
-        HStack(alignment: .center, spacing: 7) {
+        GeometryReader { geo in
+            let totalWidth = geo.size.width
+            let filterExtra: CGFloat = headerButtonSize + 1 // filter button + separator
+            let searchGroupCollapsed = searchCollapsedWidth + filterExtra
+            let searchGroupExpanded = searchExpandedWidth + filterExtra
+            let searchWidth: CGFloat = isSearchExpanded ? searchGroupExpanded : searchGroupCollapsed
+            let leadingPad: CGFloat = 4
+            let trailingPad: CGFloat = 4
+            let spacing: CGFloat = 7
+            let settingsWidth: CGFloat = headerButtonSize
+
+            // Pinboard area boundaries
+            let collapsedSearchEnd = leadingPad + searchGroupCollapsed + spacing
+            let expandedSearchEnd = leadingPad + searchGroupExpanded + spacing
+            let settingsLeadingEdge = totalWidth - trailingPad - settingsWidth
+            let pinboardEnd = settingsLeadingEdge - spacing
+
+            // Full pinboard width when search is collapsed
+            let fullPinboardWidth = max(0, pinboardEnd - collapsedSearchEnd)
+
+            // Estimated bar visual width (tabs + scroll padding + spacing + add button)
+            let barEstimatedWidth = pinboardTabsContentWidth + 56
+
+            // Free space on left side when bar is centered in full pinboard area
+            let freeSpaceLeft = max(0, (fullPinboardWidth - barEstimatedWidth) / 2)
+
+            // Would the expanded search overlap the centered tab content?
+            let searchExtension = searchGroupExpanded - searchGroupCollapsed
+            let wouldOverlap = freeSpaceLeft < searchExtension
+
+            // Effective pinboard leading edge: push only when content would overlap
+            let pinboardStart = (isSearchExpanded && wouldOverlap) ? expandedSearchEnd : collapsedSearchEnd
+            let pinboardWidth = max(0, pinboardEnd - pinboardStart)
+
             OverlaySearchBarView(
                 isSearchExpanded: $isSearchExpanded,
                 isFilterPopoverPresented: $isFilterPopoverPresented,
@@ -23,8 +56,9 @@ extension OverlayShellView {
                 onSearchClear: handleSearchClear,
                 onClearFilters: searchModel.clearFilters
             )
-            .frame(width: isSearchExpanded ? searchExpandedWidth : searchCollapsedWidth, alignment: .leading)
-            .padding(.leading, 4)
+            .frame(width: searchWidth, height: headerButtonSize, alignment: .leading)
+            .position(x: leadingPad + searchWidth / 2, y: headerButtonSize / 2)
+            .zIndex(1)
 
             PinboardTabBarSection(
                 pinboards: visiblePinboards,
@@ -62,10 +96,15 @@ extension OverlayShellView {
                     DispatchQueue.main.async { dragCoordinator.updateSearchFieldFrame(frame) }
                 }
             )
-            .frame(maxWidth: .infinity)
+            .frame(width: pinboardWidth, height: headerButtonSize)
+            .position(x: pinboardStart + pinboardWidth / 2, y: headerButtonSize / 2)
 
             settingsButton
-                .padding(.trailing, 4)
+                .frame(width: settingsWidth, height: headerButtonSize)
+                .position(x: settingsLeadingEdge + settingsWidth / 2, y: headerButtonSize / 2)
+        }
+        .onPreferenceChange(SearchFieldFrameKey.self) { frame in
+            DispatchQueue.main.async { dragCoordinator.updateSearchFieldFrame(frame) }
         }
         .padding(.horizontal, 14)
         .frame(height: headerButtonSize)
@@ -105,40 +144,98 @@ extension OverlayShellView {
 
     @ViewBuilder
     var settingsButton: some View {
-        Group {
-            if #available(macOS 14.0, *) {
-                OverlaySettingsButton14(
-                    closeOverlay: { viewModel.closeOverlayForSettings(completion: $0) },
-                    label: { settingsIcon }
+        Menu {
+            Button {
+                NSApp.sendAction(
+                    #selector(AppDelegate.openNewTextItem),
+                    to: NSApp.delegate,
+                    from: nil
                 )
-            } else {
-                Button { viewModel.closeOverlayForSettings(completion: openSettingsLegacy) }
-                label: { settingsIcon }
+            } label: {
+                Label("New Text Item", systemImage: "square.and.pencil")
             }
+            .keyboardShortcut("n", modifiers: .command)
+
+            Button {
+                NSApp.sendAction(Selector(("openOCRCapture")), to: nil, from: nil)
+            } label: {
+                Label("Capture Text (OCR)", systemImage: "text.viewfinder")
+            }
+            .keyboardShortcut("o", modifiers: [.command, .shift])
+
+            Divider()
+
+            Button {
+                viewModel.closeOverlayForSettings {
+                    NSApp.sendAction(
+                        #selector(AppDelegate.openSettingsWindow),
+                        to: NSApp.delegate,
+                        from: nil
+                    )
+                }
+            } label: {
+                Label("Preferences...", systemImage: "gearshape")
+            }
+            .accessibilityLabel("Preferences")
+
+            Divider()
+
+            if pasteboardMonitor.isPaused {
+                Button {
+                    pasteboardMonitor.resume()
+                } label: {
+                    Label("Resume Capture", systemImage: "play.circle")
+                }
+            } else {
+                Menu {
+                    Button("5 Minutes") { pasteboardMonitor.pauseForDuration(300) }
+                    Button("15 Minutes") { pasteboardMonitor.pauseForDuration(900) }
+                    Button("30 Minutes") { pasteboardMonitor.pauseForDuration(1800) }
+                    Button("1 Hour") { pasteboardMonitor.pauseForDuration(3600) }
+                    Divider()
+                    Button("Until Resumed") { pasteboardMonitor.pauseForDuration(nil) }
+                } label: {
+                    Label("Pause Capture", systemImage: "pause.circle")
+                }
+            }
+
+            Toggle(isOn: $screenSharingManager.isScreenSharingModeActive) {
+                Label("Screen Sharing Mode", systemImage: "rectangle.inset.filled.on.rectangle")
+            }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
+            .accessibilityLabel("Screen Sharing Mode")
+
+            Divider()
+
+            Button {
+                NSApp.terminate(nil)
+            } label: {
+                Label("Quit Paste", systemImage: "power")
+            }
+            .accessibilityLabel("Quit Paste")
+        } label: {
+            settingsIcon
         }
         .buttonStyle(.plain)
-        .contentShape(Rectangle())
-        .accessibilityIdentifier("overlay.settings")
-        .accessibilityLabel("Settings")
-        .accessibilityHint("Opens settings")
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isOptionsHovered = hovering
+            }
+        }
+        .accessibilityIdentifier("overlay.options.menu")
+        .accessibilityLabel("Options")
+        .accessibilityHint("Shows application options")
     }
 
     @ViewBuilder
     var settingsIcon: some View {
-        if #available(macOS 26.0, *) {
-            Image(systemName: "gearshape.fill")
-                .font(.system(size: headerButtonIconSize, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: headerButtonSize, height: headerButtonSize)
-                .glassCircleButton()
-                .contentShape(Circle())
-        } else {
-            Image(systemName: "gearshape.fill")
-                .font(.system(size: headerButtonIconSize, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: headerButtonSize, height: headerButtonSize)
-                .background(Circle().fill(Color.white.opacity(DesignTokens.Opacity.backgroundMedium)))
-                .contentShape(Circle())
-        }
+        OverlayHeaderButton(
+            systemImage: "ellipsis",
+            size: headerButtonSize,
+            iconSize: headerButtonIconSize,
+            isHovered: isOptionsHovered
+        )
     }
 }

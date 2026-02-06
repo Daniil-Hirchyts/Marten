@@ -4,14 +4,17 @@ import SwiftUI
 extension OverlayShellView {
     func handleSearchButtonTap() {
         if isSearchExpanded {
-            if !isFilterPopoverPresented {
-                searchModel.updateAppOptions(from: allItemsVisibleInAllPinboard)
+            // Collapse search if already expanded
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                isSearchExpanded = false
+                searchFocused = false
             }
-            isFilterPopoverPresented.toggle()
         } else {
+            // If collapsed: Expand and Focus
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 isSearchExpanded = true
             }
+            
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 searchFocused = true
             }

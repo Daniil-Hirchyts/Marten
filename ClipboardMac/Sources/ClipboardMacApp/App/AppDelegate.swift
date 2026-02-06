@@ -72,6 +72,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor
+    @objc func openNewTextItem() {
+        coordinator.openNewTextItem()
+    }
+
+    @MainActor
     @objc func openOCRCapture() {
         coordinator.startOCRCapture()
     }

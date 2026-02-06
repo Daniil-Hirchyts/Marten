@@ -20,6 +20,8 @@ struct OverlayShellView: View {
     @StateObject var dragCoordinator = DragCoordinator()
     @StateObject var pinboardLockController = PinboardLockController()
     @StateObject var previewCoordinator: OverlayPreviewCoordinator
+    @ObservedObject var screenSharingManager: ScreenSharingManager
+    @ObservedObject var pasteboardMonitor: PasteboardMonitor
 
     @State var renamePinboardID: NSManagedObjectID?
     @State var renamePinboardName = ""
@@ -48,9 +50,11 @@ struct OverlayShellView: View {
     @FocusState var verticalPinboardNameFocused: Bool
     @FocusState var verticalPinboardEditNameFocused: Bool
     @State var isSearchExpanded = false
+    @State var pinboardTabsContentWidth: CGFloat = 0
     @State var isFilterPopoverPresented = false
     @State var cachedFilteredItems: [ClipItem] = []
     @State var lastFilterInputHash: Int = 0
+    @State var isOptionsHovered = false
 
     @State var window: NSWindow?
 
@@ -99,6 +103,8 @@ struct OverlayShellView: View {
         self.clipItemEditor = store
         self.itemOperationsHandler = dependencies.itemOperations
         self.pinboardManager = dependencies.pinboards
+        self.screenSharingManager = dependencies.screenSharingManager
+        self.pasteboardMonitor = dependencies.pasteboardMonitor
         _searchModel = StateObject(wrappedValue: OverlaySearchViewModel(store: store))
         _previewCoordinator = StateObject(wrappedValue: dependencies.previewCoordinator)
     }

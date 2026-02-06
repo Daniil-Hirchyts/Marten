@@ -124,35 +124,89 @@ extension OverlayItemPreview {
             return
         }
 
-        if let path = nonEmptyText(item.thumbnailPath) {
-            DispatchQueue.global(qos: .userInitiated).async {
-                let img = NSImage(contentsOfFile: path)
-                DispatchQueue.main.async {
-                    image = img
+        let previewItemID = item.objectID
+        let sortedRepresentations = (item.representations ?? []).sorted {
+            $0.displayOrder < $1.displayOrder
+        }
+        let fullResolutionImageSources: [(data: Data?, assetRef: UUID?, fileExtension: String?)] =
+            sortedRepresentations.compactMap { rep in
+                let kind = rep.kindValue
+                guard kind == .png || kind == .jpeg || kind == .tiff || kind == .pdf else {
+                    return nil
                 }
+                return (rep.binaryData, rep.assetRef, rep.fileExtension)
             }
-            return
-        }
-
-        let representations = item.representations ?? []
-        let imageData: [Data] = representations.compactMap { rep in
-            let kind = rep.kindValue
-            guard kind == .png || kind == .jpeg || kind == .tiff else {
-                return nil
-            }
-            return rep.binaryData
-        }
+        let imageFilePath = filePathFromRepresentations()
+        let thumbnailPath = nonEmptyText(item.thumbnailPath)
 
         DispatchQueue.global(qos: .userInitiated).async {
-            for data in imageData {
-                let img = NSImage(data: data)
-                if let img {
-                    DispatchQueue.main.async { image = img }
+            for source in fullResolutionImageSources {
+                if let data = source.data, let img = NSImage(data: data) {
+                    DispatchQueue.main.async {
+                        guard item.objectID == previewItemID else { return }
+                        image = img
+                    }
+                    return
+                }
+
+                if let assetRef = source.assetRef,
+                    let data = try? AssetStore.shared.load(
+                        assetRef: assetRef,
+                        fileExtension: source.fileExtension
+                    ),
+                    let img = NSImage(data: data)
+                {
+                    DispatchQueue.main.async {
+                        guard item.objectID == previewItemID else { return }
+                        image = img
+                    }
                     return
                 }
             }
-            DispatchQueue.main.async { image = nil }
+
+            if let imageFilePath, let img = NSImage(contentsOfFile: imageFilePath) {
+                DispatchQueue.main.async {
+                    guard item.objectID == previewItemID else { return }
+                    image = img
+                }
+                return
+            }
+
+            if let thumbnailPath, let img = NSImage(contentsOfFile: thumbnailPath) {
+                DispatchQueue.main.async {
+                    guard item.objectID == previewItemID else { return }
+                    image = img
+                }
+                return
+            }
+
+            DispatchQueue.main.async {
+                guard item.objectID == previewItemID else { return }
+                image = nil
+            }
         }
+    }
+
+    func fullResolutionImagePathFromRepresentations() -> String? {
+        let sortedRepresentations = (item.representations ?? []).sorted {
+            $0.displayOrder < $1.displayOrder
+        }
+
+        for rep in sortedRepresentations {
+            let kind = rep.kindValue
+            guard kind == .png || kind == .jpeg || kind == .tiff || kind == .pdf else {
+                continue
+            }
+
+            if let assetRef = rep.assetRef {
+                return AssetStore.shared.urlForAsset(
+                    assetRef,
+                    fileExtension: rep.fileExtension
+                ).path
+            }
+        }
+
+        return nil
     }
 
     func loadFileIconIfNeeded() {

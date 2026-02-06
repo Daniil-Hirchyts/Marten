@@ -69,7 +69,11 @@ struct ItemEditorContentView: View {
             if item.itemTypeValue == .file, let filePath = item.primaryText {
                 _fileName = State(initialValue: URL(fileURLWithPath: filePath).lastPathComponent)
             } else if item.itemTypeValue == .image {
-                if let path = ItemEditorHelpers.fileURLPath(from: item) {
+                if let customTitle = item.customTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+                    !customTitle.isEmpty
+                {
+                    _fileName = State(initialValue: customTitle)
+                } else if let path = ItemEditorHelpers.fileURLPath(from: item) {
                     _fileName = State(initialValue: URL(fileURLWithPath: path).lastPathComponent)
                 } else {
                     _fileName = State(initialValue: "image.png")

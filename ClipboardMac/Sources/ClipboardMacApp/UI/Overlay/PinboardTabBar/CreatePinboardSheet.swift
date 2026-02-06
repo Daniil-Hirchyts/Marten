@@ -55,6 +55,9 @@ extension PinboardTabBar {
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.clear)
                         .padding(.vertical, 0)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: maxTabWidth - (tabHorizontalPadding * 2) - 22) // Subtracting padding and approximate icon space
                         .layoutPriority(1)
 
                     if draftName.isEmpty {

@@ -44,7 +44,12 @@ extension OverlayItemPreview {
         case .image:
             if let image {
                 items.append(image)
-            } else if let path = filePathFromRepresentations() ?? nonEmptyText(item.thumbnailPath) {
+            } else if
+                let path =
+                    fullResolutionImagePathFromRepresentations()
+                    ?? filePathFromRepresentations()
+                    ?? nonEmptyText(item.thumbnailPath)
+            {
                 items.append(URL(fileURLWithPath: path))
             }
         case .mixed:

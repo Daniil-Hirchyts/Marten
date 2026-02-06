@@ -174,6 +174,7 @@ extension OverlayShellView {
         DispatchQueue.main.async {
             frameCoordinator.updateCapturedPinboardLayout(layout)
             dragCoordinator.updatePinboardLayout(layout)
+            pinboardTabsContentWidth = layout.contentWidth ?? 0
         }
     }
 

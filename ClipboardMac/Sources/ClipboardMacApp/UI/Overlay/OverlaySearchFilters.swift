@@ -37,87 +37,93 @@ struct FilterPopoverView: View {
     let appOptions: [AppFilterOption]
     let onClear: () -> Void
 
-    private let popoverWidth: CGFloat = 360
+    private let popoverWidth: CGFloat = 380
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 20) {
+            // Header
             HStack(spacing: 8) {
-                Text("Filters")
-                    .font(.system(size: 14, weight: .semibold))
+                Text("Search Filters")
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
 
                 Spacer()
 
-                Button("Clear all") {
-                    onClear()
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(hasActiveFilters ? .secondary : .tertiary)
-                .disabled(!hasActiveFilters)
-                .accessibilityIdentifier("overlay.search.filters.clear")
-                .accessibilityLabel("Clear filters")
-                .accessibilityValue(hasActiveFilters ? "Filters active" : "No filters")
-                .accessibilityHint("Clears all active filters")
-            }
-
-            filterSection(title: "Date", icon: "calendar") {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
-                    ForEach(SearchDateFilter.allCases) { filter in
-                        FilterChip(
-                            title: filter.title,
-                            icon: dateIcon(for: filter),
-                            isSelected: dateFilter == filter,
-                            identifier: "overlay.search.filter.date.\(filter.rawValue)"
-                        ) {
-                            dateFilter = filter
-                        }
+                if hasActiveFilters {
+                    Button(action: onClear) {
+                        Text("Clear all")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("overlay.search.filters.clear")
+                    .accessibilityLabel("Clear filters")
                 }
             }
+            .padding(.bottom, 4)
 
-            filterSection(title: "Type", icon: "square.3.layers.3d") {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
-                    ForEach(ItemType.allCases, id: \.self) { type in
-                        FilterChip(
-                            title: itemTypeLabel(type),
-                            icon: itemTypeIcon(type),
-                            isSelected: typeFilters.contains(type),
-                            identifier: "overlay.search.filter.type.\(itemTypeIdentifier(type))"
-                        ) {
-                            toggleType(type)
-                        }
-                    }
-                }
-            }
-
-            filterSection(title: "App", icon: "app.dashed") {
-                if appOptions.isEmpty {
-                    Text("No apps found")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                } else {
-                    ScrollView(.vertical, showsIndicators: false) {
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8
-                        ) {
-                            ForEach(appOptions) { option in
-                                AppFilterChip(
-                                    option: option,
-                                    isSelected: appFilters.contains(option.id),
-                                    identifier: "overlay.search.filter.app.\(appIdentifier(option))"
-                                ) {
-                                    toggleApp(option.id)
-                                }
+            // Sections
+            VStack(alignment: .leading, spacing: 24) {
+                filterSection(title: "Date", icon: "calendar") {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
+                        ForEach(SearchDateFilter.allCases) { filter in
+                            FilterChip(
+                                title: filter.title,
+                                icon: dateIcon(for: filter),
+                                isSelected: dateFilter == filter,
+                                identifier: "overlay.search.filter.date.\(filter.rawValue)"
+                            ) {
+                                dateFilter = filter
                             }
                         }
-                        .padding(.vertical, 2)
                     }
-                    .frame(maxHeight: 160)
+                }
+
+                filterSection(title: "Content Type", icon: "doc.on.doc") {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 8)], spacing: 8) {
+                        ForEach(ItemType.allCases, id: \.self) { type in
+                            FilterChip(
+                                title: itemTypeLabel(type),
+                                icon: itemTypeIcon(type),
+                                isSelected: typeFilters.contains(type),
+                                identifier: "overlay.search.filter.type.\(itemTypeIdentifier(type))"
+                            ) {
+                                toggleType(type)
+                            }
+                        }
+                    }
+                }
+
+                filterSection(title: "Application", icon: "app") {
+                    if appOptions.isEmpty {
+                        Text("No apps available")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.tertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 8)
+                    } else {
+                        ScrollView(.vertical, showsIndicators: true) {
+                            LazyVGrid(
+                                columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8
+                            ) {
+                                ForEach(appOptions) { option in
+                                    AppFilterChip(
+                                        option: option,
+                                        isSelected: appFilters.contains(option.id),
+                                        identifier: "overlay.search.filter.app.\(appIdentifier(option))"
+                                    ) {
+                                        toggleApp(option.id)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                        .frame(maxHeight: 180)
+                    }
                 }
             }
         }
-        .padding(16)
+        .padding(20)
         .frame(width: popoverWidth)
         .accessibilityIdentifier("overlay.search.filters")
     }
@@ -144,36 +150,29 @@ struct FilterPopoverView: View {
 
     private func itemTypeLabel(_ type: ItemType) -> String {
         switch type {
-        case .text:
-            return "Text"
-        case .richText:
-            return "Rich Text"
-        case .image:
-            return "Image"
-        case .file:
-            return "File"
-        case .url:
-            return "URL"
-        case .code:
-            return "Code"
-        case .color:
-            return "Color"
-        case .mixed:
-            return "Mixed"
+        case .text: return "Text"
+        case .richText: return "Rich Text"
+        case .image: return "Image"
+        case .file: return "File"
+        case .url: return "URL"
+        case .code: return "Code"
+        case .color: return "Color"
+        case .mixed: return "Mixed"
         }
     }
 
     private func filterSection<Content: View>(
         title: String, icon: String, @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .textCase(.uppercase)
             }
             content()
         }
@@ -181,56 +180,36 @@ struct FilterPopoverView: View {
 
     private func dateIcon(for filter: SearchDateFilter) -> String {
         switch filter {
-        case .any:
-            return "clock"
-        case .today:
-            return "sun.max"
-        case .last7Days:
-            return "7.circle"
-        case .last30Days:
-            return "calendar"
+        case .any: return "clock"
+        case .today: return "sun.max"
+        case .last7Days: return "7.circle"
+        case .last30Days: return "calendar"
         }
     }
 
     private func itemTypeIcon(_ type: ItemType) -> String {
         switch type {
-        case .text:
-            return "text.alignleft"
-        case .richText:
-            return "textformat"
-        case .image:
-            return "photo"
-        case .file:
-            return "doc"
-        case .url:
-            return "link"
-        case .code:
-            return "chevron.left.slash.chevron.right"
-        case .color:
-            return "paintpalette"
-        case .mixed:
-            return "square.stack.3d.up"
+        case .text: return "text.alignleft"
+        case .richText: return "textformat"
+        case .image: return "photo"
+        case .file: return "doc"
+        case .url: return "link"
+        case .code: return "chevron.left.slash.chevron.right"
+        case .color: return "paintpalette"
+        case .mixed: return "square.stack.3d.up"
         }
     }
 
     private func itemTypeIdentifier(_ type: ItemType) -> String {
         switch type {
-        case .text:
-            return "text"
-        case .richText:
-            return "richText"
-        case .image:
-            return "image"
-        case .file:
-            return "file"
-        case .url:
-            return "url"
-        case .code:
-            return "code"
-        case .color:
-            return "color"
-        case .mixed:
-            return "mixed"
+        case .text: return "text"
+        case .richText: return "richText"
+        case .image: return "image"
+        case .file: return "file"
+        case .url: return "url"
+        case .code: return "code"
+        case .color: return "color"
+        case .mixed: return "mixed"
         }
     }
 
@@ -247,13 +226,14 @@ private struct FilterChip: View {
     let identifier: String
     let action: () -> Void
 
+    @State private var isHovering: Bool = false
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(iconColor)
                 Text(title)
                     .font(.system(size: 12, weight: .medium))
@@ -262,44 +242,22 @@ private struct FilterChip: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(
-                Group {
-                    if #available(macOS 26.0, *) {
-                        if isSelected {
-                            Capsule(style: .continuous)
-                                .fill(selectedBackgroundColor)
-                        } else {
-                            Capsule(style: .continuous)
-                                .fill(Color.clear)
-                                .glassNavigationStyle()
-                        }
-                    } else {
-                        Capsule(style: .continuous)
-                            .fill(isSelected ? selectedBackgroundColor : unselectedBackgroundColor)
-                    }
-                }
+            .adaptiveGlassBackground(
+                shape: .capsule,
+                isSelected: isSelected,
+                isHovering: isHovering
             )
             .overlay(
-                Group {
-                    if #available(macOS 26.0, *) {
-                        if isSelected {
-                            Capsule(style: .continuous)
-                                .strokeBorder(borderColor, lineWidth: 1)
-                        } else {
-                            EmptyView()
-                        }
-                    } else {
-                        Capsule(style: .continuous)
-                            .strokeBorder(
-                                Color.white.opacity(
-                                    isSelected
-                                        ? DesignTokens.Opacity.borderMedium
-                                        : DesignTokens.Opacity.borderSubtle), lineWidth: 1)
-                    }
-                }
+                Capsule()
+                    .strokeBorder(borderColor, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
+        .onHover { hover in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovering = hover
+            }
+        }
         .accessibilityIdentifier(identifier)
         .accessibilityLabel(title)
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
@@ -308,36 +266,26 @@ private struct FilterChip: View {
 
     private var iconColor: Color {
         if isSelected {
-            return colorScheme == .dark ? .black.opacity(0.9) : .white.opacity(0.9)
+            return .primary
         } else {
-            return colorScheme == .dark ? .white.opacity(0.7) : .black.opacity(0.7)
+            return .secondary
         }
     }
 
     private var textColor: Color {
         if isSelected {
-            return colorScheme == .dark ? .black : .white
+            return .primary
         } else {
-            return colorScheme == .dark ? .white : .black
+            return .primary.opacity(0.8)
         }
     }
 
-    private var selectedBackgroundColor: Color {
-        colorScheme == .dark
-            ? Color.white.opacity(0.9)
-            : Color.black.opacity(0.85)
-    }
-
-    private var unselectedBackgroundColor: Color {
-        colorScheme == .dark
-            ? Color.white.opacity(DesignTokens.Opacity.backgroundMedium)
-            : Color.black.opacity(0.1)
-    }
-
     private var borderColor: Color {
-        colorScheme == .dark
-            ? Color.white.opacity(DesignTokens.Opacity.borderMedium)
-            : Color.black.opacity(0.2)
+        if isSelected {
+            return .white.opacity(DesignTokens.Opacity.borderMedium)
+        } else {
+            return .white.opacity(DesignTokens.Opacity.borderSubtle)
+        }
     }
 }
 
@@ -347,6 +295,7 @@ private struct AppFilterChip: View {
     let identifier: String
     let action: () -> Void
 
+    @State private var isHovering: Bool = false
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -361,52 +310,22 @@ private struct AppFilterChip: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                Group {
-                    if #available(macOS 26.0, *) {
-                        if isSelected {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(
-                                    (colorScheme == .dark ? Color.white : Color.black).opacity(0.9))
-                        } else {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.clear)
-                                .glassStyle(shape: .roundedRectangle(cornerRadius: 10))
-                        }
-                    } else {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(
-                                isSelected
-                                    ? (colorScheme == .dark ? Color.white : Color.black).opacity(
-                                        0.9)
-                                    : (colorScheme == .dark ? Color.white : Color.black).opacity(
-                                        DesignTokens.Opacity.backgroundMedium))
-                    }
-                }
+            .adaptiveGlassBackground(
+                shape: .roundedRectangle(cornerRadius: 10),
+                isSelected: isSelected,
+                isHovering: isHovering
             )
             .overlay(
-                Group {
-                    if #available(macOS 26.0, *) {
-                        if isSelected {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(
-                                    (colorScheme == .dark ? Color.white : Color.black).opacity(
-                                        DesignTokens.Opacity.borderMedium), lineWidth: 1)
-                        } else {
-                            EmptyView()
-                        }
-                    } else {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(
-                                (colorScheme == .dark ? Color.white : Color.black).opacity(
-                                    isSelected
-                                        ? DesignTokens.Opacity.borderMedium
-                                        : DesignTokens.Opacity.borderSubtle), lineWidth: 1)
-                    }
-                }
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(borderColor, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
+        .onHover { hover in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovering = hover
+            }
+        }
         .accessibilityIdentifier(identifier)
         .accessibilityLabel(option.name)
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
@@ -414,10 +333,14 @@ private struct AppFilterChip: View {
     }
 
     private var textColor: Color {
+        isSelected ? .primary : .primary.opacity(0.8)
+    }
+
+    private var borderColor: Color {
         if isSelected {
-            return colorScheme == .dark ? .black : .white
+            return .white.opacity(DesignTokens.Opacity.borderMedium)
         } else {
-            return colorScheme == .dark ? .white : .black
+            return .white.opacity(DesignTokens.Opacity.borderSubtle)
         }
     }
 }

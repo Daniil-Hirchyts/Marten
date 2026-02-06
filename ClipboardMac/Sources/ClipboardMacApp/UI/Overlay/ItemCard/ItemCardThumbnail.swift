@@ -12,6 +12,13 @@ extension ItemCard {
 
     var imageFileName: String? {
         guard item.itemTypeValue == .image else { return nil }
+
+        if let customTitle = item.customTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !customTitle.isEmpty
+        {
+            return customTitle
+        }
+
         guard let reps = item.representations,
             let fileRep = reps.first(where: { $0.kindValue == .fileURL }),
             let data = fileRep.textData,

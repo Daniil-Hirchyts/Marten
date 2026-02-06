@@ -29,7 +29,7 @@ extension OverlayShellView {
                     Image(systemName: "tray")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
-                        .frame(width: 15, height: 15)
+                        .frame(width: 22, height: 15)
                 }
 
                 Text(verticalPinboardLabel)
@@ -87,7 +87,7 @@ extension OverlayShellView {
                     Image(systemName: "tray")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
-                        .frame(width: 15, height: 15)
+                        .frame(width: 22, height: 15)
                     Text("All Items")
                     Spacer(minLength: 0)
                     if searchModel.selectedPinboardID == nil {
@@ -189,95 +189,183 @@ extension OverlayShellView {
     }
 
     var verticalPinboardCreatePopover: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Create Pinboard")
-                .font(.system(size: 15, weight: .semibold))
+        VStack(spacing: 16) {
+            Text("New Pinboard")
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .center)
 
-            HStack(spacing: 8) {
-                PinboardStylePickerButton(
-                    selectedColorHex: verticalPinboardDraftColor,
-                    selectedSign: verticalPinboardDraftIcon,
-                    shouldPresentOnAppear: $shouldPresentVerticalPinboardStylePicker,
-                    onColorSelect: { verticalPinboardDraftColor = $0 },
-                    onSignSelect: { verticalPinboardDraftIcon = $0 }
-                )
-
-                TextField("Pinboard name", text: $verticalPinboardDraftName)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($verticalPinboardNameFocused)
-                    .accessibilityIdentifier("overlay.pinboard.verticalCreate.name")
-            }
+            createPopoverInputSection
 
             HStack {
-                Spacer()
-
                 Button("Cancel") {
                     cancelVerticalPinboardCreate()
                 }
+                .buttonStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
                 .keyboardShortcut(.cancelAction)
+
+                Spacer()
 
                 Button("Create") {
                     commitVerticalPinboardCreate()
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
                 .keyboardShortcut(.defaultAction)
                 .disabled(verticalPinboardDraftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier("overlay.pinboard.verticalCreate.commit")
             }
         }
-        .padding(14)
-        .frame(width: 340)
+        .padding(16)
+        .frame(width: 280)
         .onAppear {
             DispatchQueue.main.async {
                 verticalPinboardNameFocused = true
             }
         }
+        .onChange(of: verticalPinboardDraftName) { _, newValue in
+            if newValue.count > 22 {
+                verticalPinboardDraftName = String(newValue.prefix(22))
+            }
+        }
+    }
+
+    var createPopoverInputSection: some View {
+        HStack(spacing: 0) {
+            inputStylePicker
+            inputSeparator
+            inputTextField
+        }
+        .padding(4)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+        )
+    }
+
+    var inputStylePicker: some View {
+        PinboardStylePickerButton(
+            selectedColorHex: verticalPinboardDraftColor,
+            selectedSign: verticalPinboardDraftIcon,
+            shouldPresentOnAppear: $shouldPresentVerticalPinboardStylePicker,
+            onColorSelect: { verticalPinboardDraftColor = $0 },
+            onSignSelect: { verticalPinboardDraftIcon = $0 }
+        )
+        .frame(width: 44, height: 32)
+        .contentShape(Rectangle())
+    }
+
+    var inputSeparator: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.1))
+            .frame(width: 1, height: 16)
+    }
+
+    var inputTextField: some View {
+        TextField("Name", text: $verticalPinboardDraftName)
+            .textFieldStyle(.plain)
+            .font(.system(size: 13, weight: .medium))
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .frame(maxWidth: .infinity)
+            .focused($verticalPinboardNameFocused)
+            .accessibilityIdentifier("overlay.pinboard.verticalCreate.name")
     }
 
     var verticalPinboardEditPopover: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(spacing: 16) {
             Text("Edit Pinboard")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .center)
 
-            HStack(spacing: 8) {
-                PinboardStylePickerButton(
-                    selectedColorHex: verticalPinboardEditDraftColor,
-                    selectedSign: verticalPinboardEditDraftIcon,
-                    shouldPresentOnAppear: $shouldPresentVerticalPinboardEditStylePicker,
-                    onColorSelect: { verticalPinboardEditDraftColor = $0 },
-                    onSignSelect: { verticalPinboardEditDraftIcon = $0 }
-                )
-
-                TextField("Pinboard name", text: $verticalPinboardEditDraftName)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($verticalPinboardEditNameFocused)
-                    .accessibilityIdentifier("overlay.pinboard.verticalEdit.name")
-            }
+            editPopoverInputSection
 
             HStack {
-                Spacer()
-
                 Button("Cancel") {
                     cancelVerticalPinboardEdit()
                 }
+                .buttonStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
                 .keyboardShortcut(.cancelAction)
+
+                Spacer()
 
                 Button("Save") {
                     commitVerticalPinboardEdit()
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
                 .keyboardShortcut(.defaultAction)
                 .disabled(verticalPinboardEditDraftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier("overlay.pinboard.verticalEdit.commit")
             }
         }
-        .padding(14)
-        .frame(width: 340)
+        .padding(16)
+        .frame(width: 280)
         .onAppear {
             DispatchQueue.main.async {
                 verticalPinboardEditNameFocused = true
             }
         }
+        .onChange(of: verticalPinboardEditDraftName) { _, newValue in
+            if newValue.count > 22 {
+                verticalPinboardEditDraftName = String(newValue.prefix(22))
+            }
+        }
+    }
+
+    var editPopoverInputSection: some View {
+        HStack(spacing: 0) {
+            editStylePicker
+            editSeparator
+            editTextField
+        }
+        .padding(4)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+        )
+    }
+
+    var editStylePicker: some View {
+        PinboardStylePickerButton(
+            selectedColorHex: verticalPinboardEditDraftColor,
+            selectedSign: verticalPinboardEditDraftIcon,
+            shouldPresentOnAppear: $shouldPresentVerticalPinboardEditStylePicker,
+            onColorSelect: { verticalPinboardEditDraftColor = $0 },
+            onSignSelect: { verticalPinboardEditDraftIcon = $0 }
+        )
+        .frame(width: 44, height: 32)
+        .contentShape(Rectangle())
+    }
+
+    var editSeparator: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.1))
+            .frame(width: 1, height: 16)
+    }
+
+    var editTextField: some View {
+        TextField("Name", text: $verticalPinboardEditDraftName)
+            .textFieldStyle(.plain)
+            .font(.system(size: 13, weight: .medium))
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .frame(maxWidth: .infinity)
+            .focused($verticalPinboardEditNameFocused)
+            .accessibilityIdentifier("overlay.pinboard.verticalEdit.name")
     }
 }
 

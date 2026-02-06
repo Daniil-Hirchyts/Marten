@@ -22,6 +22,7 @@ struct PinboardTab: View {
                     Image(systemName: iconName)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(textColor)
+                        .frame(width: 22)
                 }
 
                 Text(title)

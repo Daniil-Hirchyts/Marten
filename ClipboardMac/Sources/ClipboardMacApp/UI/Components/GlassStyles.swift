@@ -188,3 +188,29 @@ extension View {
         }
     }
 }
+
+// MARK: - Shared Components
+
+struct OverlayHeaderButton: View {
+    let systemImage: String
+    let size: CGFloat
+    let iconSize: CGFloat
+    let isHovered: Bool
+    
+    var body: some View {
+        ZStack {
+            Image(systemName: systemImage)
+                .font(.system(size: iconSize, weight: .semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(width: size, height: size)
+        .adaptiveGlassBackground(shape: .circle, isHovering: isHovered)
+        .overlay(
+            Circle()
+                .strokeBorder(
+                    Color.white.opacity(DesignTokens.Opacity.borderSubtle),
+                    lineWidth: 1)
+        )
+        .contentShape(Circle())
+    }
+}

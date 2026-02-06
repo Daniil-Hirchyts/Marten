@@ -7,7 +7,7 @@ extension ItemEditorContentView {
     }
 
     var saveTitle: String {
-        mode == .createNew ? "Save to Clipboard" : "Save"
+        "Save"
     }
 
     var supportsCopyButton: Bool {
@@ -88,7 +88,11 @@ extension ItemEditorContentView {
         if item.itemTypeValue == .file, let filePath = item.primaryText {
             return URL(fileURLWithPath: filePath).lastPathComponent
         } else if item.itemTypeValue == .image {
-            if let path = ItemEditorHelpers.fileURLPath(from: item) {
+            if let customTitle = item.customTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+                !customTitle.isEmpty
+            {
+                return customTitle
+            } else if let path = ItemEditorHelpers.fileURLPath(from: item) {
                 return URL(fileURLWithPath: path).lastPathComponent
             } else {
                 return "image.png"
@@ -97,4 +101,3 @@ extension ItemEditorContentView {
         return "Untitled"
     }
 }
-

@@ -86,6 +86,7 @@ struct PinboardTabBar: View {
     @State var isStyleOnlyEditMode = false
     @State var pinnedEditorObjectID: NSManagedObjectID?
     @State var pinnedEditorWidth: CGFloat?
+    @State private var isPlusHovered = false
     @Environment(\.colorScheme) var colorScheme
 
     let autoScrollEdgeInset: CGFloat = 40
@@ -203,27 +204,19 @@ struct PinboardTabBar: View {
                         pinnedEditorWidth = nil
                         onCreate()
                     } label: {
-                        if #available(macOS 26.0, *) {
-                            Image(systemName: "plus")
-                                .font(.system(size: headerButtonIconSize, weight: .semibold))
-                                .frame(width: headerButtonSize, height: headerButtonSize)
-                                .glassCircleButton()
-                                .contentShape(Circle())
-                        } else {
-                            Image(systemName: "plus")
-                                .font(.system(size: headerButtonIconSize, weight: .semibold))
-                                .frame(width: headerButtonSize, height: headerButtonSize)
-                                .background(
-                                    Circle()
-                                        .fill(
-                                            Color.white.opacity(
-                                                DesignTokens.Opacity.backgroundMedium))
-                                )
-                                .contentShape(Circle())
-                        }
+                        OverlayHeaderButton(
+                            systemImage: "plus",
+                            size: headerButtonSize,
+                            iconSize: headerButtonIconSize,
+                            isHovered: isPlusHovered
+                        )
                     }
                     .buttonStyle(.plain)
-                    .contentShape(Circle())
+                    .onHover { hovering in
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            isPlusHovered = hovering
+                        }
+                    }
                     .popover(isPresented: $isCreatePopoverPresented, arrowEdge: .top) {
                         createPopoverContent()
                     }
