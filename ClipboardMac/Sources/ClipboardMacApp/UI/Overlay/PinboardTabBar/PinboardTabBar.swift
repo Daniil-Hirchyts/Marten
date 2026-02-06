@@ -25,6 +25,7 @@ struct PinboardTabBar: View {
     let tabContentHeight: CGFloat = 20
     let tabVerticalPadding: CGFloat = 5
     let tabHorizontalPadding: CGFloat = 10
+    let minTabWidth: CGFloat = 60
     let maxTabWidth: CGFloat = 160
     let maxPinboardNameLength = 22
 
@@ -33,7 +34,9 @@ struct PinboardTabBar: View {
     let isLocked: (Pinboard) -> Bool
     let isUnlocked: (Pinboard) -> Bool
     @Binding var editingID: NSManagedObjectID?
-    @Binding var isCreating: Bool
+    @Binding var isCreatePopoverPresented: Bool
+    @ViewBuilder let createPopoverContent: () -> AnyView
+    
     @Binding var draftName: String
     @Binding var draftColor: String
     @Binding var draftIcon: String?
@@ -89,10 +92,10 @@ struct PinboardTabBar: View {
     let autoScrollSpeed: CGFloat = 4
 
     var canReorder: Bool {
-        editingID == nil && !isCreating
+        editingID == nil
     }
 
-    let scrollContentPadding: CGFloat = 5
+    let scrollContentPadding: CGFloat = 10
 
     var measuredContentWidth: CGFloat {
         frameManager.contentWidth
@@ -194,40 +197,39 @@ struct PinboardTabBar: View {
                 }
 
                 ZStack(alignment: .leading) {
-                    if isCreating {
-                        editorView(pinboard: nil)
-                    } else {
-                        Button {
-                            isStyleOnlyEditMode = false
-                            pinnedEditorObjectID = nil
-                            pinnedEditorWidth = nil
-                            onCreate()
-                        } label: {
-                            if #available(macOS 26.0, *) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: headerButtonIconSize, weight: .semibold))
-                                    .frame(width: headerButtonSize, height: headerButtonSize)
-                                    .glassCircleButton()
-                                    .contentShape(Circle())
-                            } else {
-                                Image(systemName: "plus")
-                                    .font(.system(size: headerButtonIconSize, weight: .semibold))
-                                    .frame(width: headerButtonSize, height: headerButtonSize)
-                                    .background(
-                                        Circle()
-                                            .fill(
-                                                Color.white.opacity(
-                                                    DesignTokens.Opacity.backgroundMedium))
-                                    )
-                                    .contentShape(Circle())
-                            }
+                    Button {
+                        isStyleOnlyEditMode = false
+                        pinnedEditorObjectID = nil
+                        pinnedEditorWidth = nil
+                        onCreate()
+                    } label: {
+                        if #available(macOS 26.0, *) {
+                            Image(systemName: "plus")
+                                .font(.system(size: headerButtonIconSize, weight: .semibold))
+                                .frame(width: headerButtonSize, height: headerButtonSize)
+                                .glassCircleButton()
+                                .contentShape(Circle())
+                        } else {
+                            Image(systemName: "plus")
+                                .font(.system(size: headerButtonIconSize, weight: .semibold))
+                                .frame(width: headerButtonSize, height: headerButtonSize)
+                                .background(
+                                    Circle()
+                                        .fill(
+                                            Color.white.opacity(
+                                                DesignTokens.Opacity.backgroundMedium))
+                                )
+                                .contentShape(Circle())
                         }
-                        .buttonStyle(.plain)
-                        .contentShape(Circle())
-                        .accessibilityIdentifier("overlay.pinboard.add")
-                        .accessibilityLabel("Add pinboard")
-                        .accessibilityHint("Creates a new pinboard")
                     }
+                    .buttonStyle(.plain)
+                    .contentShape(Circle())
+                    .popover(isPresented: $isCreatePopoverPresented, arrowEdge: .top) {
+                        createPopoverContent()
+                    }
+                    .accessibilityIdentifier("overlay.pinboard.add")
+                    .accessibilityLabel("Add pinboard")
+                    .accessibilityHint("Creates a new pinboard")
                 }
                 .background(
                     GeometryReader { proxy in
@@ -281,7 +283,7 @@ struct PinboardTabBar: View {
                 pinnedEditorWidth = nil
             }
         }
-        .onChange(of: isCreating) { _, newValue in
+        .onChange(of: isCreatePopoverPresented) { _, newValue in
             if newValue {
                 isStyleOnlyEditMode = false
             }

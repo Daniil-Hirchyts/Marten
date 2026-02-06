@@ -12,23 +12,20 @@ extension OverlayShellView {
     }
 
     func handlePinboardCreateStart() {
-        closeSearchIfEmpty()
-        renamePinboardColor = nextAvailablePinboardColorHex()
-
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-            isCreatingPinboard = true
-        }
-        renamePinboardName = ""
-        renamePinboardIcon = nil
+        presentPinboardCreate()
     }
 
     func handleCreatePinboardFromVerticalPicker() {
+        beginPinboardCreate(for: nil)
+    }
+
+    func presentPinboardCreate() {
         closeSearchIfEmpty()
         verticalPinboardDraftName = nextAvailablePinboardName()
         verticalPinboardDraftColor = nextAvailablePinboardColorHex()
         verticalPinboardDraftIcon = nil
         shouldPresentVerticalPinboardStylePicker = false
-        isVerticalPinboardCreatePresented = true
+        isPinboardCreatePresented = true
     }
 
     func commitVerticalPinboardCreate() {
@@ -44,7 +41,7 @@ extension OverlayShellView {
         guard didCreate else { return }
 
         pendingPinboardItem = nil
-        isVerticalPinboardCreatePresented = false
+        isPinboardCreatePresented = false
         shouldPresentVerticalPinboardStylePicker = false
 
         DispatchQueue.main.async {
@@ -60,7 +57,7 @@ extension OverlayShellView {
     }
 
     func cancelVerticalPinboardCreate() {
-        isVerticalPinboardCreatePresented = false
+        isPinboardCreatePresented = false
         shouldPresentVerticalPinboardStylePicker = false
         pendingPinboardItem = nil
     }
@@ -199,14 +196,6 @@ extension OverlayShellView {
 
     func beginPinboardCreate(for item: ClipItem?) {
         pendingPinboardItem = item
-        if overlayLayoutAxis == .vertical {
-            handleCreatePinboardFromVerticalPicker()
-        } else {
-            renamePinboardColor = nextAvailablePinboardColorHex()
-            renamePinboardName = ""
-            renamePinboardIcon = nil
-            isCreatingPinboard = true
-        }
+        presentPinboardCreate()
     }
 }
-

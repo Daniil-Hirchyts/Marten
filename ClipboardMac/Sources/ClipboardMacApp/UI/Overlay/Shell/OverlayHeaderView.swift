@@ -3,7 +3,7 @@ import SwiftUI
 
 extension OverlayShellView {
     var horizontalHeaderBar: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .center, spacing: 7) {
             OverlaySearchBarView(
                 isSearchExpanded: $isSearchExpanded,
                 isFilterPopoverPresented: $isFilterPopoverPresented,
@@ -32,7 +32,8 @@ extension OverlayShellView {
                 isLocked: { pinboardLockController.isLocked(pinboardID: $0.id) },
                 isUnlocked: { pinboardLockController.canAccess(pinboardID: $0.id) },
                 editingID: $renamePinboardID,
-                isCreating: $isCreatingPinboard,
+                isCreatePopoverPresented: $isPinboardCreatePresented,
+                createPopoverContent: { AnyView(verticalPinboardCreatePopover) },
                 draftName: $renamePinboardName,
                 draftColor: $renamePinboardColor,
                 draftIcon: $renamePinboardIcon,

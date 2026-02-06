@@ -10,7 +10,10 @@ struct PinboardTabBarSection: View {
     let isLocked: (Pinboard) -> Bool
     let isUnlocked: (Pinboard) -> Bool
     @Binding var editingID: NSManagedObjectID?
-    @Binding var isCreating: Bool
+    @Binding var isCreatePopoverPresented: Bool
+    @ViewBuilder let createPopoverContent: () -> AnyView
+    
+    // Restored Properties
     @Binding var draftName: String
     @Binding var draftColor: String
     @Binding var draftIcon: String?
@@ -46,7 +49,8 @@ struct PinboardTabBarSection: View {
             isLocked: isLocked,
             isUnlocked: isUnlocked,
             editingID: $editingID,
-            isCreating: $isCreating,
+            isCreatePopoverPresented: $isCreatePopoverPresented,
+            createPopoverContent: createPopoverContent,
             draftName: $draftName,
             draftColor: $draftColor,
             draftIcon: $draftIcon,

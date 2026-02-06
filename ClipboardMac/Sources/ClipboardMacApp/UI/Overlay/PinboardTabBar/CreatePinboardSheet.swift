@@ -7,6 +7,7 @@ extension PinboardTabBar {
         let isStyleOnlyEditor = pinboard != nil && isStyleOnlyEditMode
         let fixedEditorWidth = existingPinboardEditorWidth(pinboard)
         let nameFieldMinWidth: CGFloat = pinboard == nil ? 40 : 0
+        let editorMinWidth = minTabWidth
 
         HStack(spacing: 6) {
             PinboardStylePickerButton(
@@ -116,8 +117,11 @@ extension PinboardTabBar {
             }
         )
         .fixedSize(horizontal: fixedEditorWidth == nil, vertical: false)
-        .frame(width: fixedEditorWidth, alignment: .leading)
-        .frame(maxWidth: fixedEditorWidth == nil ? maxTabWidth : fixedEditorWidth, alignment: .leading)
+        .frame(
+            minWidth: fixedEditorWidth == nil ? editorMinWidth : fixedEditorWidth,
+            maxWidth: fixedEditorWidth == nil ? maxTabWidth : fixedEditorWidth,
+            alignment: .leading
+        )
         .frame(height: headerButtonSize)
         .background(
             GeometryReader { proxy in
@@ -130,7 +134,7 @@ extension PinboardTabBar {
     }
 
     func existingPinboardEditorWidth(_ pinboard: Pinboard?) -> CGFloat? {
-        guard let pinboard else { return nil }
+        guard let pinboard, isStyleOnlyEditMode else { return nil }
         if pinnedEditorObjectID == pinboard.objectID, let pinnedEditorWidth, pinnedEditorWidth > 0 {
             return min(pinnedEditorWidth, maxTabWidth)
         }
@@ -141,7 +145,7 @@ extension PinboardTabBar {
     }
 
     func handleBlurCommit() {
-        guard isCreating || editingID != nil else { return }
+        guard editingID != nil else { return }
 
         DispatchQueue.main.async {
             if isStyleOnlyEditMode {
@@ -191,4 +195,3 @@ extension PinboardTabBar {
         colorScheme == .dark ? .white.opacity(0.5) : .black.opacity(0.3)
     }
 }
-

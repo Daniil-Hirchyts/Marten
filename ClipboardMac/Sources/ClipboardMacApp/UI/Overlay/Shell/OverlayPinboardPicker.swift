@@ -70,7 +70,7 @@ extension OverlayShellView {
         .popover(isPresented: $isVerticalPinboardDropdownPresented, arrowEdge: .top) {
             verticalPinboardDropdownContent
         }
-        .popover(isPresented: $isVerticalPinboardCreatePresented, arrowEdge: .top) {
+        .popover(isPresented: $isPinboardCreatePresented, arrowEdge: .top) {
             verticalPinboardCreatePopover
         }
         .accessibilityIdentifier("overlay.pinboard.picker")

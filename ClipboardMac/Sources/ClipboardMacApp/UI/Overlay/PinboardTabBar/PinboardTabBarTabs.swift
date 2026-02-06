@@ -7,7 +7,7 @@ extension PinboardTabBar {
         HStack(spacing: tabSpacing) {
             PinboardTab(
                 title: "All", iconName: "tray", colorHex: nil, isSelected: selectedID == nil,
-                minWidth: 60, maxWidth: maxTabWidth
+                minWidth: minTabWidth, maxWidth: maxTabWidth
             ) {
                 onSelect(nil)
             }
@@ -135,4 +135,3 @@ extension PinboardTabBar {
         return parts.joined(separator: ". ")
     }
 }
-

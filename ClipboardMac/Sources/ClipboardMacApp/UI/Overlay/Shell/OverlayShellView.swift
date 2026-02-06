@@ -27,7 +27,7 @@ struct OverlayShellView: View {
     @State var renamePinboardIcon: String?
     @State var isCreatingPinboard = false
     @State var pendingPinboardItem: ClipItem?
-    @State var isVerticalPinboardCreatePresented = false
+    @State var isPinboardCreatePresented = false
     @State var verticalPinboardDraftName = ""
     @State var verticalPinboardDraftColor = PinboardPalette.defaultHex
     @State var verticalPinboardDraftIcon: String?

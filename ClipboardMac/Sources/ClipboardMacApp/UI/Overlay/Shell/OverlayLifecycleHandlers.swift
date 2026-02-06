@@ -31,7 +31,7 @@ extension OverlayShellView {
         isCreatingPinboard = false
         renamePinboardID = nil
         renamePinboardIcon = nil
-        isVerticalPinboardCreatePresented = false
+        isPinboardCreatePresented = false
         isVerticalPinboardDropdownPresented = false
         shouldPresentVerticalPinboardStylePicker = false
         isVerticalPinboardEditPresented = false
