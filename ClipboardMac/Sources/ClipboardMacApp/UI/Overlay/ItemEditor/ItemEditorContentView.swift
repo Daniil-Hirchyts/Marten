@@ -89,6 +89,20 @@ struct ItemEditorContentView: View {
         editorBody
             .onAppear { handleAppear() }
             .onDisappear { handleDisappear() }
+            .onReceive(NotificationCenter.default.publisher(for: .textFormattingDidChange)) { notification in
+                if let isBoldValue = notification.userInfo?["isBold"] as? Bool {
+                    isBold = isBoldValue
+                }
+                if let isItalicValue = notification.userInfo?["isItalic"] as? Bool {
+                    isItalic = isItalicValue
+                }
+                if let isUnderlineValue = notification.userInfo?["isUnderline"] as? Bool {
+                    isUnderline = isUnderlineValue
+                }
+                if let isStrikethroughValue = notification.userInfo?["isStrikethrough"] as? Bool {
+                    isStrikethrough = isStrikethroughValue
+                }
+            }
             .sheet(item: $appleIntelligencePreview) { preview in
                 appleIntelligencePreviewSheet(for: preview)
             }
@@ -124,6 +138,7 @@ struct ItemEditorContentView: View {
                         onToggleItalic: { toggleFormatting(.italic) },
                         onToggleUnderline: { toggleFormatting(.underline) },
                         onToggleStrikethrough: { toggleFormatting(.strikethrough) },
+                        onClearFormatting: { toggleFormatting(.clearFormatting) },
                         appleIntelligenceControl: AnyView(appleIntelligenceMenu)
                     )
 
@@ -141,7 +156,7 @@ struct ItemEditorContentView: View {
                     Spacer()
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Color(nsColor: .white).opacity(0.30))
+                        .foregroundStyle(Color.primary.opacity(0.30))
                         .padding(12)
                 }
             }
@@ -151,25 +166,14 @@ struct ItemEditorContentView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color(nsColor: .white), lineWidth: 1)
-                .opacity(0.15)
+                .stroke(Color.primary.opacity(0.15), lineWidth: 1)
         }
-        .shadow(color: Color(nsColor: .black).opacity(0.3), radius: 30, x: 0, y: 15)
         )
     }
 
     private var editorSurface: some View {
-        ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(nsColor: .white).opacity(0.08))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color(nsColor: .white).opacity(0.12), lineWidth: 1)
-                )
-
-            contentView
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        contentView
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -232,15 +236,6 @@ struct ItemEditorContentView: View {
                 codeSelection: $codeSelection,
                 isFocused: $isFocused
             )
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(nsColor: .white).opacity(0.08))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color(nsColor: .white).opacity(0.12), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 
@@ -268,7 +263,7 @@ struct ItemEditorContentView: View {
                     Text(ItemEditorTextStats(text: draftText).label)
                         .font(.system(size: 12, weight: .medium))
                 }
-                .foregroundStyle(.white.opacity(0.60))
+                .foregroundStyle(Color.primary.opacity(0.60))
             case .file:
                 HStack(spacing: 6) {
                     Image(systemName: "doc.fill")
@@ -276,7 +271,7 @@ struct ItemEditorContentView: View {
                     Text("File Editor")
                         .font(.system(size: 12, weight: .medium))
                 }
-                .foregroundStyle(.white.opacity(0.60))
+                .foregroundStyle(Color.primary.opacity(0.60))
             case .image:
                 HStack(spacing: 6) {
                     Image(systemName: "photo")
@@ -284,7 +279,7 @@ struct ItemEditorContentView: View {
                     Text("Image Viewer")
                         .font(.system(size: 12, weight: .medium))
                 }
-                .foregroundStyle(.white.opacity(0.60))
+                .foregroundStyle(Color.primary.opacity(0.60))
             default:
                 EmptyView()
             }
@@ -295,7 +290,7 @@ struct ItemEditorContentView: View {
                 Text(ItemEditorTextStats(text: draftText).label)
                     .font(.system(size: 12, weight: .medium))
             }
-            .foregroundStyle(.white.opacity(0.60))
+            .foregroundStyle(Color.primary.opacity(0.60))
         }
     }
 
@@ -303,19 +298,23 @@ struct ItemEditorContentView: View {
 
     private var backgroundView: AnyView {
         if #available(macOS 26.0, *) {
-            AnyView(
+            return AnyView(
                 Rectangle()
                     .fill(Color.clear)
                     .glassEffect(.regular, in: .rect(cornerRadius: 20, style: .continuous))
             )
         } else {
-            AnyView(VisualEffectView(material: .hudWindow, blendingMode: .withinWindow))
+            // Use SwiftUI material for better blending
+            return AnyView(
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+            )
         }
     }
 
     private var dragHandle: some View {
         RoundedRectangle(cornerRadius: 3, style: .continuous)
-            .fill(Color(nsColor: .white).opacity(0.25))
+            .fill(Color.primary.opacity(0.25))
             .frame(width: 36, height: 5)
     }
 }

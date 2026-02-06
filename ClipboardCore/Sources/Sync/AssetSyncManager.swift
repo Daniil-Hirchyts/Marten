@@ -420,29 +420,29 @@ extension CKDatabase {
         savePolicy: CKModifyRecordsOperation.RecordSavePolicy,
         perRecordProgress: (@Sendable (String, Double) -> Void)?
     ) async throws -> [CKRecord] {
-        var operation: CKModifyRecordsOperation?
+        let modifyOperation = CKModifyRecordsOperation(
+            recordsToSave: records,
+            recordIDsToDelete: recordIDs
+        )
         return try await withTaskCancellationHandler(
             operation: {
                 try await withCheckedThrowingContinuation { continuation in
-                    let op = CKModifyRecordsOperation(
-                        recordsToSave: records, recordIDsToDelete: recordIDs)
-                    operation = op
-                    op.savePolicy = savePolicy
+                    modifyOperation.savePolicy = savePolicy
                     var savedRecords: [CKRecord] = []
 
                     if let perRecordProgress {
-                        op.perRecordProgressBlock = { record, progress in
+                        modifyOperation.perRecordProgressBlock = { record, progress in
                             perRecordProgress(record.recordID.recordName, progress)
                         }
                     }
 
-                    op.perRecordSaveBlock = { _, result in
+                    modifyOperation.perRecordSaveBlock = { _, result in
                         if case .success(let record) = result {
                             savedRecords.append(record)
                         }
                     }
 
-                    op.modifyRecordsResultBlock = { result in
+                    modifyOperation.modifyRecordsResultBlock = { result in
                         switch result {
                         case .success:
                             continuation.resume(returning: savedRecords)
@@ -451,29 +451,27 @@ extension CKDatabase {
                         }
                     }
 
-                    self.add(op)
+                    self.add(modifyOperation)
                 }
             },
             onCancel: {
-                operation?.cancel()
+                modifyOperation.cancel()
             })
     }
 
     public func fetchRecord(withID recordID: CKRecord.ID, desiredKeys: [String]?) async throws
         -> CKRecord
     {
-        var operation: CKFetchRecordsOperation?
+        let fetchOperation = CKFetchRecordsOperation(recordIDs: [recordID])
         return try await withTaskCancellationHandler(
             operation: {
                 try await withCheckedThrowingContinuation {
                     (continuation: CheckedContinuation<CKRecord, Error>) in
-                    let op = CKFetchRecordsOperation(recordIDs: [recordID])
-                    operation = op
-                    op.desiredKeys = desiredKeys
+                    fetchOperation.desiredKeys = desiredKeys
 
                     var fetchedRecord: CKRecord?
                     var perRecordError: Error?
-                    op.perRecordResultBlock = { _, result in
+                    fetchOperation.perRecordResultBlock = { _, result in
                         switch result {
                         case .success(let record):
                             fetchedRecord = record
@@ -482,7 +480,7 @@ extension CKDatabase {
                         }
                     }
 
-                    op.fetchRecordsResultBlock = { result in
+                    fetchOperation.fetchRecordsResultBlock = { result in
                         switch result {
                         case .success:
                             if let perRecordError {
@@ -499,11 +497,11 @@ extension CKDatabase {
                         }
                     }
 
-                    self.add(op)
+                    self.add(fetchOperation)
                 }
             },
             onCancel: {
-                operation?.cancel()
+                fetchOperation.cancel()
             })
     }
 }

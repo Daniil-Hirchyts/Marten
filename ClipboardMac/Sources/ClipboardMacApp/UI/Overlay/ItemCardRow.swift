@@ -2,7 +2,6 @@ import AppKit
 import ClipboardCore
 import ClipboardMacServices
 import CoreData
-import OSLog
 import SwiftUI
 
 struct ItemCardRow: View {
@@ -65,7 +64,6 @@ struct ItemCardRow: View {
 
     @StateObject private var itemFramesBuffer = ItemFramesBuffer()
 
-    private let leadingAnchorID = "ItemCardRow.leadingAnchor"
 
     var body: some View {
         GeometryReader { geometry in
@@ -88,9 +86,6 @@ struct ItemCardRow: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ScrollViewReader { proxy in
                         LazyHStack(alignment: .center, spacing: cardSpacing) {
-                            Color.clear
-                                .frame(width: 0, height: 0)
-                                .id(leadingAnchorID)
                             cardViews(size: cardSize, proxy: proxy, items: visibleItems)
                         }
                         .padding(.vertical, verticalPadding)
@@ -101,7 +96,9 @@ struct ItemCardRow: View {
                             value: visibleItemsOrderSignature(visibleItems)
                         )
                         .onChange(of: pinboardSelectionKey) { _, _ in
-                            proxy.scrollTo(leadingAnchorID, anchor: .leading)
+                            if let firstID = visibleItems.first?.objectID {
+                                proxy.scrollTo(firstID, anchor: .leading)
+                            }
                         }
                     }
                 }
@@ -110,9 +107,6 @@ struct ItemCardRow: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ScrollViewReader { proxy in
                         LazyHStack(alignment: .center, spacing: cardSpacing) {
-                            Color.clear
-                                .frame(width: 0, height: 0)
-                                .id(leadingAnchorID)
                             cardViews(size: cardSize, proxy: proxy, items: visibleItems)
                         }
                         .padding(.vertical, verticalPadding)
@@ -124,7 +118,9 @@ struct ItemCardRow: View {
                         )
                         .padding(.horizontal, placeholderInset)
                         .onChange(of: pinboardSelectionKey) { _, _ in
-                            proxy.scrollTo(leadingAnchorID, anchor: .leading)
+                            if let firstID = visibleItems.first?.objectID {
+                                proxy.scrollTo(firstID, anchor: .leading)
+                            }
                         }
                     }
                 }
@@ -416,9 +412,6 @@ struct ItemCardRow: View {
             } else {
                 itemIDs = [draggedID]
             }
-
-            Logger.drag.debug(
-                "Drag started: \(itemIDs.count) items, frame=\(String(describing: frame))")
 
             dragState = DragState(
                 itemIDs: itemIDs,

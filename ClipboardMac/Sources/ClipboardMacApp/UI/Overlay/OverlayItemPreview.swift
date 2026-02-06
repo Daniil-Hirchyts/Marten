@@ -77,35 +77,55 @@ struct OverlayItemPreview: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 8) {
-                actionIconButton(
-                    title: "Paste",
-                    systemImage: "doc.on.clipboard",
-                    action: onPaste
-                )
-                actionIconButton(
-                    title: "Paste as Plain Text",
-                    systemImage: "doc.plaintext",
-                    action: onPastePlainText
-                )
-                actionIconButton(
-                    title: "Copy",
-                    systemImage: "doc.on.doc",
-                    action: onCopy
-                )
-                actionIconButton(
-                    title: "Share",
-                    systemImage: "square.and.arrow.up",
-                    action: shareItem
-                )
-                if allowPinning {
-                    actionIconButton(
-                        title: item.isPinned ? "Unpin" : "Pin",
-                        systemImage: item.isPinned ? "pin.slash" : "pin",
-                        action: onTogglePin
+                // Clipboard actions group
+                HStack(spacing: 0) {
+                    PreviewIconButton(
+                        title: "Paste",
+                        systemImage: "doc.on.clipboard",
+                        action: onPaste,
+                        applyBackground: false
+                    )
+                    PreviewIconButton(
+                        title: "Paste as Plain Text",
+                        systemImage: "doc.plaintext",
+                        action: onPastePlainText,
+                        applyBackground: false
+                    )
+                    PreviewIconButton(
+                        title: "Copy",
+                        systemImage: "doc.on.doc",
+                        action: onCopy,
+                        applyBackground: false
+                    )
+                    PreviewIconButton(
+                        title: "Share",
+                        systemImage: "square.and.arrow.up",
+                        action: shareItem,
+                        applyBackground: false
                     )
                 }
-                quickAddToPinboardMenu
-                actionIconButton(
+                .padding(2)
+                .adaptiveGlassBackground(shape: .capsule)
+                .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
+
+                // Organization group
+                HStack(spacing: 0) {
+                    if allowPinning {
+                        PreviewIconButton(
+                            title: item.isPinned ? "Unpin" : "Pin",
+                            systemImage: item.isPinned ? "pin.slash" : "pin",
+                            action: onTogglePin,
+                            applyBackground: false
+                        )
+                    }
+                    quickAddToPinboardMenu
+                }
+                .padding(2)
+                .adaptiveGlassBackground(shape: .capsule)
+                .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
+
+                // Delete action
+                PreviewIconButton(
                     title: "Delete",
                     systemImage: "trash",
                     role: .destructive,
@@ -155,38 +175,6 @@ struct OverlayItemPreview: View {
         }
     }
 
-    @ViewBuilder
-    func actionIconButton(
-        title: String,
-        systemImage: String,
-        role: ButtonRole? = nil,
-        action: @escaping () -> Void
-    ) -> some View {
-        if let role {
-            Button(role: role, action: action) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .adaptiveGlassBackground(shape: .roundedRectangle(cornerRadius: 10))
-            .help(title)
-            .accessibilityLabel(title)
-        } else {
-            Button(action: action) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .adaptiveGlassBackground(shape: .roundedRectangle(cornerRadius: 10))
-            .help(title)
-            .accessibilityLabel(title)
-        }
-    }
-
     func actionTextButton(
         title: String,
         action: @escaping () -> Void
@@ -199,7 +187,51 @@ struct OverlayItemPreview: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .adaptiveGlassBackground(shape: .roundedRectangle(cornerRadius: 10))
+        .padding(2)
+        .adaptiveGlassBackground(shape: .capsule)
+        .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
         .accessibilityLabel(title)
     }
 }
+
+struct PreviewIconButton: View {
+    let title: String
+    let systemImage: String
+    var role: ButtonRole? = nil
+    let action: () -> Void
+    var applyBackground: Bool = true
+    
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(role: role, action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.primary.opacity(isHovering ? 0.05 : 0))
+        )
+        .onHover { isHovering = $0 }
+        .help(title)
+        .accessibilityLabel(title)
+        .adaptiveGlassBackground(shape: .capsule, apply: applyBackground)
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func adaptiveGlassBackground(shape: GlassShape, apply: Bool) -> some View {
+        if apply {
+            self.padding(2)
+                .adaptiveGlassBackground(shape: shape)
+                .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
+        } else {
+            self
+        }
+    }
+}
+

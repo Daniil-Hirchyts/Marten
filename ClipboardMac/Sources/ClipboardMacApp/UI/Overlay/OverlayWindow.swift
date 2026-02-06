@@ -2,7 +2,6 @@ import AppKit
 import ClipboardCore
 import ClipboardMacServices
 import Combine
-import OSLog
 import SwiftUI
 
 @MainActor
@@ -130,13 +129,15 @@ final class OverlayWindowController {
         startOutsideClickMonitor()
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.16
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.duration = 0.14
+            // Snappy Ease-Out: Fast start, smooth but quick stop
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
             panel.animator().alphaValue = 1
             panel.animator().setFrame(targetFrame, display: true)
         } completionHandler: { [weak self] in
             guard let self else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            // Slightly reduced delay to match faster animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
                 self.startActivationObservers()
             }
         }
@@ -160,8 +161,9 @@ final class OverlayWindowController {
         let endFrame = panel.frame.offsetBy(dx: hideOffset.width, dy: hideOffset.height)
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.14
-            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            context.duration = 0.12
+            // Snappy Ease-In: Smooth start, fast exit
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.7, 0, 0.84, 0)
             panel.animator().alphaValue = 0
             panel.animator().setFrame(endFrame, display: true)
         } completionHandler: { [weak self] in
@@ -186,9 +188,6 @@ final class OverlayWindowController {
             edge: edge,
             preferredHorizontalSize: layoutSettings.horizontalSize,
             preferredVerticalSize: layoutSettings.verticalSize
-        )
-        Logger.ui.debug(
-            "Calculated overlay frame for edge=\(edge.rawValue, privacy: .public): \(NSStringFromRect(frame), privacy: .public)"
         )
         return frame
     }
@@ -231,9 +230,6 @@ final class OverlayWindowController {
 
     private func startActivationObservers() {
         guard activationObservers.isEmpty else { return }
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
-            return
-        }
         let workspaceNC = NSWorkspace.shared.notificationCenter
         let nc = NotificationCenter.default
         let currentPID = ProcessInfo.processInfo.processIdentifier
@@ -341,9 +337,21 @@ private final class OverlayPanel: NSPanel {
             }
         }
 
+
         // Backspace (51) and forward delete (117) keys
         if event.keyCode == 51 || event.keyCode == 117 {
             if let handler = objc_getAssociatedObject(self, &DeleteKeyHandlerKey)
+                as? ((NSEvent) -> Bool)
+            {
+                if handler(event) {
+                    return
+                }
+            }
+        }
+
+        // Arrow keys: Left(123), Right(124), Down(125), Up(126)
+        if (123...126).contains(event.keyCode) {
+            if let handler = objc_getAssociatedObject(self, &ArrowKeyHandlerKey)
                 as? ((NSEvent) -> Bool)
             {
                 if handler(event) {

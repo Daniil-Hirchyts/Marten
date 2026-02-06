@@ -33,15 +33,13 @@ extension OverlayShellView {
     }
 
     func computeFilteredItems() -> [ClipItem] {
-        OverlayPerformanceSignposts.measure("computeFilteredItems") {
-            let selectedPinboardID = searchModel.selectedPinboardID
-            let sourceItems = searchModel.isSearchTextActive ? searchModel.searchResults : Array(items)
-            let baseList = sourceItems.filter { item in
-                lockHandler.isItemVisible(item, selectedPinboardID: selectedPinboardID)
-            }
-            let filtered = searchModel.applyFilters(to: baseList)
-            return actionHandlers.sortItems(filtered, selectedPinboardID: selectedPinboardID, allowPinning: allowPinning)
+        let selectedPinboardID = searchModel.selectedPinboardID
+        let sourceItems = searchModel.isSearchTextActive ? searchModel.searchResults : Array(items)
+        let baseList = sourceItems.filter { item in
+            lockHandler.isItemVisible(item, selectedPinboardID: selectedPinboardID)
         }
+        let filtered = searchModel.applyFilters(to: baseList)
+        return actionHandlers.sortItems(filtered, selectedPinboardID: selectedPinboardID, allowPinning: allowPinning)
     }
 
     var isSearchActive: Bool {

@@ -3,7 +3,29 @@ import SwiftUI
 
 extension OverlayShellView {
     var horizontalHeaderBar: some View {
-        ZStack(alignment: .center) {
+        HStack(alignment: .center, spacing: 10) {
+            OverlaySearchBarView(
+                isSearchExpanded: $isSearchExpanded,
+                isFilterPopoverPresented: $isFilterPopoverPresented,
+                searchText: $searchModel.searchText,
+                searchFocused: $searchFocused,
+                dateFilter: $searchModel.dateFilter,
+                typeFilters: $searchModel.typeFilters,
+                appFilters: $searchModel.appFilters,
+                appOptions: searchModel.appOptions,
+                hasActiveFilters: searchModel.hasActiveFilters,
+                headerButtonSize: headerButtonSize,
+                headerButtonIconSize: headerButtonIconSize,
+                searchCollapsedWidth: searchCollapsedWidth,
+                searchExpandedWidth: searchExpandedWidth,
+                overlayCoordinateSpaceName: overlayCoordinateSpaceName,
+                onSearchButtonTap: handleSearchButtonTap,
+                onSearchClear: handleSearchClear,
+                onClearFilters: searchModel.clearFilters
+            )
+            .frame(width: isSearchExpanded ? searchExpandedWidth : searchCollapsedWidth, alignment: .leading)
+            .padding(.leading, 4)
+
             PinboardTabBarSection(
                 pinboards: visiblePinboards,
                 selectedID: searchModel.selectedPinboardID,
@@ -32,42 +54,17 @@ extension OverlayShellView {
                 onCommit: handlePinboardCommit,
                 onCancel: handlePinboardCancel,
                 coordinateSpaceName: overlayCoordinateSpaceName,
-                horizontalPadding: headerSideWidth,
+                horizontalPadding: 0,
                 rowHeight: headerButtonSize,
                 onPinboardLayoutChange: handlePinboardLayoutChange,
                 onSearchFieldFrameChange: { frame in
                     DispatchQueue.main.async { dragCoordinator.updateSearchFieldFrame(frame) }
                 }
             )
+            .frame(maxWidth: .infinity)
 
-            OverlaySearchBarView(
-                isSearchExpanded: $isSearchExpanded,
-                isFilterPopoverPresented: $isFilterPopoverPresented,
-                searchText: $searchModel.searchText,
-                searchFocused: $searchFocused,
-                dateFilter: $searchModel.dateFilter,
-                typeFilters: $searchModel.typeFilters,
-                appFilters: $searchModel.appFilters,
-                appOptions: searchModel.appOptions,
-                hasActiveFilters: searchModel.hasActiveFilters,
-                headerButtonSize: headerButtonSize,
-                headerButtonIconSize: headerButtonIconSize,
-                searchCollapsedWidth: searchCollapsedWidth,
-                searchExpandedWidth: searchExpandedWidth,
-                overlayCoordinateSpaceName: overlayCoordinateSpaceName,
-                onSearchButtonTap: handleSearchButtonTap,
-                onSearchClear: handleSearchClear,
-                onClearFilters: searchModel.clearFilters
-            )
-            .frame(width: headerSideWidth, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 4)
-
-            HStack {
-                Spacer()
-                settingsButton
-            }
-            .padding(.trailing, 4)
+            settingsButton
+                .padding(.trailing, 4)
         }
         .padding(.horizontal, 14)
         .frame(height: headerButtonSize)

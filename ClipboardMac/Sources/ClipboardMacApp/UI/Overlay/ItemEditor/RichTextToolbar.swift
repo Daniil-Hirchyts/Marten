@@ -23,6 +23,7 @@ struct RichTextToolbar: View {
     let onToggleItalic: () -> Void
     let onToggleUnderline: () -> Void
     let onToggleStrikethrough: () -> Void
+    let onClearFormatting: () -> Void
 
     let appleIntelligenceControl: AnyView
 
@@ -32,17 +33,17 @@ struct RichTextToolbar: View {
                 Button(action: onCancel) {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                 }
                 .buttonStyle(.plain)
                 .padding(10)
                 .background(
                     Circle()
-                        .fill(Color.white.opacity(0.12))
+                        .fill(Color.primary.opacity(0.12))
                 )
                 .overlay(
                     Circle()
-                        .strokeBorder(Color.white.opacity(0.20), lineWidth: 1)
+                        .strokeBorder(Color.primary.opacity(0.20), lineWidth: 1)
                 )
                 .contentShape(Circle())
                 .keyboardShortcut(.cancelAction)
@@ -51,19 +52,19 @@ struct RichTextToolbar: View {
 
                 Text(title)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.90))
+                    .foregroundStyle(Color.primary.opacity(0.90))
 
                 Spacer(minLength: 0)
 
                 Button(action: onSave) {
                     Text(saveTitle)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(canSave ? .white : Color.primary.opacity(0.50))
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(
                             Capsule()
-                                .fill(canSave ? Color(nsColor: .systemBlue) : Color.white.opacity(0.20))
+                                .fill(canSave ? Color(nsColor: .systemBlue) : Color.primary.opacity(0.20))
                         )
                 }
                 .buttonStyle(.plain)
@@ -83,6 +84,25 @@ struct RichTextToolbar: View {
                             isActive: isStrikethrough,
                             action: onToggleStrikethrough
                         )
+
+                        // Clear formatting button
+                        Button(action: onClearFormatting) {
+                            Image(systemName: "textformat")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.primary.opacity(0.70))
+                                .frame(width: 32, height: 32)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(Color.clear)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
+                        .help("Clear Formatting")
                     }
 
                     if showsAppleIntelligenceControl {
@@ -97,7 +117,7 @@ struct RichTextToolbar: View {
                                 .font(.system(size: 13, weight: .medium))
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(.white.opacity(0.70))
+                        .foregroundStyle(Color.primary.opacity(0.70))
                         .help("Copy to Clipboard")
                     }
                 }

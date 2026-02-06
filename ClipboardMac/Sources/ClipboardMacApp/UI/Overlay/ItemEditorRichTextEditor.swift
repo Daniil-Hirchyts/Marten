@@ -4,11 +4,12 @@ import Foundation
 import SwiftUI
 
 enum TextFormattingType {
-    case bold, italic, underline, strikethrough
+    case bold, italic, underline, strikethrough, clearFormatting
 }
 
 extension Notification.Name {
     static let applyTextFormatting = Notification.Name("applyTextFormatting")
+    static let textFormattingDidChange = Notification.Name("textFormattingDidChange")
 }
 
 struct RichTextEditor: NSViewRepresentable {
@@ -28,6 +29,10 @@ struct RichTextEditor: NSViewRepresentable {
         let scrollView = NSTextView.scrollableTextView()
         let textView = scrollView.documentView as! NSTextView
 
+        // Make scrollView transparent
+        scrollView.drawsBackground = false
+        scrollView.backgroundColor = .clear
+
         textView.isRichText = true
         textView.allowsUndo = true
         textView.isAutomaticQuoteSubstitutionEnabled = false
@@ -38,10 +43,10 @@ struct RichTextEditor: NSViewRepresentable {
         textView.writingToolsBehavior = writingToolsBehavior
         textView.allowedWritingToolsResultOptions = allowedWritingToolsResultOptions
 
-        textView.textColor = .white
+        textView.textColor = .labelColor
         textView.backgroundColor = .clear
         textView.drawsBackground = false
-        textView.insertionPointColor = .white
+        textView.insertionPointColor = .labelColor
 
         let nsFont = NSFont.systemFont(ofSize: 16, weight: .regular)
         textView.font = nsFont
@@ -151,11 +156,71 @@ struct RichTextEditor: NSViewRepresentable {
             text = textView.string
             attributedText = textView.attributedString()
             selection = textView.selectedRange()
+            updateFormattingState(for: textView)
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             selection = textView.selectedRange()
+            updateFormattingState(for: textView)
+        }
+
+        private func updateFormattingState(for textView: NSTextView) {
+            let selectedRange = textView.selectedRange()
+            
+            if selectedRange.length == 0 {
+                // At insertion point (or empty document), use typingAttributes
+                let font = textView.typingAttributes[.font] as? NSFont ?? textView.font ?? NSFont.systemFont(ofSize: 16)
+                let traits = font.fontDescriptor.symbolicTraits
+                let hasUnderline = textView.typingAttributes[.underlineStyle] != nil
+                let hasStrikethrough = textView.typingAttributes[.strikethroughStyle] != nil
+
+                NotificationCenter.default.post(
+                    name: .textFormattingDidChange,
+                    object: nil,
+                    userInfo: [
+                        "isBold": traits.contains(.bold),
+                        "isItalic": traits.contains(.italic),
+                        "isUnderline": hasUnderline,
+                        "isStrikethrough": hasStrikethrough
+                    ]
+                )
+                return
+            }
+            
+            guard let textStorage = textView.textStorage else { return }
+
+            // Check if any character in selection has formatting
+            var isBold = false
+            var isItalic = false
+            var isUnderline = false
+            var isStrikethrough = false
+
+            textStorage.enumerateAttributes(in: selectedRange, options: []) { attributes, _, stop in
+                if let font = attributes[.font] as? NSFont {
+                    let traits = font.fontDescriptor.symbolicTraits
+                    if traits.contains(.bold) { isBold = true }
+                    if traits.contains(.italic) { isItalic = true }
+                }
+                if attributes[.underlineStyle] != nil { isUnderline = true }
+                if attributes[.strikethroughStyle] != nil { isStrikethrough = true }
+
+                // If all are true, we can stop early
+                if isBold && isItalic && isUnderline && isStrikethrough {
+                    stop.pointee = true
+                }
+            }
+
+            NotificationCenter.default.post(
+                name: .textFormattingDidChange,
+                object: nil,
+                userInfo: [
+                    "isBold": isBold,
+                    "isItalic": isItalic,
+                    "isUnderline": isUnderline,
+                    "isStrikethrough": isStrikethrough
+                ]
+            )
         }
 
         func normalizedSelection(_ selection: NSRange?, in textView: NSTextView) -> NSRange? {
@@ -179,13 +244,20 @@ struct RichTextEditor: NSViewRepresentable {
             defer { isSanitizingTextChange = false }
 
             let selectedRange = textView.selectedRange()
+            let savedTypingAttributes = textView.typingAttributes
+            
             let fullRange = NSRange(location: 0, length: textStorage.length)
             let sanitized = textStorage.removingTextColorAttributes()
             textStorage.setAttributedString(sanitized)
 
-            let baseColor = textView.textColor ?? NSColor.white
+            let baseColor = textView.textColor ?? NSColor.labelColor
             textStorage.addAttribute(.foregroundColor, value: baseColor, range: fullRange)
-            textView.typingAttributes[.foregroundColor] = baseColor
+            
+            // Restore typing attributes but ensure text color is correct
+            var newTypingAttributes = savedTypingAttributes
+            newTypingAttributes[.foregroundColor] = baseColor
+            textView.typingAttributes = newTypingAttributes
+            
             textView.linkTextAttributes = [:]
             textView.setSelectedRange(selectedRange)
             attributedText = textView.attributedString()
@@ -202,103 +274,141 @@ struct RichTextEditor: NSViewRepresentable {
             }
 
             guard let textStorage = textView.textStorage else { return }
-            let selectedText = (textStorage.string as NSString).substring(with: selectedRange)
-            var currentFont = textView.font ?? NSFont.systemFont(ofSize: 16)
-            let attributedString = NSMutableAttributedString(string: selectedText)
 
-            switch type {
-            case .bold:
-                if currentFont.fontDescriptor.symbolicTraits.contains(.bold) {
-                    currentFont = NSFont.systemFont(ofSize: currentFont.pointSize, weight: .regular)
-                } else {
-                    currentFont = NSFont.systemFont(ofSize: currentFont.pointSize, weight: .bold)
-                }
-                attributedString.addAttribute(
-                    .font, value: currentFont,
-                    range: NSRange(location: 0, length: selectedText.count))
+            // Apply formatting to each character in the selection to handle mixed formatting
+            textStorage.enumerateAttributes(in: selectedRange, options: []) { attributes, range, _ in
+                // Get the current font at this position or use default
+                let currentFont = attributes[.font] as? NSFont ?? textView.font ?? NSFont.systemFont(ofSize: 16)
 
-            case .italic:
-                if currentFont.fontDescriptor.symbolicTraits.contains(.italic) {
-                    currentFont = NSFont.systemFont(ofSize: currentFont.pointSize)
-                } else {
-                    currentFont =
-                        NSFont(
-                            descriptor: currentFont.fontDescriptor.withSymbolicTraits(.italic),
-                            size: currentFont.pointSize) ?? currentFont
-                }
-                attributedString.addAttribute(
-                    .font, value: currentFont,
-                    range: NSRange(location: 0, length: selectedText.count))
+                switch type {
+                case .bold:
+                    let newFont = toggleBoldTrait(in: currentFont)
+                    textStorage.addAttribute(.font, value: newFont, range: range)
 
-            case .underline:
-                let hasUnderline =
-                    textStorage.attribute(
-                        .underlineStyle, at: selectedRange.location, effectiveRange: nil) != nil
-                if hasUnderline {
-                    attributedString.removeAttribute(
-                        .underlineStyle, range: NSRange(location: 0, length: selectedText.count))
-                } else {
-                    attributedString.addAttribute(
-                        .underlineStyle, value: NSUnderlineStyle.single.rawValue,
-                        range: NSRange(location: 0, length: selectedText.count))
-                }
-                attributedString.addAttribute(
-                    .font, value: currentFont,
-                    range: NSRange(location: 0, length: selectedText.count))
+                case .italic:
+                    let newFont = toggleItalicTrait(in: currentFont)
+                    textStorage.addAttribute(.font, value: newFont, range: range)
 
-            case .strikethrough:
-                let hasStrikethrough =
-                    textStorage.attribute(
-                        .strikethroughStyle, at: selectedRange.location, effectiveRange: nil) != nil
-                if hasStrikethrough {
-                    attributedString.removeAttribute(
-                        .strikethroughStyle, range: NSRange(location: 0, length: selectedText.count)
-                    )
-                } else {
-                    attributedString.addAttribute(
-                        .strikethroughStyle, value: NSUnderlineStyle.single.rawValue,
-                        range: NSRange(location: 0, length: selectedText.count))
+                case .underline:
+                    let hasUnderline = attributes[.underlineStyle] != nil
+                    if hasUnderline {
+                        textStorage.removeAttribute(.underlineStyle, range: range)
+                    } else {
+                        textStorage.addAttribute(.underlineStyle, value: NSNumber(value: NSUnderlineStyle.single.rawValue), range: range)
+                    }
+
+                case .strikethrough:
+                    let hasStrikethrough = attributes[.strikethroughStyle] != nil
+                    if hasStrikethrough {
+                        textStorage.removeAttribute(.strikethroughStyle, range: range)
+                    } else {
+                        textStorage.addAttribute(.strikethroughStyle, value: NSNumber(value: NSUnderlineStyle.single.rawValue), range: range)
+                    }
+
+                case .clearFormatting:
+                    // Remove all formatting, set to plain text
+                    let plainFont = NSFont.systemFont(ofSize: currentFont.pointSize, weight: .regular)
+                    textStorage.addAttribute(.font, value: plainFont, range: range)
+                    textStorage.removeAttribute(.underlineStyle, range: range)
+                    textStorage.removeAttribute(.strikethroughStyle, range: range)
                 }
-                attributedString.addAttribute(
-                    .font, value: currentFont,
-                    range: NSRange(location: 0, length: selectedText.count))
             }
 
-            textStorage.replaceCharacters(in: selectedRange, with: attributedString)
             sanitizeUnsupportedAttributes(in: textView)
             textView.setSelectedRange(selectedRange)
             text = textView.string
             attributedText = textView.attributedString()
             selection = selectedRange
+            updateFormattingState(for: textView)
+        }
+
+        private func toggleBoldTrait(in font: NSFont) -> NSFont {
+            let traits = font.fontDescriptor.symbolicTraits
+            let isBold = traits.contains(.bold)
+            let isItalic = traits.contains(.italic)
+
+            if isBold && isItalic {
+                // Bold + Italic -> Italic
+                return NSFont(descriptor: font.fontDescriptor.withSymbolicTraits(.italic), size: font.pointSize)
+                    ?? NSFont.systemFont(ofSize: font.pointSize)
+            } else if isBold {
+                // Bold -> Regular
+                return NSFont.systemFont(ofSize: font.pointSize, weight: .regular)
+            } else if isItalic {
+                // Italic -> Bold + Italic
+                var newTraits = traits
+                newTraits.insert(.bold)
+                return NSFont(descriptor: font.fontDescriptor.withSymbolicTraits(newTraits), size: font.pointSize)
+                    ?? NSFont.systemFont(ofSize: font.pointSize, weight: .bold)
+            } else {
+                // Regular -> Bold
+                return NSFont.systemFont(ofSize: font.pointSize, weight: .bold)
+            }
+        }
+
+        private func toggleItalicTrait(in font: NSFont) -> NSFont {
+            let traits = font.fontDescriptor.symbolicTraits
+            let isBold = traits.contains(.bold)
+            let isItalic = traits.contains(.italic)
+
+            if isBold && isItalic {
+                // Bold + Italic -> Bold
+                return NSFont.systemFont(ofSize: font.pointSize, weight: .bold)
+            } else if isItalic {
+                // Italic -> Regular
+                return NSFont.systemFont(ofSize: font.pointSize, weight: .regular)
+            } else if isBold {
+                // Bold -> Bold + Italic
+                var newTraits = traits
+                newTraits.insert(.italic)
+                return NSFont(descriptor: font.fontDescriptor.withSymbolicTraits(newTraits), size: font.pointSize)
+                    ?? NSFont.systemFont(ofSize: font.pointSize, weight: .bold)
+            } else {
+                // Regular -> Italic
+                return NSFont(descriptor: font.fontDescriptor.withSymbolicTraits(.italic), size: font.pointSize)
+                    ?? NSFont.systemFont(ofSize: font.pointSize)
+            }
         }
 
         func toggleTrait(_ type: TextFormattingType) {
             guard let textView = textView else { return }
-            var currentFont = textView.font ?? NSFont.systemFont(ofSize: 16)
+            var attributes = textView.typingAttributes
+            let currentFont = attributes[.font] as? NSFont ?? textView.font ?? NSFont.systemFont(ofSize: 16)
 
             switch type {
             case .bold:
-                if currentFont.fontDescriptor.symbolicTraits.contains(.bold) {
-                    currentFont = NSFont.systemFont(ofSize: currentFont.pointSize, weight: .regular)
-                } else {
-                    currentFont = NSFont.systemFont(ofSize: currentFont.pointSize, weight: .bold)
-                }
-                textView.font = currentFont
+                let newFont = toggleBoldTrait(in: currentFont)
+                attributes[.font] = newFont
 
             case .italic:
-                if currentFont.fontDescriptor.symbolicTraits.contains(.italic) {
-                    currentFont = NSFont.systemFont(ofSize: currentFont.pointSize)
-                } else {
-                    currentFont =
-                        NSFont(
-                            descriptor: currentFont.fontDescriptor.withSymbolicTraits(.italic),
-                            size: currentFont.pointSize) ?? currentFont
-                }
-                textView.font = currentFont
+                let newFont = toggleItalicTrait(in: currentFont)
+                attributes[.font] = newFont
 
-            case .underline, .strikethrough:
-                break
+            case .underline:
+                if attributes[.underlineStyle] != nil {
+                    attributes.removeValue(forKey: .underlineStyle)
+                } else {
+                    attributes[.underlineStyle] = NSNumber(value: NSUnderlineStyle.single.rawValue)
+                }
+
+            case .strikethrough:
+                if attributes[.strikethroughStyle] != nil {
+                    attributes.removeValue(forKey: .strikethroughStyle)
+                } else {
+                    attributes[.strikethroughStyle] = NSNumber(value: NSUnderlineStyle.single.rawValue)
+                }
+
+            case .clearFormatting:
+                // Reset to plain text
+                let plainFont = NSFont.systemFont(ofSize: currentFont.pointSize, weight: .regular)
+                attributes = [
+                    .font: plainFont,
+                    .foregroundColor: textView.textColor ?? NSColor.labelColor
+                ]
             }
+
+            textView.typingAttributes = attributes
+            updateFormattingState(for: textView)
         }
     }
 }

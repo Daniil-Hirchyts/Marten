@@ -25,22 +25,22 @@ extension ItemEditorContentView {
                 if isGeneratingAppleIntelligence {
                     ProgressView()
                         .controlSize(.small)
-                        .tint(.white.opacity(0.9))
+                        .tint(Color.primary.opacity(0.9))
                 } else {
                     Image(systemName: "apple.intelligence")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.50))
+                        .foregroundStyle(Color.primary.opacity(0.50))
                 }
             }
             .frame(width: 32, height: 32)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isGeneratingAppleIntelligence ? Color.white.opacity(0.20) : Color.clear)
+                    .fill(isGeneratingAppleIntelligence ? Color.primary.opacity(0.20) : Color.clear)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .strokeBorder(
-                        isGeneratingAppleIntelligence ? Color.white.opacity(0.30) : Color.white.opacity(0.12),
+                        isGeneratingAppleIntelligence ? Color.primary.opacity(0.30) : Color.primary.opacity(0.12),
                         lineWidth: 1
                     )
             )

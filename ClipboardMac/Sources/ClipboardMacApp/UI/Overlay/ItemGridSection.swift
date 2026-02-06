@@ -161,7 +161,7 @@ struct ItemGridSection: View {
         }
         .animation(.easeInOut(duration: 0.2), value: isSelectedPinboardAwaitingUnlock)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .transition(.opacity)
+
     }
 }
 
@@ -212,7 +212,7 @@ private struct LockedPinboardOverlayView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: isAuthenticating ? "lock.open.fill" : "lock.fill")
+            Image(systemName: "lock.fill")
                 .font(.system(size: 32, weight: .light))
                 .foregroundStyle(.tertiary)
                 .contentTransition(.symbolEffect(.replace))
@@ -221,16 +221,17 @@ private struct LockedPinboardOverlayView: View {
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            Button(action: onUnlock) {
-                if isAuthenticating {
-                    ProgressView("Authenticating...")
-                } else {
+            if isAuthenticating {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Button(action: onUnlock) {
                     Label("Unlock with Touch ID", systemImage: "touchid")
                 }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canUnlock)
+                .accessibilityIdentifier("overlay.pinboard.unlock")
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(isAuthenticating || !canUnlock)
-            .accessibilityIdentifier("overlay.pinboard.unlock")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())

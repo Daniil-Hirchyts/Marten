@@ -24,7 +24,7 @@ public final class ActiveAppTracker {
             Logger.paste.error("No recorded app to reactivate")
             return
         }
-        _ = app.activate(options: .activateIgnoringOtherApps)
+        _ = app.activate()
     }
 
     public var recordedBundleID: String? {

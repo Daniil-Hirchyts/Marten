@@ -96,7 +96,7 @@ struct CardContextMenu: View {
             }
             .accessibilityIdentifier("\(identifierPrefix).move.new")
         } label: {
-            Label("Move to Pinboard", systemImage: "folder")
+            Label("Move to Pinboard", systemImage: "circle.dashed")
         }
         .accessibilityIdentifier("\(identifierPrefix).move")
 
@@ -165,39 +165,53 @@ struct PinboardContextMenu: View {
         if canEdit {
             if isLocked {
                 if isUnlocked {
-                    Button("Lock Now") {
+                    Button {
                         onLockNow()
+                    } label: {
+                        Label("Lock Now", systemImage: "lock.fill")
                     }
                     .accessibilityIdentifier("\(identifierPrefix).lockNow")
-                    Button("Disable Lock") {
+                    Button {
                         onSetLockEnabled(false)
+                    } label: {
+                        Label("Disable Lock", systemImage: "lock.open")
                     }
                     .accessibilityIdentifier("\(identifierPrefix).disableLock")
                 } else {
-                    Button("Unlock") {
+                    Button {
                         onUnlock()
+                    } label: {
+                        Label("Unlock", systemImage: "lock.open")
                     }
                     .accessibilityIdentifier("\(identifierPrefix).unlock")
                 }
             } else {
-                Button("Lock Pinboard") {
+                Button {
                     onSetLockEnabled(true)
+                } label: {
+                    Label("Lock Pinboard", systemImage: "lock")
                 }
                 .accessibilityIdentifier("\(identifierPrefix).enableLock")
             }
 
             Divider()
 
-            Button("Rename") {
+            Button {
                 onRename()
+            } label: {
+                Label("Rename", systemImage: "character.cursor.ibeam")
             }
             .accessibilityIdentifier("\(identifierPrefix).rename")
-            Button("Customize…") {
+            Button {
                 onCustomize()
+            } label: {
+                Label("Customize…", systemImage: "paintbrush")
             }
             .accessibilityIdentifier("\(identifierPrefix).customize")
-            Button("Delete") {
+            Button {
                 onDelete()
+            } label: {
+                Label("Delete", systemImage: "trash")
             }
             .accessibilityIdentifier("\(identifierPrefix).delete")
         }

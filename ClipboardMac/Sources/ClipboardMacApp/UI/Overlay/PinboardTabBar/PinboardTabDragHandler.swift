@@ -1,6 +1,5 @@
 import AppKit
 import ClipboardCore
-import OSLog
 import SwiftUI
 
 extension PinboardTabBar {
@@ -30,12 +29,10 @@ extension PinboardTabBar {
 
         if dragState == nil {
             guard let localFrame = frameManager.latestTabFrames[pinboard.objectID] else {
-                Logger.drag.debug("Cannot begin drag: frame not found for pinboard")
                 return
             }
 
             guard !frameManager.latestTabFrames.isEmpty else {
-                Logger.drag.debug("Cannot begin drag: no tab frames available")
                 return
             }
 

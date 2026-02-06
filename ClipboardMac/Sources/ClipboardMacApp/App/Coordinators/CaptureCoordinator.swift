@@ -205,7 +205,6 @@ final class CaptureCoordinator {
             return
         }
         guard tryAcquireLinkPreviewSlot() else {
-            Logger.pasteboard.debug("Link preview slot full, skipping fetch for \(url)")
             return
         }
 

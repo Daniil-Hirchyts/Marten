@@ -60,7 +60,6 @@ private struct DragPreviewWindowContent: View {
                                 .frame(width: data.cardSize, height: 70)
                                 .position(x: 300, y: 300)
                                 .opacity(data.opacity)
-                                .animation(.easeOut(duration: 0.06), value: data.opacity)
                         } else if data.items.count > 1 {
                             MultiItemCompactRowDragPreview(
                                 items: data.items,
@@ -69,7 +68,6 @@ private struct DragPreviewWindowContent: View {
                             )
                             .position(x: 300, y: 300)
                             .opacity(data.opacity)
-                            .animation(.easeOut(duration: 0.06), value: data.opacity)
                         }
                     } else {
                         // Card layout preview
@@ -78,7 +76,6 @@ private struct DragPreviewWindowContent: View {
                                 .frame(width: data.cardSize, height: data.cardSize)
                                 .position(x: 300, y: 300) // Center of the 600x600 window
                                 .opacity(data.opacity)
-                                .animation(.easeOut(duration: 0.06), value: data.opacity)
                         } else if data.items.count > 1 {
                             MultiItemCardDragPreview(
                                 items: data.items,
@@ -87,7 +84,6 @@ private struct DragPreviewWindowContent: View {
                             )
                             .position(x: 300, y: 300)
                             .opacity(data.opacity)
-                            .animation(.easeOut(duration: 0.06), value: data.opacity)
                         }
                     }
                 }
@@ -168,7 +164,6 @@ private struct PinboardDragPreviewWindowContent: View {
                         .frame(width: data.size.width, height: data.size.height)
                         .position(x: 150, y: 50) // Center of the 300x100 window
                         .opacity(data.opacity)
-                        .animation(.easeOut(duration: 0.06), value: data.opacity)
                 }
             }
         }

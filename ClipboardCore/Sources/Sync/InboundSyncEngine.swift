@@ -157,7 +157,8 @@ public final class CloudKitZoneChangesFetcher: ZoneChangesFetching, @unchecked S
     }
 }
 
-public final class InboundSyncEngine {
+/// Immutable dependencies are set during initialization; sync state is method-local.
+public final class InboundSyncEngine: @unchecked Sendable {
     private let zoneID: CKRecordZone.ID
     private let changesFetcher: ZoneChangesFetching
     private let tokenStore: ZoneChangeTokenStoring

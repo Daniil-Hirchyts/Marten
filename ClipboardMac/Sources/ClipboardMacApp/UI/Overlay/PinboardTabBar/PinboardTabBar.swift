@@ -92,7 +92,7 @@ struct PinboardTabBar: View {
         editingID == nil && !isCreating
     }
 
-    let scrollContentPadding: CGFloat = 20
+    let scrollContentPadding: CGFloat = 5
 
     var measuredContentWidth: CGFloat {
         frameManager.contentWidth
@@ -177,18 +177,21 @@ struct PinboardTabBar: View {
                         }
                     }
                 }
-                .mask(
+                .mask {
+                    let width = scrollViewWidth(parentWidth: proxy.size.width)
+                    let fadeLocation = width > 0 ? scrollContentPadding / width : 0
+                    
                     LinearGradient(
                         gradient: Gradient(stops: [
                             .init(color: .clear, location: 0),
-                            .init(color: .black, location: 0.025),
-                            .init(color: .black, location: 0.975),
+                            .init(color: .black, location: fadeLocation),
+                            .init(color: .black, location: 1 - fadeLocation),
                             .init(color: .clear, location: 1),
                         ]),
                         startPoint: .leading,
                         endPoint: .trailing
                     )
-                )
+                }
 
                 ZStack(alignment: .leading) {
                     if isCreating {

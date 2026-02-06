@@ -67,6 +67,8 @@ final class ItemEditorWindowController {
 
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.autoresizingMask = [.width, .height]
+        // Make hosting view fully transparent - no background
+        hostingView.layer?.backgroundColor = .clear
         panel.contentView = hostingView
 
         if let screen = NSScreen.main {
@@ -113,6 +115,8 @@ final class ItemEditorWindowController {
 
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.autoresizingMask = [.width, .height]
+        // Make hosting view fully transparent - no background
+        hostingView.layer?.backgroundColor = .clear
         panel.contentView = hostingView
 
         if let screen = NSScreen.main {

@@ -21,9 +21,6 @@ final class OverlayViewModel: ObservableObject {
 
     private let userDefaults = UserDefaults.standard
 
-    private let shouldProfileSelectionLatency =
-        ProcessInfo.processInfo.environment["PASTE_PROFILE_SELECTION_LATENCY"] == "1"
-
     init(
         persistence: PersistenceController,
         pasteEngine: any PasteEngineProtocol,
@@ -70,7 +67,6 @@ final class OverlayViewModel: ObservableObject {
     func selectItem(
         _ item: ClipItem, in orderedItems: [ClipItem], isShiftPressed: Bool, isCommandPressed: Bool
     ) {
-        let startedAt = CFAbsoluteTimeGetCurrent()
         selectedItemIDs = selectionHandler.updatedSelection(
             currentSelection: selectedItemIDs,
             orderedItems: orderedItems,
@@ -78,11 +74,6 @@ final class OverlayViewModel: ObservableObject {
             isShiftPressed: isShiftPressed,
             isCommandPressed: isCommandPressed
         )
-
-        if shouldProfileSelectionLatency {
-            let elapsedMs = (CFAbsoluteTimeGetCurrent() - startedAt) * 1000
-            Logger.paste.debug("Selection update took \(elapsedMs, privacy: .public)ms")
-        }
     }
 
     @MainActor
@@ -114,6 +105,86 @@ final class OverlayViewModel: ObservableObject {
     func restoreSelection(_ ids: Set<NSManagedObjectID>, in orderedItems: [ClipItem]) {
         selectedItemIDs = ids
     }
+
+    private var selectionAnchorID: NSManagedObjectID?
+
+    @MainActor
+    func moveSelection(direction: Int, in orderedItems: [ClipItem], isShiftPressed: Bool = false) {
+        guard !orderedItems.isEmpty else { return }
+
+        // If nothing selected, select first item
+        guard let firstSelectedID = selectedItemIDs.first else {
+            selectedItemIDs = [orderedItems[0].objectID]
+            selectionAnchorID = orderedItems[0].objectID
+            return
+        }
+        
+        // Find current focus index (start point for movement)
+        // If we have an anchor, we should move relative to the "other end" of the selection
+        // But for simplicity in arrow nav, we usually move relative to the last focused item.
+        // Let's assume the "focus" is the item that changed last.
+        // If we don't track focus explicitly, we can infer:
+        // If moving Down (1), we probably want to extend from the max index?
+        // Actually, standard behavior:
+        // Anchor is fixed. Cursor moves.
+        // Range = [Anchor ... Cursor]
+        
+        // Let's find the current "cursor".
+        // If we just started shifting, cursor is the current selection (single).
+        // If we are already multi-selecting, the cursor is the item we just added.
+        // We need `selectionCursorID` ideally, but let's try to infer or just add it.
+        // Adding `selectionCursorID` is safer.
+        
+        let cursorID = selectionCursorID ?? firstSelectedID
+        guard let cursorIndex = orderedItems.firstIndex(where: { $0.objectID == cursorID }) else {
+             // Fallback
+            selectedItemIDs = [orderedItems[0].objectID]
+            selectionAnchorID = orderedItems[0].objectID
+            selectionCursorID = orderedItems[0].objectID
+            return
+        }
+
+        let newIndex = cursorIndex + direction
+        
+        // Clamp to bounds
+        guard newIndex >= 0 && newIndex < orderedItems.count else { return }
+        
+        let newItem = orderedItems[newIndex]
+        
+        if isShiftPressed {
+            // Start of range selection?
+            if selectionAnchorID == nil {
+                selectionAnchorID = cursorID
+            }
+            
+            guard let anchorID = selectionAnchorID,
+                  let anchorIndex = orderedItems.firstIndex(where: { $0.objectID == anchorID })
+            else {
+                // Anchor lost? Reset
+                selectedItemIDs = [newItem.objectID]
+                selectionAnchorID = newItem.objectID
+                selectionCursorID = newItem.objectID
+                return
+            }
+            
+            // Select range [Anchor ... NewIndex]
+            let start = min(anchorIndex, newIndex)
+            let end = max(anchorIndex, newIndex)
+            let rangeItems = orderedItems[start...end]
+            
+            selectedItemIDs = Set(rangeItems.map(\.objectID))
+            selectionCursorID = newItem.objectID // Update cursor to where we moved
+            
+        } else {
+            // Normal navigation - reset anchor/cursor
+            selectedItemIDs = [newItem.objectID]
+            selectionAnchorID = newItem.objectID
+            selectionCursorID = newItem.objectID
+        }
+    }
+    
+    // Track the "cursor" (the active end of the selection)
+    private var selectionCursorID: NSManagedObjectID?
 
     @MainActor
     func paste(item: ClipItem, plainText: Bool) {

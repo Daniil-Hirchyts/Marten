@@ -10,10 +10,6 @@ public final class MissingClipboardEventBroadcaster: ClipboardEventBroadcaster {
     public init() {}
 
     public func publish(_ event: ClipboardEvent) {
-        #if DEBUG
-        assertionFailure("ClipboardEventBroadcaster not injected! Ensure .environment(\\.clipboardEventBroadcaster, ...) is set.")
-        #else
         Logger.app.fault("ClipboardEventBroadcaster not injected")
-        #endif
     }
 }

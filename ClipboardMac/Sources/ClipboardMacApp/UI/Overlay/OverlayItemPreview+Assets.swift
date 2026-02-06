@@ -5,9 +5,7 @@ import SwiftUI
 
 extension OverlayItemPreview {
     func refreshCachedProperties() {
-        cachedProps = OverlayPerformanceSignposts.measure("CachedItemProperties") {
-            CachedItemProperties(item: item)
-        }
+        cachedProps = CachedItemProperties(item: item)
     }
 
     func refreshStyledTextPreview() {
@@ -21,9 +19,7 @@ extension OverlayItemPreview {
             return
         }
 
-        styledRichTextPreview = OverlayPerformanceSignposts.measure("AttributedString") {
-            try? AttributedString(styled, including: \.appKit)
-        }
+        styledRichTextPreview = try? AttributedString(styled, including: \.appKit)
     }
 
     func loadAssetsIfNeeded() {
@@ -54,11 +50,7 @@ extension OverlayItemPreview {
         lastLoadedURLBannerPath = path
 
         DispatchQueue.global(qos: .userInitiated).async {
-            let scale = NSScreen.main?.backingScaleFactor ?? 2
-            let maxPixel = 1200 * scale
-            let img = OverlayPerformanceSignposts.measure("URLBannerDecode") {
-                ImageDownsampler.downsampledImage(atPath: path, maxPixelSize: maxPixel)
-            }
+            let img = NSImage(contentsOfFile: path)
             DispatchQueue.main.async {
                 urlBannerImage = img
             }
@@ -87,9 +79,7 @@ extension OverlayItemPreview {
         let provider = LPMetadataProvider()
         let metadata: LPLinkMetadata
         do {
-            metadata = try await OverlayPerformanceSignposts.measure("LPMetadataFetch") {
-                try await provider.startFetchingMetadata(for: url)
-            }
+            metadata = try await provider.startFetchingMetadata(for: url)
         } catch {
             return
         }
@@ -113,19 +103,17 @@ extension OverlayItemPreview {
     }
 
     func loadNSImage(from provider: NSItemProvider) async throws -> NSImage {
-        try await OverlayPerformanceSignposts.measure("NSItemProviderImage") {
-            try await withCheckedThrowingContinuation { continuation in
-                provider.loadObject(ofClass: NSImage.self) { object, error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                        return
-                    }
-                    guard let image = object as? NSImage else {
-                        continuation.resume(throwing: NSError(domain: "URLBannerPreview", code: 1))
-                        return
-                    }
-                    continuation.resume(returning: image)
+        try await withCheckedThrowingContinuation { continuation in
+            provider.loadObject(ofClass: NSImage.self) { object, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
                 }
+                guard let image = object as? NSImage else {
+                    continuation.resume(throwing: NSError(domain: "URLBannerPreview", code: 1))
+                    return
+                }
+                continuation.resume(returning: image)
             }
         }
     }
@@ -138,11 +126,7 @@ extension OverlayItemPreview {
 
         if let path = nonEmptyText(item.thumbnailPath) {
             DispatchQueue.global(qos: .userInitiated).async {
-                let scale = NSScreen.main?.backingScaleFactor ?? 2
-                let maxPixel = 1200 * scale
-                let img = OverlayPerformanceSignposts.measure("PreviewImageDecode") {
-                    ImageDownsampler.downsampledImage(atPath: path, maxPixelSize: maxPixel)
-                }
+                let img = NSImage(contentsOfFile: path)
                 DispatchQueue.main.async {
                     image = img
                 }
@@ -161,11 +145,7 @@ extension OverlayItemPreview {
 
         DispatchQueue.global(qos: .userInitiated).async {
             for data in imageData {
-                let scale = NSScreen.main?.backingScaleFactor ?? 2
-                let maxPixel = 1200 * scale
-                let img = OverlayPerformanceSignposts.measure("PreviewImageDecode") {
-                    ImageDownsampler.downsampledImage(fromData: data, maxPixelSize: maxPixel)
-                }
+                let img = NSImage(data: data)
                 if let img {
                     DispatchQueue.main.async { image = img }
                     return

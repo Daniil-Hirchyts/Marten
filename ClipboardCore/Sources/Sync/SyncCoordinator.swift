@@ -88,9 +88,6 @@ public struct SyncCoordinatorConfiguration: Sendable {
     /// Interval for periodic inbound sync when app is active (default: 30 seconds).
     public var periodicFetchInterval: TimeInterval
 
-    /// Whether to log sync operations for debugging.
-    public var debugLogging: Bool
-
     /// UserDefaults key for sync enabled preference.
     public var syncEnabledKey: String
 
@@ -99,19 +96,16 @@ public struct SyncCoordinatorConfiguration: Sendable {
 
     public static let `default` = SyncCoordinatorConfiguration(
         periodicFetchInterval: 30.0,
-        debugLogging: false,
         syncEnabledKey: "com.paste.syncEnabled",
         lastSyncDateKey: "com.paste.lastSyncDate"
     )
 
     public init(
         periodicFetchInterval: TimeInterval = 30.0,
-        debugLogging: Bool = false,
         syncEnabledKey: String = "com.paste.syncEnabled",
         lastSyncDateKey: String = "com.paste.lastSyncDate"
     ) {
         self.periodicFetchInterval = periodicFetchInterval
-        self.debugLogging = debugLogging
         self.syncEnabledKey = syncEnabledKey
         self.lastSyncDateKey = lastSyncDateKey
     }
@@ -449,13 +443,14 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
 
     private func startPeriodicInboundSync() {
         periodicScheduler.start(interval: configuration.periodicFetchInterval) { [weak self] in
-            await MainActor.run {
-                guard let self else { return }
-                guard self.syncEnabled, self.isSetUp else { return }
+            let coordinator = self
+            await MainActor.run { [coordinator] in
+                guard let coordinator else { return }
+                guard coordinator.syncEnabled, coordinator.isSetUp else { return }
 
-                Task { [weak self] in
-                    guard let self else { return }
-                    await self.performPeriodicInboundSync()
+                Task { [weak coordinator] in
+                    guard let coordinator else { return }
+                    await coordinator.performPeriodicInboundSync()
                 }
             }
         }
@@ -521,9 +516,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     }
 
     private func log(_ message: String) {
-        if configuration.debugLogging {
-            Self.logger.debug("\(message)")
-        }
+        _ = message
     }
 }
 
@@ -591,8 +584,7 @@ extension SyncCoordinator {
             assetSyncManager: assetSyncManager,
             persistenceController: persistenceController,
             configuration: SyncCoordinatorConfiguration(
-                periodicFetchInterval: 30.0,
-                debugLogging: cloudKitConfiguration.debugLogging
+                periodicFetchInterval: 30.0
             ),
             userDefaults: userDefaults
         )

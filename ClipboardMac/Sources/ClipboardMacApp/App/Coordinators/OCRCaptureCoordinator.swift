@@ -137,7 +137,7 @@ final class OCRCaptureCoordinator {
 
             switch result {
             case .cancelled:
-                Logger.ocr.debug("OCR selection cancelled")
+                break
             case .selected(let selection):
                 self.processSelection(selection, mode: mode, staticSnapshots: staticSnapshots)
             }

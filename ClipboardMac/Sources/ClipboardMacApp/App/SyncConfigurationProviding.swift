@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-protocol SyncConfigurationProviding {
+protocol SyncConfigurationProviding: Sendable {
     func canUseCloudKit(containerIdentifier: String) -> Bool
     func isSyncEnabled() -> Bool
 }

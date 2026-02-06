@@ -21,8 +21,6 @@ struct OverlayShellView: View {
     @StateObject var pinboardLockController = PinboardLockController()
     @StateObject var previewCoordinator: OverlayPreviewCoordinator
 
-    @StateObject var perfController = OverlayPerfController()
-
     @State var renamePinboardID: NSManagedObjectID?
     @State var renamePinboardName = ""
     @State var renamePinboardColor = PinboardPalette.defaultHex
@@ -46,8 +44,6 @@ struct OverlayShellView: View {
     @AppStorage(OverlayLayoutSettings.Keys.overlayScreenEdge)
     var overlayScreenEdgeRawValue = OverlayLayoutSettings.defaultEdge.rawValue
 
-    @AppStorage("overlayPerfHUD")
-    private var overlayPerfHUD: Bool = false
     @FocusState var searchFocused: Bool
     @FocusState var verticalPinboardNameFocused: Bool
     @FocusState var verticalPinboardEditNameFocused: Bool
@@ -194,15 +190,6 @@ struct OverlayShellView: View {
             Text("Paste needs Accessibility permission to paste into other apps.")
         }
         .environmentObject(frameCoordinator)
-#if DEBUG
-        .overlay(alignment: .topTrailing) {
-            if overlayPerfHUD {
-                OverlayPerformanceHUD()
-                    .padding(.top, 10)
-                    .padding(.trailing, 10)
-            }
-        }
-#endif
     }
 
     private var itemGridSection: some View {

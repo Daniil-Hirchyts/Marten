@@ -201,22 +201,12 @@ public final class AppCoordinator: SettingsOpening {
             }
         )
 
-        if ProcessInfo.processInfo.environment["PASTE_AUTOSHOW_OVERLAY"] == "1" {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                Task { @MainActor in
-                    self?.toggleOverlay()
-                }
-            }
-        }
-
         scheduleRetentionCleanup()
         permissionManager.startMonitoring()
 
         let hasSync = services.syncCoordinator != nil
         if hasSync, hasPushNotificationEntitlement {
             NSApp.registerForRemoteNotifications()
-        } else if hasSync {
-            Logger.app.debug("Skipping remote notifications registration (missing Push entitlement)")
         }
 
         Logger.app.info("ClipboardMac finished launching")
@@ -275,10 +265,6 @@ public final class AppCoordinator: SettingsOpening {
     }
 
     public func startOCRCapture(modeOverride: OCRCaptureMode? = nil) {
-        let isOverlayVisible = overlayController?.isVisibleForTesting ?? false
-        Logger.ocr.debug(
-            "OCR capture requested (modeOverride=\(modeOverride?.rawValue ?? "default", privacy: .public), overlayVisible=\(isOverlayVisible, privacy: .public))"
-        )
         ocrCaptureCoordinator?.startCapture(modeOverride: modeOverride)
     }
 
@@ -337,7 +323,6 @@ public final class AppCoordinator: SettingsOpening {
                 }
             },
             onClose: {
-                Logger.app.debug("New text item window closed")
             }
         )
     }

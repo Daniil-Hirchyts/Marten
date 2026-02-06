@@ -5,7 +5,6 @@ import SwiftUI
 
 extension OverlayShellView {
     func handleAppear() {
-        perfController.start()
         searchFocused = true
         modifierMonitor.start()
         pinboardLockController.reconcile(validPinboardIDs: visiblePinboardIDs)
@@ -19,7 +18,6 @@ extension OverlayShellView {
     }
 
     func handleDisappear() {
-        perfController.stop()
         modifierMonitor.stop()
         dragCoordinator.cleanupPreviewWindow()
         dragCoordinator.cleanupPinboardPreviewWindow()
@@ -52,6 +50,8 @@ extension OverlayShellView {
         if isSelectedPinboardAwaitingUnlock {
             viewModel.clearSelection()
             previewCoordinator.closePreview()
+            // Automatically trigger unlock when selecting a locked pinboard
+            handleUnlockTap()
         }
         if isFilterPopoverPresented {
             searchModel.updateAppOptions(from: allItemsVisibleInAllPinboard)

@@ -268,6 +268,29 @@ struct GeneralSettingsContent: View {
                     }
                 }
             }
+
+            // Application Section
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsSectionHeader("Application", icon: "macwindow")
+
+                SettingsCard {
+                    HStack {
+                        Text("Quit Paste")
+                            .font(.system(size: 13, weight: .medium))
+
+                        Spacer()
+
+                        Button(role: .destructive) {
+                            NSApplication.shared.terminate(nil)
+                        } label: {
+                            Text("Quit")
+                                .frame(width: 60)
+                        }
+                        .controlSize(.small)
+                        .accessibilityIdentifier("settings.button.quitApp")
+                    }
+                }
+            }
         }
         .alert("Erase History", isPresented: $showEraseConfirmation) {
             Button("Erase", role: .destructive) {

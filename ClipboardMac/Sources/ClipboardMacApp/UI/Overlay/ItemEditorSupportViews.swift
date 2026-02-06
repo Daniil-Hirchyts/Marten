@@ -8,17 +8,17 @@ struct ItemEditorKeyboardHint: View {
         HStack(spacing: 4) {
             Text(key)
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.70))
+                .foregroundStyle(Color.primary.opacity(0.70))
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
                 .background(
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.white.opacity(0.10))
+                        .fill(Color.primary.opacity(0.10))
                 )
 
             Text(label)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.50))
+                .foregroundStyle(Color.primary.opacity(0.50))
         }
     }
 }
@@ -32,16 +32,16 @@ struct ItemEditorTextModifierButton: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(isActive ? .white : .white.opacity(0.50))
+                .foregroundStyle(isActive ? Color.white : Color.primary.opacity(0.50))
                 .frame(width: 32, height: 32)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isActive ? Color.white.opacity(0.20) : Color.clear)
+                        .fill(isActive ? Color.accentColor : Color.clear)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .strokeBorder(
-                            isActive ? Color.white.opacity(0.30) : Color.white.opacity(0.12),
+                            isActive ? Color.accentColor : Color.primary.opacity(0.12),
                             lineWidth: 1
                         )
                 )

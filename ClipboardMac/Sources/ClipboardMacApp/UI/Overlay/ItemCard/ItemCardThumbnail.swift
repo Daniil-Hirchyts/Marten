@@ -102,9 +102,7 @@ extension ItemCard {
             return
         }
 
-        styledPreviewText = OverlayPerformanceSignposts.measure("AttributedString") {
-            (try? AttributedString(styled, including: \.appKit))
-        }
+        styledPreviewText = (try? AttributedString(styled, including: \.appKit))
     }
 
     func refreshURLBannerImage() {
@@ -129,11 +127,7 @@ extension ItemCard {
         lastLoadedURLBannerPath = path
 
         DispatchQueue.global(qos: .userInitiated).async {
-            let scale = NSScreen.main?.backingScaleFactor ?? 2
-            let maxPixel = (cardSize - (cardPadding * 2)) * scale
-            let image = OverlayPerformanceSignposts.measure("URLBannerDecode") {
-                ImageDownsampler.downsampledImage(atPath: path, maxPixelSize: maxPixel)
-            }
+            let image = NSImage(contentsOfFile: path)
             DispatchQueue.main.async {
                 if let image {
                     urlBannerImage = image
@@ -179,9 +173,7 @@ extension ItemCard {
         let provider = LPMetadataProvider()
         let metadata: LPLinkMetadata
         do {
-            metadata = try await OverlayPerformanceSignposts.measure("LPMetadataFetch") {
-                try await provider.startFetchingMetadata(for: url)
-            }
+            metadata = try await provider.startFetchingMetadata(for: url)
         } catch {
             return
         }
@@ -205,19 +197,17 @@ extension ItemCard {
     }
 
     func loadNSImage(from provider: NSItemProvider) async throws -> NSImage {
-        try await OverlayPerformanceSignposts.measure("NSItemProviderImage") {
-            try await withCheckedThrowingContinuation { continuation in
-                provider.loadObject(ofClass: NSImage.self) { object, error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                        return
-                    }
-                    guard let image = object as? NSImage else {
-                        continuation.resume(throwing: NSError(domain: "URLBannerPreview", code: 1))
-                        return
-                    }
-                    continuation.resume(returning: image)
+        try await withCheckedThrowingContinuation { continuation in
+            provider.loadObject(ofClass: NSImage.self) { object, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
                 }
+                guard let image = object as? NSImage else {
+                    continuation.resume(throwing: NSError(domain: "URLBannerPreview", code: 1))
+                    return
+                }
+                continuation.resume(returning: image)
             }
         }
     }
@@ -237,10 +227,11 @@ extension ItemCard {
             }
             lastLoadedThumbnailPath = rawPath
             DispatchQueue.global(qos: .userInitiated).async {
-                let scale = NSScreen.main?.backingScaleFactor ?? 2
-                let maxPixel = cardSize * scale
-                let img: NSImage? = OverlayPerformanceSignposts.measure("ThumbnailDecode") {
-                    ImageDownsampler.downsampledImage(atPath: rawPath, maxPixelSize: maxPixel)
+                let img: NSImage?
+                if let data = try? Data(contentsOf: URL(fileURLWithPath: rawPath)) {
+                    img = NSImage(data: data)
+                } else {
+                    img = nil
                 }
                 DispatchQueue.main.async {
                     thumbnailImage = img
@@ -263,12 +254,7 @@ extension ItemCard {
                 let kind = rep.kindValue
                 if kind == .png || kind == .jpeg || kind == .tiff {
                     if let data = rep.binaryData {
-                        let scale = NSScreen.main?.backingScaleFactor ?? 2
-                        let maxPixel = cardSize * scale
-                        let img = OverlayPerformanceSignposts.measure("ThumbnailDecode") {
-                            ImageDownsampler.downsampledImage(fromData: data, maxPixelSize: maxPixel)
-                        }
-                        if let img {
+                        if let img = NSImage(data: data) {
                             DispatchQueue.main.async {
                                 thumbnailImage = img
                             }
@@ -284,12 +270,7 @@ extension ItemCard {
             {
                 let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
-                    let scale = NSScreen.main?.backingScaleFactor ?? 2
-                    let maxPixel = cardSize * scale
-                    let img = OverlayPerformanceSignposts.measure("ThumbnailDecode") {
-                        ImageDownsampler.downsampledImage(atPath: trimmed, maxPixelSize: maxPixel)
-                    }
-                    if let img {
+                    if let img = NSImage(contentsOfFile: trimmed) {
                         DispatchQueue.main.async {
                             thumbnailImage = img
                         }

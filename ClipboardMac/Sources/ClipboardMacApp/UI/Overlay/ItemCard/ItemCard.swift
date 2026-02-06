@@ -67,7 +67,7 @@ struct ItemCard: View {
             )
             .overlay(selectionBorder)
             .contentShape(cardShape)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+
         }
         .onTapGesture {
             let now = Date()
@@ -80,9 +80,7 @@ struct ItemCard: View {
             }
         }
         .onAppear {
-            cachedProps = OverlayPerformanceSignposts.measure("CachedItemProperties") {
-                CachedItemProperties(item: item)
-            }
+            cachedProps = CachedItemProperties(item: item)
             appColorLoader.load(bundleID: item.sourceAppBundleID)
             refreshPreviewAssets()
             refreshStyledPreviewText()
@@ -95,9 +93,7 @@ struct ItemCard: View {
                 if !isInCurrent { return }
             }
 
-            cachedProps = OverlayPerformanceSignposts.measure("CachedItemProperties") {
-                CachedItemProperties(item: item)
-            }
+            cachedProps = CachedItemProperties(item: item)
 
             if oldValue.sourceAppBundleID != newValue.sourceAppBundleID {
                 appColorLoader.load(bundleID: newValue.sourceAppBundleID)

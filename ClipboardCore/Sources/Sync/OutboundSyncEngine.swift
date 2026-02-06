@@ -112,7 +112,8 @@ public struct DefaultOutboundConflictResolver: OutboundConflictResolving {
     }
 }
 
-public final class OutboundSyncEngine {
+/// `stateQueue` serializes all accesses to mutable state in this type.
+public final class OutboundSyncEngine: @unchecked Sendable {
     public struct Configuration: Equatable, Sendable {
         public var debounceInterval: TimeInterval
         public var maxRecordsPerBatch: Int

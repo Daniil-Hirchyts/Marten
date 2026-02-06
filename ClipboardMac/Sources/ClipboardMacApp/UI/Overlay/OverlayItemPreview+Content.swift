@@ -278,25 +278,12 @@ extension OverlayItemPreview {
                 onCreatePinboard()
             }
         } label: {
-            Group {
-                if let colorHex = primaryAssignedPinboardColorHex {
-                    pinboardSelectionIndicator(
-                        colorHex: colorHex,
-                        iconName: primaryAssignedPinboardIconName,
-                        isAssigned: true,
-                        size: 16
-                    )
-                } else {
-                    Circle()
-                        .strokeBorder(Color.secondary.opacity(0.75), lineWidth: 1.5)
-                        .frame(width: 16, height: 16)
-                }
-            }
-            .frame(width: 32, height: 32)
-            .contentShape(Rectangle())
+            PinboardMenuLabel(
+                primaryAssignedPinboardColorHex: primaryAssignedPinboardColorHex,
+                primaryAssignedPinboardIconName: primaryAssignedPinboardIconName
+            )
         }
         .buttonStyle(.plain)
-        .adaptiveGlassBackground(shape: .circle)
         .help("Quick add to pinboards")
         .accessibilityLabel("Quick add to pinboards")
     }
@@ -500,5 +487,35 @@ extension OverlayItemPreview {
         guard let text else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+struct PinboardMenuLabel: View {
+    let primaryAssignedPinboardColorHex: String?
+    let primaryAssignedPinboardIconName: String?
+    
+    @State private var isHovering = false
+
+    var body: some View {
+        Group {
+            if let colorHex = primaryAssignedPinboardColorHex {
+                PinboardIndicator(
+                    colorHex: colorHex,
+                    sign: primaryAssignedPinboardIconName,
+                    size: 16,
+                    isAssigned: true
+                )
+            } else {
+                Image(systemName: "circle.dashed")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+        }
+        .frame(width: 32, height: 32)
+        .contentShape(Rectangle())
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.primary.opacity(isHovering ? 0.05 : 0))
+        )
+        .onHover { isHovering = $0 }
     }
 }

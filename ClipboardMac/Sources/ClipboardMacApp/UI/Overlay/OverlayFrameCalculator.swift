@@ -63,26 +63,26 @@ enum OverlayFrameCalculator {
     static func showOffset(for edge: OverlayScreenEdge) -> CGSize {
         switch edge {
         case .bottom:
-            return CGSize(width: 0, height: -24)
+            return CGSize(width: 0, height: -16)
         case .top:
-            return CGSize(width: 0, height: 24)
+            return CGSize(width: 0, height: 16)
         case .left:
-            return CGSize(width: -24, height: 0)
+            return CGSize(width: -16, height: 0)
         case .right:
-            return CGSize(width: 24, height: 0)
+            return CGSize(width: 16, height: 0)
         }
     }
 
     static func hideOffset(for edge: OverlayScreenEdge) -> CGSize {
         switch edge {
         case .bottom:
-            return CGSize(width: 0, height: -14)
+            return CGSize(width: 0, height: -8)
         case .top:
-            return CGSize(width: 0, height: 14)
+            return CGSize(width: 0, height: 8)
         case .left:
-            return CGSize(width: -14, height: 0)
+            return CGSize(width: -8, height: 0)
         case .right:
-            return CGSize(width: 14, height: 0)
+            return CGSize(width: 8, height: 0)
         }
     }
 

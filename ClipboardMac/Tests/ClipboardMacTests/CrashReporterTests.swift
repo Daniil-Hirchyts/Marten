@@ -137,9 +137,12 @@ final class CrashReporterTests: XCTestCase {
     }
     
     func testWithErrorLoggingAsyncSuccess() async {
-        let result = await CrashReporter.shared.withErrorLogging(context: "Test") {
-            return "Async Success"
-        }
+        let result = await CrashReporter.shared.withErrorLogging(
+            context: "Test",
+            operation: { () async throws -> String in
+                "Async Success"
+            }
+        )
         
         switch result {
         case .success(let value):
@@ -150,9 +153,12 @@ final class CrashReporterTests: XCTestCase {
     }
     
     func testWithErrorLoggingAsyncFailure() async {
-        let result = await CrashReporter.shared.withErrorLogging(context: "Test") {
-            throw NSError(domain: "async", code: 1, userInfo: nil)
-        }
+        let result = await CrashReporter.shared.withErrorLogging(
+            context: "Test",
+            operation: { () async throws -> String in
+                throw NSError(domain: "async", code: 1, userInfo: nil)
+            }
+        )
         
         switch result {
         case .success:

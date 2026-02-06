@@ -48,9 +48,6 @@ public struct VisionTextRecognizer: TextRecognizing {
                 Logger.ocr.warning(
                     "OCR preferred language retry failed (ms=\(Int(Date().timeIntervalSince(startedAt) * 1000), privacy: .public))"
                 )
-                Logger.ocr.debug(
-                    "OCR preferred language retry reason: \(error.localizedDescription, privacy: .private)"
-                )
             }
         }
 

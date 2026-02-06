@@ -166,14 +166,12 @@ public final class PasteboardMonitor: ObservableObject {
         guard let lastActivity else { return }
         if Date().timeIntervalSince(lastActivity) >= idleThreshold, !isIdle {
             isIdle = true
-            Logger.pasteboard.debug("Idle transition detected")
             applyIntervalIfNeeded(idlePollInterval)
         }
     }
 
     private func applyIntervalIfNeeded(_ interval: TimeInterval) {
         guard currentInterval != interval else { return }
-        Logger.pasteboard.debug("Updating poll interval to \(interval)")
         scheduleTimer(interval: interval)
     }
 

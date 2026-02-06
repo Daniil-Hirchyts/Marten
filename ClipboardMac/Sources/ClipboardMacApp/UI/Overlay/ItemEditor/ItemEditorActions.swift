@@ -28,16 +28,7 @@ extension ItemEditorContentView {
     }
 
     func toggleFormatting(_ type: TextFormattingType) {
-        switch type {
-        case .bold:
-            isBold.toggle()
-        case .italic:
-            isItalic.toggle()
-        case .underline:
-            isUnderline.toggle()
-        case .strikethrough:
-            isStrikethrough.toggle()
-        }
+        // Just apply formatting - state will be updated via notification
         applyFormatting(type)
     }
 

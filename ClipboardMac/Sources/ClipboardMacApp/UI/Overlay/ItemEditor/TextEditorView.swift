@@ -44,7 +44,7 @@ struct TextEditorView: View {
         case .code:
             TextEditor(text: $text, selection: $codeSelection)
                 .font(font)
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
                 .scrollContentBackground(.hidden)
                 .writingToolsBehavior(.complete)
                 .focused($isFocused)
@@ -59,7 +59,7 @@ struct TextEditorView: View {
 
                 Text("Editing isn't supported for this item type")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.70))
+                    .foregroundStyle(Color.primary.opacity(0.70))
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -58,26 +58,20 @@ public struct CloudKitConfiguration: Equatable, Sendable {
     /// Timing configuration for sync operations.
     public var syncTiming: SyncTiming
 
-    /// Whether to enable debug logging for sync operations.
-    public var debugLogging: Bool
-
     public static let `default` = CloudKitConfiguration(
         containerIdentifier: "iCloud.com.paste.clipboard",
         zoneName: "ClipboardZone",
-        syncTiming: .default,
-        debugLogging: false
+        syncTiming: .default
     )
 
     public init(
         containerIdentifier: String,
         zoneName: String = "ClipboardZone",
         syncTiming: SyncTiming = .default,
-        debugLogging: Bool = false,
         environment: CloudKitEnvironment = .production
     ) {
         self.environment = environment
         self.syncTiming = syncTiming
-        self.debugLogging = debugLogging
         
         var identifiers: [CloudKitEnvironment: String] = [:]
         var zones: [CloudKitEnvironment: String] = [:]

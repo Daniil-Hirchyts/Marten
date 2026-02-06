@@ -120,7 +120,9 @@ final class AppServiceContainer: AppServiceProviding {
             self.syncCoordinator = SyncCoordinator.create(
                 cloudKitConfiguration: cloudKitConfiguration,
                 persistenceController: persistence,
-                syncEnabledProvider: syncConfigurationProvider.isSyncEnabled
+                syncEnabledProvider: { [syncConfigurationProvider] in
+                    syncConfigurationProvider.isSyncEnabled()
+                }
             )
         } else {
             self.syncCoordinator = nil

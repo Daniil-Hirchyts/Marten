@@ -1,7 +1,6 @@
 import ClipboardCore
 import ClipboardMacServices
 import CoreData
-import OSLog
 import SwiftUI
 
 /// Result from beginning a drag operation
@@ -45,8 +44,6 @@ struct PinboardDragHandler {
 
         let cachedOrderedFrames = computeOrderedFrames(from: tabFrames)
 
-        Logger.drag.debug("Drag started")
-
         let dragState = PinboardTabDragState(
             itemID: pinboard.objectID,
             pointerLocation: location,
@@ -89,8 +86,6 @@ struct PinboardDragHandler {
         cachedLocalOrderedFrames: [(item: Pinboard, frame: CGRect)],
         visibleBounds: CGRect
     ) -> DragEndResult? {
-        Logger.drag.debug("Drag ended")
-
         guard
             let target = computeDropTarget(
                 location: state.pointerLocation,
@@ -102,8 +97,6 @@ struct PinboardDragHandler {
         else {
             return nil
         }
-
-        Logger.drag.debug("Reorder insertBefore=\(target.insertBefore)")
 
         return DragEndResult(
             draggedItem: draggedItem,

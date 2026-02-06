@@ -2,7 +2,6 @@ import AppKit
 import ClipboardMacServices
 import CoreGraphics
 import Foundation
-import OSLog
 
 struct OCRSelection {
     let displayID: CGDirectDisplayID
@@ -116,13 +115,9 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
         let keyWindow = createdWindows.first { $0.frame.contains(currentMouseLocation) }
             ?? createdWindows.first
         keyWindow?.makeKeyAndOrderFront(nil)
-        Logger.ocr.debug(
-            "OCR selection started (mode=\(mode.rawValue, privacy: .public), windows=\(createdWindows.count, privacy: .public))"
-        )
         if !didPushCrosshairCursor {
             NSCursor.crosshair.push()
             didPushCrosshairCursor = true
-            Logger.ocr.debug("OCR cursor pushed (crosshair)")
         }
         NSCursor.crosshair.set()
     }
@@ -143,17 +138,8 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
         if didPushCrosshairCursor {
             NSCursor.pop()
             didPushCrosshairCursor = false
-            Logger.ocr.debug("OCR cursor popped")
         }
         NSCursor.arrow.set()
-        let resultLabel: String
-        switch result {
-        case .selected:
-            resultLabel = "selected"
-        case .cancelled:
-            resultLabel = "cancelled"
-        }
-        Logger.ocr.debug("OCR selection finished (result=\(resultLabel, privacy: .public))")
 
         let callback = completion
         completion = nil

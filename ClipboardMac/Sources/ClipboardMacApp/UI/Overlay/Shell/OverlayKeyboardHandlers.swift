@@ -9,6 +9,7 @@ extension OverlayShellView {
         installSpaceKeyHandler()
         installEscapeKeyHandler()
         installDeleteKeyHandler()
+        installArrowKeyHandler()
     }
 
     func installReturnKeyHandler() {
@@ -83,6 +84,51 @@ extension OverlayShellView {
             return true
         }
         objc_setAssociatedObject(window, &DeleteKeyHandlerKey, handler as Any, .OBJC_ASSOCIATION_RETAIN)
+    }
+    
+    func installArrowKeyHandler() {
+        guard let window else { return }
+        
+        let handler: (NSEvent) -> Bool = { [weak viewModel] event in
+            // Don't navigate when editing text or searching
+            if isCreatingPinboard || renamePinboardID != nil || renameItemID != nil {
+                return false
+            }
+            if isSearchExpanded, searchFocused {
+                return false
+            }
+            
+            guard let viewModel else { return false }
+            
+            // Layout dependent navigation
+            // Horizontal (bottom): Left/Right
+            // Vertical (side): Up/Down
+            
+            let isHorizontal = overlayLayoutAxis == .horizontal
+            let keyCode = event.keyCode
+            
+            // Left Arrow (123) / Right Arrow (124)
+            // Up Arrow (126) / Down Arrow (125)
+            
+            var direction: Int?
+            
+            if isHorizontal {
+                if keyCode == 123 { direction = -1 }      // Left -> Previous
+                else if keyCode == 124 { direction = 1 }  // Right -> Next
+            } else {
+                if keyCode == 126 { direction = -1 }      // Up -> Previous
+                else if keyCode == 125 { direction = 1 }  // Down -> Next
+            }
+            
+            guard let moveDirection = direction else { return false }
+            
+            let isShiftPressed = event.modifierFlags.contains(.shift)
+            
+            viewModel.moveSelection(direction: moveDirection, in: filteredItems, isShiftPressed: isShiftPressed)
+            return true
+        }
+        
+        objc_setAssociatedObject(window, &ArrowKeyHandlerKey, handler as Any, .OBJC_ASSOCIATION_RETAIN)
     }
 }
 

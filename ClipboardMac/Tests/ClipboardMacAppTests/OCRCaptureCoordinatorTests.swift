@@ -95,7 +95,7 @@ final class OCRCaptureCoordinatorTests: XCTestCase {
         let showCaptureNotification: Bool
     }
 
-    private final class TestHistoryStore: OCRHistoryStoring {
+    private final class TestHistoryStore: @unchecked Sendable, OCRHistoryStoring {
         private(set) var storedTexts: [String] = []
 
         func storeRecognizedText(_ text: String) throws {

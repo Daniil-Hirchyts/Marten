@@ -413,7 +413,6 @@ public final class PasteEngine {
     }
 
     private func writeToPasteboard(_ item: ClipItem, format: PasteFormat) async throws {
-        Logger.paste.debug("Writing item to pasteboard (format: \(String(describing: format)))")
         try await MainActor.run {
             eventBroadcaster.publish(.clipboardWillWrite)
             pasteboard.clearContents()
@@ -522,7 +521,6 @@ public final class PasteEngine {
     }
 
     private func sendPasteKeystroke() async throws {
-        Logger.paste.debug("Sending paste keystroke")
         guard permissionManager.checkAccessibility(prompt: false) else {
             Logger.paste.error("Paste keystroke failed: Accessibility permission denied")
             await MainActor.run {
@@ -543,7 +541,6 @@ public final class PasteEngine {
 
     private func ensureTargetActivation() async -> Bool {
         let targetBundleID = await MainActor.run { activeAppTracker.recordedBundleID }
-        Logger.paste.debug("Ensuring target activation for: \(String(describing: targetBundleID), privacy: .public)")
         let attempts = max(configuration.targetActivation.maxAttempts, 1)
         for attempt in 1...attempts {
             let activated = await waitForTargetActivation(
