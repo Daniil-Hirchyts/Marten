@@ -7,17 +7,17 @@ struct WelcomeScreen: View {
     @State private var pulse = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .center, spacing: 20) {
                 ZStack {
                     Circle()
-                        .fill(Color.white.opacity(0.12))
+                        .fill(.regularMaterial)
                         .frame(width: 156, height: 156)
                         .scaleEffect(pulse ? 1.06 : 0.94)
                         .blur(radius: 1)
 
                     Circle()
-                        .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
+                        .strokeBorder(.white.opacity(0.1), lineWidth: 1)
                         .frame(width: 166, height: 166)
                         .scaleEffect(pulse ? 1.03 : 0.9)
 
@@ -76,6 +76,7 @@ struct WelcomeScreen: View {
                 .accessibilityLabel("Continue to Permissions")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
                 pulse = true
@@ -96,9 +97,9 @@ struct WelcomeScreen: View {
             Image(systemName: "doc.on.clipboard.fill")
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(.secondary)
                 .padding(26)
-                .adaptiveGlassBackground(shape: .roundedRectangle(cornerRadius: 26))
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         }
     }
 }
@@ -193,6 +194,7 @@ struct PermissionsScreen: View {
                 .accessibilityLabel("Continue to How To Use")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding.step.permissions")
         .accessibilityLabel("Permissions Step")
@@ -297,6 +299,7 @@ struct HowToUseScreen: View {
                 .accessibilityLabel("Continue to Complete")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             withAnimation(.spring(response: 0.55, dampingFraction: 0.84)) {
                 reveal = true
@@ -319,7 +322,7 @@ struct CompleteScreen: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 14) {
                 Image(systemName: allRequiredGranted ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                     .font(.system(size: 34, weight: .bold))
@@ -398,6 +401,7 @@ struct CompleteScreen: View {
                 .accessibilityLabel("Finish Onboarding")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             animateStatus = true
         }
@@ -417,7 +421,7 @@ private struct OnboardingFeatureRow: View {
             Image(systemName: symbol)
                 .font(.system(size: 16, weight: .semibold))
                 .frame(width: 24, height: 24)
-                .foregroundStyle(.white.opacity(0.95))
+                .foregroundStyle(.blue)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -483,7 +487,7 @@ private struct HowToStepRow: View {
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .frame(width: 22, height: 22)
                 .background(
-                    Circle().fill(Color.white.opacity(0.18))
+                    Circle().fill(.regularMaterial)
                 )
 
             VStack(alignment: .leading, spacing: 2) {
@@ -548,7 +552,7 @@ private struct NextStepRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: symbol)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.blue)
                 .frame(width: 16, height: 16)
             Text(text)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -564,13 +568,10 @@ private struct OnboardingCard<Content: View>: View {
         content
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(0.22))
-            )
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.26), lineWidth: 1)
+                    .strokeBorder(.white.opacity(0.1), lineWidth: 1)
             )
     }
 }
@@ -591,10 +592,10 @@ private extension View {
             .font(.system(size: 13, weight: .bold, design: .rounded))
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .adaptiveGlassBackground(shape: .roundedRectangle(cornerRadius: 10))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
+                    .strokeBorder(.white.opacity(0.1), lineWidth: 1)
             )
     }
 }

@@ -62,23 +62,30 @@ struct OnboardingFlow: View {
             OnboardingAnimatedBackdrop()
                 .clipShape(.rect(cornerRadius: 30, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(spacing: 0) {
+                // Fixed Header Area
                 OnboardingProgressHeader(
                     currentStep: currentStep,
                     totalSteps: totalSteps
                 )
+                .padding(.horizontal, 32)
+                .padding(.top, 32)
+                .padding(.bottom, 24)
+                .background(Color.clear) // Ensure touch doesn't pass through if needed, though not interactive
 
+                // Fixed Content Area
                 ZStack {
                     stepView
                         .id(currentStep)
                         .transition(stepTransition)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.horizontal, 32)
+                .padding(.bottom, 32)
                 .clipped()
             }
-            .padding(32)
         }
-        .frame(width: 760, height: 560)
+        .frame(width: 850, height: 650)
         .overlay(
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
@@ -202,6 +209,7 @@ struct OnboardingFlow: View {
 private struct OnboardingProgressHeader: View {
     let currentStep: OnboardingStep
     let totalSteps: Int
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -209,11 +217,17 @@ private struct OnboardingProgressHeader: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(currentStep.title)
                         .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .frame(height: 36, alignment: .leading)
 
                     Text(currentStep.subtitle)
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .frame(height: 20, alignment: .leading)
                 }
+                .frame(height: 60, alignment: .topLeading)
 
                 Spacer()
 
@@ -221,17 +235,18 @@ private struct OnboardingProgressHeader: View {
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .adaptiveGlassBackground(shape: .capsule)
+                    .background(.regularMaterial, in: Capsule())
                     .overlay(
                         Capsule()
-                            .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+                            .strokeBorder(.white.opacity(0.16), lineWidth: 1)
                     )
             }
+            .frame(height: 60, alignment: .top)
 
             HStack(spacing: 8) {
                 ForEach(OnboardingStep.allCases, id: \.rawValue) { step in
                     Capsule()
-                        .fill(step.rawValue <= currentStep.rawValue ? Color.blue.opacity(0.85) : Color.white.opacity(0.28))
+                        .fill(step.rawValue <= currentStep.rawValue ? Color.blue : Color.primary.opacity(0.1))
                         .frame(height: 6)
                         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: currentStep)
                 }
@@ -242,21 +257,34 @@ private struct OnboardingProgressHeader: View {
 
 private struct OnboardingAnimatedBackdrop: View {
     @State private var animate = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var gradientColors: [Color] {
+        if colorScheme == .dark {
+            return [
+                Color(red: 0.08, green: 0.10, blue: 0.16),
+                Color(red: 0.12, green: 0.14, blue: 0.24),
+                Color(red: 0.05, green: 0.08, blue: 0.14)
+            ]
+        } else {
+            return [
+                Color(red: 0.85, green: 0.90, blue: 0.95),
+                Color(red: 0.80, green: 0.88, blue: 0.93),
+                Color(red: 0.86, green: 0.86, blue: 0.93)
+            ]
+        }
+    }
 
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [
-                    Color(red: 0.85, green: 0.90, blue: 0.95),
-                    Color(red: 0.80, green: 0.88, blue: 0.93),
-                    Color(red: 0.86, green: 0.86, blue: 0.93)
-                ],
+                colors: gradientColors,
                 startPoint: animate ? .topLeading : .bottomLeading,
                 endPoint: animate ? .bottomTrailing : .topTrailing
             )
 
             Circle()
-                .fill(Color.cyan.opacity(0.12))
+                .fill(Color.cyan.opacity(colorScheme == .dark ? 0.08 : 0.12))
                 .frame(width: 320, height: 320)
                 .blur(radius: 52)
                 .offset(
@@ -265,7 +293,7 @@ private struct OnboardingAnimatedBackdrop: View {
                 )
 
             Circle()
-                .fill(Color.blue.opacity(0.1))
+                .fill(Color.blue.opacity(colorScheme == .dark ? 0.1 : 0.1))
                 .frame(width: 280, height: 280)
                 .blur(radius: 48)
                 .offset(

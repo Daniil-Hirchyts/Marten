@@ -57,6 +57,7 @@ public final class AppCoordinator: SettingsOpening {
                 "showDuringScreenSharing": true,
                 "hideMenuBarIcon": false,
                 AppSettingsKeys.showDockIconForSettingsWindow: false,
+                AppSettingsKeys.hasSeededStarterContent: false,
                 OCRSettingsKeys.defaultMode: OCRCaptureMode.staticSnapshot.rawValue,
                 OCRSettingsKeys.preferredLanguage: "",
                 OverlayLayoutSettings.Keys.overlayScreenEdge: OverlayLayoutSettings.defaultEdge.rawValue,
@@ -73,6 +74,9 @@ public final class AppCoordinator: SettingsOpening {
             preconditionFailure("AppServiceProviding.permissionManager must be a PermissionManager")
         }
         permissionManagerImpl = permissionManager
+
+        let firstLaunchContentSeeder = FirstLaunchContentSeeder(clipItemStore: clipItemStore)
+        firstLaunchContentSeeder.seedIfNeeded()
 
         let appleIntelligence: any AppleIntelligenceTextServicing = AppleIntelligenceTextService()
         let itemEditorWindowController = ItemEditorWindowController(

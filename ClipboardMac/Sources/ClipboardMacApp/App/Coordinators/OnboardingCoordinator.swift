@@ -23,7 +23,7 @@ final class OnboardingCoordinator {
     private func showOnboardingWindowIfNeeded() {
         guard onboardingWindow == nil else { return }
         let window = OnboardingWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 850, height: 650),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
