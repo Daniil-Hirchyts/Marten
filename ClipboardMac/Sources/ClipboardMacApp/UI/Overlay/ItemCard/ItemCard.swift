@@ -17,18 +17,18 @@ struct ItemCard: View {
     let allowPinning: Bool
     let isDragEnabled: Bool
     let cardSize: CGFloat
-    let onPaste: () -> Void
-    let onPastePlainText: () -> Void
-    let onCopy: () -> Void
-    let onDelete: () -> Void
-    let onTogglePin: () -> Void
-    let onMoveToPinboard: (Pinboard) -> Void
-    let onCreatePinboard: () -> Void
-    let onEdit: () -> Void
-    let onRename: () -> Void
-    let onCommitRename: (String) -> Void
-    let onTap: () -> Void
-    let onDoubleTap: () -> Void
+    let onPaste: (ClipItem) -> Void
+    let onPastePlainText: (ClipItem) -> Void
+    let onCopy: (ClipItem) -> Void
+    let onDelete: (ClipItem) -> Void
+    let onTogglePin: (ClipItem) -> Void
+    let onMoveToPinboard: (ClipItem, Pinboard) -> Void
+    let onCreatePinboard: (ClipItem) -> Void
+    let onEdit: (ClipItem) -> Void
+    let onRename: (ClipItem) -> Void
+    let onCommitRename: (ClipItem, String) -> Void
+    let onTap: (ClipItem) -> Void
+    let onDoubleTap: (ClipItem) -> Void
 
     @State private var lastTapTime: Date?
     @State var editTitle: String = ""
@@ -73,10 +73,10 @@ struct ItemCard: View {
         .onTapGesture {
             let now = Date()
             if let lastTime = lastTapTime, now.timeIntervalSince(lastTime) < 0.3 {
-                onDoubleTap()
+                onDoubleTap(item)
                 lastTapTime = nil
             } else {
-                onTap()
+                onTap(item)
                 lastTapTime = now
             }
         }

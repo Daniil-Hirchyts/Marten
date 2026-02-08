@@ -226,70 +226,114 @@ extension ItemCard {
             return
         }
 
-        if let rawPath = item.thumbnailPath?.trimmingCharacters(in: .whitespacesAndNewlines),
-            !rawPath.isEmpty
-        {
-            if lastLoadedThumbnailPath == rawPath {
+        let thumbnailPath = item.thumbnailPath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedPath: String? = {
+            guard let thumbnailPath, !thumbnailPath.isEmpty else { return nil }
+            return thumbnailPath
+        }()
+        let cacheKey = thumbnailCacheKey(thumbnailPath: normalizedPath)
+
+        if let cached = ThumbnailImageCache.shared.cachedImage(forKey: cacheKey) {
+            thumbnailImage = cached
+            lastLoadedThumbnailPath = normalizedPath
+            return
+        }
+
+        if ThumbnailImageCache.shared.hasMissing(forKey: cacheKey) {
+            thumbnailImage = nil
+            lastLoadedThumbnailPath = normalizedPath
+            return
+        }
+
+        if let normalizedPath {
+            if lastLoadedThumbnailPath == normalizedPath, thumbnailImage != nil {
                 return
             }
-            lastLoadedThumbnailPath = rawPath
+            lastLoadedThumbnailPath = normalizedPath
+
             DispatchQueue.global(qos: .userInitiated).async {
-                let img: NSImage?
-                if let data = try? Data(contentsOf: URL(fileURLWithPath: rawPath)) {
-                    img = NSImage(data: data)
+                let image: NSImage?
+                if let data = try? Data(contentsOf: URL(fileURLWithPath: normalizedPath)) {
+                    image = NSImage(data: data)
                 } else {
-                    img = nil
+                    image = nil
                 }
+
                 DispatchQueue.main.async {
-                    thumbnailImage = img
+                    if let image {
+                        ThumbnailImageCache.shared.setImage(image, forKey: cacheKey)
+                        thumbnailImage = image
+                    } else {
+                        ThumbnailImageCache.shared.setMissing(forKey: cacheKey)
+                        thumbnailImage = nil
+                    }
                 }
             }
             return
         }
 
         lastLoadedThumbnailPath = nil
+        let representationSnapshots = (item.representations ?? []).map {
+            ThumbnailRepresentationSnapshot(
+                kind: $0.kindValue,
+                binaryData: $0.binaryData,
+                textData: $0.textData
+            )
+        }
+
+        guard !representationSnapshots.isEmpty else {
+            ThumbnailImageCache.shared.setMissing(forKey: cacheKey)
+            thumbnailImage = nil
+            return
+        }
 
         DispatchQueue.global(qos: .userInitiated).async {
-            guard let reps = item.representations else {
-                DispatchQueue.main.async {
-                    thumbnailImage = nil
-                }
-                return
-            }
-
-            for rep in reps {
-                let kind = rep.kindValue
-                if kind == .png || kind == .jpeg || kind == .tiff {
-                    if let data = rep.binaryData {
-                        if let img = NSImage(data: data) {
-                            DispatchQueue.main.async {
-                                thumbnailImage = img
-                            }
-                            return
-                        }
-                    }
-                }
-            }
-
-            if let fileRep = reps.first(where: { $0.kindValue == .fileURL }),
-                let data = fileRep.textData,
-                let path = String(data: data, encoding: .utf8)
-            {
-                let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    if let img = NSImage(contentsOfFile: trimmed) {
-                        DispatchQueue.main.async {
-                            thumbnailImage = img
-                        }
-                        return
-                    }
-                }
-            }
+            let image = loadThumbnailImage(from: representationSnapshots)
 
             DispatchQueue.main.async {
-                thumbnailImage = nil
+                if let image {
+                    ThumbnailImageCache.shared.setImage(image, forKey: cacheKey)
+                    thumbnailImage = image
+                } else {
+                    ThumbnailImageCache.shared.setMissing(forKey: cacheKey)
+                    thumbnailImage = nil
+                }
             }
         }
+    }
+
+    private struct ThumbnailRepresentationSnapshot {
+        let kind: RepresentationKind
+        let binaryData: Data?
+        let textData: Data?
+    }
+
+    private func thumbnailCacheKey(thumbnailPath: String?) -> String {
+        if let thumbnailPath {
+            return "thumbnail.path.\(thumbnailPath)"
+        }
+        let version = Int64(item.modifiedAt.timeIntervalSince1970 * 1000)
+        return "thumbnail.item.\(item.id.uuidString).\(version)"
+    }
+
+    private func loadThumbnailImage(from snapshots: [ThumbnailRepresentationSnapshot]) -> NSImage? {
+        for snapshot in snapshots where snapshot.kind == .png || snapshot.kind == .jpeg || snapshot.kind == .tiff {
+            if let data = snapshot.binaryData, let image = NSImage(data: data) {
+                return image
+            }
+        }
+
+        if let fileRef = snapshots.first(where: { $0.kind == .fileURL }),
+            let data = fileRef.textData,
+            let path = String(data: data, encoding: .utf8)
+        {
+            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return NSImage(contentsOfFile: trimmed)
+            }
+        }
+
+        return nil
     }
 
     func refreshFileIcon() {

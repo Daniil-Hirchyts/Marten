@@ -41,6 +41,7 @@ final class InboundSyncEngineTests: XCTestCase {
 
         var plans: [Plan] = []
         var receivedPreviousTokenData: [Data?] = []
+        var delayNanoseconds: UInt64 = 0
 
         func fetchChanges(
             zoneID: CKRecordZone.ID,
@@ -49,6 +50,9 @@ final class InboundSyncEngineTests: XCTestCase {
             recordDeleted: @escaping (CKRecord.ID, String) throws -> Void,
             tokenUpdated: @escaping (Data) throws -> Void
         ) async throws -> Data? {
+            if delayNanoseconds > 0 {
+                try await Task.sleep(nanoseconds: delayNanoseconds)
+            }
             receivedPreviousTokenData.append(previousServerChangeTokenData)
             guard !plans.isEmpty else { return nil }
             let plan = plans.removeFirst()
@@ -193,5 +197,39 @@ final class InboundSyncEngineTests: XCTestCase {
         request.predicate = NSPredicate(format: "id == %@", itemID as CVarArg)
         let remaining = try context.fetch(request)
         XCTAssertEqual(remaining.count, 0)
+    }
+
+    func testFetchTimeoutThrowsFetchChangesFailedError() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: "Test", ownerName: CKCurrentUserDefaultName)
+        let persistence = PersistenceController(inMemory: true)
+        let mapper = CloudRecordMapper(zoneID: zoneID)
+
+        let tokenStore = InMemoryZoneTokenStore()
+        let fetcher = MockZoneChangesFetcher()
+        fetcher.delayNanoseconds = 500_000_000
+        fetcher.plans = [.success(events: [], finalToken: nil)]
+
+        let engine = InboundSyncEngine(
+            zoneID: zoneID,
+            changesFetcher: fetcher,
+            tokenStore: tokenStore,
+            persistenceController: persistence,
+            recordMapper: mapper,
+            fetchTimeout: 0.1
+        )
+
+        do {
+            _ = try await engine.syncInbound()
+            XCTFail("Expected sync inbound to fail with timeout")
+        } catch let error as CloudKitSyncError {
+            switch error {
+            case .fetchChangesFailed(let underlyingError):
+                XCTAssertTrue(underlyingError.localizedDescription.contains("timed out"))
+            default:
+                XCTFail("Expected fetchChangesFailed, got \(error)")
+            }
+        }
+
+        XCTAssertEqual(tokenStore.saveCallCount, 0)
     }
 }

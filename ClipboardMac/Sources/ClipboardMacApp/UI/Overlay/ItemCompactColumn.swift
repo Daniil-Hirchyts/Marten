@@ -61,18 +61,32 @@ struct ItemCompactColumn: View {
     @State private var pendingRowFrames: [NSManagedObjectID: CGRect]?
     @State private var isRowFrameUpdateScheduled = false
     @State private var isMeasuringRowFrames = false
+    @State private var loadedItemCount: Int = 0
+    @State private var lastVisibleIndex: Int = 0
 
     private let topAnchorID = "ItemCompactColumn.topAnchor"
 
     var body: some View {
         ScrollViewReader { proxy in
+            let paginationEnabled = ItemCompactColumnPagination.isEnabled(
+                totalCount: items.count,
+                isReorderingEnabled: isReorderingEnabled
+            )
+            let initialLoadedCount = ItemCompactColumnPagination.initialLoadedCount(
+                total: items.count,
+                isEnabled: paginationEnabled
+            )
+            let effectiveLoadedCount = min(max(loadedItemCount, initialLoadedCount), items.count)
+            let visibleItems = Array(items.prefix(effectiveLoadedCount))
+
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: rowSpacing) {
                     Color.clear
                         .frame(width: 0, height: 0)
                         .id(topAnchorID)
 
-                    ForEach(items, id: \.objectID) { item in
+                    ForEach(Array(visibleItems.enumerated()), id: \.element.objectID) {
+                        index, item in
                         let isDragging = dragState?.itemIDs.contains(item.objectID) ?? false
 
                         let row = ItemCompactRow(
@@ -84,21 +98,33 @@ struct ItemCompactColumn: View {
                             isEditing: editingItemID == item.objectID,
                             allowPinning: allowPinning,
                             clipItemEditor: clipItemEditor,
-                            onPaste: { onPaste(item) },
-                            onPastePlainText: { onPastePlainText(item) },
-                            onCopy: { onCopy(item) },
-                            onDelete: { onDelete(item) },
-                            onTogglePin: { onTogglePin(item) },
-                            onMoveToPinboard: { onMoveToPinboard(item, $0) },
-                            onCreatePinboard: { onCreatePinboard(item) },
-                            onEdit: { onEdit(item) },
-                            onRename: { onRename(item) },
-                            onCommitRename: { onCommitRename(item, $0) },
-                            onTap: { onTap(item) },
-                            onDoubleTap: { onDoubleTap(item) },
+                            onPaste: onPaste,
+                            onPastePlainText: onPastePlainText,
+                            onCopy: onCopy,
+                            onDelete: onDelete,
+                            onTogglePin: onTogglePin,
+                            onMoveToPinboard: onMoveToPinboard,
+                            onCreatePinboard: onCreatePinboard,
+                            onEdit: onEdit,
+                            onRename: onRename,
+                            onCommitRename: onCommitRename,
+                            onTap: onTap,
+                            onDoubleTap: onDoubleTap,
                             previewItemID: $previewItemID,
                             isPreviewPopoverPresented: $isPreviewPopoverPresented
                         )
+                        .onAppear {
+                            lastVisibleIndex = max(lastVisibleIndex, index)
+                            let nextLoadedCount = ItemCompactColumnPagination.nextLoadedCount(
+                                currentLoadedCount: effectiveLoadedCount,
+                                visibleIndex: index,
+                                totalCount: items.count,
+                                isEnabled: paginationEnabled
+                            )
+                            if nextLoadedCount != loadedItemCount {
+                                loadedItemCount = nextLoadedCount
+                            }
+                        }
                         .opacity(isDragging ? 0.25 : 1)
                         .background(
                             Group {
@@ -171,6 +197,32 @@ struct ItemCompactColumn: View {
                 rowFrames = [:]
                 frameCoordinator.clearLatestItemFrames()
             }
+
+            let paginationEnabled = ItemCompactColumnPagination.isEnabled(
+                totalCount: items.count,
+                isReorderingEnabled: isReorderingEnabled
+            )
+            let initialLoadedCount = ItemCompactColumnPagination.initialLoadedCount(
+                total: items.count,
+                isEnabled: paginationEnabled
+            )
+            if loadedItemCount == 0 {
+                loadedItemCount = initialLoadedCount
+            } else {
+                loadedItemCount = min(max(loadedItemCount, initialLoadedCount), items.count)
+            }
+            lastVisibleIndex = min(lastVisibleIndex, max(0, items.count - 1))
+        }
+        .onAppear {
+            let paginationEnabled = ItemCompactColumnPagination.isEnabled(
+                totalCount: items.count,
+                isReorderingEnabled: isReorderingEnabled
+            )
+            loadedItemCount = ItemCompactColumnPagination.initialLoadedCount(
+                total: items.count,
+                isEnabled: paginationEnabled
+            )
+            lastVisibleIndex = 0
         }
         .onChange(of: pinboardSelectionKey) { _, _ in
             dropTarget = nil
@@ -180,6 +232,16 @@ struct ItemCompactColumn: View {
             isMeasuringRowFrames = false
             rowFrames = [:]
             frameCoordinator.clearLatestItemFrames()
+
+            let paginationEnabled = ItemCompactColumnPagination.isEnabled(
+                totalCount: items.count,
+                isReorderingEnabled: isReorderingEnabled
+            )
+            loadedItemCount = ItemCompactColumnPagination.initialLoadedCount(
+                total: items.count,
+                isEnabled: paginationEnabled
+            )
+            lastVisibleIndex = 0
         }
         .onChange(of: dragPreviewData) { newData, _ in
             if newData == nil {
@@ -319,7 +381,7 @@ struct ItemCompactColumn: View {
             let targetID: NSManagedObjectID? = {
                 switch pinboardDropTarget {
                 case .pinboard(let id): return id
-                case .all: return PinboardTabBar.allTabObjectID
+                case .all: return PinboardTabBarIDs.allTabObjectID
                 case nil: return nil
                 }
             }()
@@ -639,3 +701,29 @@ private struct DropTarget: Equatable {
     }
 }
 
+struct ItemCompactColumnPagination {
+    static let thresholdCount: Int = 120
+    static let batchSize: Int = 80
+    static let preloadBuffer: Int = 20
+
+    static func isEnabled(totalCount: Int, isReorderingEnabled: Bool) -> Bool {
+        totalCount > thresholdCount && !isReorderingEnabled
+    }
+
+    static func initialLoadedCount(total: Int, isEnabled: Bool) -> Int {
+        guard isEnabled else { return total }
+        return min(batchSize, total)
+    }
+
+    static func nextLoadedCount(
+        currentLoadedCount: Int,
+        visibleIndex: Int,
+        totalCount: Int,
+        isEnabled: Bool
+    ) -> Int {
+        guard isEnabled else { return totalCount }
+        let preloadStartIndex = max(0, currentLoadedCount - preloadBuffer)
+        guard visibleIndex >= preloadStartIndex else { return currentLoadedCount }
+        return min(currentLoadedCount + batchSize, totalCount)
+    }
+}

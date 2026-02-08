@@ -255,7 +255,7 @@ extension OverlayItemPreview {
                     let isAssigned = assignedPinboardIDs.contains(pinboard.id)
                     let isLocked = lockedPinboardIDs.contains(pinboard.id)
                     Button {
-                        onMoveToPinboard(pinboard)
+                        onMoveToPinboard(item, pinboard)
                     } label: {
                         Label {
                             Text(pinboard.name)
@@ -275,7 +275,7 @@ extension OverlayItemPreview {
             Divider()
 
             Button("New Pinboard...") {
-                onCreatePinboard()
+                onCreatePinboard(item)
             }
         } label: {
             PinboardMenuLabel(

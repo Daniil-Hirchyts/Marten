@@ -23,13 +23,18 @@ struct OverlaySearchBarView: View {
     let onSearchClear: () -> Void
     let onClearFilters: () -> Void
 
-    // The filter button adds some width, so we need to account for it in total width calculation
+    // Total width must include search toggle, separator, and filter button.
     private var totalCollapsedWidth: CGFloat {
         searchCollapsedWidth + headerButtonSize + 1 // + separator width
     }
     
     private var totalExpandedWidth: CGFloat {
-        searchExpandedWidth + headerButtonSize + 1
+        // Expanded state includes: search toggle + text field + separator + filter button.
+        searchCollapsedWidth + searchExpandedWidth + headerButtonSize + 1
+    }
+
+    private var searchFieldHorizontalPadding: CGFloat {
+        isSearchExpanded ? 6 : 0
     }
 
     var body: some View {
@@ -65,7 +70,7 @@ struct OverlaySearchBarView: View {
                     .accessibilityLabel("Search")
                     .accessibilityHint("Type to filter items")
 
-                if !searchText.isEmpty {
+                if isSearchExpanded && !searchText.isEmpty {
                     Button(action: onSearchClear) {
                         Image(systemName: "xmark")
                             .font(.system(size: 10, weight: .semibold))
@@ -83,7 +88,7 @@ struct OverlaySearchBarView: View {
                     .accessibilityLabel("Clear search")
                 }
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, searchFieldHorizontalPadding)
             .frame(
                 width: isSearchExpanded ? searchExpandedWidth : 0,
                 height: headerButtonSize,

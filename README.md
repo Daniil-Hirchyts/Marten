@@ -11,4 +11,3 @@ macOS clipboard manager with iCloud sync.
 - Codebase guide: `docs/CODEBASE.md`
 - Development setup: `docs/SETUP.md`
 - Architecture decisions (ADRs): `docs/ARCHITECTURE-DECISIONS.md`
-- Full Swift file inventory: `docs/FILE-INVENTORY.md`

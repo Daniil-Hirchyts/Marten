@@ -11,15 +11,15 @@ struct CardContextMenu: View {
     let assignedPinboardIDs: Set<UUID>
     let pinboards: [Pinboard]
     let lockedPinboardIDs: Set<UUID>
-    let onPaste: () -> Void
-    let onPastePlainText: () -> Void
-    let onTogglePin: () -> Void
-    let onCopy: () -> Void
-    let onMoveToPinboard: (Pinboard) -> Void
-    let onCreatePinboard: () -> Void
-    let onEdit: () -> Void
-    let onRename: () -> Void
-    let onDelete: () -> Void
+    let onPaste: (ClipItem) -> Void
+    let onPastePlainText: (ClipItem) -> Void
+    let onTogglePin: (ClipItem) -> Void
+    let onCopy: (ClipItem) -> Void
+    let onMoveToPinboard: (ClipItem, Pinboard) -> Void
+    let onCreatePinboard: (ClipItem) -> Void
+    let onEdit: (ClipItem) -> Void
+    let onRename: (ClipItem) -> Void
+    let onDelete: (ClipItem) -> Void
 
     private var identifierPrefix: String {
         "overlay.itemMenu.\(itemID.uuidString)"
@@ -27,14 +27,14 @@ struct CardContextMenu: View {
 
     var body: some View {
         Button {
-            onPaste()
+            onPaste(item)
         } label: {
             Label("Paste", systemImage: "arrow.turn.up.left")
         }
         .accessibilityIdentifier("\(identifierPrefix).paste")
 
         Button {
-            onPastePlainText()
+            onPastePlainText(item)
         } label: {
             Label("Paste as Plain Text", systemImage: "textformat")
         }
@@ -53,7 +53,7 @@ struct CardContextMenu: View {
 
         if allowPinning {
             Button {
-                onTogglePin()
+                onTogglePin(item)
             } label: {
                 Label(isPinned ? "Unpin" : "Pin", systemImage: isPinned ? "pin.slash" : "pin")
             }
@@ -61,7 +61,7 @@ struct CardContextMenu: View {
         }
 
         Button {
-            onCopy()
+            onCopy(item)
         } label: {
             Label("Copy", systemImage: "doc.on.doc")
         }
@@ -72,7 +72,7 @@ struct CardContextMenu: View {
                 let isAssigned = assignedPinboardIDs.contains(pinboard.id)
                 let isLocked = lockedPinboardIDs.contains(pinboard.id)
                 Button {
-                    onMoveToPinboard(pinboard)
+                    onMoveToPinboard(item, pinboard)
                 } label: {
                     Label {
                         Text(pinboard.name)
@@ -90,7 +90,7 @@ struct CardContextMenu: View {
             }
             Divider()
             Button {
-                onCreatePinboard()
+                onCreatePinboard(item)
             } label: {
                 Label("New Pinboard...", systemImage: "plus")
             }
@@ -103,21 +103,21 @@ struct CardContextMenu: View {
         Divider()
 
         Button {
-            onEdit()
+            onEdit(item)
         } label: {
             Label("Edit...", systemImage: "square.and.pencil")
         }
         .accessibilityIdentifier("\(identifierPrefix).edit")
 
         Button {
-            onRename()
+            onRename(item)
         } label: {
             Label("Rename...", systemImage: "character.cursor.ibeam")
         }
         .accessibilityIdentifier("\(identifierPrefix).rename")
 
         Button {
-            onDelete()
+            onDelete(item)
         } label: {
             Label("Delete", systemImage: "trash")
         }

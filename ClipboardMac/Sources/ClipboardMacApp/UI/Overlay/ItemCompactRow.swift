@@ -21,18 +21,18 @@ struct ItemCompactRow: View {
     let isEditing: Bool
     let allowPinning: Bool
     let clipItemEditor: any ClipItemEditing
-    let onPaste: () -> Void
-    let onPastePlainText: () -> Void
-    let onCopy: () -> Void
-    let onDelete: () -> Void
-    let onTogglePin: () -> Void
-    let onMoveToPinboard: (Pinboard) -> Void
-    let onCreatePinboard: () -> Void
-    let onEdit: () -> Void
-    let onRename: () -> Void
-    let onCommitRename: (String) -> Void
-    let onTap: () -> Void
-    let onDoubleTap: () -> Void
+    let onPaste: (ClipItem) -> Void
+    let onPastePlainText: (ClipItem) -> Void
+    let onCopy: (ClipItem) -> Void
+    let onDelete: (ClipItem) -> Void
+    let onTogglePin: (ClipItem) -> Void
+    let onMoveToPinboard: (ClipItem, Pinboard) -> Void
+    let onCreatePinboard: (ClipItem) -> Void
+    let onEdit: (ClipItem) -> Void
+    let onRename: (ClipItem) -> Void
+    let onCommitRename: (ClipItem, String) -> Void
+    let onTap: (ClipItem) -> Void
+    let onDoubleTap: (ClipItem) -> Void
     @Binding var previewItemID: NSManagedObjectID?
     @Binding var isPreviewPopoverPresented: Bool
 
@@ -102,39 +102,39 @@ struct ItemCompactRow: View {
                 pinboards: pinboards,
                 lockedPinboardIDs: lockedPinboardIDs,
                 clipItemEditor: clipItemEditor,
-                onEdit: {
+                onEdit: { editedItem in
                     previewItemID = nil
                     isPreviewPopoverPresented = false
-                    onEdit()
+                    onEdit(editedItem)
                 },
-                onPaste: {
-                    onPaste()
-                    previewItemID = nil
-                    isPreviewPopoverPresented = false
-                },
-                onPastePlainText: {
-                    onPastePlainText()
+                onPaste: { pastedItem in
+                    onPaste(pastedItem)
                     previewItemID = nil
                     isPreviewPopoverPresented = false
                 },
-                onCopy: {
-                    onCopy()
+                onPastePlainText: { pastedItem in
+                    onPastePlainText(pastedItem)
                     previewItemID = nil
                     isPreviewPopoverPresented = false
                 },
-                onTogglePin: {
-                    onTogglePin()
-                },
-                onMoveToPinboard: { pinboard in
-                    onMoveToPinboard(pinboard)
-                },
-                onCreatePinboard: {
+                onCopy: { copiedItem in
+                    onCopy(copiedItem)
                     previewItemID = nil
                     isPreviewPopoverPresented = false
-                    onCreatePinboard()
                 },
-                onDelete: {
-                    onDelete()
+                onTogglePin: { toggledItem in
+                    onTogglePin(toggledItem)
+                },
+                onMoveToPinboard: { movedItem, pinboard in
+                    onMoveToPinboard(movedItem, pinboard)
+                },
+                onCreatePinboard: { sourceItem in
+                    previewItemID = nil
+                    isPreviewPopoverPresented = false
+                    onCreatePinboard(sourceItem)
+                },
+                onDelete: { deletedItem in
+                    onDelete(deletedItem)
                     previewItemID = nil
                     isPreviewPopoverPresented = false
                 }
@@ -249,7 +249,7 @@ struct ItemCompactRow: View {
                     .font(.system(size: 13, weight: .semibold))
                     .focused($isFocused)
                     .onSubmit {
-                        onCommitRename(editTitle)
+                        onCommitRename(item, editTitle)
                     }
                     .onAppear {
                         editTitle = item.customTitle ?? titleText
@@ -428,10 +428,10 @@ struct ItemCompactRow: View {
     private func handleTap() {
         let now = Date()
         if let lastTapTime, now.timeIntervalSince(lastTapTime) < 0.3 {
-            onDoubleTap()
+            onDoubleTap(item)
             self.lastTapTime = nil
         } else {
-            onTap()
+            onTap(item)
             self.lastTapTime = now
         }
     }

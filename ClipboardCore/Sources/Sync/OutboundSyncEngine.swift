@@ -161,7 +161,7 @@ public final class OutboundSyncEngine: @unchecked Sendable {
     private var pendingDeletes: Set<CKRecord.ID> = []
     private var statusByID: [CKRecord.ID: RecordStatus] = [:]
     private var inFlight: WorkItem?
-    private var flushCompletionContinuation: CheckedContinuation<Void, Never>?
+    private var flushCompletionContinuations: [CheckedContinuation<Void, Never>] = []
 
     public init(
         persistenceController: PersistenceController,
@@ -205,6 +205,7 @@ public final class OutboundSyncEngine: @unchecked Sendable {
             }
             flushTimer?.cancel()
             flushTimer = nil
+            resumeFlushCompletionContinuations()
         }
     }
 
@@ -232,7 +233,7 @@ public final class OutboundSyncEngine: @unchecked Sendable {
                     continuation.resume()
                     return
                 }
-                self.flushCompletionContinuation = continuation
+                self.flushCompletionContinuations.append(continuation)
                 self.scheduleFlush(after: 0)
             }
         }
@@ -490,10 +491,7 @@ public final class OutboundSyncEngine: @unchecked Sendable {
             guard let self else { return }
             self.inFlight = nil
             if retryWork.saveRecordsByID.isEmpty && retryWork.deleteIDs.isEmpty {
-                if let cont = self.flushCompletionContinuation {
-                    self.flushCompletionContinuation = nil
-                    cont.resume()
-                }
+                self.resumeFlushCompletionContinuations()
                 self.scheduleFlushIfPending()
                 return
             }
@@ -501,10 +499,7 @@ public final class OutboundSyncEngine: @unchecked Sendable {
                 for: failedSaves.merged(with: failedDeletes), attempt: retryWork.attempts)
             self.pendingSaves.merge(retryWork.saveRecordsByID) { _, new in new }
             self.pendingDeletes.formUnion(retryWork.deleteIDs)
-            if let cont = self.flushCompletionContinuation {
-                self.flushCompletionContinuation = nil
-                cont.resume()
-            }
+            self.resumeFlushCompletionContinuations()
             self.scheduleFlush(after: delay)
         }
     }
@@ -567,23 +562,24 @@ public final class OutboundSyncEngine: @unchecked Sendable {
 
     private func completeCurrentFlush() {
         self.inFlight = nil
-        if let cont = self.flushCompletionContinuation {
-            self.flushCompletionContinuation = nil
-            cont.resume()
-        }
+        resumeFlushCompletionContinuations()
         self.scheduleFlushIfPending()
     }
 
     private func requeueForRetry(work: WorkItem) {
         pendingSaves.merge(work.saveRecordsByID) { _, new in new }
         pendingDeletes.formUnion(work.deleteIDs)
-        if let cont = flushCompletionContinuation {
-            flushCompletionContinuation = nil
-            cont.resume()
-        }
+        resumeFlushCompletionContinuations()
         if isSyncEnabled() {
             scheduleFlush(after: configuration.debounceInterval)
         }
+    }
+
+    private func resumeFlushCompletionContinuations() {
+        guard !flushCompletionContinuations.isEmpty else { return }
+        let continuations = flushCompletionContinuations
+        flushCompletionContinuations.removeAll(keepingCapacity: true)
+        continuations.forEach { $0.resume() }
     }
 
     private func scheduleFlushIfPending() {

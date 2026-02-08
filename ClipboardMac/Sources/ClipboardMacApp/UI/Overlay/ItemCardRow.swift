@@ -65,27 +65,25 @@ struct ItemCardRow: View {
     @State private var loadedItemCount: Int = 0
     @State private var lastVisibleIndex: Int = 0
     @State private var currentPage: Int = 0
+    @State private var rowContainerSize: CGSize = CGSize(width: 0, height: 320)
 
     @StateObject private var itemFramesBuffer = ItemFramesBuffer()
 
 
     var body: some View {
-        GeometryReader { geometry in
-            // Reduce card size to allow space for shadows (top and bottom)
-            // Shadow radius 6 + y offset 3 = ~9pt extend. 24pt total reduction gives ample room.
-            let verticalPadding: CGFloat = 12
-            let cardSize = geometry.size.height - (verticalPadding * 2)
-            
-            // Add side margin (14) to the placeholder allowance so cards start aligned with header
-            let sideMargin: CGFloat = 14
-            let placeholderInset = sideMargin + (placeholderWidth / 2)
-            let paginationEnabled = ItemCardRowPagination.isEnabled(
-                totalCount: items.count, isReorderingEnabled: isReorderingEnabled)
-            let initialLoadedCount = ItemCardRowPagination.initialLoadedCount(
-                total: items.count, isEnabled: paginationEnabled)
-            let effectiveLoadedCount = min(max(loadedItemCount, initialLoadedCount), items.count)
-            let visibleItems = Array(items.prefix(effectiveLoadedCount))
+        // Keep card size stable from cached container dimensions to avoid per-frame geometry reads.
+        let verticalPadding: CGFloat = 12
+        let cardSize = max(120, rowContainerSize.height - (verticalPadding * 2))
+        let sideMargin: CGFloat = 14
+        let placeholderInset = sideMargin + (placeholderWidth / 2)
+        let paginationEnabled = ItemCardRowPagination.isEnabled(
+            totalCount: items.count, isReorderingEnabled: isReorderingEnabled)
+        let initialLoadedCount = ItemCardRowPagination.initialLoadedCount(
+            total: items.count, isEnabled: paginationEnabled)
+        let effectiveLoadedCount = min(max(loadedItemCount, initialLoadedCount), items.count)
+        let visibleItems = Array(items.prefix(effectiveLoadedCount))
 
+        Group {
             if #available(macOS 14.0, *) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     ScrollViewReader { proxy in
@@ -155,6 +153,19 @@ struct ItemCardRow: View {
             if !rectsApproximatelyEqual(frame, rowFrame) {
                 rowFrame = frame
             }
+        }
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: ItemRowContainerSizeKey.self, value: proxy.size)
+            }
+        )
+        .onPreferenceChange(ItemRowContainerSizeKey.self) { size in
+            guard abs(size.height - rowContainerSize.height) > 0.5
+                || abs(size.width - rowContainerSize.width) > 0.5
+            else {
+                return
+            }
+            rowContainerSize = size
         }
         // Note: All preview updates now happen directly via callback in drag handlers and timer
         // This avoids triggering parent re-renders through the binding
@@ -267,23 +278,23 @@ struct ItemCardRow: View {
                 allowPinning: allowPinning,
                 isDragEnabled: isDragEnabled,
                 cardSize: size,
-                onPaste: { onPaste(item) },
-                onPastePlainText: { onPastePlainText(item) },
-                onCopy: { onCopy(item) },
-                onDelete: { onDelete(item) },
-                onTogglePin: { onTogglePin(item) },
-                onMoveToPinboard: { onMoveToPinboard(item, $0) },
-                onCreatePinboard: { onCreatePinboard(item) },
-                onEdit: { onEdit(item) },
-                onRename: { onRename(item) },
-                onCommitRename: { newTitle in onCommitRename(item, newTitle) },
-                onTap: {
+                onPaste: onPaste,
+                onPastePlainText: onPastePlainText,
+                onCopy: onCopy,
+                onDelete: onDelete,
+                onTogglePin: onTogglePin,
+                onMoveToPinboard: onMoveToPinboard,
+                onCreatePinboard: onCreatePinboard,
+                onEdit: onEdit,
+                onRename: onRename,
+                onCommitRename: onCommitRename,
+                onTap: { tappedItem in
                     withAnimation {
-                        proxy?.scrollTo(item.objectID)
+                        proxy?.scrollTo(tappedItem.objectID)
                     }
-                    onTap(item)
+                    onTap(tappedItem)
                 },
-                onDoubleTap: { onDoubleTap(item) }
+                onDoubleTap: onDoubleTap
             )
             .popover(isPresented: isPreviewPresented, arrowEdge: .bottom) {
                 OverlayItemPreview(
@@ -292,39 +303,39 @@ struct ItemCardRow: View {
                     pinboards: pinboards,
                     lockedPinboardIDs: lockedPinboardIDs,
                     clipItemEditor: clipItemEditor,
-                    onEdit: {
+                    onEdit: { editedItem in
                         previewItemID = nil
                         isPreviewPopoverPresented = false
-                        onEdit(item)
+                        onEdit(editedItem)
                     },
-                    onPaste: {
-                        onPaste(item)
-                        previewItemID = nil
-                        isPreviewPopoverPresented = false
-                    },
-                    onPastePlainText: {
-                        onPastePlainText(item)
+                    onPaste: { pastedItem in
+                        onPaste(pastedItem)
                         previewItemID = nil
                         isPreviewPopoverPresented = false
                     },
-                    onCopy: {
-                        onCopy(item)
+                    onPastePlainText: { pastedItem in
+                        onPastePlainText(pastedItem)
                         previewItemID = nil
                         isPreviewPopoverPresented = false
                     },
-                    onTogglePin: {
-                        onTogglePin(item)
-                    },
-                    onMoveToPinboard: { pinboard in
-                        onMoveToPinboard(item, pinboard)
-                    },
-                    onCreatePinboard: {
+                    onCopy: { copiedItem in
+                        onCopy(copiedItem)
                         previewItemID = nil
                         isPreviewPopoverPresented = false
-                        onCreatePinboard(item)
                     },
-                    onDelete: {
-                        onDelete(item)
+                    onTogglePin: { toggledItem in
+                        onTogglePin(toggledItem)
+                    },
+                    onMoveToPinboard: { movedItem, pinboard in
+                        onMoveToPinboard(movedItem, pinboard)
+                    },
+                    onCreatePinboard: { sourceItem in
+                        previewItemID = nil
+                        isPreviewPopoverPresented = false
+                        onCreatePinboard(sourceItem)
+                    },
+                    onDelete: { deletedItem in
+                        onDelete(deletedItem)
                         previewItemID = nil
                         isPreviewPopoverPresented = false
                     }
@@ -516,7 +527,7 @@ struct ItemCardRow: View {
             let targetID: NSManagedObjectID? = {
                 switch pinboardDropTarget {
                 case .pinboard(let id): return id
-                case .all: return PinboardTabBar.allTabObjectID
+                case .all: return PinboardTabBarIDs.allTabObjectID
                 case nil: return nil
                 }
             }()
@@ -905,6 +916,17 @@ private struct ItemRowFrameKey: PreferenceKey {
     }
 }
 
+private struct ItemRowContainerSizeKey: PreferenceKey {
+    static var defaultValue: CGSize { .zero }
+
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        let next = nextValue()
+        if next != .zero {
+            value = next
+        }
+    }
+}
+
 struct DragPreviewData: Equatable {
     let items: [ClipItem]
     let pinboards: [Pinboard]
@@ -966,18 +988,18 @@ struct ItemCardDragPreview: View {
             allowPinning: false,
             isDragEnabled: false,
             cardSize: cardSize,
-            onPaste: {},
-            onPastePlainText: {},
-            onCopy: {},
-            onDelete: {},
-            onTogglePin: {},
-            onMoveToPinboard: { _ in },
-            onCreatePinboard: {},
-            onEdit: {},
-            onRename: {},
-            onCommitRename: { _ in },
-            onTap: {},
-            onDoubleTap: {}
+            onPaste: { _ in },
+            onPastePlainText: { _ in },
+            onCopy: { _ in },
+            onDelete: { _ in },
+            onTogglePin: { _ in },
+            onMoveToPinboard: { _, _ in },
+            onCreatePinboard: { _ in },
+            onEdit: { _ in },
+            onRename: { _ in },
+            onCommitRename: { _, _ in },
+            onTap: { _ in },
+            onDoubleTap: { _ in }
         )
         .allowsHitTesting(false)
         .opacity(0.9)
@@ -1012,18 +1034,18 @@ struct MultiItemCardDragPreview: View {
                     allowPinning: false,
                     isDragEnabled: false,
                     cardSize: cardSize,
-                    onPaste: {},
-                    onPastePlainText: {},
-                    onCopy: {},
-                    onDelete: {},
-                    onTogglePin: {},
-                    onMoveToPinboard: { _ in },
-                    onCreatePinboard: {},
-                    onEdit: {},
-                    onRename: {},
-                    onCommitRename: { _ in },
-                    onTap: {},
-                    onDoubleTap: {}
+                    onPaste: { _ in },
+                    onPastePlainText: { _ in },
+                    onCopy: { _ in },
+                    onDelete: { _ in },
+                    onTogglePin: { _ in },
+                    onMoveToPinboard: { _, _ in },
+                    onCreatePinboard: { _ in },
+                    onEdit: { _ in },
+                    onRename: { _ in },
+                    onCommitRename: { _, _ in },
+                    onTap: { _ in },
+                    onDoubleTap: { _ in }
                 )
                 .frame(width: cardSize, height: cardSize)
                 .rotationEffect(.degrees(Self.stackRotations[min(index, Self.stackRotations.count - 1)]))

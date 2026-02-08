@@ -9,10 +9,24 @@ public final class SoundEffectPlayer {
         case delete = "delete"
     }
 
-    public var isEnabled = true
     private let userDefaults: UserDefaults
     private let userDefaultsKey: String
     private var sounds: [Sound: NSSound] = [:]
+    private var isEnabledStorage = true
+    private let lock = NSLock()
+
+    public var isEnabled: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return isEnabledStorage
+        }
+        set {
+            lock.lock()
+            isEnabledStorage = newValue
+            lock.unlock()
+        }
+    }
 
     public init(
         userDefaults: UserDefaults = .standard, userDefaultsKey: String = "soundEffectsEnabled"
@@ -23,9 +37,14 @@ public final class SoundEffectPlayer {
     }
 
     public func play(_ sound: Sound) {
-        guard isEnabled, userDefaults.bool(forKey: userDefaultsKey) else {
+        guard userDefaults.bool(forKey: userDefaultsKey) else {
             return
         }
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard isEnabledStorage else { return }
+
         if sounds[sound] == nil {
             sounds[sound] = loadSound(sound)
         }
@@ -33,6 +52,9 @@ public final class SoundEffectPlayer {
     }
 
     private func preload() {
+        lock.lock()
+        defer { lock.unlock() }
+
         for sound in [Sound.capture, .paste, .copy, .delete] {
             sounds[sound] = loadSound(sound)
         }
@@ -46,6 +68,5 @@ public final class SoundEffectPlayer {
     }
 }
 
-// SAFETY: SoundEffectPlayer is expected to be used from the main thread/UI. It maintains an
-// internal cache of NSSound instances which is not synchronized.
+// SAFETY: SoundEffectPlayer synchronizes mutable state (`isEnabledStorage`, `sounds`) with `lock`.
 extension SoundEffectPlayer: @unchecked Sendable {}

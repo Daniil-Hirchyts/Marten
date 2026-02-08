@@ -57,6 +57,11 @@
             <fetchIndexElement property="displayOrder" type="Binary"/>
             <fetchIndexElement property="createdAt" type="Binary"/>
         </fetchIndex>
+        <fetchIndex name="ClipItemByNeedsLinkPreviewCreatedAt">
+            <fetchIndexElement property="needsLinkPreview" type="Binary"/>
+            <fetchIndexElement property="linkPreview" type="Binary"/>
+            <fetchIndexElement property="createdAt" type="Binary"/>
+        </fetchIndex>
     </entity>
     <entity name="ClipRepresentation" representedClassName="ClipRepresentation" syncable="YES">
         <attribute name="id" optional="NO" attributeType="UUID" usesScalarValueType="NO"/>
@@ -115,6 +120,10 @@
                 <constraintElement name="id"/>
             </constraint>
         </uniquenessConstraints>
+        <fetchIndex name="LinkPreviewByFetchFailedFetchedAt">
+            <fetchIndexElement property="fetchFailed" type="Binary"/>
+            <fetchIndexElement property="fetchedAt" type="Binary"/>
+        </fetchIndex>
     </entity>
     <entity name="StackSession" representedClassName="StackSession" syncable="YES">
         <attribute name="id" optional="NO" attributeType="UUID" usesScalarValueType="NO"/>

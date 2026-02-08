@@ -25,8 +25,14 @@ public final class PasteboardMonitor: ObservableObject {
     public var fastPollInterval: TimeInterval = 0.4
     public var idlePollInterval: TimeInterval = 1.5
     public var idleThreshold: TimeInterval = 5.0
-    public var isEnabled = true
     public var onClipboardChange: ((NSPasteboard) -> Void)?
+
+    public var isEnabled: Bool {
+        get { performOnMain { _isEnabled } }
+        set { performOnMain { _isEnabled = newValue } }
+    }
+
+    private var _isEnabled = true
 
     public init(
         activeAppTracker: ActiveAppTracker = ActiveAppTracker(),
@@ -37,6 +43,12 @@ public final class PasteboardMonitor: ObservableObject {
     }
 
     public func start() {
+        performOnMain {
+            self.startOnMain()
+        }
+    }
+
+    private func startOnMain() {
         guard !isMonitoring else { return }
         lastChangeCount = pasteboard.changeCount
         isMonitoring = true
@@ -49,6 +61,12 @@ public final class PasteboardMonitor: ObservableObject {
     }
 
     public func stop() {
+        performOnMain {
+            self.stopOnMain()
+        }
+    }
+
+    private func stopOnMain() {
         timer?.invalidate()
         timer = nil
         pauseTimer?.invalidate()
@@ -60,15 +78,27 @@ public final class PasteboardMonitor: ObservableObject {
     }
 
     public func pause() {
-        isEnabled = false
+        performOnMain {
+            self.pauseOnMain()
+        }
+    }
+
+    private func pauseOnMain() {
+        _isEnabled = false
         isPaused = true
         Logger.pasteboard.info("Pasteboard capture paused")
     }
 
     public func resume() {
+        performOnMain {
+            self.resumeOnMain()
+        }
+    }
+
+    private func resumeOnMain() {
         pauseTimer?.invalidate()
         pauseTimer = nil
-        isEnabled = true
+        _isEnabled = true
         isPaused = false
         lastChangeCount = pasteboard.changeCount
         Logger.pasteboard.info("Pasteboard capture resumed")
@@ -77,13 +107,19 @@ public final class PasteboardMonitor: ObservableObject {
     /// Pauses capture for the given duration, or indefinitely when `duration` is `nil`.
     /// Invalidates any previously scheduled auto-resume timer before starting a new one.
     public func pauseForDuration(_ duration: TimeInterval?) {
+        performOnMain {
+            self.pauseForDurationOnMain(duration)
+        }
+    }
+
+    private func pauseForDurationOnMain(_ duration: TimeInterval?) {
         pauseTimer?.invalidate()
         pauseTimer = nil
-        pause()
+        pauseOnMain()
         guard let duration else { return }
         pauseTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) {
             [weak self] _ in
-            self?.resume()
+            self?.resumeOnMain()
         }
         if let timer = pauseTimer {
             RunLoop.main.add(timer, forMode: .common)
@@ -96,22 +132,26 @@ public final class PasteboardMonitor: ObservableObject {
     /// changes could cause missed detections.
     @discardableResult
     public func suppressNextChange() -> UUID {
-        let token = UUID()
-        suppressToken = token
-        changeCountAtSuppression = pasteboard.changeCount
-        return token
+        performOnMain {
+            let token = UUID()
+            suppressToken = token
+            changeCountAtSuppression = pasteboard.changeCount
+            return token
+        }
     }
 
     /// Cancels an active suppression if the provided token matches the current one.
     public func cancelSuppression(token: UUID) {
-        if suppressToken == token {
-            suppressToken = nil
-            changeCountAtSuppression = nil
+        performOnMain {
+            if suppressToken == token {
+                suppressToken = nil
+                changeCountAtSuppression = nil
+            }
         }
     }
 
     private func checkForChanges() {
-        guard isEnabled else { return }
+        guard _isEnabled else { return }
 
         let currentCount = pasteboard.changeCount
         guard currentCount != lastChangeCount else {
@@ -185,5 +225,12 @@ public final class PasteboardMonitor: ObservableObject {
         if let timer = timer {
             RunLoop.main.add(timer, forMode: .common)
         }
+    }
+
+    private func performOnMain<T>(_ work: () -> T) -> T {
+        if Thread.isMainThread {
+            return work()
+        }
+        return DispatchQueue.main.sync(execute: work)
     }
 }

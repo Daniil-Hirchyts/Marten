@@ -29,7 +29,6 @@ Paste/
 └── docs/
     ├── INDEX.md
     ├── CODEBASE.md
-    ├── FILE-INVENTORY.md
     ├── BEST-PRACTICES.md
     ├── ARCHITECTURE-DECISIONS.md
     └── SETUP.md
@@ -56,7 +55,6 @@ Paste/
   - `ClipboardMac/Sources/ClipboardMacServices/Services/PasteEngine/PasteEngine.swift` (~605)
   - `ClipboardCore/Sources/Sync/OutboundSyncEngine.swift` (~583)
 
-For the complete file appendix, see [`FILE-INVENTORY.md`](./FILE-INVENTORY.md).
 
 ---
 
@@ -269,7 +267,6 @@ Push notification/App trigger -> AppCoordinator -> SyncCoordinator
 ## Related Documents
 
 - [`INDEX.md`](./INDEX.md)
-- [`FILE-INVENTORY.md`](./FILE-INVENTORY.md)
 - [`BEST-PRACTICES.md`](./BEST-PRACTICES.md)
 - [`ARCHITECTURE-DECISIONS.md`](./ARCHITECTURE-DECISIONS.md)
 - [`SETUP.md`](./SETUP.md)

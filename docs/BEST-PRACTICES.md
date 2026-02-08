@@ -215,7 +215,6 @@ Before merging behavior changes:
 ## 7. References
 
 - [`CODEBASE.md`](./CODEBASE.md)
-- [`FILE-INVENTORY.md`](./FILE-INVENTORY.md)
 - [`ARCHITECTURE-DECISIONS.md`](./ARCHITECTURE-DECISIONS.md)
 - [`SETUP.md`](./SETUP.md)
 

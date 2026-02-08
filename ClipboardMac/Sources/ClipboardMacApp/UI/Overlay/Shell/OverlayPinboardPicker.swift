@@ -70,7 +70,7 @@ extension OverlayShellView {
         .popover(isPresented: $isVerticalPinboardDropdownPresented, arrowEdge: .top) {
             verticalPinboardDropdownContent
         }
-        .popover(isPresented: $isPinboardCreatePresented, arrowEdge: .top) {
+        .popover(isPresented: $verticalPinboardCreateState.isPresented, arrowEdge: .top) {
             verticalPinboardCreatePopover
         }
         .accessibilityIdentifier("overlay.pinboard.picker")
@@ -181,7 +181,7 @@ extension OverlayShellView {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .popover(isPresented: $isVerticalPinboardEditPresented, arrowEdge: .top) {
+        .popover(isPresented: $verticalPinboardEditState.isPresented, arrowEdge: .top) {
             verticalPinboardEditPopover
         }
         .accessibilityIdentifier("overlay.pinboard.picker.edit")
@@ -214,7 +214,7 @@ extension OverlayShellView {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.regular)
                 .keyboardShortcut(.defaultAction)
-                .disabled(verticalPinboardDraftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(verticalPinboardCreateState.draftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier("overlay.pinboard.verticalCreate.commit")
             }
         }
@@ -225,9 +225,9 @@ extension OverlayShellView {
                 verticalPinboardNameFocused = true
             }
         }
-        .onChange(of: verticalPinboardDraftName) { _, newValue in
+        .onChange(of: verticalPinboardCreateState.draftName) { _, newValue in
             if newValue.count > 22 {
-                verticalPinboardDraftName = String(newValue.prefix(22))
+                verticalPinboardCreateState.draftName = String(newValue.prefix(22))
             }
         }
     }
@@ -251,11 +251,11 @@ extension OverlayShellView {
 
     var inputStylePicker: some View {
         PinboardStylePickerButton(
-            selectedColorHex: verticalPinboardDraftColor,
-            selectedSign: verticalPinboardDraftIcon,
-            shouldPresentOnAppear: $shouldPresentVerticalPinboardStylePicker,
-            onColorSelect: { verticalPinboardDraftColor = $0 },
-            onSignSelect: { verticalPinboardDraftIcon = $0 }
+            selectedColorHex: verticalPinboardCreateState.draftColorHex,
+            selectedSign: verticalPinboardCreateState.draftIconName,
+            shouldPresentOnAppear: $verticalPinboardCreateState.shouldPresentStylePicker,
+            onColorSelect: { verticalPinboardCreateState.draftColorHex = $0 },
+            onSignSelect: { verticalPinboardCreateState.draftIconName = $0 }
         )
         .frame(width: 44, height: 32)
         .contentShape(Rectangle())
@@ -268,7 +268,7 @@ extension OverlayShellView {
     }
 
     var inputTextField: some View {
-        TextField("Name", text: $verticalPinboardDraftName)
+        TextField("Name", text: $verticalPinboardCreateState.draftName)
             .textFieldStyle(.plain)
             .font(.system(size: 13, weight: .medium))
             .padding(.horizontal, 10)
@@ -304,7 +304,7 @@ extension OverlayShellView {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.regular)
                 .keyboardShortcut(.defaultAction)
-                .disabled(verticalPinboardEditDraftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(verticalPinboardEditState.draftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier("overlay.pinboard.verticalEdit.commit")
             }
         }
@@ -315,9 +315,9 @@ extension OverlayShellView {
                 verticalPinboardEditNameFocused = true
             }
         }
-        .onChange(of: verticalPinboardEditDraftName) { _, newValue in
+        .onChange(of: verticalPinboardEditState.draftName) { _, newValue in
             if newValue.count > 22 {
-                verticalPinboardEditDraftName = String(newValue.prefix(22))
+                verticalPinboardEditState.draftName = String(newValue.prefix(22))
             }
         }
     }
@@ -341,11 +341,11 @@ extension OverlayShellView {
 
     var editStylePicker: some View {
         PinboardStylePickerButton(
-            selectedColorHex: verticalPinboardEditDraftColor,
-            selectedSign: verticalPinboardEditDraftIcon,
-            shouldPresentOnAppear: $shouldPresentVerticalPinboardEditStylePicker,
-            onColorSelect: { verticalPinboardEditDraftColor = $0 },
-            onSignSelect: { verticalPinboardEditDraftIcon = $0 }
+            selectedColorHex: verticalPinboardEditState.draftColorHex,
+            selectedSign: verticalPinboardEditState.draftIconName,
+            shouldPresentOnAppear: $verticalPinboardEditState.shouldPresentStylePicker,
+            onColorSelect: { verticalPinboardEditState.draftColorHex = $0 },
+            onSignSelect: { verticalPinboardEditState.draftIconName = $0 }
         )
         .frame(width: 44, height: 32)
         .contentShape(Rectangle())
@@ -358,7 +358,7 @@ extension OverlayShellView {
     }
 
     var editTextField: some View {
-        TextField("Name", text: $verticalPinboardEditDraftName)
+        TextField("Name", text: $verticalPinboardEditState.draftName)
             .textFieldStyle(.plain)
             .font(.system(size: 13, weight: .medium))
             .padding(.horizontal, 10)

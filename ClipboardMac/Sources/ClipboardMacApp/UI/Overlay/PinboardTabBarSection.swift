@@ -4,14 +4,14 @@ import ClipboardMacServices
 import CoreData
 import SwiftUI
 
-struct PinboardTabBarSection: View {
+struct PinboardTabBarSection<CreatePopoverContent: View>: View {
     let pinboards: [Pinboard]
     let selectedID: UUID?
     let isLocked: (Pinboard) -> Bool
     let isUnlocked: (Pinboard) -> Bool
     @Binding var editingID: NSManagedObjectID?
     @Binding var isCreatePopoverPresented: Bool
-    @ViewBuilder let createPopoverContent: () -> AnyView
+    @ViewBuilder let createPopoverContent: () -> CreatePopoverContent
     
     // Restored Properties
     @Binding var draftName: String

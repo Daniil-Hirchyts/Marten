@@ -12,6 +12,7 @@ actor MockOutboundCloudDatabase: OutboundCloudDatabase {
 
     private(set) var calls: [Call] = []
     private var nextResults: [OutboundCloudDatabaseModifyResult] = []
+    private var artificialDelayNanoseconds: UInt64 = 0
 
     func resetCalls() {
         calls = []
@@ -21,10 +22,17 @@ actor MockOutboundCloudDatabase: OutboundCloudDatabase {
         nextResults.append(contentsOf: results)
     }
 
+    func setArtificialDelay(nanoseconds: UInt64) {
+        artificialDelayNanoseconds = nanoseconds
+    }
+
     func modifyRecords(
         saving recordsToSave: [CKRecord],
         deleting recordIDsToDelete: [CKRecord.ID]
     ) async -> OutboundCloudDatabaseModifyResult {
+        if artificialDelayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: artificialDelayNanoseconds)
+        }
         calls.append(Call(saved: recordsToSave, deleted: recordIDsToDelete))
         let result = nextResults.isEmpty ? nil : nextResults.removeFirst()
         if let result {
@@ -223,6 +231,68 @@ final class OutboundSyncEngineTests: XCTestCase {
 
         let calls = await db.calls
         XCTAssertEqual(calls.count, 2)
+    }
+
+    func testFlushAndAwaitResumesAllConcurrentWaiters() async throws {
+        let db = MockOutboundCloudDatabase()
+        await db.setArtificialDelay(nanoseconds: 250_000_000)
+
+        let engine = OutboundSyncEngine(
+            persistenceController: persistence,
+            database: db,
+            zoneID: zoneID,
+            configuration: .init(debounceInterval: 0.05, retryBackoff: 0.01, maxRetries: 1)
+        )
+        engine.start()
+        defer { engine.stop() }
+
+        let context = persistence.viewContext
+        _ = makeClipItem(in: context, text: "flush-await")
+        try context.save()
+
+        let firstDone = expectation(description: "first waiter completed")
+        let secondDone = expectation(description: "second waiter completed")
+
+        Task {
+            await engine.flushAndAwait()
+            firstDone.fulfill()
+        }
+
+        Task {
+            await engine.flushAndAwait()
+            secondDone.fulfill()
+        }
+
+        await fulfillment(of: [firstDone, secondDone], timeout: 2.0)
+    }
+
+    func testFlushAndAwaitReturnsWhenEngineStops() async throws {
+        let db = MockOutboundCloudDatabase()
+        await db.setArtificialDelay(nanoseconds: 500_000_000)
+
+        let engine = OutboundSyncEngine(
+            persistenceController: persistence,
+            database: db,
+            zoneID: zoneID,
+            configuration: .init(debounceInterval: 0.1, retryBackoff: 0.01, maxRetries: 1)
+        )
+        engine.start()
+        defer { engine.stop() }
+
+        let context = persistence.viewContext
+        _ = makeClipItem(in: context, text: "stop-wait")
+        try context.save()
+
+        let done = expectation(description: "waiter completed after stop")
+        Task {
+            await engine.flushAndAwait()
+            done.fulfill()
+        }
+
+        try await Task.sleep(nanoseconds: 80_000_000)
+        engine.stop()
+
+        await fulfillment(of: [done], timeout: 1.5)
     }
 }
 

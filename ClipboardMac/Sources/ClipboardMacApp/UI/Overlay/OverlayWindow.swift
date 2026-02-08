@@ -6,11 +6,16 @@ import SwiftUI
 
 @MainActor
 final class OverlayWindowController {
+    private struct ActivationObserverRecord {
+        let center: NotificationCenter
+        let token: NSObjectProtocol
+    }
+
     private let panel: NSPanel
     private var viewModel: OverlayViewModel?
     private var isVisible = false
     private var outsideClickMonitor: Any?
-    private var activationObservers: [NSObjectProtocol] = []
+    private var activationObservers: [ActivationObserverRecord] = []
     private weak var hotkeyManager: HotkeyManager?
     private let eventBroadcaster: any ClipboardEventBroadcaster
     private let screenSharingManager: ScreenSharingManager
@@ -98,6 +103,14 @@ final class OverlayWindowController {
                 self.handleLayoutSettingsChange()
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.handleScreenParametersChange()
+            }
+            .store(in: &cancellables)
     }
 
     func toggle() {
@@ -115,7 +128,7 @@ final class OverlayWindowController {
     private func show() {
         guard !isVisible else { return }
         guard screenSharingManager.shouldShowOverlay else { return }
-        guard let screen = NSScreen.main else { return }
+        guard let screen = preferredScreen() else { return }
         let targetFrame = frame(for: screen)
         let showOffset = OverlayFrameCalculator.showOffset(for: layoutSettings.overlayScreenEdge)
         let startFrame = targetFrame.offsetBy(dx: showOffset.width, dy: showOffset.height)
@@ -194,15 +207,35 @@ final class OverlayWindowController {
 
     private func handleLayoutSettingsChange() {
         guard isVisible else { return }
-        guard let screen = NSScreen.main else { return }
+        updateVisibleFrame(animated: true)
+    }
 
+    private func handleScreenParametersChange() {
+        guard isVisible else { return }
+        updateVisibleFrame(animated: true)
+    }
+
+    private func preferredScreen() -> NSScreen? {
+        let mouseLocation = NSEvent.mouseLocation
+        if let mouseScreen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) }) {
+            return mouseScreen
+        }
+        return panel.screen ?? NSScreen.main ?? NSScreen.screens.first
+    }
+
+    private func updateVisibleFrame(animated: Bool) {
+        guard let screen = preferredScreen() else { return }
         let targetFrame = frame(for: screen)
         guard !rectsApproximatelyEqual(panel.frame, targetFrame, tolerance: 0.5) else { return }
 
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.12
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            panel.animator().setFrame(targetFrame, display: true)
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.12
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(targetFrame, display: true)
+            }
+        } else {
+            panel.setFrame(targetFrame, display: true)
         }
     }
 
@@ -235,17 +268,44 @@ final class OverlayWindowController {
         let currentPID = ProcessInfo.processInfo.processIdentifier
 
         activationObservers.append(
-            workspaceNC.addObserver(
-                forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
-            ) { [weak self] notification in
-                guard let self else { return }
-                guard
-                    let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
-                        as? NSRunningApplication
-                else {
-                    return
+            ActivationObserverRecord(
+                center: workspaceNC,
+                token: workspaceNC.addObserver(
+                    forName: NSWorkspace.didActivateApplicationNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] notification in
+                    guard let self else { return }
+                    guard
+                        let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                            as? NSRunningApplication
+                    else {
+                        return
+                    }
+                    if app.processIdentifier != currentPID {
+                        Task { @MainActor in
+                            // Don't hide if authenticating for pinboard unlock
+                            if self.viewModel?.isAuthenticating == true {
+                                return
+                            }
+                            if self.isVisible {
+                                self.hide()
+                            }
+                        }
+                    }
                 }
-                if app.processIdentifier != currentPID {
+            )
+        )
+
+        activationObservers.append(
+            ActivationObserverRecord(
+                center: nc,
+                token: nc.addObserver(
+                    forName: NSApplication.didResignActiveNotification,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    guard let self else { return }
                     Task { @MainActor in
                         // Don't hide if authenticating for pinboard unlock
                         if self.viewModel?.isAuthenticating == true {
@@ -256,33 +316,13 @@ final class OverlayWindowController {
                         }
                     }
                 }
-            }
-        )
-
-        activationObservers.append(
-            nc.addObserver(
-                forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
-            ) { [weak self] _ in
-                guard let self else { return }
-                Task { @MainActor in
-                    // Don't hide if authenticating for pinboard unlock
-                    if self.viewModel?.isAuthenticating == true {
-                        return
-                    }
-                    if self.isVisible {
-                        self.hide()
-                    }
-                }
-            }
+            )
         )
     }
 
     private func stopActivationObservers() {
-        let nc = NotificationCenter.default
-        let workspaceNC = NSWorkspace.shared.notificationCenter
-        for observer in activationObservers {
-            nc.removeObserver(observer)
-            workspaceNC.removeObserver(observer)
+        for record in activationObservers {
+            record.center.removeObserver(record.token)
         }
         activationObservers.removeAll()
     }

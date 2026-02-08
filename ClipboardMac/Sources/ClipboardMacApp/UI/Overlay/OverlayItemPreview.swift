@@ -8,14 +8,14 @@ struct OverlayItemPreview: View {
     let pinboards: [Pinboard]
     let lockedPinboardIDs: Set<UUID>
     let clipItemEditor: any ClipItemEditing
-    let onEdit: () -> Void
-    let onPaste: () -> Void
-    let onPastePlainText: () -> Void
-    let onCopy: () -> Void
-    let onTogglePin: () -> Void
-    let onMoveToPinboard: (Pinboard) -> Void
-    let onCreatePinboard: () -> Void
-    let onDelete: () -> Void
+    let onEdit: (ClipItem) -> Void
+    let onPaste: (ClipItem) -> Void
+    let onPastePlainText: (ClipItem) -> Void
+    let onCopy: (ClipItem) -> Void
+    let onTogglePin: (ClipItem) -> Void
+    let onMoveToPinboard: (ClipItem, Pinboard) -> Void
+    let onCreatePinboard: (ClipItem) -> Void
+    let onDelete: (ClipItem) -> Void
 
     @State var image: NSImage?
     @State var fileIcon: NSImage?
@@ -82,19 +82,19 @@ struct OverlayItemPreview: View {
                     PreviewIconButton(
                         title: "Paste",
                         systemImage: "doc.on.clipboard",
-                        action: onPaste,
+                        action: { onPaste(item) },
                         applyBackground: false
                     )
                     PreviewIconButton(
                         title: "Paste as Plain Text",
                         systemImage: "doc.plaintext",
-                        action: onPastePlainText,
+                        action: { onPastePlainText(item) },
                         applyBackground: false
                     )
                     PreviewIconButton(
                         title: "Copy",
                         systemImage: "doc.on.doc",
-                        action: onCopy,
+                        action: { onCopy(item) },
                         applyBackground: false
                     )
                     PreviewIconButton(
@@ -114,7 +114,7 @@ struct OverlayItemPreview: View {
                         PreviewIconButton(
                             title: item.isPinned ? "Unpin" : "Pin",
                             systemImage: item.isPinned ? "pin.slash" : "pin",
-                            action: onTogglePin,
+                            action: { onTogglePin(item) },
                             applyBackground: false
                         )
                     }
@@ -129,13 +129,13 @@ struct OverlayItemPreview: View {
                     title: "Delete",
                     systemImage: "trash",
                     role: .destructive,
-                    action: onDelete
+                    action: { onDelete(item) }
                 )
             }
 
             actionTextButton(
                 title: "Edit",
-                action: onEdit
+                action: { onEdit(item) }
             )
         }
     }
@@ -234,4 +234,3 @@ extension View {
         }
     }
 }
-

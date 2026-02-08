@@ -27,7 +27,7 @@ extension OverlayShellView {
     func installSpaceKeyHandler() {
         guard let window else { return }
         let handler: (NSEvent) -> Bool = { _ in
-            if isCreatingPinboard || renamePinboardID != nil || renameItemID != nil {
+            if pinboardRenameState.isCreating || pinboardRenameState.id != nil || renameItemID != nil {
                 return false
             }
             if isSearchExpanded, searchFocused {
@@ -50,7 +50,7 @@ extension OverlayShellView {
                 previewCoordinator.closePreview()
                 return true
             }
-            if isCreatingPinboard || renamePinboardID != nil {
+            if pinboardRenameState.isCreating || pinboardRenameState.id != nil {
                 handlePinboardCancel()
                 return true
             }
@@ -63,7 +63,7 @@ extension OverlayShellView {
         guard let window else { return }
         let handler: (NSEvent) -> Bool = { [weak viewModel] _ in
             // Don't delete when editing text
-            if isCreatingPinboard || renamePinboardID != nil || renameItemID != nil {
+            if pinboardRenameState.isCreating || pinboardRenameState.id != nil || renameItemID != nil {
                 return false
             }
             if isSearchExpanded, searchFocused {
@@ -91,7 +91,7 @@ extension OverlayShellView {
         
         let handler: (NSEvent) -> Bool = { [weak viewModel] event in
             // Don't navigate when editing text or searching
-            if isCreatingPinboard || renamePinboardID != nil || renameItemID != nil {
+            if pinboardRenameState.isCreating || pinboardRenameState.id != nil || renameItemID != nil {
                 return false
             }
             if isSearchExpanded, searchFocused {

@@ -3,6 +3,31 @@ import AppKit
 @preconcurrency import ClipboardMacServices
 import SwiftUI
 
+struct PinboardRenameState {
+    var id: NSManagedObjectID?
+    var name: String = ""
+    var colorHex: String = PinboardPalette.defaultHex
+    var iconName: String?
+    var isCreating: Bool = false
+    var pendingItem: ClipItem?
+}
+
+struct VerticalPinboardCreateState {
+    var isPresented: Bool = false
+    var draftName: String = ""
+    var draftColorHex: String = PinboardPalette.defaultHex
+    var draftIconName: String?
+    var shouldPresentStylePicker: Bool = false
+}
+
+struct VerticalPinboardEditState {
+    var isPresented: Bool = false
+    var draftName: String = ""
+    var draftColorHex: String = PinboardPalette.defaultHex
+    var draftIconName: String?
+    var shouldPresentStylePicker: Bool = false
+}
+
 struct OverlayShellView: View {
     let clipItemEditor: any ClipItemEditing
     let overlayCoordinateSpaceName = "OverlaySpace"
@@ -23,22 +48,9 @@ struct OverlayShellView: View {
     @ObservedObject var screenSharingManager: ScreenSharingManager
     @ObservedObject var pasteboardMonitor: PasteboardMonitor
 
-    @State var renamePinboardID: NSManagedObjectID?
-    @State var renamePinboardName = ""
-    @State var renamePinboardColor = PinboardPalette.defaultHex
-    @State var renamePinboardIcon: String?
-    @State var isCreatingPinboard = false
-    @State var pendingPinboardItem: ClipItem?
-    @State var isPinboardCreatePresented = false
-    @State var verticalPinboardDraftName = ""
-    @State var verticalPinboardDraftColor = PinboardPalette.defaultHex
-    @State var verticalPinboardDraftIcon: String?
-    @State var shouldPresentVerticalPinboardStylePicker = false
-    @State var isVerticalPinboardEditPresented = false
-    @State var verticalPinboardEditDraftName = ""
-    @State var verticalPinboardEditDraftColor = PinboardPalette.defaultHex
-    @State var verticalPinboardEditDraftIcon: String?
-    @State var shouldPresentVerticalPinboardEditStylePicker = false
+    @State var pinboardRenameState = PinboardRenameState()
+    @State var verticalPinboardCreateState = VerticalPinboardCreateState()
+    @State var verticalPinboardEditState = VerticalPinboardEditState()
     @State var isVerticalPinboardDropdownPresented = false
 
     @State var renameItemID: NSManagedObjectID?
@@ -219,26 +231,28 @@ struct OverlayShellView: View {
             clipItemEditor: clipItemEditor,
             isDragEnabled: isDragEnabled,
             isReorderingEnabled: isReorderingEnabled,
-            onPaste: handleItemPaste,
-            onPastePlainText: handleItemPastePlainText,
-            onCopy: handleCopyItem,
-            onDelete: handleDeleteItem,
-            onTogglePin: handleTogglePin,
-            onMoveToPinboard: handleMoveToPinboard,
-            onCreatePinboard: beginPinboardCreate,
-            onEdit: handleOpenEditor,
-            onRename: { renameItemID = $0.objectID },
-            onCommitRename: handleCommitItemRename,
-            onTap: handleCardTap,
-            onDoubleTap: handleCardDoubleTap,
-            onReorder: handleReorderItems,
-            onReorderEnd: pinboardManager.saveChanges,
-            onDropToPinboard: handleDropToPinboard,
-            onDropToAll: handleDropToAll,
-            onPasteOutside: handlePasteOutside,
-            onBeginNativeDrag: handleBeginNativeDrag,
-            isNativeDragActive: { [dragCoordinator] in dragCoordinator.isNativeDragActive },
-            onPinboardDropTargetChanged: { itemDragPinboardDropTargetID = $0 },
+            actions: ItemGridActionHandlers(
+                onPaste: handleItemPaste,
+                onPastePlainText: handleItemPastePlainText,
+                onCopy: handleCopyItem,
+                onDelete: handleDeleteItem,
+                onTogglePin: handleTogglePin,
+                onMoveToPinboard: handleMoveToPinboard,
+                onCreatePinboard: beginPinboardCreate,
+                onEdit: handleOpenEditor,
+                onRename: { renameItemID = $0.objectID },
+                onCommitRename: handleCommitItemRename,
+                onTap: handleCardTap,
+                onDoubleTap: handleCardDoubleTap,
+                onReorder: handleReorderItems,
+                onReorderEnd: pinboardManager.saveChanges,
+                onDropToPinboard: handleDropToPinboard,
+                onDropToAll: handleDropToAll,
+                onPasteOutside: handlePasteOutside,
+                onBeginNativeDrag: handleBeginNativeDrag,
+                isNativeDragActive: { [dragCoordinator] in dragCoordinator.isNativeDragActive },
+                onPinboardDropTargetChanged: { itemDragPinboardDropTargetID = $0 }
+            ),
             coordinateSpaceName: overlayCoordinateSpaceName,
             pinboardFrames: dragCoordinator.pinboardFrames,
             allPinboardFrame: dragCoordinator.allPinboardFrame,

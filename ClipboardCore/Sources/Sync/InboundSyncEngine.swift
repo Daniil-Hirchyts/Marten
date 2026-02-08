@@ -69,15 +69,32 @@ public protocol ZoneChangesFetching: Sendable {
     ) async throws -> Data?
 }
 
+private struct InboundSyncTimeoutError: LocalizedError, Sendable {
+    let timeoutSeconds: TimeInterval
+
+    var errorDescription: String? {
+        "CloudKit fetch timed out after \(String(format: "%.1f", timeoutSeconds)) seconds."
+    }
+}
+
 // SAFETY: CKDatabase operations are expected to be thread-safe; this wrapper holds no mutable state
 // beyond its immutable configuration.
 public final class CloudKitZoneChangesFetcher: ZoneChangesFetching, @unchecked Sendable {
     private let database: CKDatabase
     private let resultsLimit: Int
+    private let requestTimeout: TimeInterval
+    private let resourceTimeout: TimeInterval
 
-    public init(database: CKDatabase, resultsLimit: Int = 200) {
+    public init(
+        database: CKDatabase,
+        resultsLimit: Int = 200,
+        requestTimeout: TimeInterval = 30,
+        resourceTimeout: TimeInterval = 120
+    ) {
         self.database = database
         self.resultsLimit = resultsLimit
+        self.requestTimeout = max(1, requestTimeout)
+        self.resourceTimeout = max(self.requestTimeout, resourceTimeout)
     }
 
     public func fetchChanges(
@@ -87,72 +104,100 @@ public final class CloudKitZoneChangesFetcher: ZoneChangesFetching, @unchecked S
         recordDeleted: @escaping (CKRecord.ID, String) throws -> Void,
         tokenUpdated: @escaping (Data) throws -> Void
     ) async throws -> Data? {
-        try await withCheckedThrowingContinuation { continuation in
-            let previousToken: CKServerChangeToken?
-            if let previousServerChangeTokenData {
-                do {
-                    previousToken = try NSKeyedUnarchiver.unarchivedObject(
-                        ofClass: CKServerChangeToken.self,
-                        from: previousServerChangeTokenData
-                    )
-                } catch {
-                    continuation.resume(throwing: SyncTokenError.decodingFailed(error))
-                    return
-                }
-            } else {
-                previousToken = nil
+        let previousToken: CKServerChangeToken?
+        if let previousServerChangeTokenData {
+            do {
+                previousToken = try NSKeyedUnarchiver.unarchivedObject(
+                    ofClass: CKServerChangeToken.self,
+                    from: previousServerChangeTokenData
+                )
+            } catch {
+                throw SyncTokenError.decodingFailed(error)
             }
+        } else {
+            previousToken = nil
+        }
 
-            let operation = CKFetchRecordZoneChangesOperation()
-            let configuration = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
-            configuration.previousServerChangeToken = previousToken
-            configuration.resultsLimit = resultsLimit
+        let operation = CKFetchRecordZoneChangesOperation()
+        let configuration = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
+        configuration.previousServerChangeToken = previousToken
+        configuration.resultsLimit = resultsLimit
 
-            operation.recordZoneIDs = [zoneID]
-            operation.configurationsByRecordZoneID = [zoneID: configuration]
+        let operationConfiguration = CKOperation.Configuration()
+        operationConfiguration.timeoutIntervalForRequest = requestTimeout
+        operationConfiguration.timeoutIntervalForResource = resourceTimeout
 
-            operation.recordWasChangedBlock = { _, result in
-                do {
-                    let record = try result.get()
-                    try recordChanged(record)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
+        operation.recordZoneIDs = [zoneID]
+        operation.configurationsByRecordZoneID = [zoneID: configuration]
+        operation.configuration = operationConfiguration
 
-            operation.recordWithIDWasDeletedBlock = { recordID, recordType in
-                do {
-                    try recordDeleted(recordID, recordType)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let continuationLock = NSLock()
+                var didResume = false
 
-            operation.recordZoneChangeTokensUpdatedBlock = { _, token, _ in
-                guard let token else { return }
-                do {
-                    let data = try NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true)
-                    try tokenUpdated(data)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-
-            operation.recordZoneFetchResultBlock = { _, result in
-                switch result {
-                case .success(let zoneResult):
-                    do {
-                        let data = try NSKeyedArchiver.archivedData(withRootObject: zoneResult.serverChangeToken, requiringSecureCoding: true)
-                        continuation.resume(returning: data)
-                    } catch {
-                        continuation.resume(throwing: SyncTokenError.persistenceFailed(error))
+                func finish(_ result: Result<Data?, Error>) {
+                    continuationLock.lock()
+                    defer { continuationLock.unlock() }
+                    guard !didResume else { return }
+                    didResume = true
+                    if case .failure = result {
+                        operation.cancel()
                     }
-                case .failure(let error):
-                    continuation.resume(throwing: error)
+                    continuation.resume(with: result)
                 }
-            }
 
-            database.add(operation)
+                operation.recordWasChangedBlock = { _, result in
+                    do {
+                        let record = try result.get()
+                        try recordChanged(record)
+                    } catch {
+                        finish(.failure(error))
+                    }
+                }
+
+                operation.recordWithIDWasDeletedBlock = { recordID, recordType in
+                    do {
+                        try recordDeleted(recordID, recordType)
+                    } catch {
+                        finish(.failure(error))
+                    }
+                }
+
+                operation.recordZoneChangeTokensUpdatedBlock = { _, token, _ in
+                    guard let token else { return }
+                    do {
+                        let data = try NSKeyedArchiver.archivedData(
+                            withRootObject: token,
+                            requiringSecureCoding: true
+                        )
+                        try tokenUpdated(data)
+                    } catch {
+                        finish(.failure(error))
+                    }
+                }
+
+                operation.recordZoneFetchResultBlock = { _, result in
+                    switch result {
+                    case .success(let zoneResult):
+                        do {
+                            let data = try NSKeyedArchiver.archivedData(
+                                withRootObject: zoneResult.serverChangeToken,
+                                requiringSecureCoding: true
+                            )
+                            finish(.success(data))
+                        } catch {
+                            finish(.failure(SyncTokenError.persistenceFailed(error)))
+                        }
+                    case .failure(let error):
+                        finish(.failure(error))
+                    }
+                }
+
+                database.add(operation)
+            }
+        } onCancel: {
+            operation.cancel()
         }
     }
 }
@@ -167,6 +212,7 @@ public final class InboundSyncEngine: @unchecked Sendable {
     private let conflictResolver: ConflictResolver
 
     private let applyBatchSize: Int
+    private let fetchTimeout: TimeInterval
 
     public init(
         zoneID: CKRecordZone.ID,
@@ -175,7 +221,8 @@ public final class InboundSyncEngine: @unchecked Sendable {
         persistenceController: PersistenceController,
         recordMapper: CloudRecordMapper,
         conflictResolver: ConflictResolver = ConflictResolver(),
-        applyBatchSize: Int = 100
+        applyBatchSize: Int = 100,
+        fetchTimeout: TimeInterval = 30
     ) {
         self.zoneID = zoneID
         self.changesFetcher = changesFetcher
@@ -184,6 +231,7 @@ public final class InboundSyncEngine: @unchecked Sendable {
         self.recordMapper = recordMapper
         self.conflictResolver = conflictResolver
         self.applyBatchSize = max(1, applyBatchSize)
+        self.fetchTimeout = max(0.1, fetchTimeout)
     }
 
     public func syncInbound() async throws -> InboundSyncResult {
@@ -227,23 +275,25 @@ public final class InboundSyncEngine: @unchecked Sendable {
         }
 
         do {
-            let finalToken = try await changesFetcher.fetchChanges(
-                zoneID: zoneID,
-                previousServerChangeTokenData: previousTokenData,
-                recordChanged: { record in
-                    pendingRecords.append(record)
-                    fetchedCount += 1
-                    try applyPendingIfNeeded(force: false)
-                },
-                recordDeleted: { recordID, recordType in
-                    pendingDeletions.append((recordID, recordType))
-                    deletedCount += 1
-                    try applyPendingIfNeeded(force: false)
-                },
-                tokenUpdated: { tokenData in
-                    lastUpdatedTokenData = tokenData
-                }
-            )
+            let finalToken = try await withFetchTimeout { [self] in
+                try await self.changesFetcher.fetchChanges(
+                    zoneID: self.zoneID,
+                    previousServerChangeTokenData: previousTokenData,
+                    recordChanged: { record in
+                        pendingRecords.append(record)
+                        fetchedCount += 1
+                        try applyPendingIfNeeded(force: false)
+                    },
+                    recordDeleted: { recordID, recordType in
+                        pendingDeletions.append((recordID, recordType))
+                        deletedCount += 1
+                        try applyPendingIfNeeded(force: false)
+                    },
+                    tokenUpdated: { tokenData in
+                        lastUpdatedTokenData = tokenData
+                    }
+                )
+            }
 
             try applyPendingIfNeeded(force: true)
             if !deferredRecords.isEmpty || !deferredMemberships.isEmpty {
@@ -274,6 +324,38 @@ public final class InboundSyncEngine: @unchecked Sendable {
                 return try await syncInboundInternal(allowTokenReset: false)
             }
             throw error
+        }
+    }
+
+    private func withFetchTimeout<T>(
+        operation: @escaping () async throws -> T
+    ) async throws -> T {
+        let timeout = fetchTimeout
+        guard timeout > 0 else { return try await operation() }
+
+        let timeoutNanos = UInt64((timeout * 1_000_000_000).rounded())
+
+        return try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutNanos)
+                throw CloudKitSyncError.fetchChangesFailed(
+                    InboundSyncTimeoutError(timeoutSeconds: timeout)
+                )
+            }
+
+            defer { group.cancelAll() }
+
+            guard let result = try await group.next() else {
+                throw CloudKitSyncError.fetchChangesFailed(
+                    InboundSyncTimeoutError(timeoutSeconds: timeout)
+                )
+            }
+
+            return result
         }
     }
 

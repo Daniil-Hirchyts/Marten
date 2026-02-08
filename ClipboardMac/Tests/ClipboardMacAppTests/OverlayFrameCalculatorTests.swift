@@ -74,14 +74,14 @@ final class OverlayFrameCalculatorTests: XCTestCase {
     }
 
     func testAnimationOffsetsMatchEdgeDirection() {
-        XCTAssertEqual(OverlayFrameCalculator.showOffset(for: .bottom), CGSize(width: 0, height: -24))
-        XCTAssertEqual(OverlayFrameCalculator.showOffset(for: .top), CGSize(width: 0, height: 24))
-        XCTAssertEqual(OverlayFrameCalculator.showOffset(for: .left), CGSize(width: -24, height: 0))
-        XCTAssertEqual(OverlayFrameCalculator.showOffset(for: .right), CGSize(width: 24, height: 0))
+        XCTAssertEqual(OverlayFrameCalculator.showOffset(for: .bottom), CGSize(width: 0, height: -16))
+        XCTAssertEqual(OverlayFrameCalculator.showOffset(for: .top), CGSize(width: 0, height: 16))
+        XCTAssertEqual(OverlayFrameCalculator.showOffset(for: .left), CGSize(width: -16, height: 0))
+        XCTAssertEqual(OverlayFrameCalculator.showOffset(for: .right), CGSize(width: 16, height: 0))
 
-        XCTAssertEqual(OverlayFrameCalculator.hideOffset(for: .bottom), CGSize(width: 0, height: -14))
-        XCTAssertEqual(OverlayFrameCalculator.hideOffset(for: .top), CGSize(width: 0, height: 14))
-        XCTAssertEqual(OverlayFrameCalculator.hideOffset(for: .left), CGSize(width: -14, height: 0))
-        XCTAssertEqual(OverlayFrameCalculator.hideOffset(for: .right), CGSize(width: 14, height: 0))
+        XCTAssertEqual(OverlayFrameCalculator.hideOffset(for: .bottom), CGSize(width: 0, height: -8))
+        XCTAssertEqual(OverlayFrameCalculator.hideOffset(for: .top), CGSize(width: 0, height: 8))
+        XCTAssertEqual(OverlayFrameCalculator.hideOffset(for: .left), CGSize(width: -8, height: 0))
+        XCTAssertEqual(OverlayFrameCalculator.hideOffset(for: .right), CGSize(width: 8, height: 0))
     }
 }

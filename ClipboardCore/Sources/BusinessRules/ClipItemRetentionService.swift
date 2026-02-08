@@ -30,14 +30,18 @@ final class ClipItemRetentionService {
 
             let expiredItems = try context.fetch(request)
             deletedCount = expiredItems.count
+            let cleanupPlans = expiredItems.map { assetManagementService.makeAssetCleanupPlan(for: $0) }
 
             for item in expiredItems {
-                assetManagementService.removeAssets(for: item)
                 context.delete(item)
             }
 
             if context.hasChanges {
                 try context.save()
+            }
+
+            for plan in cleanupPlans {
+                assetManagementService.executeAssetCleanupPlan(plan)
             }
         }
 

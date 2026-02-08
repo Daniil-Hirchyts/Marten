@@ -21,28 +21,28 @@ extension OverlayShellView {
 
     func presentPinboardCreate() {
         closeSearchIfEmpty()
-        verticalPinboardDraftName = nextAvailablePinboardName()
-        verticalPinboardDraftColor = nextAvailablePinboardColorHex()
-        verticalPinboardDraftIcon = nil
-        shouldPresentVerticalPinboardStylePicker = false
-        isPinboardCreatePresented = true
+        verticalPinboardCreateState.draftName = nextAvailablePinboardName()
+        verticalPinboardCreateState.draftColorHex = nextAvailablePinboardColorHex()
+        verticalPinboardCreateState.draftIconName = nil
+        verticalPinboardCreateState.shouldPresentStylePicker = false
+        verticalPinboardCreateState.isPresented = true
     }
 
     func commitVerticalPinboardCreate() {
-        let name = verticalPinboardDraftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = verticalPinboardCreateState.draftName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
 
         let didCreate = pinboardManager.createPinboard(
             name: name,
-            colorHex: verticalPinboardDraftColor,
-            iconName: verticalPinboardDraftIcon,
-            pendingItem: pendingPinboardItem
+            colorHex: verticalPinboardCreateState.draftColorHex,
+            iconName: verticalPinboardCreateState.draftIconName,
+            pendingItem: pinboardRenameState.pendingItem
         )
         guard didCreate else { return }
 
-        pendingPinboardItem = nil
-        isPinboardCreatePresented = false
-        shouldPresentVerticalPinboardStylePicker = false
+        pinboardRenameState.pendingItem = nil
+        verticalPinboardCreateState.isPresented = false
+        verticalPinboardCreateState.shouldPresentStylePicker = false
 
         DispatchQueue.main.async {
             let createdPinboard = visiblePinboards
@@ -57,40 +57,40 @@ extension OverlayShellView {
     }
 
     func cancelVerticalPinboardCreate() {
-        isPinboardCreatePresented = false
-        shouldPresentVerticalPinboardStylePicker = false
-        pendingPinboardItem = nil
+        verticalPinboardCreateState.isPresented = false
+        verticalPinboardCreateState.shouldPresentStylePicker = false
+        pinboardRenameState.pendingItem = nil
     }
 
     func presentVerticalPinboardEdit() {
         guard let selectedCustomPinboard else { return }
-        verticalPinboardEditDraftName = selectedCustomPinboard.name
-        verticalPinboardEditDraftColor = selectedCustomPinboard.colorHex
-        verticalPinboardEditDraftIcon = selectedCustomPinboard.iconName
-        shouldPresentVerticalPinboardEditStylePicker = false
-        isVerticalPinboardEditPresented = true
+        verticalPinboardEditState.draftName = selectedCustomPinboard.name
+        verticalPinboardEditState.draftColorHex = selectedCustomPinboard.colorHex
+        verticalPinboardEditState.draftIconName = selectedCustomPinboard.iconName
+        verticalPinboardEditState.shouldPresentStylePicker = false
+        verticalPinboardEditState.isPresented = true
     }
 
     func commitVerticalPinboardEdit() {
         guard let selectedCustomPinboard else { return }
-        let name = verticalPinboardEditDraftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = verticalPinboardEditState.draftName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
 
         let didSave = pinboardManager.renamePinboard(
             objectID: selectedCustomPinboard.objectID,
             name: name,
-            colorHex: verticalPinboardEditDraftColor,
-            iconName: verticalPinboardEditDraftIcon
+            colorHex: verticalPinboardEditState.draftColorHex,
+            iconName: verticalPinboardEditState.draftIconName
         )
         guard didSave else { return }
 
-        isVerticalPinboardEditPresented = false
-        shouldPresentVerticalPinboardEditStylePicker = false
+        verticalPinboardEditState.isPresented = false
+        verticalPinboardEditState.shouldPresentStylePicker = false
     }
 
     func cancelVerticalPinboardEdit() {
-        isVerticalPinboardEditPresented = false
-        shouldPresentVerticalPinboardEditStylePicker = false
+        verticalPinboardEditState.isPresented = false
+        verticalPinboardEditState.shouldPresentStylePicker = false
     }
 
     func handleSetPinboardLock(_ pinboard: Pinboard, _ isEnabled: Bool) {
@@ -106,10 +106,10 @@ extension OverlayShellView {
     }
 
     func handlePinboardRenameStart(_ pinboard: Pinboard) {
-        renamePinboardID = pinboard.objectID
-        renamePinboardName = pinboard.name
-        renamePinboardColor = pinboard.colorHex
-        renamePinboardIcon = pinboard.iconName
+        pinboardRenameState.id = pinboard.objectID
+        pinboardRenameState.name = pinboard.name
+        pinboardRenameState.colorHex = pinboard.colorHex
+        pinboardRenameState.iconName = pinboard.iconName
     }
 
     func handleDeletePinboard(_ pinboard: Pinboard) {
@@ -134,40 +134,40 @@ extension OverlayShellView {
     }
 
     func handlePinboardCommit() {
-        if isCreatingPinboard {
+        if pinboardRenameState.isCreating {
             let didCreate = actionHandlers.commitPinboardCreate(
-                name: renamePinboardName,
-                colorHex: renamePinboardColor,
-                iconName: renamePinboardIcon,
-                pendingItem: pendingPinboardItem
+                name: pinboardRenameState.name,
+                colorHex: pinboardRenameState.colorHex,
+                iconName: pinboardRenameState.iconName,
+                pendingItem: pinboardRenameState.pendingItem
             )
             guard didCreate else { return }
 
-            pendingPinboardItem = nil
+            pinboardRenameState.pendingItem = nil
             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                isCreatingPinboard = false
+                pinboardRenameState.isCreating = false
             }
-            renamePinboardIcon = nil
-        } else if let objectID = renamePinboardID {
+            pinboardRenameState.iconName = nil
+        } else if let objectID = pinboardRenameState.id {
             let didRename = actionHandlers.commitPinboardRename(
                 objectID: objectID,
-                name: renamePinboardName,
-                colorHex: renamePinboardColor,
-                iconName: renamePinboardIcon
+                name: pinboardRenameState.name,
+                colorHex: pinboardRenameState.colorHex,
+                iconName: pinboardRenameState.iconName
             )
             guard didRename else { return }
 
-            renamePinboardID = nil
-            renamePinboardIcon = nil
+            pinboardRenameState.id = nil
+            pinboardRenameState.iconName = nil
         }
     }
 
     func handlePinboardCancel() {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-            isCreatingPinboard = false
+            pinboardRenameState.isCreating = false
         }
-        renamePinboardID = nil
-        renamePinboardIcon = nil
+        pinboardRenameState.id = nil
+        pinboardRenameState.iconName = nil
     }
 
     func handlePinboardLayoutChange(_ layout: PinboardLayoutInfo) {
@@ -199,7 +199,7 @@ extension OverlayShellView {
     }
 
     func beginPinboardCreate(for item: ClipItem?) {
-        pendingPinboardItem = item
+        pinboardRenameState.pendingItem = item
         presentPinboardCreate()
     }
 }

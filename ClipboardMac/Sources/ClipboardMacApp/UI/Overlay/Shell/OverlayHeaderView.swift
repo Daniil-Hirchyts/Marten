@@ -7,7 +7,7 @@ extension OverlayShellView {
             let totalWidth = geo.size.width
             let filterExtra: CGFloat = headerButtonSize + 1 // filter button + separator
             let searchGroupCollapsed = searchCollapsedWidth + filterExtra
-            let searchGroupExpanded = searchExpandedWidth + filterExtra
+            let searchGroupExpanded = searchCollapsedWidth + searchExpandedWidth + filterExtra
             let searchWidth: CGFloat = isSearchExpanded ? searchGroupExpanded : searchGroupCollapsed
             let leadingPad: CGFloat = 4
             let trailingPad: CGFloat = 4
@@ -65,12 +65,12 @@ extension OverlayShellView {
                 selectedID: searchModel.selectedPinboardID,
                 isLocked: { pinboardLockController.isLocked(pinboardID: $0.id) },
                 isUnlocked: { pinboardLockController.canAccess(pinboardID: $0.id) },
-                editingID: $renamePinboardID,
-                isCreatePopoverPresented: $isPinboardCreatePresented,
-                createPopoverContent: { AnyView(verticalPinboardCreatePopover) },
-                draftName: $renamePinboardName,
-                draftColor: $renamePinboardColor,
-                draftIcon: $renamePinboardIcon,
+                editingID: $pinboardRenameState.id,
+                isCreatePopoverPresented: $verticalPinboardCreateState.isPresented,
+                createPopoverContent: { verticalPinboardCreatePopover },
+                draftName: $pinboardRenameState.name,
+                draftColor: $pinboardRenameState.colorHex,
+                draftIcon: $pinboardRenameState.iconName,
                 isGlobalDragActive: dragCoordinator.dragPreviewData != nil,
                 itemDragPinboardDropTargetID: itemDragPinboardDropTargetID,
                 window: window,

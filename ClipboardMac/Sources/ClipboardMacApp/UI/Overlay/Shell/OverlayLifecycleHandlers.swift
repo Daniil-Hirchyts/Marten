@@ -28,14 +28,14 @@ extension OverlayShellView {
             searchFocused = false
         }
         isFilterPopoverPresented = false
-        isCreatingPinboard = false
-        renamePinboardID = nil
-        renamePinboardIcon = nil
-        isPinboardCreatePresented = false
+        pinboardRenameState.isCreating = false
+        pinboardRenameState.id = nil
+        pinboardRenameState.iconName = nil
+        verticalPinboardCreateState.isPresented = false
         isVerticalPinboardDropdownPresented = false
-        shouldPresentVerticalPinboardStylePicker = false
-        isVerticalPinboardEditPresented = false
-        shouldPresentVerticalPinboardEditStylePicker = false
+        verticalPinboardCreateState.shouldPresentStylePicker = false
+        verticalPinboardEditState.isPresented = false
+        verticalPinboardEditState.shouldPresentStylePicker = false
     }
 
     func handleWindowChange(_ oldValue: NSWindow?, _ newValue: NSWindow?) {
@@ -44,8 +44,8 @@ extension OverlayShellView {
 
     func handlePinboardSelectionChange(_ oldValue: UUID?, _ newValue: UUID?) {
         if oldValue != newValue {
-            isVerticalPinboardEditPresented = false
-            shouldPresentVerticalPinboardEditStylePicker = false
+            verticalPinboardEditState.isPresented = false
+            verticalPinboardEditState.shouldPresentStylePicker = false
         }
         if isSelectedPinboardAwaitingUnlock {
             viewModel.clearSelection()

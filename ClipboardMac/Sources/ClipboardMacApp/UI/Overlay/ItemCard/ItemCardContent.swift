@@ -241,7 +241,7 @@ extension ItemCard {
                     .foregroundStyle(headerTextColor)
                     .focused($isFocused)
                     .onSubmit {
-                        onCommitRename(editTitle)
+                        onCommitRename(item, editTitle)
                     }
                     .accessibilityIdentifier("overlay.itemCard.\(item.id.uuidString).title")
                     .accessibilityLabel("Item title")
@@ -484,4 +484,3 @@ extension ItemCard {
         }
     }
 }
-

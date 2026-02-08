@@ -74,8 +74,8 @@ public struct OverlayDependencies {
         previewCoordinator: OverlayPreviewCoordinator,
         appleIntelligence: any AppleIntelligenceTextServicing,
         soundPlayer: SoundEffectPlayer,
-        screenSharingManager: ScreenSharingManager,
-        pasteboardMonitor: PasteboardMonitor
+        screenSharingManager: ScreenSharingManager = ScreenSharingManager(),
+        pasteboardMonitor: PasteboardMonitor = PasteboardMonitor()
     ) {
         self.clipItemStore = clipItemStore
         self.itemOperations = itemOperations
@@ -87,4 +87,3 @@ public struct OverlayDependencies {
         self.pasteboardMonitor = pasteboardMonitor
     }
 }
-

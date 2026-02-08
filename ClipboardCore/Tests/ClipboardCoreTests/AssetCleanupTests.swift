@@ -1,3 +1,4 @@
+import CoreData
 import XCTest
 @testable import ClipboardCore
 
@@ -57,5 +58,37 @@ final class AssetCleanupTests: XCTestCase {
         XCTAssertFalse(fileManager.fileExists(atPath: thumbnailPath))
 
         try? fileManager.removeItem(at: tempDir)
+    }
+
+    func testDeleteItemRemovesAssociatedStackEntries() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let item = try store.createTextItem(text: "Stack cleanup")
+
+        let context = persistence.viewContext
+        let session =
+            NSEntityDescription.insertNewObject(forEntityName: "StackSession", into: context)
+            as! StackSession
+        session.id = UUID()
+        session.createdAt = Date()
+        session.isActive = true
+        session.separator = "\n"
+        session.mode = StackMode.sequential.rawValue
+
+        let entry =
+            NSEntityDescription.insertNewObject(forEntityName: "StackEntry", into: context)
+            as! StackEntry
+        entry.id = UUID()
+        entry.position = 0
+        entry.addedAt = Date()
+        entry.session = session
+        entry.clipItem = item
+
+        try context.save()
+        XCTAssertEqual(try context.count(for: StackEntry.fetchRequest()), 1)
+
+        try store.deleteItem(objectID: item.objectID)
+
+        XCTAssertEqual(try context.count(for: StackEntry.fetchRequest()), 0)
     }
 }

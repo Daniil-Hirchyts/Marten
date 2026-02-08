@@ -194,8 +194,10 @@ private struct PinboardStylePicker: View {
     let onColorSelect: (String) -> Void
     let onSignSelect: (String?) -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var selectedTab: PinboardSignPickerTab
     @State private var searchText = ""
+    @Namespace private var tabSelectionNamespace
 
     private let signColumns = Array(repeating: GridItem(.flexible(minimum: 42), spacing: 10), count: 6)
     private let colorColumns = Array(repeating: GridItem(.flexible(minimum: 24), spacing: 10), count: 8)
@@ -246,7 +248,7 @@ private struct PinboardStylePicker: View {
                                 .overlay {
                                     Circle()
                                         .strokeBorder(
-                                            Color.white.opacity(isSelectedColor(color.hex) ? 0.98 : 0.58),
+                                            swatchStrokeColor(isSelected: isSelectedColor(color.hex)),
                                             lineWidth: isSelectedColor(color.hex) ? 2 : 0.7
                                         )
                                 }
@@ -269,35 +271,40 @@ private struct PinboardStylePicker: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
+                    .fill(subtleSurfaceColor)
             )
 
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 0) {
+                HStack(spacing: 6) {
                     ForEach(PinboardSignPickerTab.allCases) { tab in
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 selectedTab = tab
                             }
                         } label: {
-                            VStack(spacing: 6) {
-                                Text(tab.rawValue)
-                                    .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .medium))
-                                    .foregroundStyle(selectedTab == tab ? .primary : .secondary)
-                                    .frame(maxWidth: .infinity)
-                                
-                                Capsule()
-                                    .fill(selectedTab == tab ? Color.accentColor : Color.clear)
-                                    .frame(height: 2)
-                                    .padding(.horizontal, 4)
-                            }
-                            .contentShape(Rectangle())
+                            Text(tab.rawValue)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(selectedTab == tab ? Color.white : Color.primary.opacity(0.75))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 10)
+                                .background {
+                                    if selectedTab == tab {
+                                        Capsule()
+                                            .fill(Color.accentColor)
+                                            .matchedGeometryEffect(id: "pinboardStylePickerTab", in: tabSelectionNamespace)
+                                    }
+                                }
+                                .contentShape(Capsule())
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 4)
-                .padding(.top, 4)
+                .padding(4)
+                .background(
+                    Capsule()
+                        .fill(mediumSurfaceColor)
+                )
 
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
@@ -309,7 +316,7 @@ private struct PinboardStylePicker: View {
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
+                        .fill(subtleSurfaceColor)
                 )
 
                 ScrollView {
@@ -322,7 +329,7 @@ private struct PinboardStylePicker: View {
                                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                                         .fill(option.token == normalizedSelectedSign
                                             ? Color.accentColor.opacity(0.28)
-                                            : Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
+                                            : subtleSurfaceColor)
 
                                     optionView(for: option)
                                         .foregroundStyle(.primary)
@@ -342,7 +349,7 @@ private struct PinboardStylePicker: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
+                    .fill(subtleSurfaceColor)
             )
         }
     }
@@ -357,6 +364,25 @@ private struct PinboardStylePicker: View {
 
     private func isSelectedColor(_ hex: String) -> Bool {
         selectedColorHex.caseInsensitiveCompare(hex) == .orderedSame
+    }
+
+    private var subtleSurfaceColor: Color {
+        adaptiveSurfaceColor(opacity: DesignTokens.Opacity.backgroundSubtle)
+    }
+
+    private var mediumSurfaceColor: Color {
+        adaptiveSurfaceColor(opacity: DesignTokens.Opacity.backgroundMedium)
+    }
+
+    private func adaptiveSurfaceColor(opacity: CGFloat) -> Color {
+        colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity)
+    }
+
+    private func swatchStrokeColor(isSelected: Bool) -> Color {
+        if colorScheme == .dark {
+            return Color.white.opacity(isSelected ? 0.98 : 0.58)
+        }
+        return Color.black.opacity(isSelected ? 0.7 : 0.26)
     }
 
     @ViewBuilder

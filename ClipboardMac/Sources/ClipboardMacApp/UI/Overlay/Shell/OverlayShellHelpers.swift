@@ -85,12 +85,12 @@ extension OverlayShellView {
             closeSearchIfEmpty()
         }
 
-        guard isCreatingPinboard || renamePinboardID != nil,
+        guard pinboardRenameState.isCreating || pinboardRenameState.id != nil,
             let pinboardEditorFrame = dragCoordinator.pinboardEditorFrame,
             !pinboardEditorFrame.contains(location)
         else { return }
 
-        if isCreatingPinboard && renamePinboardName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if pinboardRenameState.isCreating && pinboardRenameState.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             handlePinboardCancel()
         } else {
             handlePinboardCommit()

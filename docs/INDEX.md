@@ -11,7 +11,6 @@
 ## Documentation
 
 - **[CODEBASE.md](./CODEBASE.md)** - Current architecture, component map, data flows, and implementation boundaries
-- **[FILE-INVENTORY.md](./FILE-INVENTORY.md)** - Full Swift file appendix (Sources + Tests)
 - **[BEST-PRACTICES.md](./BEST-PRACTICES.md)** - Security, logging, architecture, and testing standards
 - **[ARCHITECTURE-DECISIONS.md](./ARCHITECTURE-DECISIONS.md)** - ADRs for key technical decisions
 - **[SETUP.md](./SETUP.md)** - Local development and signed CloudKit setup

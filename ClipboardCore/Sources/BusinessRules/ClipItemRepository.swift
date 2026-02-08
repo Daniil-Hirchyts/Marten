@@ -1,5 +1,6 @@
 import CoreData
 import Foundation
+import OSLog
 
 public struct SourceAppInfo: Sendable {
     public let bundleID: String?
@@ -18,6 +19,11 @@ public enum ClipItemStoreError: Error {
 }
 
 final class ClipItemRepository {
+    private static let logger = Logger(
+        subsystem: "com.paste.clipboard.core",
+        category: "ClipItemRepository"
+    )
+
     private let persistence: PersistenceController
     private let assetStore: AssetStore
     private let pinboardRepository: any PinboardRepositoryProtocol
@@ -210,14 +216,24 @@ final class ClipItemRepository {
                 let items = try context.fetch(request)
                 guard !items.isEmpty else { break }
 
+                let deletedIDs = items.map(\.id.uuidString).joined(separator: ",")
+                let cleanupPlans = items.map { assetManagementService.makeAssetCleanupPlan(for: $0) }
+
                 for item in items {
-                    assetManagementService.removeAssets(for: item)
                     context.delete(item)
                 }
 
                 if context.hasChanges {
                     try context.save()
                 }
+
+                for plan in cleanupPlans {
+                    assetManagementService.executeAssetCleanupPlan(plan)
+                }
+
+                Self.logger.notice(
+                    "deleteAllItems removed \(items.count, privacy: .public) items [ids: \(deletedIDs, privacy: .private(mask: .hash))]"
+                )
 
                 context.reset()
             }
@@ -236,7 +252,13 @@ final class ClipItemRepository {
                 NSSortDescriptor(key: "createdAt", ascending: false),
             ]
             request.fetchLimit = limit
-            request.relationshipKeyPathsForPrefetching = ["representations", "pinboards"]
+            request.returnsObjectsAsFaults = false
+            request.relationshipKeyPathsForPrefetching = [
+                "representations",
+                "pinboards",
+                "linkPreview",
+                "stackEntries",
+            ]
             results = try context.fetch(request)
         }
 
@@ -424,13 +446,14 @@ final class ClipItemRepository {
 
         let context = persistence.newBackgroundContext()
         var updatedObjectID: NSManagedObjectID?
+        var previousAssetsCleanupPlan: AssetCleanupPlan?
 
         try context.performAndWaitThrowing {
             guard let item = try context.existingObject(with: objectID) as? ClipItem else {
                 throw ClipItemStoreError.missingItem
             }
 
-            assetManagementService.removeAssets(for: item)
+            previousAssetsCleanupPlan = assetManagementService.makeAssetCleanupPlan(for: item)
             for rep in item.representations ?? [] {
                 item.removeFromRepresentations(rep)
                 context.delete(rep)
@@ -509,6 +532,10 @@ final class ClipItemRepository {
             updatedObjectID = item.objectID
         }
 
+        if let previousAssetsCleanupPlan {
+            assetManagementService.executeAssetCleanupPlan(previousAssetsCleanupPlan)
+        }
+
         guard let updatedObjectID else {
             throw ClipItemStoreError.missingItem
         }
@@ -542,18 +569,26 @@ final class ClipItemRepository {
 
     func deleteItem(objectID: NSManagedObjectID) throws {
         let context = persistence.newBackgroundContext()
+        var cleanupPlan: AssetCleanupPlan?
 
         try context.performAndWaitThrowing {
             guard let item = try context.existingObject(with: objectID) as? ClipItem else {
                 throw ClipItemStoreError.missingItem
             }
 
-            assetManagementService.removeAssets(for: item)
+            cleanupPlan = assetManagementService.makeAssetCleanupPlan(for: item)
+            for stackEntry in item.stackEntries ?? [] {
+                context.delete(stackEntry)
+            }
             context.delete(item)
 
             if context.hasChanges {
                 try context.save()
             }
+        }
+
+        if let cleanupPlan {
+            assetManagementService.executeAssetCleanupPlan(cleanupPlan)
         }
 
         let viewContext = persistence.viewContext

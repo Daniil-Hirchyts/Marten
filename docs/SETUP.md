@@ -111,7 +111,6 @@ Paste/
 
 For detailed paths and ownership:
 - [`CODEBASE.md`](./CODEBASE.md)
-- [`FILE-INVENTORY.md`](./FILE-INVENTORY.md)
 
 ---
 
@@ -151,7 +150,6 @@ For detailed paths and ownership:
 
 - [`INDEX.md`](./INDEX.md)
 - [`CODEBASE.md`](./CODEBASE.md)
-- [`FILE-INVENTORY.md`](./FILE-INVENTORY.md)
 - [`BEST-PRACTICES.md`](./BEST-PRACTICES.md)
 - [`ARCHITECTURE-DECISIONS.md`](./ARCHITECTURE-DECISIONS.md)
 

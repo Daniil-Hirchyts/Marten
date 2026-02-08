@@ -4,6 +4,29 @@ import ClipboardMacServices
 import CoreData
 import SwiftUI
 
+struct ItemGridActionHandlers {
+    let onPaste: (ClipItem) -> Void
+    let onPastePlainText: (ClipItem) -> Void
+    let onCopy: (ClipItem) -> Void
+    let onDelete: (ClipItem) -> Void
+    let onTogglePin: (ClipItem) -> Void
+    let onMoveToPinboard: (ClipItem, Pinboard) -> Void
+    let onCreatePinboard: (ClipItem) -> Void
+    let onEdit: (ClipItem) -> Void
+    let onRename: (ClipItem) -> Void
+    let onCommitRename: (ClipItem, String) -> Void
+    let onTap: (ClipItem) -> Void
+    let onDoubleTap: (ClipItem) -> Void
+    let onReorder: ([NSManagedObjectID], ClipItem, Bool) -> Void
+    let onReorderEnd: () -> Void
+    let onDropToPinboard: (ClipItem, NSManagedObjectID) -> Void
+    let onDropToAll: (ClipItem) -> Void
+    let onPasteOutside: ([NSManagedObjectID]) -> Void
+    var onBeginNativeDrag: (([NSManagedObjectID]) -> Bool)? = nil
+    var isNativeDragActive: (() -> Bool)? = nil
+    var onPinboardDropTargetChanged: ((NSManagedObjectID?) -> Void)? = nil
+}
+
 struct ItemGridSection: View {
     let layoutAxis: OverlayLayoutAxis
     let isSelectedPinboardAwaitingUnlock: Bool
@@ -26,26 +49,7 @@ struct ItemGridSection: View {
     let isDragEnabled: Bool
     let isReorderingEnabled: Bool
 
-    let onPaste: (ClipItem) -> Void
-    let onPastePlainText: (ClipItem) -> Void
-    let onCopy: (ClipItem) -> Void
-    let onDelete: (ClipItem) -> Void
-    let onTogglePin: (ClipItem) -> Void
-    let onMoveToPinboard: (ClipItem, Pinboard) -> Void
-    let onCreatePinboard: (ClipItem) -> Void
-    let onEdit: (ClipItem) -> Void
-    let onRename: (ClipItem) -> Void
-    let onCommitRename: (ClipItem, String) -> Void
-    let onTap: (ClipItem) -> Void
-    let onDoubleTap: (ClipItem) -> Void
-    let onReorder: ([NSManagedObjectID], ClipItem, Bool) -> Void
-    let onReorderEnd: () -> Void
-    let onDropToPinboard: (ClipItem, NSManagedObjectID) -> Void
-    let onDropToAll: (ClipItem) -> Void
-    let onPasteOutside: ([NSManagedObjectID]) -> Void
-    var onBeginNativeDrag: (([NSManagedObjectID]) -> Bool)? = nil
-    var isNativeDragActive: (() -> Bool)? = nil
-    var onPinboardDropTargetChanged: ((NSManagedObjectID?) -> Void)? = nil
+    let actions: ItemGridActionHandlers
 
     let coordinateSpaceName: String
     let pinboardFrames: [NSManagedObjectID: CGRect]
@@ -92,26 +96,26 @@ struct ItemGridSection: View {
                             clipItemEditor: clipItemEditor,
                             isDragEnabled: isDragEnabled,
                             isReorderingEnabled: isReorderingEnabled,
-                            onPaste: onPaste,
-                            onPastePlainText: onPastePlainText,
-                            onCopy: onCopy,
-                            onDelete: onDelete,
-                            onTogglePin: onTogglePin,
-                            onMoveToPinboard: onMoveToPinboard,
-                            onCreatePinboard: onCreatePinboard,
-                            onEdit: onEdit,
-                            onRename: onRename,
-                            onCommitRename: onCommitRename,
-                            onTap: onTap,
-                            onDoubleTap: onDoubleTap,
-                            onReorder: onReorder,
-                            onReorderEnd: onReorderEnd,
-                            onDropToPinboard: onDropToPinboard,
-                            onDropToAll: onDropToAll,
-                            onPasteOutside: onPasteOutside,
-                            onBeginNativeDrag: onBeginNativeDrag,
-                            isNativeDragActive: isNativeDragActive,
-                            onPinboardDropTargetChanged: onPinboardDropTargetChanged,
+                            onPaste: actions.onPaste,
+                            onPastePlainText: actions.onPastePlainText,
+                            onCopy: actions.onCopy,
+                            onDelete: actions.onDelete,
+                            onTogglePin: actions.onTogglePin,
+                            onMoveToPinboard: actions.onMoveToPinboard,
+                            onCreatePinboard: actions.onCreatePinboard,
+                            onEdit: actions.onEdit,
+                            onRename: actions.onRename,
+                            onCommitRename: actions.onCommitRename,
+                            onTap: actions.onTap,
+                            onDoubleTap: actions.onDoubleTap,
+                            onReorder: actions.onReorder,
+                            onReorderEnd: actions.onReorderEnd,
+                            onDropToPinboard: actions.onDropToPinboard,
+                            onDropToAll: actions.onDropToAll,
+                            onPasteOutside: actions.onPasteOutside,
+                            onBeginNativeDrag: actions.onBeginNativeDrag,
+                            isNativeDragActive: actions.isNativeDragActive,
+                            onPinboardDropTargetChanged: actions.onPinboardDropTargetChanged,
                             coordinateSpaceName: coordinateSpaceName,
                             pinboardFrames: pinboardFrames,
                             allPinboardFrame: allPinboardFrame,
@@ -133,26 +137,26 @@ struct ItemGridSection: View {
                             clipItemEditor: clipItemEditor,
                             isDragEnabled: isDragEnabled,
                             isReorderingEnabled: isReorderingEnabled,
-                            onPaste: onPaste,
-                            onPastePlainText: onPastePlainText,
-                            onCopy: onCopy,
-                            onDelete: onDelete,
-                            onTogglePin: onTogglePin,
-                            onMoveToPinboard: onMoveToPinboard,
-                            onCreatePinboard: onCreatePinboard,
-                            onEdit: onEdit,
-                            onRename: onRename,
-                            onCommitRename: onCommitRename,
-                            onTap: onTap,
-                            onDoubleTap: onDoubleTap,
-                            onReorder: onReorder,
-                            onReorderEnd: onReorderEnd,
-                            onDropToPinboard: onDropToPinboard,
-                            onDropToAll: onDropToAll,
-                            onPasteOutside: onPasteOutside,
-                            onBeginNativeDrag: onBeginNativeDrag,
-                            isNativeDragActive: isNativeDragActive,
-                            onPinboardDropTargetChanged: onPinboardDropTargetChanged,
+                            onPaste: actions.onPaste,
+                            onPastePlainText: actions.onPastePlainText,
+                            onCopy: actions.onCopy,
+                            onDelete: actions.onDelete,
+                            onTogglePin: actions.onTogglePin,
+                            onMoveToPinboard: actions.onMoveToPinboard,
+                            onCreatePinboard: actions.onCreatePinboard,
+                            onEdit: actions.onEdit,
+                            onRename: actions.onRename,
+                            onCommitRename: actions.onCommitRename,
+                            onTap: actions.onTap,
+                            onDoubleTap: actions.onDoubleTap,
+                            onReorder: actions.onReorder,
+                            onReorderEnd: actions.onReorderEnd,
+                            onDropToPinboard: actions.onDropToPinboard,
+                            onDropToAll: actions.onDropToAll,
+                            onPasteOutside: actions.onPasteOutside,
+                            onBeginNativeDrag: actions.onBeginNativeDrag,
+                            isNativeDragActive: actions.isNativeDragActive,
+                            onPinboardDropTargetChanged: actions.onPinboardDropTargetChanged,
                             coordinateSpaceName: coordinateSpaceName,
                             pinboardFrames: pinboardFrames,
                             allPinboardFrame: allPinboardFrame,

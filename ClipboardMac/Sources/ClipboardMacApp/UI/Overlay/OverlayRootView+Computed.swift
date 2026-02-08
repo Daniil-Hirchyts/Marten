@@ -125,7 +125,7 @@ extension OverlayShellView {
     }
 
     var keyHandlerRefreshToken: String {
-        "\(isCreatingPinboard)-\(renamePinboardID?.description ?? "")-\(renameItemID?.description ?? "")-\(isSearchExpanded)-\(searchFocused)-\(previewCoordinator.isPreviewPopoverPresented)"
+        "\(pinboardRenameState.isCreating)-\(pinboardRenameState.id?.description ?? "")-\(renameItemID?.description ?? "")-\(isSearchExpanded)-\(searchFocused)-\(previewCoordinator.isPreviewPopoverPresented)"
     }
 
 }

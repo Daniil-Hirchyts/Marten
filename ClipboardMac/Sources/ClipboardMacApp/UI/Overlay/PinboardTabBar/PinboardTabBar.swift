@@ -15,7 +15,11 @@ private struct ScrollViewBoundsKey: PreferenceKey {
     }
 }
 
-struct PinboardTabBar: View {
+enum PinboardTabBarIDs {
+    static let allTabObjectID = NSManagedObjectID()
+}
+
+struct PinboardTabBar<CreatePopoverContent: View>: View {
     let tabSpacing: CGFloat = 12
     let placeholderWidth: CGFloat = 3
     let localCoordinateSpaceName = "PinboardBarLocalSpace"
@@ -35,7 +39,7 @@ struct PinboardTabBar: View {
     let isUnlocked: (Pinboard) -> Bool
     @Binding var editingID: NSManagedObjectID?
     @Binding var isCreatePopoverPresented: Bool
-    @ViewBuilder let createPopoverContent: () -> AnyView
+    @ViewBuilder let createPopoverContent: () -> CreatePopoverContent
     
     @Binding var draftName: String
     @Binding var draftColor: String
@@ -61,7 +65,7 @@ struct PinboardTabBar: View {
     let onCancel: () -> Void
     let coordinateSpaceName: String
 
-    static let allTabObjectID = NSManagedObjectID()
+    static var allTabObjectID: NSManagedObjectID { PinboardTabBarIDs.allTabObjectID }
 
     @EnvironmentObject var frameCoordinator: FrameCoordinator
     @FocusState var isFocused: Bool

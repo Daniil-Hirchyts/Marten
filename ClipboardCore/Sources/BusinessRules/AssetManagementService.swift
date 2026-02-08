@@ -196,19 +196,46 @@ final class AssetManagementService {
         return results
     }
 
-    func removeAssets(for item: ClipItem) {
+    func makeAssetCleanupPlan(for item: ClipItem) -> AssetCleanupPlan {
+        var targets = Set<AssetCleanupPlan.Target>()
+        var filePaths = Set<String>()
+
         for representation in item.representations ?? [] {
             guard let assetRef = representation.assetRef else { continue }
-            try? assetStore.delete(assetRef: assetRef, fileExtension: representation.fileExtension)
+            targets.insert(
+                AssetCleanupPlan.Target(
+                    assetRef: assetRef,
+                    fileExtension: representation.fileExtension
+                )
+            )
         }
 
-        if let thumbnailPath = item.thumbnailPath {
-            try? FileManager.default.removeItem(atPath: thumbnailPath)
+        if let thumbnailPath = item.thumbnailPath, !thumbnailPath.isEmpty {
+            filePaths.insert(thumbnailPath)
         }
 
-        if let previewImagePath = item.linkPreview?.imagePath {
-            try? FileManager.default.removeItem(atPath: previewImagePath)
+        if let previewImagePath = item.linkPreview?.imagePath, !previewImagePath.isEmpty {
+            filePaths.insert(previewImagePath)
         }
+
+        return AssetCleanupPlan(
+            targets: Array(targets),
+            filePaths: Array(filePaths)
+        )
+    }
+
+    func executeAssetCleanupPlan(_ plan: AssetCleanupPlan) {
+        for target in plan.targets {
+            try? assetStore.delete(assetRef: target.assetRef, fileExtension: target.fileExtension)
+        }
+
+        for path in plan.filePaths {
+            try? FileManager.default.removeItem(atPath: path)
+        }
+    }
+
+    func removeAssets(for item: ClipItem) {
+        executeAssetCleanupPlan(makeAssetCleanupPlan(for: item))
     }
 
     private func refreshItemInViewContext(_ objectID: NSManagedObjectID) throws {
