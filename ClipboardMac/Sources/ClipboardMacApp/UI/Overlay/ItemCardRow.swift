@@ -457,6 +457,8 @@ struct ItemCardRow: View {
             // Also call callback directly to create the preview window immediately
             // (Option A: eliminates one-frame delay — window appears on first drag event)
             updateDragPreview(useCallback: true)
+            // Clear snapshot after first use — SwiftUI renders on top by the next event
+            dragSnapshotImage = nil
 
             // Set initial centering offset (will animate to zero) - stored non-reactively
             frameCoordinator.setDragCenteringOffset(
@@ -931,35 +933,15 @@ struct DragPreviewData: Equatable {
         self.snapshotImage = snapshotImage
     }
 
+    // snapshotImage is excluded: it's a transient one-frame value used only for the
+    // initial AppKit placeholder and cleared immediately after, so changes to it
+    // should not trigger SwiftUI equality checks or re-renders.
     static func == (lhs: DragPreviewData, rhs: DragPreviewData) -> Bool {
         lhs.items.map { $0.objectID } == rhs.items.map { $0.objectID }
             && lhs.pinboards.map { $0.objectID } == rhs.pinboards.map { $0.objectID }
             && lhs.cardSize == rhs.cardSize && lhs.position == rhs.position
             && lhs.opacity == rhs.opacity && lhs.isCompactLayout == rhs.isCompactLayout
     }
-}
-
-/// Capture a card region from the overlay window as an `NSImage`.
-/// The `cardRect` is in the overlay's SwiftUI coordinate space (top-left origin),
-/// which maps to the flipped NSHostingView's coordinate system.
-@MainActor
-func captureCardSnapshot(from window: NSWindow, cardRect: CGRect) -> NSImage? {
-    guard let contentView = window.contentView else { return nil }
-    let clampedRect = cardRect.intersection(contentView.bounds)
-    guard !clampedRect.isEmpty, clampedRect.width > 1, clampedRect.height > 1 else { return nil }
-    guard let bitmapRep = contentView.bitmapImageRepForCachingDisplay(in: clampedRect) else { return nil }
-    contentView.cacheDisplay(in: clampedRect, to: bitmapRep)
-    let image = NSImage(size: clampedRect.size)
-    image.addRepresentation(bitmapRep)
-    return image
-}
-
-private struct DragState {
-    let itemIDs: [NSManagedObjectID]
-    let primaryItemID: NSManagedObjectID
-    var pointerLocation: CGPoint
-    let baseCenter: CGPoint
-    var translation: CGSize
 }
 
 private struct DropTarget: Equatable {
@@ -971,11 +953,6 @@ private struct DropTarget: Equatable {
         lhs.item.objectID == rhs.item.objectID && lhs.insertBefore == rhs.insertBefore
             && lhs.placeholderX == rhs.placeholderX
     }
-}
-
-private enum PinboardDropTarget: Equatable {
-    case all
-    case pinboard(NSManagedObjectID)
 }
 
 struct ItemCardDragPreview: View {

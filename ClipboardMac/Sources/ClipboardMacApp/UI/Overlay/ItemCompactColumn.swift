@@ -292,6 +292,8 @@ struct ItemCompactColumn: View {
             updateDragPreview(useCallback: false)
             // Also call callback directly to create the preview window immediately
             updateDragPreview(useCallback: true)
+            // Clear snapshot after first use — SwiftUI renders on top by the next event
+            dragSnapshotImage = nil
             isMeasuringRowFrames = false
         } else if var state = dragState {
             state.pointerLocation = overlayPointer
@@ -636,14 +638,6 @@ private struct ItemCompactColumnFrameKey: PreferenceKey {
     }
 }
 
-private struct DragState {
-    let itemIDs: [NSManagedObjectID]
-    let primaryItemID: NSManagedObjectID
-    var pointerLocation: CGPoint
-    let baseCenter: CGPoint
-    var translation: CGSize
-}
-
 private struct DropTarget: Equatable {
     let item: ClipItem
     let insertBefore: Bool
@@ -656,7 +650,3 @@ private struct DropTarget: Equatable {
     }
 }
 
-private enum PinboardDropTarget: Equatable {
-    case all
-    case pinboard(NSManagedObjectID)
-}

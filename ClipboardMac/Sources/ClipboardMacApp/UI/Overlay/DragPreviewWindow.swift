@@ -112,7 +112,8 @@ class DragPreviewWindow: NSWindow {
         guard let hostingView = hostingView else { return }
         hostingView.rootView = DragPreviewWindowContent(data: data)
 
-        // Show snapshot on the AppKit image view (instant, no SwiftUI render needed)
+        // Show snapshot on the AppKit image view (instant, no SwiftUI render needed).
+        // Cleared on the next update once SwiftUI has rendered on top.
         if let snapshot = data?.snapshotImage {
             let imgSize = snapshot.size
             let scaled = NSSize(width: imgSize.width * 0.96, height: imgSize.height * 0.96)
@@ -124,6 +125,8 @@ class DragPreviewWindow: NSWindow {
             )
             snapshotImageView?.image = snapshot
             snapshotImageView?.alphaValue = CGFloat(data?.opacity ?? 0.9)
+        } else {
+            snapshotImageView?.image = nil
         }
 
         if data != nil {
