@@ -57,6 +57,7 @@ struct OverlayShellView: View {
     @State var isOptionsHovered = false
 
     @State var window: NSWindow?
+    @State var itemDragPinboardDropTargetID: NSManagedObjectID?
 
     let itemOperationsHandler: any ItemOperating
     let pinboardManager: any PinboardManaging
@@ -235,6 +236,9 @@ struct OverlayShellView: View {
             onDropToPinboard: handleDropToPinboard,
             onDropToAll: handleDropToAll,
             onPasteOutside: handlePasteOutside,
+            onBeginNativeDrag: handleBeginNativeDrag,
+            isNativeDragActive: { [dragCoordinator] in dragCoordinator.isNativeDragActive },
+            onPinboardDropTargetChanged: { itemDragPinboardDropTargetID = $0 },
             coordinateSpaceName: overlayCoordinateSpaceName,
             pinboardFrames: dragCoordinator.pinboardFrames,
             allPinboardFrame: dragCoordinator.allPinboardFrame,

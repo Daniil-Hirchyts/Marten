@@ -7,6 +7,7 @@ extension PinboardTabBar {
         HStack(spacing: tabSpacing) {
             PinboardTab(
                 title: "All", iconName: "tray", colorHex: nil, isSelected: selectedID == nil,
+                isDropTarget: itemDragPinboardDropTargetID == Self.allTabObjectID,
                 minWidth: minTabWidth, maxWidth: maxTabWidth
             ) {
                 onSelect(nil)
@@ -59,7 +60,9 @@ extension PinboardTabBar {
             iconName: pinboard.iconName,
             colorHex: pinboard.colorHex,
             trailingIconName: locked ? (unlocked ? "lock.open.fill" : "lock.fill") : nil,
-            isSelected: selectedID == pinboard.id, maxWidth: maxTabWidth
+            isSelected: selectedID == pinboard.id,
+            isDropTarget: itemDragPinboardDropTargetID == pinboard.objectID,
+            maxWidth: maxTabWidth
         ) {
             onSelect(pinboard.id)
         }

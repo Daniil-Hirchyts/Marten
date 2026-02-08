@@ -42,7 +42,10 @@ extension OverlayShellView {
     }
 
     func handleTogglePin(_ item: ClipItem) {
-        actionHandlers.togglePin(item, allowPinning: allowPinning)
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+            actionHandlers.togglePin(item, allowPinning: allowPinning)
+            cachedFilteredItems = computeFilteredItems()
+        }
     }
 
     func handleOpenEditor(_ item: ClipItem) {
@@ -77,6 +80,7 @@ extension OverlayShellView {
             filteredItems: filteredItems,
             isSearchActive: isSearchActive
         )
+        cachedFilteredItems = computeFilteredItems()
     }
 
     func handlePasteOutside(_ itemIDs: [NSManagedObjectID]) {
@@ -87,5 +91,25 @@ extension OverlayShellView {
             viewModel: viewModel
         )
     }
-}
 
+    func handleBeginNativeDrag(_ itemIDs: [NSManagedObjectID]) -> Bool {
+        let items = filteredItems.filter { itemIDs.contains($0.objectID) }
+        guard !items.isEmpty else { return false }
+
+        let started = dragCoordinator.beginNativeDrag(
+            from: window,
+            items: items,
+            plainText: modifierMonitor.isShiftPressed,
+            onCompleted: {},
+            onEnded: {}
+        )
+
+        if started {
+            // Auto-hide the overlay when dragging a card outside so the user
+            // can focus on the target app's drop zone.
+            viewModel.closeOverlayForSettings {}
+        }
+
+        return started
+    }
+}

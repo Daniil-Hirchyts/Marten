@@ -6,6 +6,7 @@ struct PinboardTab: View {
     let colorHex: String?
     var trailingIconName: String? = nil
     let isSelected: Bool
+    var isDropTarget: Bool = false
     var minWidth: CGFloat? = nil
     var maxWidth: CGFloat? = nil
     let action: () -> Void
@@ -49,6 +50,8 @@ struct PinboardTab: View {
         }
         .buttonStyle(.plain)
         .contentShape(Capsule())
+        .scaleEffect(isDropTarget ? 1.06 : 1.0)
+        .animation(.easeInOut(duration: 0.15), value: isDropTarget)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovering = hovering
@@ -65,13 +68,17 @@ struct PinboardTab: View {
         if #available(macOS 26.0, *) {
             Capsule()
                 .fill(Color.clear)
-                .glassStyle(shape: .capsule, isProminent: isSelected)
+                .glassStyle(shape: .capsule, isProminent: isSelected || isDropTarget)
         } else {
             fallbackBackgroundColor
         }
     }
 
     private var fallbackBackgroundColor: Color {
+        if isDropTarget {
+            return Color.accentColor.opacity(0.35)
+        }
+
         let opacity: CGFloat
         if isSelected {
             opacity = DesignTokens.Opacity.backgroundStrong

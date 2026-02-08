@@ -147,6 +147,16 @@ final class PinboardRepository {
             item.addToPinboards(pinboard)
             try context.save()
         }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            if let item = try? viewContext.existingObject(with: objectID) as? ClipItem {
+                viewContext.refresh(item, mergeChanges: true)
+            }
+            if let pinboard = try? viewContext.existingObject(with: pinboardID) as? Pinboard {
+                viewContext.refresh(pinboard, mergeChanges: true)
+            }
+        }
     }
 
     func removeItem(objectID: NSManagedObjectID, fromPinboard pinboardID: NSManagedObjectID) throws {
@@ -162,6 +172,16 @@ final class PinboardRepository {
 
             item.removeFromPinboards(pinboard)
             try context.save()
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            if let item = try? viewContext.existingObject(with: objectID) as? ClipItem {
+                viewContext.refresh(item, mergeChanges: true)
+            }
+            if let pinboard = try? viewContext.existingObject(with: pinboardID) as? Pinboard {
+                viewContext.refresh(pinboard, mergeChanges: true)
+            }
         }
     }
 
@@ -217,6 +237,18 @@ final class PinboardRepository {
             }
 
             try context.save()
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            for objectID in objectIDs {
+                if let item = try? viewContext.existingObject(with: objectID) as? ClipItem {
+                    viewContext.refresh(item, mergeChanges: true)
+                }
+            }
+            if let pinboard = try? viewContext.existingObject(with: pinboardID) as? Pinboard {
+                viewContext.refresh(pinboard, mergeChanges: true)
+            }
         }
     }
 

@@ -48,4 +48,5 @@ final class FrameCoordinator: ObservableObject {
     func setDragCenteringOffset(_ offset: CGSize) {
         dragCenteringOffset = offset
     }
+
 }

@@ -18,6 +18,7 @@ struct PinboardTabBarSection: View {
     @Binding var draftColor: String
     @Binding var draftIcon: String?
     let isGlobalDragActive: Bool
+    var itemDragPinboardDropTargetID: NSManagedObjectID? = nil
     let window: NSWindow?
 
     let onPreviewUpdate: (PinboardDragPreviewData?) -> Void
@@ -55,6 +56,7 @@ struct PinboardTabBarSection: View {
             draftColor: $draftColor,
             draftIcon: $draftIcon,
             isGlobalDragActive: isGlobalDragActive,
+            itemDragPinboardDropTargetID: itemDragPinboardDropTargetID,
             window: window,
             onPreviewUpdate: onPreviewUpdate,
             onSelect: onSelect,

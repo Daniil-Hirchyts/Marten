@@ -41,6 +41,7 @@ struct PinboardTabBar: View {
     @Binding var draftColor: String
     @Binding var draftIcon: String?
     var isGlobalDragActive: Bool = false
+    var itemDragPinboardDropTargetID: NSManagedObjectID? = nil
     let window: NSWindow?
     var onPreviewUpdate: ((PinboardDragPreviewData?) -> Void)? = nil
 
@@ -62,7 +63,7 @@ struct PinboardTabBar: View {
 
     static let allTabObjectID = NSManagedObjectID()
 
-    @EnvironmentObject private var frameCoordinator: FrameCoordinator
+    @EnvironmentObject var frameCoordinator: FrameCoordinator
     @FocusState var isFocused: Bool
 
     enum CommitState {

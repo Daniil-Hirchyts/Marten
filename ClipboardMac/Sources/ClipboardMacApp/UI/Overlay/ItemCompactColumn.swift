@@ -37,6 +37,9 @@ struct ItemCompactColumn: View {
     let onDropToPinboard: (ClipItem, NSManagedObjectID) -> Void
     let onDropToAll: (ClipItem) -> Void
     let onPasteOutside: ([NSManagedObjectID]) -> Void
+    var onBeginNativeDrag: (([NSManagedObjectID]) -> Bool)? = nil
+    var isNativeDragActive: (() -> Bool)? = nil
+    var onPinboardDropTargetChanged: ((NSManagedObjectID?) -> Void)? = nil
     let coordinateSpaceName: String
     let pinboardFrames: [NSManagedObjectID: CGRect]
     let allPinboardFrame: CGRect?
@@ -54,6 +57,7 @@ struct ItemCompactColumn: View {
     @State private var dropTarget: DropTarget?
     @State private var pinboardDropTarget: PinboardDropTarget?
     @State private var dragOpacity: Double = 0
+    @State private var dragSnapshotImage: NSImage?
     @State private var pendingRowFrames: [NSManagedObjectID: CGRect]?
     @State private var isRowFrameUpdateScheduled = false
     @State private var isMeasuringRowFrames = false
@@ -75,6 +79,7 @@ struct ItemCompactColumn: View {
                             item: item,
                             pinboards: pinboards,
                             lockedPinboardIDs: lockedPinboardIDs,
+                            itemPinboardSignature: Self.pinboardSignature(for: item),
                             isSelected: selectedItemIDs.contains(item.objectID),
                             isEditing: editingItemID == item.objectID,
                             allowPinning: allowPinning,
@@ -191,6 +196,17 @@ struct ItemCompactColumn: View {
         return hasher.finalize()
     }
 
+    static func pinboardSignature(for item: ClipItem) -> Int {
+        var hasher = Hasher()
+        for pinboard in (item.pinboards ?? []).sorted(by: { $0.sortOrder < $1.sortOrder }) {
+            hasher.combine(pinboard.objectID)
+            hasher.combine(pinboard.name)
+            hasher.combine(pinboard.colorHex)
+            hasher.combine(pinboard.iconName)
+        }
+        return hasher.finalize()
+    }
+
     private var scrollTopDivider: some View {
         Capsule(style: .continuous)
             .fill(Color.secondary.opacity(0.25))
@@ -225,6 +241,7 @@ struct ItemCompactColumn: View {
 
     private func handleDragChanged(item: ClipItem, value: DragGesture.Value) {
         guard isDragEnabled else { return }
+        if isNativeDragActive?() == true { return }
 
         if let dragState, !dragState.itemIDs.contains(item.objectID) {
             return
@@ -252,6 +269,17 @@ struct ItemCompactColumn: View {
                 itemIDs = [draggedID]
             }
 
+            // Capture card snapshot from the overlay for instant AppKit display
+            if let window {
+                let cardOverlayRect = CGRect(
+                    x: frame.origin.x + columnFrame.minX,
+                    y: frame.origin.y + columnFrame.minY,
+                    width: frame.width,
+                    height: frame.height
+                )
+                dragSnapshotImage = captureCardSnapshot(from: window, cardRect: cardOverlayRect)
+            }
+
             dragState = DragState(
                 itemIDs: itemIDs,
                 primaryItemID: draggedID,
@@ -260,7 +288,10 @@ struct ItemCompactColumn: View {
                 translation: .zero
             )
             dragOpacity = 1
+            // Set binding for parent state
             updateDragPreview(useCallback: false)
+            // Also call callback directly to create the preview window immediately
+            updateDragPreview(useCallback: true)
             isMeasuringRowFrames = false
         } else if var state = dragState {
             state.pointerLocation = overlayPointer
@@ -291,9 +322,41 @@ struct ItemCompactColumn: View {
         } else if pinboardDropTarget != previousPinboardDropTarget && pinboardDropTarget != nil {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
         }
+
+        // Propagate pinboard drop target to tab bar for visual highlight
+        if pinboardDropTarget != previousPinboardDropTarget {
+            let targetID: NSManagedObjectID? = {
+                switch pinboardDropTarget {
+                case .pinboard(let id): return id
+                case .all: return PinboardTabBar.allTabObjectID
+                case nil: return nil
+                }
+            }()
+            onPinboardDropTargetChanged?(targetID)
+        }
+
+        // Transition to native drag when mouse leaves the overlay window
+        if let window, let dragState {
+            let mouseLocation = NSEvent.mouseLocation
+            if !window.frame.contains(mouseLocation) {
+                if let onBeginNativeDrag, onBeginNativeDrag(dragState.itemIDs) {
+                    dropTarget = nil
+                    pinboardDropTarget = nil
+                    dragOpacity = 0
+                    onPinboardDropTargetChanged?(nil)
+                    self.dragState = nil
+                    isMeasuringRowFrames = false
+                    rowFrames = [:]
+                    frameCoordinator.clearLatestItemFrames()
+                    return
+                }
+            }
+        }
     }
 
     private func handleDragEnded(item: ClipItem, value: DragGesture.Value) {
+        if isNativeDragActive?() == true { return }
+
         guard isDragEnabled, let dragState, dragState.primaryItemID == item.objectID else { return }
 
         let localPointer = CGPoint(
@@ -330,7 +393,8 @@ struct ItemCompactColumn: View {
             handled = true
         }
 
-        if !handled, let window {
+        // Check if dropped outside the overlay window (skip if native drag handled it)
+        if !handled, let window, isNativeDragActive?() != true {
             let mouseLocation = NSEvent.mouseLocation
             if !window.frame.contains(mouseLocation) {
                 onPasteOutside(dragState.itemIDs)
@@ -344,7 +408,16 @@ struct ItemCompactColumn: View {
         dropTarget = nil
         pinboardDropTarget = nil
         dragOpacity = 0
-        updateDragPreview(useCallback: true)
+        dragSnapshotImage = nil
+        onPinboardDropTargetChanged?(nil)
+
+        // Hide the preview window — must send nil explicitly (not just opacity 0)
+        // so the window is ordered out and recreated fresh for the next drag.
+        if let callback = onPreviewUpdate {
+            callback(nil)
+        } else {
+            dragPreviewData = nil
+        }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             if dragState?.primaryItemID == itemID {
@@ -535,7 +608,8 @@ struct ItemCompactColumn: View {
             cardSize: previewSize,
             position: previewPosition,
             opacity: dragOpacity,
-            isCompactLayout: true
+            isCompactLayout: true,
+            snapshotImage: dragSnapshotImage
         )
 
         if useCallback, let callback = onPreviewUpdate {

@@ -14,8 +14,8 @@ extension OverlayShellView {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 isSearchExpanded = true
             }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+
+            DispatchQueue.main.async {
                 searchFocused = true
             }
         }
@@ -41,4 +41,3 @@ extension OverlayShellView {
         }
     }
 }
-

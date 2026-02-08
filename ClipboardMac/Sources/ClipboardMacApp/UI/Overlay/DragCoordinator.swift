@@ -1,4 +1,5 @@
 import AppKit
+import ClipboardCore
 import CoreData
 import SwiftUI
 
@@ -7,12 +8,14 @@ final class DragCoordinator: ObservableObject {
     @Published var pinboardFrames: [NSManagedObjectID: CGRect] = [:]
     @Published var allPinboardFrame: CGRect?
     @Published var pinboardEditorFrame: CGRect?
-    @Published var searchFieldFrame: CGRect?
+    var searchFieldFrame: CGRect?
     @Published var dragPreviewData: DragPreviewData?
     @Published var pinboardDragPreviewData: PinboardDragPreviewData?
 
     private var dragPreviewWindow: DragPreviewWindow?
     private var pinboardDragPreviewWindow: PinboardDragPreviewWindow?
+    private let nativeDragSource = NativeDragSource()
+    private(set) var isNativeDragActive = false
 
     func updatePinboardLayout(_ layout: PinboardLayoutInfo) {
         guard dragPreviewData == nil else { return }
@@ -66,9 +69,18 @@ final class DragCoordinator: ObservableObject {
     }
 
     func updateDragPreviewWindow(_ data: DragPreviewData?, parentWindow: NSWindow?) {
-        guard let dragPreviewWindow, parentWindow != nil else { return }
+        guard parentWindow != nil else { return }
+        // Don't recreate the preview window while a native drag session owns the visuals
+        guard !isNativeDragActive else { return }
 
         if let data {
+            // Create a fresh preview window each time the drag starts (window not yet visible)
+            // to avoid a flash of stale content from a previous drag.
+            if dragPreviewWindow == nil || !dragPreviewWindow!.isVisible {
+                dragPreviewWindow?.orderOut(nil)
+                dragPreviewWindow = DragPreviewWindow()
+            }
+
             let mouseLocation = NSEvent.mouseLocation
             let previewFrame = NSRect(
                 x: mouseLocation.x - 300,
@@ -77,10 +89,10 @@ final class DragCoordinator: ObservableObject {
                 height: 600
             )
 
-            dragPreviewWindow.setFrame(previewFrame, display: false)
-            dragPreviewWindow.updatePreview(data)
+            dragPreviewWindow!.setFrame(previewFrame, display: false)
+            dragPreviewWindow!.updatePreview(data)
         } else {
-            dragPreviewWindow.updatePreview(nil)
+            dragPreviewWindow?.updatePreview(nil)
         }
     }
 
@@ -101,5 +113,49 @@ final class DragCoordinator: ObservableObject {
         } else {
             pinboardDragPreviewWindow.updatePreview(nil)
         }
+    }
+
+    // MARK: - Native Drag
+
+    /// Start a native drag session when items are dragged outside the overlay.
+    ///
+    /// - Returns: `true` if the native session started successfully.
+    func beginNativeDrag(
+        from window: NSWindow?,
+        items: [ClipItem],
+        plainText: Bool,
+        onCompleted: @escaping () -> Void,
+        onEnded: @escaping () -> Void
+    ) -> Bool {
+        guard let contentView = window?.contentView else { return false }
+
+        // Capture the drag preview image (cropped to card area) before hiding the preview window
+        let dragImage = dragPreviewWindow?.capturePreviewImage(data: dragPreviewData)
+
+        // Hide the SwiftUI drag preview
+        cleanupPreviewWindow()
+
+        let screenPoint = NSEvent.mouseLocation
+
+        isNativeDragActive = true
+
+        let started = nativeDragSource.beginSession(
+            from: contentView,
+            at: screenPoint,
+            items: items,
+            plainText: plainText,
+            dragImage: dragImage,
+            onCompleted: onCompleted,
+            onEnded: { [weak self] in
+                self?.isNativeDragActive = false
+                onEnded()
+            }
+        )
+
+        if !started {
+            isNativeDragActive = false
+        }
+
+        return started
     }
 }

@@ -56,6 +56,7 @@ public final class AppCoordinator: SettingsOpening {
                 "ignoreTransientContent": true,
                 "showDuringScreenSharing": true,
                 "hideMenuBarIcon": false,
+                AppSettingsKeys.showDockIconForSettingsWindow: false,
                 OCRSettingsKeys.defaultMode: OCRCaptureMode.staticSnapshot.rawValue,
                 OCRSettingsKeys.preferredLanguage: "",
                 OverlayLayoutSettings.Keys.overlayScreenEdge: OverlayLayoutSettings.defaultEdge.rawValue,
@@ -65,7 +66,7 @@ public final class AppCoordinator: SettingsOpening {
             ]
         )
 
-        NSApp.setActivationPolicy(.accessory)
+        applyDockIconPolicy()
         configureScreenSharingCaptureProtection()
 
         guard let permissionManager = services.permissionManager as? PermissionManager else {
@@ -168,6 +169,7 @@ public final class AppCoordinator: SettingsOpening {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let self else { return }
+                self.applyDockIconPolicy()
                 if UserDefaults.standard.bool(forKey: "generateLinkPreviews") {
                     self.captureCoordinator?.schedulePendingLinkPreviewFetchesIfEnabled()
                 }
@@ -233,6 +235,12 @@ public final class AppCoordinator: SettingsOpening {
     }
 
     public func openSettings() {
+        if shouldShowDockIconForSettingsWindow {
+            NSApp.setActivationPolicy(.regular)
+        } else {
+            NSApp.setActivationPolicy(.accessory)
+        }
+
         NSApp.activate(ignoringOtherApps: true)
 
         if let settingsWindow = NSApp.windows.first(where: { $0.identifier?.rawValue == "settings" }) {
@@ -347,8 +355,26 @@ public final class AppCoordinator: SettingsOpening {
             .sink { [weak self] notification in
                 guard let window = notification.object as? NSWindow else { return }
                 self?.originalWindowSharingTypes.removeValue(forKey: ObjectIdentifier(window))
+                if window.identifier?.rawValue == "settings" {
+                    self?.applyDockIconPolicy()
+                }
             }
             .store(in: &cancellables)
+    }
+
+    private var shouldShowDockIconForSettingsWindow: Bool {
+        UserDefaults.standard.bool(forKey: AppSettingsKeys.showDockIconForSettingsWindow)
+    }
+
+    private var isSettingsWindowVisible: Bool {
+        NSApp.windows.contains { window in
+            window.identifier?.rawValue == "settings" && window.isVisible
+        }
+    }
+
+    private func applyDockIconPolicy() {
+        let shouldShowDockIcon = shouldShowDockIconForSettingsWindow && isSettingsWindowVisible
+        NSApp.setActivationPolicy(shouldShowDockIcon ? .regular : .accessory)
     }
 
     private func applyScreenSharingCaptureProtection(isEnabled: Bool) {

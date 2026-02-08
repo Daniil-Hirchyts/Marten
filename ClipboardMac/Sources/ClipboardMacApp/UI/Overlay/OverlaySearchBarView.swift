@@ -51,40 +51,46 @@ struct OverlaySearchBarView: View {
             .accessibilityLabel(searchButtonAccessibilityLabel)
             .accessibilityHint(searchButtonAccessibilityHint)
 
-            // Search Field (Expanded State)
-            if isSearchExpanded {
-                HStack(spacing: 6) {
-                    TextField("Search", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.primary)
-                        .tint(.primary)
-                        .focused(searchFocused)
-                        .frame(height: headerButtonSize)
-                        .accessibilityIdentifier("overlay.search.field")
-                        .accessibilityLabel("Search")
-                        .accessibilityHint("Type to filter items")
+            // Keep search field mounted to avoid insertion/removal work during width animation.
+            HStack(spacing: 6) {
+                TextField("Search", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.primary)
+                    .tint(.primary)
+                    .focused(searchFocused)
+                    .frame(height: headerButtonSize)
+                    .disabled(!isSearchExpanded)
+                    .accessibilityIdentifier("overlay.search.field")
+                    .accessibilityLabel("Search")
+                    .accessibilityHint("Type to filter items")
 
-                    if !searchText.isEmpty {
-                        Button(action: onSearchClear) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .padding(3)
-                                .background(
-                                    Color.white.opacity(DesignTokens.Opacity.backgroundMedium)
-                                )
-                                .clipShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .contentShape(Circle())
-                        .accessibilityIdentifier("overlay.search.clear")
-                        .accessibilityLabel("Clear search")
+                if !searchText.isEmpty {
+                    Button(action: onSearchClear) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(3)
+                            .background(
+                                Color.white.opacity(DesignTokens.Opacity.backgroundMedium)
+                            )
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Circle())
+                    .disabled(!isSearchExpanded)
+                    .accessibilityIdentifier("overlay.search.clear")
+                    .accessibilityLabel("Clear search")
                 }
-                }
-                .padding(.horizontal, 6)
-                .transition(.move(edge: .leading).combined(with: .opacity))
             }
+            .padding(.horizontal, 6)
+            .frame(
+                width: isSearchExpanded ? searchExpandedWidth : 0,
+                height: headerButtonSize,
+                alignment: .leading
+            )
+            .opacity(isSearchExpanded ? 1 : 0)
+            .clipped()
 
             // Separator
             Rectangle()
@@ -152,7 +158,6 @@ struct OverlaySearchBarView: View {
             height: headerButtonSize,
             alignment: .leading
         )
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSearchExpanded)
         .background {
             GeometryReader { proxy in
                 Color.clear.preference(

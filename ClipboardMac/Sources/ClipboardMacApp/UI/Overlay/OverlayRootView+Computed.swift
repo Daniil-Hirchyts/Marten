@@ -19,7 +19,9 @@ extension OverlayShellView {
     var filterInputHash: Int {
         var hasher = Hasher()
         hasher.combine(items.count)
-        hasher.combine(items.first?.objectID)
+        for item in items.prefix(8) {
+            hasher.combine(item.objectID)
+        }
         hasher.combine(items.last?.objectID)
         hasher.combine(searchModel.isSearchTextActive)
         hasher.combine(searchModel.searchResults.count)
@@ -29,7 +31,14 @@ extension OverlayShellView {
         hasher.combine(searchModel.typeFilters)
         hasher.combine(searchModel.appFilters)
         hasher.combine(lockedPinboardIDs)
+        hasher.combine(pinboardMembershipSignature)
         return hasher.finalize()
+    }
+
+    private var pinboardMembershipSignature: Int {
+        guard let selectedID = searchModel.selectedPinboardID else { return 0 }
+        guard let pinboard = pinboards.first(where: { $0.id == selectedID }) else { return 0 }
+        return pinboard.items?.count ?? 0
     }
 
     func computeFilteredItems() -> [ClipItem] {

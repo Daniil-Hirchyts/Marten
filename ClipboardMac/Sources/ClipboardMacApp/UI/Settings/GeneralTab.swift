@@ -8,6 +8,8 @@ struct GeneralSettingsContent: View {
     @AppStorage("alwaysPastePlainText") private var alwaysPastePlainText = false
     @AppStorage("soundEffectsEnabled") private var soundEffectsEnabled = true
     @AppStorage("hideMenuBarIcon") private var hideMenuBarIcon = false
+    @AppStorage(AppSettingsKeys.showDockIconForSettingsWindow)
+    private var showDockIconForSettingsWindow = false
     @AppStorage(OverlayLayoutSettings.Keys.overlayScreenEdge)
     private var overlayScreenEdgeRawValue = OverlayLayoutSettings.defaultEdge.rawValue
     @AppStorage("retentionPolicy") private var retentionPolicy = "month"
@@ -76,6 +78,16 @@ struct GeneralSettingsContent: View {
                             description: "Use keyboard shortcuts to access Paste",
                             isOn: $hideMenuBarIcon,
                             identifier: "settings.toggle.hideMenuBarIcon"
+                        )
+
+                        Divider()
+                            .background(Color.primary.opacity(0.1))
+
+                        SettingsToggleRow(
+                            "Show Dock icon for Settings window",
+                            description: "Temporarily show Paste in the Dock while Settings is open",
+                            isOn: $showDockIconForSettingsWindow,
+                            identifier: "settings.toggle.showDockIconForSettingsWindow"
                         )
                     }
                 }

@@ -72,6 +72,7 @@ extension OverlayShellView {
                 draftColor: $renamePinboardColor,
                 draftIcon: $renamePinboardIcon,
                 isGlobalDragActive: dragCoordinator.dragPreviewData != nil,
+                itemDragPinboardDropTargetID: itemDragPinboardDropTargetID,
                 window: window,
                 onPreviewUpdate: { dragCoordinator.updatePinboardDragPreviewWindow($0, parentWindow: window) },
                 onSelect: handlePinboardSelect,
@@ -93,7 +94,7 @@ extension OverlayShellView {
                 rowHeight: headerButtonSize,
                 onPinboardLayoutChange: handlePinboardLayoutChange,
                 onSearchFieldFrameChange: { frame in
-                    DispatchQueue.main.async { dragCoordinator.updateSearchFieldFrame(frame) }
+                    dragCoordinator.updateSearchFieldFrame(frame)
                 }
             )
             .frame(width: pinboardWidth, height: headerButtonSize)
@@ -104,7 +105,7 @@ extension OverlayShellView {
                 .position(x: settingsLeadingEdge + settingsWidth / 2, y: headerButtonSize / 2)
         }
         .onPreferenceChange(SearchFieldFrameKey.self) { frame in
-            DispatchQueue.main.async { dragCoordinator.updateSearchFieldFrame(frame) }
+            dragCoordinator.updateSearchFieldFrame(frame)
         }
         .padding(.horizontal, 14)
         .frame(height: headerButtonSize)
@@ -138,7 +139,7 @@ extension OverlayShellView {
         }
         .padding(.horizontal, 14)
         .onPreferenceChange(SearchFieldFrameKey.self) { frame in
-            DispatchQueue.main.async { dragCoordinator.updateSearchFieldFrame(frame) }
+            dragCoordinator.updateSearchFieldFrame(frame)
         }
     }
 

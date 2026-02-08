@@ -16,6 +16,7 @@ struct ItemCompactRow: View {
     let item: ClipItem
     let pinboards: [Pinboard]
     let lockedPinboardIDs: Set<UUID>
+    var itemPinboardSignature: Int = 0
     let isSelected: Bool
     let isEditing: Bool
     let allowPinning: Bool
@@ -268,7 +269,9 @@ struct ItemCompactRow: View {
                 .fill(
                     isSelected
                         ? Color(nsColor: .controlAccentColor).opacity(colorScheme == .dark ? 0.23 : 0.16)
-                        : (colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.03))
+                        : (colorScheme == .dark
+                            ? Color(.sRGB, white: 0.04, opacity: 0.72)
+                            : Color(.sRGB, white: 0.96, opacity: 0.9))
                 )
             Rectangle()
                 .fill(sideBarColor)

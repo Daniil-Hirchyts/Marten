@@ -43,6 +43,9 @@ struct ItemGridSection: View {
     let onDropToPinboard: (ClipItem, NSManagedObjectID) -> Void
     let onDropToAll: (ClipItem) -> Void
     let onPasteOutside: ([NSManagedObjectID]) -> Void
+    var onBeginNativeDrag: (([NSManagedObjectID]) -> Bool)? = nil
+    var isNativeDragActive: (() -> Bool)? = nil
+    var onPinboardDropTargetChanged: ((NSManagedObjectID?) -> Void)? = nil
 
     let coordinateSpaceName: String
     let pinboardFrames: [NSManagedObjectID: CGRect]
@@ -106,6 +109,9 @@ struct ItemGridSection: View {
                             onDropToPinboard: onDropToPinboard,
                             onDropToAll: onDropToAll,
                             onPasteOutside: onPasteOutside,
+                            onBeginNativeDrag: onBeginNativeDrag,
+                            isNativeDragActive: isNativeDragActive,
+                            onPinboardDropTargetChanged: onPinboardDropTargetChanged,
                             coordinateSpaceName: coordinateSpaceName,
                             pinboardFrames: pinboardFrames,
                             allPinboardFrame: allPinboardFrame,
@@ -144,6 +150,9 @@ struct ItemGridSection: View {
                             onDropToPinboard: onDropToPinboard,
                             onDropToAll: onDropToAll,
                             onPasteOutside: onPasteOutside,
+                            onBeginNativeDrag: onBeginNativeDrag,
+                            isNativeDragActive: isNativeDragActive,
+                            onPinboardDropTargetChanged: onPinboardDropTargetChanged,
                             coordinateSpaceName: coordinateSpaceName,
                             pinboardFrames: pinboardFrames,
                             allPinboardFrame: allPinboardFrame,
