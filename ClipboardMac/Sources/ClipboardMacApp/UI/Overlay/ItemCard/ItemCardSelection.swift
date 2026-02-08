@@ -148,7 +148,14 @@ extension ItemCard {
     }
 
     var timeAgo: String {
-        ItemCardFormatters.relativeDate.localizedString(for: item.modifiedAt, relativeTo: Date())
+        ItemCardFormatters.relativeDate.localizedString(for: modifiedAtForDisplay, relativeTo: Date())
+    }
+
+    private var modifiedAtForDisplay: Date {
+        if item.isDeleted || item.managedObjectContext == nil {
+            return lastKnownModifiedAt
+        }
+        return item.modifiedAt
     }
 
     var accessibilityLabelText: String {

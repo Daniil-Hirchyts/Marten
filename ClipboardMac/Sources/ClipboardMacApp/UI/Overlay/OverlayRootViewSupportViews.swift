@@ -293,10 +293,18 @@ struct ResizeHandleCursorView: NSViewRepresentable {
 
     private final class CursorRectView: NSView {
         var axis: OverlayLayoutAxis
+        private var sessionStateObserver: NSObjectProtocol?
 
         init(axis: OverlayLayoutAxis) {
             self.axis = axis
             super.init(frame: .zero)
+            sessionStateObserver = NotificationCenter.default.addObserver(
+                forName: OCRSelectionSessionState.didChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.refreshCursorRects()
+            }
         }
 
         @available(*, unavailable)
@@ -304,11 +312,28 @@ struct ResizeHandleCursorView: NSViewRepresentable {
             fatalError("init(coder:) has not been implemented")
         }
 
+        deinit {
+            if let sessionStateObserver {
+                NotificationCenter.default.removeObserver(sessionStateObserver)
+            }
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            refreshCursorRects()
+        }
+
         override func resetCursorRects() {
             super.resetCursorRects()
             guard !OCRSelectionSessionState.isActive else { return }
             let cursor: NSCursor = axis == .horizontal ? .resizeUpDown : .resizeLeftRight
             addCursorRect(bounds, cursor: cursor)
+        }
+
+        private func refreshCursorRects() {
+            discardCursorRects()
+            guard let window else { return }
+            window.invalidateCursorRects(for: self)
         }
     }
 }

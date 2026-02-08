@@ -98,6 +98,85 @@ final class OverlayViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.showAccessibilityAlert)
     }
 
+    func testPasteMultipleItemsUsesPlainTextForTextItemsByDefault() throws {
+        UserDefaults.standard.set(false, forKey: "alwaysPastePlainText")
+
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let itemA = try store.createTextItem(text: "a")
+        let itemB = try store.createTextItem(text: "b")
+
+        let engine = TestPasteEngine()
+        let viewModel = OverlayViewModel(
+            persistence: persistence,
+            pasteEngine: engine,
+            permissionManager: PermissionManager()
+        ) { completion in
+            completion()
+        }
+
+        viewModel.pasteMultipleItems([itemA, itemB], plainText: false)
+        spinRunLoop(for: 0.2)
+
+        XCTAssertEqual(engine.actions, [.pastePlainText(text: "a\nb")])
+    }
+
+    func testPasteMultipleItemsPreservesPayloadForFilesAndImages() throws {
+        UserDefaults.standard.set(false, forKey: "alwaysPastePlainText")
+
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+
+        let fileItem = try store.createItem(
+            payload: ClipItemPayload(
+                representations: [
+                    ClipRepresentationPayload(
+                        kind: .fileURL,
+                        uti: "public.file-url",
+                        text: "/tmp/sample.png",
+                        fileExtension: "png"
+                    )
+                ],
+                primaryText: "sample.png",
+                itemType: .file
+            )
+        )
+        let imageItem = try store.createItem(
+            payload: ClipItemPayload(
+                representations: [
+                    ClipRepresentationPayload(
+                        kind: .png,
+                        uti: "public.png",
+                        data: Data([0x89, 0x50, 0x4E, 0x47]),
+                        fileExtension: "png"
+                    )
+                ],
+                primaryText: "screenshot.png",
+                itemType: .image
+            )
+        )
+
+        let engine = TestPasteEngine()
+        let viewModel = OverlayViewModel(
+            persistence: persistence,
+            pasteEngine: engine,
+            permissionManager: PermissionManager()
+        ) { completion in
+            completion()
+        }
+
+        viewModel.pasteMultipleItems([fileItem, imageItem], plainText: false)
+        spinRunLoop(for: 0.45)
+
+        XCTAssertEqual(
+            engine.actions,
+            [
+                .pasteItem(objectID: fileItem.objectID.uriRepresentation(), format: .preserved),
+                .pasteItem(objectID: imageItem.objectID.uriRepresentation(), format: .preserved),
+            ]
+        )
+    }
+
     func testSelectItemUpdatesSelectedIDs() throws {
         let persistence = PersistenceController(inMemory: true)
         let store = ClipItemStore(persistence: persistence)

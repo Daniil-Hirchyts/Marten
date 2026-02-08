@@ -78,6 +78,13 @@ extension ItemCard {
         return url.path.isEmpty ? "/" : url.path
     }
 
+    var urlDisplayText: String {
+        if let normalizedPrimaryURL {
+            return normalizedPrimaryURL.absoluteString
+        }
+        return item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
     var normalizedPrimaryURL: URL? {
         guard let raw = item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines),
             !raw.isEmpty

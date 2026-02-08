@@ -48,7 +48,7 @@ public final class AppCoordinator: SettingsOpening {
 
         UserDefaults.standard.register(
             defaults: [
-                "hasCompletedOnboarding": true,
+                "hasCompletedOnboarding": false,
                 "soundEffectsEnabled": true,
                 "openAtLogin": false,
                 "alwaysPastePlainText": false,
@@ -157,7 +157,12 @@ public final class AppCoordinator: SettingsOpening {
         self.hotkeyCoordinator = hotkeyCoordinator
         hotkeyCoordinator.start()
 
-        let onboardingCoordinator = OnboardingCoordinator()
+        let onboardingCoordinator = OnboardingCoordinator(
+            permissionManager: permissionManager,
+            onWindowClosed: { [weak self] in
+                self?.applyDockIconPolicy()
+            }
+        )
         self.onboardingCoordinator = onboardingCoordinator
         onboardingCoordinator.startIfNeeded()
 
@@ -210,6 +215,16 @@ public final class AppCoordinator: SettingsOpening {
         scheduleRetentionCleanup()
         permissionManager.startMonitoring()
 
+        if let syncCoordinator = services.syncCoordinator {
+            Task {
+                do {
+                    try await syncCoordinator.startSync()
+                } catch {
+                    Logger.app.error("Failed to start iCloud sync: \(error.localizedDescription)")
+                }
+            }
+        }
+
         let hasSync = services.syncCoordinator != nil
         if hasSync, hasPushNotificationEntitlement {
             NSApp.registerForRemoteNotifications()
@@ -224,6 +239,7 @@ public final class AppCoordinator: SettingsOpening {
         captureCoordinator?.stop()
         hotkeyCoordinator?.stop()
         ocrCaptureCoordinator?.stop()
+        services.syncCoordinator?.stopSync()
 
         permissionManagerImpl?.stopMonitoring()
         retentionTimer?.invalidate()
@@ -366,6 +382,12 @@ public final class AppCoordinator: SettingsOpening {
         UserDefaults.standard.bool(forKey: AppSettingsKeys.showDockIconForSettingsWindow)
     }
 
+    private var isOnboardingWindowVisible: Bool {
+        NSApp.windows.contains { window in
+            window.identifier?.rawValue == "onboarding" && window.isVisible
+        }
+    }
+
     private var isSettingsWindowVisible: Bool {
         NSApp.windows.contains { window in
             window.identifier?.rawValue == "settings" && window.isVisible
@@ -373,7 +395,8 @@ public final class AppCoordinator: SettingsOpening {
     }
 
     private func applyDockIconPolicy() {
-        let shouldShowDockIcon = shouldShowDockIconForSettingsWindow && isSettingsWindowVisible
+        let shouldShowDockIcon = isOnboardingWindowVisible
+            || (shouldShowDockIconForSettingsWindow && isSettingsWindowVisible)
         NSApp.setActivationPolicy(shouldShowDockIcon ? .regular : .accessory)
     }
 

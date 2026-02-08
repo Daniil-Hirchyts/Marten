@@ -8,7 +8,7 @@ final class PasteStackManagerTests: XCTestCase {
     private final class SpyOverlayViewModel: OverlayPasting {
         enum Call: Equatable {
             case paste(URL, plainText: Bool)
-            case pasteMultiple(itemCount: Int)
+            case pasteMultiple(itemCount: Int, plainText: Bool)
         }
 
         var selectedItemIDs: Set<NSManagedObjectID> = []
@@ -19,9 +19,9 @@ final class PasteStackManagerTests: XCTestCase {
             calls.append(.paste(item.objectID.uriRepresentation(), plainText: plainText))
         }
 
-        func pasteMultipleItemsAsPlainText(_ items: [ClipItem]) {
+        func pasteMultipleItems(_ items: [ClipItem], plainText: Bool) {
             lastPastedItems = items
-            calls.append(.pasteMultiple(itemCount: items.count))
+            calls.append(.pasteMultiple(itemCount: items.count, plainText: plainText))
         }
     }
 
@@ -66,7 +66,7 @@ final class PasteStackManagerTests: XCTestCase {
             viewModel: viewModel
         )
 
-        XCTAssertEqual(viewModel.calls, [.pasteMultiple(itemCount: 2)])
+        XCTAssertEqual(viewModel.calls, [.pasteMultiple(itemCount: 2, plainText: true)])
         XCTAssertEqual(viewModel.lastPastedItems.count, 2)
     }
 
@@ -86,7 +86,26 @@ final class PasteStackManagerTests: XCTestCase {
         )
 
         spinRunLoop(for: 0.2)
-        XCTAssertEqual(viewModel.calls, [.pasteMultiple(itemCount: 2)])
+        XCTAssertEqual(viewModel.calls, [.pasteMultiple(itemCount: 2, plainText: true)])
+    }
+
+    func testPasteOutsidePastesMultiplePreservedWhenPlainTextIsFalse() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let a = try store.createTextItem(text: "a")
+        let b = try store.createTextItem(text: "b")
+
+        let viewModel = SpyOverlayViewModel()
+        let manager = PasteStackManager()
+        manager.pasteOutside(
+            itemIDs: [a.objectID, b.objectID],
+            plainText: false,
+            orderedItems: [a, b],
+            viewModel: viewModel
+        )
+
+        spinRunLoop(for: 0.2)
+        XCTAssertEqual(viewModel.calls, [.pasteMultiple(itemCount: 2, plainText: false)])
     }
 
     func testPasteOutsidePastesSingleItemDirectly() throws {

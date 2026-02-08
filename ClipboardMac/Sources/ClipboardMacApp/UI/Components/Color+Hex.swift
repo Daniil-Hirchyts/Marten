@@ -39,9 +39,9 @@ extension NSImage {
     /// Only the first Image in an NSMenuItem label is rendered; everything must live here.
     /// Fixed-width frames + opacity keep all rows the same width for alignment.
     @MainActor
-    static func pinboardMenuIcon(colorHex: String, sign: String?, size: CGFloat, isAssigned: Bool, isLocked: Bool) -> NSImage {
+    static func pinboardMenuIcon(colorHex: String, sign: String?, size: CGFloat, isAssigned: Bool, isLocked: Bool, colorScheme: ColorScheme = .dark) -> NSImage {
         let indicatorSize = size * 0.68
-        let iconColor: Color = NSApp.effectiveAppearance.name == .darkAqua ? .white : .black
+        let iconColor: Color = colorScheme == .dark ? .white : .black
         let renderer = ImageRenderer(content:
             HStack(alignment: .center, spacing: 5) {
                 Image(systemName: "checkmark")

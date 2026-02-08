@@ -158,6 +158,7 @@ struct OverlayShellView: View {
             .onChange(of: searchModel.selectedPinboardID) { handlePinboardSelectionChange($0, $1) }
             .onChange(of: selectedPinboardIsAccessible) { handlePinboardAccessibilityChange($0, $1) }
             .onChange(of: isSearchExpanded) { handleSearchExpandedChange($0, $1) }
+            .onChange(of: isFilterPopoverPresented) { handleFilterPopoverPresentedChange($0, $1) }
             .onChange(of: keyHandlerRefreshToken) { handleKeyHandlerRefresh($0, $1) }
             .onChange(of: visiblePinboardIDs) { handleVisiblePinboardsChange($0, $1) }
             .onChange(of: itemsChangeSignature) { handleItemsSourceAppsChange($0, $1) }

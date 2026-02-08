@@ -74,7 +74,8 @@ extension OverlayShellView {
 
     func handleOverlayTap(at location: CGPoint) {
         if previewCoordinator.isPreviewPopoverPresented {
-            previewCoordinator.closeAllMenus()
+            // Let NSPopover handle outside-click dismissal and keep interactions
+            // inside the preview responsive.
             return
         }
 
@@ -97,4 +98,3 @@ extension OverlayShellView {
         }
     }
 }
-

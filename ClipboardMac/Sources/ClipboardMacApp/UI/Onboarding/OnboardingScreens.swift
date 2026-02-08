@@ -1,168 +1,307 @@
-import SwiftUI
 import AppKit
-import ApplicationServices
+import ClipboardMacServices
+import SwiftUI
 
 struct WelcomeScreen: View {
     let onContinue: () -> Void
-    
+    @State private var pulse = false
+
     var body: some View {
-        VStack(spacing: 20) {
-            if let icon = NSApp.applicationIconImage {
-                Image(nsImage: icon)
-                    .resizable()
-                    .frame(width: 128, height: 128)
-            } else {
-                // Fallback if icon is missing (e.g. preview)
-                Image(systemName: "doc.on.clipboard")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 128, height: 128)
-                    .foregroundColor(.accentColor)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .center, spacing: 20) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.12))
+                        .frame(width: 156, height: 156)
+                        .scaleEffect(pulse ? 1.06 : 0.94)
+                        .blur(radius: 1)
+
+                    Circle()
+                        .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
+                        .frame(width: 166, height: 166)
+                        .scaleEffect(pulse ? 1.03 : 0.9)
+
+                    appIcon
+                        .frame(width: 116, height: 116)
+                        .clipShape(.rect(cornerRadius: 26, style: .continuous))
+                        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 3)
+                }
+                .frame(width: 176, height: 176)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Instant clipboard memory")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+
+                    Text("Paste tracks what you copy, keeps history searchable, and lets you paste back with one shortcut.")
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            
-            Text("Welcome to Paste")
-                .font(.largeTitle)
-                .bold()
-            
-            Text("Your clipboard history manager for macOS")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Spacer()
-            
-            Button("Continue") {
-                onContinue()
+
+            OnboardingCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    OnboardingFeatureRow(
+                        symbol: "rectangle.stack.fill",
+                        title: "Unlimited history",
+                        subtitle: "Access everything you copied in one place."
+                    )
+                    OnboardingFeatureRow(
+                        symbol: "magnifyingglass.circle.fill",
+                        title: "Fast search",
+                        subtitle: "Find snippets by text, app, or content type."
+                    )
+                    OnboardingFeatureRow(
+                        symbol: "command.square.fill",
+                        title: "Global shortcut",
+                        subtitle: "Use Cmd+Shift+V from any app."
+                    )
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .accessibilityIdentifier("onboarding.button.welcome.continue")
-            .accessibilityLabel("Continue to Permissions")
+
+            Spacer(minLength: 0)
+
+            HStack {
+                Spacer()
+                Button {
+                    onContinue()
+                } label: {
+                    Label("Start Setup", systemImage: "arrow.right")
+                        .frame(minWidth: 160)
+                }
+                .onboardingPrimaryButtonStyle()
+                .controlSize(.large)
+                .accessibilityIdentifier("onboarding.button.welcome.continue")
+                .accessibilityLabel("Continue to Permissions")
+            }
         }
-        .padding()
+        .onAppear {
+            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding.step.welcome")
         .accessibilityLabel("Welcome Step")
     }
+
+    @ViewBuilder
+    private var appIcon: some View {
+        if let icon = NSApp.applicationIconImage {
+            Image(nsImage: icon)
+                .resizable()
+                .scaledToFit()
+        } else {
+            Image(systemName: "doc.on.clipboard.fill")
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(.white.opacity(0.9))
+                .padding(26)
+                .adaptiveGlassBackground(shape: .roundedRectangle(cornerRadius: 26))
+        }
+    }
 }
 
 struct PermissionsScreen: View {
+    @ObservedObject var permissionManager: PermissionManager
     let onContinue: () -> Void
-    @State private var hasPermission = false
-    
-    // Timer to periodically check permission status while the window is open
-    let timer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
-    
+    let onBack: () -> Void
+
+    private var allRequiredGranted: Bool {
+        permissionManager.hasAccessibility && permissionManager.hasInputMonitoring
+    }
+
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "hand.raised.fill")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 64, height: 64)
-                .foregroundColor(.blue)
-            
-            Text("Accessibility Permission Required")
-                .font(.title)
-                .bold()
-            
-            Text("Paste needs Accessibility permission to monitor your clipboard and paste content into apps.")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-                .padding(.horizontal)
-            
-            Spacer()
-            
-            if hasPermission {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("Permission Granted")
-                        .font(.headline)
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Paste requires these permissions to operate correctly:")
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+
+            PermissionRequirementCard(
+                title: "Accessibility",
+                description: "Needed to paste content into other apps and support automation.",
+                isGranted: permissionManager.hasAccessibility,
+                actionAccessibilityIdentifier: "onboarding.button.permissions.accessibility",
+                action: requestAccessibility
+            )
+
+            PermissionRequirementCard(
+                title: "Input Monitoring",
+                description: "Needed for global shortcuts to open Paste from anywhere.",
+                isGranted: permissionManager.hasInputMonitoring,
+                actionAccessibilityIdentifier: "onboarding.button.permissions.inputMonitoring",
+                action: requestInputMonitoring
+            )
+
+            OnboardingCard {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: "text.viewfinder")
+                        .foregroundStyle(.secondary)
+                    Text("Optional: enable Screen Recording to use OCR capture.")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Open Settings") {
+                        permissionManager.requestScreenRecordingSettings()
+                    }
+                    .onboardingSecondaryButtonStyle()
+                    .controlSize(.small)
+                    .accessibilityIdentifier("onboarding.button.permissions.screenRecording")
                 }
-                .padding(.bottom, 10)
-                .accessibilityIdentifier("onboarding.permissions.status.granted")
-                .accessibilityLabel("Accessibility Permission Granted")
-                
-                Button("Continue") {
-                    onContinue()
+            }
+
+            if allRequiredGranted {
+                Label("All required permissions are granted.", systemImage: "checkmark.seal.fill")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.green)
+                    .accessibilityIdentifier("onboarding.permissions.status.granted")
+                    .accessibilityLabel("Required Permissions Granted")
+            } else {
+                Label(
+                    "Grant both permissions to unlock Paste.",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundStyle(.orange)
+            }
+
+            Spacer(minLength: 0)
+
+            HStack {
+                Button {
+                    onBack()
+                } label: {
+                    Label("Back", systemImage: "arrow.left")
                 }
-                .buttonStyle(.borderedProminent)
+                .onboardingSecondaryButtonStyle()
                 .controlSize(.large)
+                .accessibilityIdentifier("onboarding.button.permissions.back")
+
+                Spacer()
+
+                Button {
+                    onContinue()
+                } label: {
+                    Label("Continue", systemImage: "arrow.right")
+                        .frame(minWidth: 160)
+                }
+                .onboardingPrimaryButtonStyle()
+                .controlSize(.large)
+                .disabled(!allRequiredGranted)
                 .accessibilityIdentifier("onboarding.button.permissions.continue")
                 .accessibilityLabel("Continue to How To Use")
-            } else {
-                Button("Open System Settings") {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .accessibilityIdentifier("onboarding.button.permissions.openSettings")
-                .accessibilityLabel("Open Accessibility System Settings")
-                
-                Button("Skip for Now") {
-                    onContinue()
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
-                .accessibilityIdentifier("onboarding.button.permissions.skip")
-                .accessibilityLabel("Skip Accessibility Permission")
             }
-        }
-        .padding()
-        .onAppear {
-            checkPermission()
-        }
-        .onReceive(timer) { _ in
-            checkPermission()
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding.step.permissions")
         .accessibilityLabel("Permissions Step")
     }
-    
-    private func checkPermission() {
-        let trusted = AXIsProcessTrusted()
-        if trusted != hasPermission {
-            withAnimation {
-                hasPermission = trusted
-            }
-        }
+
+    private func requestAccessibility() {
+        permissionManager.requestAccessibility()
+        permissionManager.refresh()
+    }
+
+    private func requestInputMonitoring() {
+        permissionManager.requestInputMonitoring()
+        permissionManager.refresh()
     }
 }
 
 struct HowToUseScreen: View {
     let onContinue: () -> Void
-    
+    let onBack: () -> Void
+    @State private var reveal = false
+
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "keyboard.fill")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 64, height: 64)
-                .foregroundColor(.accentColor)
-            
-            Text("Press Cmd+Shift+V to open Paste")
-                .font(.title)
-                .bold()
-                .multilineTextAlignment(.center)
-            
-            Text("Browse your clipboard history, search, and paste with one click.")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-                .padding(.horizontal)
-            
-            Spacer()
-            
-            Button("Continue") {
-                onContinue()
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Use Paste in three quick steps:")
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+
+            OnboardingCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    HowToStepRow(
+                        number: 1,
+                        title: "Copy anything",
+                        subtitle: "Text, links, files, or images are captured automatically.",
+                        isVisible: reveal,
+                        delay: 0.0
+                    )
+                    HowToStepRow(
+                        number: 2,
+                        title: "Open Paste",
+                        subtitle: "Press Cmd+Shift+V from any app.",
+                        isVisible: reveal,
+                        delay: 0.12
+                    )
+                    HowToStepRow(
+                        number: 3,
+                        title: "Select and paste",
+                        subtitle: "Search, choose an item, and paste it instantly.",
+                        isVisible: reveal,
+                        delay: 0.24
+                    )
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .accessibilityIdentifier("onboarding.button.howToUse.continue")
-            .accessibilityLabel("Continue to Complete")
+
+            OnboardingCard {
+                HStack(spacing: 16) {
+                    Label("Main Shortcut", systemImage: "command")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+
+                    Text("Cmd")
+                        .onboardingKeycap()
+                    Text("+")
+                        .foregroundStyle(.secondary)
+                    Text("Shift")
+                        .onboardingKeycap()
+                    Text("+")
+                        .foregroundStyle(.secondary)
+                    Text("V")
+                        .onboardingKeycap()
+                }
+            }
+
+            OnboardingCard {
+                Label("Tip: hold Shift while pasting to force plain text.", systemImage: "lightbulb.max.fill")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+
+            HStack {
+                Button {
+                    onBack()
+                } label: {
+                    Label("Back", systemImage: "arrow.left")
+                }
+                .onboardingSecondaryButtonStyle()
+                .controlSize(.large)
+                .accessibilityIdentifier("onboarding.button.howToUse.back")
+
+                Spacer()
+
+                Button {
+                    onContinue()
+                } label: {
+                    Label("Continue", systemImage: "arrow.right")
+                        .frame(minWidth: 160)
+                }
+                .onboardingPrimaryButtonStyle()
+                .controlSize(.large)
+                .accessibilityIdentifier("onboarding.button.howToUse.continue")
+                .accessibilityLabel("Continue to Complete")
+            }
         }
-        .padding()
+        .onAppear {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.84)) {
+                reveal = true
+            }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding.step.howToUse")
         .accessibilityLabel("How To Use Step")
@@ -170,37 +309,292 @@ struct HowToUseScreen: View {
 }
 
 struct CompleteScreen: View {
+    @ObservedObject var permissionManager: PermissionManager
     let onContinue: () -> Void
-    
+    let onBackToPermissions: () -> Void
+    @State private var animateStatus = false
+
+    private var allRequiredGranted: Bool {
+        permissionManager.hasAccessibility && permissionManager.hasInputMonitoring
+    }
+
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "checkmark.circle.fill")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 64, height: 64)
-                .foregroundColor(.green)
-            
-            Text("You're All Set!")
-                .font(.title)
-                .bold()
-            
-            Text("Start copying and Paste will remember everything.")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-            
-            Spacer()
-            
-            Button("Get Started") {
-                onContinue()
+        VStack(alignment: .leading, spacing: 22) {
+            HStack(spacing: 14) {
+                Image(systemName: allRequiredGranted ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(allRequiredGranted ? .green : .orange)
+                    .scaleEffect(animateStatus ? 1.06 : 0.94)
+                    .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: animateStatus)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(allRequiredGranted ? "Setup Complete" : "Setup Incomplete")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+
+                    Text(
+                        allRequiredGranted
+                            ? "Paste is ready. Launch the app experience."
+                            : "Required permissions are missing. Return to activate them."
+                    )
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .accessibilityIdentifier("onboarding.button.complete.getStarted")
-            .accessibilityLabel("Finish Onboarding")
+
+            OnboardingCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    PermissionSummaryRow(
+                        title: "Accessibility",
+                        isGranted: permissionManager.hasAccessibility
+                    )
+                    PermissionSummaryRow(
+                        title: "Input Monitoring",
+                        isGranted: permissionManager.hasInputMonitoring
+                    )
+                }
+            }
+
+            OnboardingCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    NextStepRow(
+                        symbol: "command",
+                        text: "Open Paste anytime with Cmd+Shift+V."
+                    )
+                    NextStepRow(
+                        symbol: "menubar.rectangle",
+                        text: "Paste runs from the menu bar and starts capturing immediately."
+                    )
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            HStack {
+                if allRequiredGranted {
+                    Spacer()
+                } else {
+                    Button {
+                        onBackToPermissions()
+                    } label: {
+                        Label("Back to Required Settings", systemImage: "arrow.uturn.left")
+                    }
+                    .onboardingSecondaryButtonStyle()
+                    .controlSize(.large)
+                    .accessibilityIdentifier("onboarding.button.complete.backToPermissions")
+
+                    Spacer()
+                }
+
+                Button {
+                    onContinue()
+                } label: {
+                    Label("Get Started", systemImage: "sparkles")
+                        .frame(minWidth: 180)
+                }
+                .onboardingPrimaryButtonStyle()
+                .controlSize(.large)
+                .disabled(!allRequiredGranted)
+                .accessibilityIdentifier("onboarding.button.complete.getStarted")
+                .accessibilityLabel("Finish Onboarding")
+            }
         }
-        .padding()
+        .onAppear {
+            animateStatus = true
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding.step.complete")
         .accessibilityLabel("Complete Step")
+    }
+}
+
+private struct OnboardingFeatureRow: View {
+    let symbol: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 16, weight: .semibold))
+                .frame(width: 24, height: 24)
+                .foregroundStyle(.white.opacity(0.95))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                Text(subtitle)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct PermissionRequirementCard: View {
+    let title: String
+    let description: String
+    let isGranted: Bool
+    let actionAccessibilityIdentifier: String
+    let action: () -> Void
+
+    var body: some View {
+        OnboardingCard {
+            HStack(alignment: .center, spacing: 14) {
+                Image(systemName: isGranted ? "checkmark.seal.fill" : "shield.lefthalf.filled")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(isGranted ? .green : .orange)
+                    .frame(width: 24, height: 24)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                    Text(description)
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                if isGranted {
+                    PermissionStatusChip(title: "Granted")
+                } else {
+                    Button("Open Settings") {
+                        action()
+                    }
+                    .onboardingSecondaryButtonStyle()
+                    .controlSize(.regular)
+                    .accessibilityIdentifier(actionAccessibilityIdentifier)
+                }
+            }
+        }
+    }
+}
+
+private struct HowToStepRow: View {
+    let number: Int
+    let title: String
+    let subtitle: String
+    let isVisible: Bool
+    let delay: Double
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(number)")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .frame(width: 22, height: 22)
+                .background(
+                    Circle().fill(Color.white.opacity(0.18))
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                Text(subtitle)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .opacity(isVisible ? 1 : 0)
+        .offset(y: isVisible ? 0 : 12)
+        .animation(
+            .spring(response: 0.55, dampingFraction: 0.84).delay(delay),
+            value: isVisible
+        )
+    }
+}
+
+private struct PermissionSummaryRow: View {
+    let title: String
+    let isGranted: Bool
+
+    var body: some View {
+        HStack {
+            Image(systemName: isGranted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .foregroundStyle(isGranted ? .green : .orange)
+            Text(title)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+            Spacer()
+            Text(isGranted ? "Granted" : "Missing")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(isGranted ? .green : .orange)
+        }
+    }
+}
+
+private struct PermissionStatusChip: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 13, weight: .semibold, design: .rounded))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .foregroundStyle(.green)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.green.opacity(0.12))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(Color.green.opacity(0.35), lineWidth: 1)
+            )
+    }
+}
+
+private struct NextStepRow: View {
+    let symbol: String
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbol)
+                .foregroundStyle(.secondary)
+                .frame(width: 16, height: 16)
+            Text(text)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct OnboardingCard<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.white.opacity(0.22))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.26), lineWidth: 1)
+            )
+    }
+}
+
+private extension View {
+    func onboardingPrimaryButtonStyle() -> some View {
+        self
+            .buttonStyle(.borderedProminent)
+            .tint(Color(red: 0.11, green: 0.49, blue: 0.95))
+    }
+
+    func onboardingSecondaryButtonStyle() -> some View {
+        self.buttonStyle(.bordered)
+    }
+
+    func onboardingKeycap() -> some View {
+        self
+            .font(.system(size: 13, weight: .bold, design: .rounded))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .adaptiveGlassBackground(shape: .roundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
+            )
     }
 }

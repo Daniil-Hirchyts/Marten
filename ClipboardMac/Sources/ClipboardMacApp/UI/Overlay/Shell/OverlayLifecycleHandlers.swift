@@ -9,6 +9,7 @@ extension OverlayShellView {
         modifierMonitor.start()
         pinboardLockController.reconcile(validPinboardIDs: visiblePinboardIDs)
         ensureValidSelection()
+        searchModel.updateAppOptions(from: allItemsVisibleInAllPinboard)
         lastFilterInputHash = filterInputHash
         cachedFilteredItems = computeFilteredItems()
         viewModel.ensureDefaultSelection(in: filteredItems)
@@ -53,9 +54,7 @@ extension OverlayShellView {
             // Automatically trigger unlock when selecting a locked pinboard
             handleUnlockTap()
         }
-        if isFilterPopoverPresented {
-            searchModel.updateAppOptions(from: allItemsVisibleInAllPinboard)
-        }
+        searchModel.updateAppOptions(from: allItemsVisibleInAllPinboard)
     }
 
     func handlePinboardAccessibilityChange(_ isAccessible: Bool, _ old: Bool) {
@@ -71,6 +70,11 @@ extension OverlayShellView {
         }
     }
 
+    func handleFilterPopoverPresentedChange(_ oldValue: Bool, _ newValue: Bool) {
+        guard newValue else { return }
+        searchModel.updateAppOptions(from: allItemsVisibleInAllPinboard)
+    }
+
     func handleKeyHandlerRefresh(_ oldValue: String, _ newValue: String) {
         installKeyboardHandlers()
     }
@@ -81,9 +85,7 @@ extension OverlayShellView {
     }
 
     func handleItemsSourceAppsChange(_ oldValue: Int, _ newValue: Int) {
-        if isFilterPopoverPresented {
-            searchModel.updateAppOptions(from: allItemsVisibleInAllPinboard)
-        }
+        searchModel.updateAppOptions(from: allItemsVisibleInAllPinboard)
     }
 
     func handleFilteredItemsChange(_ oldValue: [URL], _ newValue: [URL]) {

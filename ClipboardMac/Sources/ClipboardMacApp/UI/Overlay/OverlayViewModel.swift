@@ -211,6 +211,18 @@ final class OverlayViewModel: ObservableObject {
     }
 
     @MainActor
+    func pasteMultipleItems(_ items: [ClipItem], plainText: Bool) {
+        guard !items.isEmpty else { return }
+
+        let effectivePlainText = plainText || userDefaults.bool(forKey: "alwaysPastePlainText")
+        if effectivePlainText || shouldPasteMultipleAsPlainText(items) {
+            pasteMultipleItemsAsPlainText(items)
+        } else {
+            pasteMultipleItemsPreservingRepresentations(items)
+        }
+    }
+
+    @MainActor
     func pasteMultipleItemsAsPlainText(_ items: [ClipItem]) {
         guard !isPasting, !items.isEmpty else { return }
         isPasting = true
@@ -244,6 +256,46 @@ final class OverlayViewModel: ObservableObject {
     }
 
     @MainActor
+    private func pasteMultipleItemsPreservingRepresentations(_ items: [ClipItem]) {
+        guard !isPasting, !items.isEmpty else { return }
+        isPasting = true
+        Task {
+            await waitForOverlayToHide()
+            defer {
+                isPasting = false
+                resetState()
+            }
+            let objectIDs = items.map { $0.objectID }
+            try? clipItemStore.markItemsUsed(objectIDs: objectIDs)
+
+            do {
+                for (index, item) in items.enumerated() {
+                    try await pasteEngine.pasteItem(item, format: .preserved)
+                    if index < items.count - 1 {
+                        try await Task.sleep(nanoseconds: 150_000_000)
+                    }
+                }
+                soundPlayer.play(.paste)
+            } catch PasteEngineError.accessibilityPermissionDenied {
+                showAccessibilityAlert = true
+            } catch {
+                Logger.paste.error("Multi-paste failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func shouldPasteMultipleAsPlainText(_ items: [ClipItem]) -> Bool {
+        items.allSatisfy { item in
+            switch item.itemTypeValue {
+            case .text, .richText, .url, .code, .color:
+                return true
+            case .image, .file, .mixed:
+                return false
+            }
+        }
+    }
+
+    @MainActor
     func requestAccessibility() {
         permissionManager.requestAccessibility()
     }
@@ -256,11 +308,11 @@ final class OverlayViewModel: ObservableObject {
         let selectedItems = orderedItems.filter { selectedItemIDs.contains($0.objectID) }
         guard !selectedItems.isEmpty else { return }
         
-        // If single item, paste normally; if multiple, paste as plain text
+        // If single item, paste normally; if multiple, choose plain-text vs preserved based on content
         if selectedItems.count == 1 {
             paste(item: selectedItems[0], plainText: isShiftPressed)
         } else {
-            pasteMultipleItemsAsPlainText(selectedItems)
+            pasteMultipleItems(selectedItems, plainText: isShiftPressed)
         }
     }
 

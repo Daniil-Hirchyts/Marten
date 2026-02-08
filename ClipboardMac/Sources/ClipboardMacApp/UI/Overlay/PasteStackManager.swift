@@ -7,7 +7,7 @@ protocol OverlayPasting: AnyObject {
     var selectedItemIDs: Set<NSManagedObjectID> { get }
 
     func paste(item: ClipItem, plainText: Bool)
-    func pasteMultipleItemsAsPlainText(_ items: [ClipItem])
+    func pasteMultipleItems(_ items: [ClipItem], plainText: Bool)
 }
 
 extension OverlayViewModel: OverlayPasting {}
@@ -25,6 +25,7 @@ final class PasteStackManager {
             pasteSelection(
                 selectedItemIDs: selectedItemIDs,
                 orderedItems: orderedItems,
+                plainText: plainText,
                 viewModel: viewModel
             )
         } else {
@@ -47,7 +48,7 @@ final class PasteStackManager {
             if draggedItems.count == 1 {
                 viewModel.paste(item: firstItem, plainText: plainText)
             } else {
-                viewModel.pasteMultipleItemsAsPlainText(draggedItems)
+                viewModel.pasteMultipleItems(draggedItems, plainText: plainText)
             }
         }
     }
@@ -55,6 +56,7 @@ final class PasteStackManager {
     private func pasteSelection(
         selectedItemIDs: Set<NSManagedObjectID>,
         orderedItems: [ClipItem],
+        plainText: Bool,
         viewModel: any OverlayPasting
     ) {
         guard !selectedItemIDs.isEmpty else { return }
@@ -62,9 +64,9 @@ final class PasteStackManager {
         guard let firstItem = selectedItems.first else { return }
 
         if selectedItems.count == 1 {
-            viewModel.paste(item: firstItem, plainText: true)
+            viewModel.paste(item: firstItem, plainText: plainText)
         } else {
-            viewModel.pasteMultipleItemsAsPlainText(selectedItems)
+            viewModel.pasteMultipleItems(selectedItems, plainText: plainText)
         }
     }
 }

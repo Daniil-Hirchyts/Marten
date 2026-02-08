@@ -65,30 +65,60 @@ struct FilterPopoverView: View {
             // Sections
             VStack(alignment: .leading, spacing: 24) {
                 filterSection(title: "Date", icon: "calendar") {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
-                        ForEach(SearchDateFilter.allCases) { filter in
-                            FilterChip(
-                                title: filter.title,
-                                icon: dateIcon(for: filter),
-                                isSelected: dateFilter == filter,
-                                identifier: "overlay.search.filter.date.\(filter.rawValue)"
-                            ) {
-                                dateFilter = filter
+                    if #available(macOS 13.0, *) {
+                        FlowLayout(spacing: 8) {
+                            ForEach(SearchDateFilter.allCases) { filter in
+                                FilterChip(
+                                    title: filter.title,
+                                    icon: dateIcon(for: filter),
+                                    isSelected: dateFilter == filter,
+                                    identifier: "overlay.search.filter.date.\(filter.rawValue)"
+                                ) {
+                                    dateFilter = filter
+                                }
+                            }
+                        }
+                    } else {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
+                            ForEach(SearchDateFilter.allCases) { filter in
+                                FilterChip(
+                                    title: filter.title,
+                                    icon: dateIcon(for: filter),
+                                    isSelected: dateFilter == filter,
+                                    identifier: "overlay.search.filter.date.\(filter.rawValue)"
+                                ) {
+                                    dateFilter = filter
+                                }
                             }
                         }
                     }
                 }
 
                 filterSection(title: "Content Type", icon: "doc.on.doc") {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 8)], spacing: 8) {
-                        ForEach(ItemType.allCases, id: \.self) { type in
-                            FilterChip(
-                                title: itemTypeLabel(type),
-                                icon: itemTypeIcon(type),
-                                isSelected: typeFilters.contains(type),
-                                identifier: "overlay.search.filter.type.\(itemTypeIdentifier(type))"
-                            ) {
-                                toggleType(type)
+                    if #available(macOS 13.0, *) {
+                        FlowLayout(spacing: 8) {
+                            ForEach(ItemType.allCases, id: \.self) { type in
+                                FilterChip(
+                                    title: itemTypeLabel(type),
+                                    icon: itemTypeIcon(type),
+                                    isSelected: typeFilters.contains(type),
+                                    identifier: "overlay.search.filter.type.\(itemTypeIdentifier(type))"
+                                ) {
+                                    toggleType(type)
+                                }
+                            }
+                        }
+                    } else {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 8)], spacing: 8) {
+                            ForEach(ItemType.allCases, id: \.self) { type in
+                                FilterChip(
+                                    title: itemTypeLabel(type),
+                                    icon: itemTypeIcon(type),
+                                    isSelected: typeFilters.contains(type),
+                                    identifier: "overlay.search.filter.type.\(itemTypeIdentifier(type))"
+                                ) {
+                                    toggleType(type)
+                                }
                             }
                         }
                     }
@@ -103,20 +133,35 @@ struct FilterPopoverView: View {
                             .padding(.vertical, 8)
                     } else {
                         ScrollView(.vertical, showsIndicators: true) {
-                            LazyVGrid(
-                                columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8
-                            ) {
-                                ForEach(appOptions) { option in
-                                    AppFilterChip(
-                                        option: option,
-                                        isSelected: appFilters.contains(option.id),
-                                        identifier: "overlay.search.filter.app.\(appIdentifier(option))"
-                                    ) {
-                                        toggleApp(option.id)
+                            if #available(macOS 13.0, *) {
+                                FlowLayout(spacing: 8) {
+                                    ForEach(appOptions) { option in
+                                        AppFilterChip(
+                                            option: option,
+                                            isSelected: appFilters.contains(option.id),
+                                            identifier: "overlay.search.filter.app.\(appIdentifier(option))"
+                                        ) {
+                                            toggleApp(option.id)
+                                        }
                                     }
                                 }
+                                .padding(.vertical, 2)
+                            } else {
+                                LazyVGrid(
+                                    columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8
+                                ) {
+                                    ForEach(appOptions) { option in
+                                        AppFilterChip(
+                                            option: option,
+                                            isSelected: appFilters.contains(option.id),
+                                            identifier: "overlay.search.filter.app.\(appIdentifier(option))"
+                                        ) {
+                                            toggleApp(option.id)
+                                        }
+                                    }
+                                }
+                                .padding(.vertical, 2)
                             }
-                            .padding(.vertical, 2)
                         }
                         .frame(maxHeight: 180)
                     }
@@ -281,10 +326,11 @@ private struct FilterChip: View {
     }
 
     private var borderColor: Color {
+        let baseColor: Color = colorScheme == .dark ? .white : .black
         if isSelected {
-            return .white.opacity(DesignTokens.Opacity.borderMedium)
+            return baseColor.opacity(DesignTokens.Opacity.borderMedium)
         } else {
-            return .white.opacity(DesignTokens.Opacity.borderSubtle)
+            return baseColor.opacity(DesignTokens.Opacity.borderSubtle)
         }
     }
 }
@@ -337,10 +383,11 @@ private struct AppFilterChip: View {
     }
 
     private var borderColor: Color {
+        let baseColor: Color = colorScheme == .dark ? .white : .black
         if isSelected {
-            return .white.opacity(DesignTokens.Opacity.borderMedium)
+            return baseColor.opacity(DesignTokens.Opacity.borderMedium)
         } else {
-            return .white.opacity(DesignTokens.Opacity.borderSubtle)
+            return baseColor.opacity(DesignTokens.Opacity.borderSubtle)
         }
     }
 }

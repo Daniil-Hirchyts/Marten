@@ -29,6 +29,7 @@ class DragPreviewWindow: NSWindow {
         self.backgroundColor = .clear
         self.hasShadow = false
         self.ignoresMouseEvents = true
+        self.appearance = nil // Inherit system appearance for correct theme
         self.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
 
         let size = NSSize(width: 600, height: 600)
@@ -223,6 +224,7 @@ class PinboardDragPreviewWindow: NSWindow {
         self.backgroundColor = .clear
         self.hasShadow = false
         self.ignoresMouseEvents = true
+        self.appearance = nil // Inherit system appearance for correct theme
         self.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
 
         let rootView = PinboardDragPreviewWindowContent(data: nil)

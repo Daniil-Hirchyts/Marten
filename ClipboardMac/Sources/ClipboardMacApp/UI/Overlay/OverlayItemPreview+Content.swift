@@ -42,9 +42,10 @@ extension OverlayItemPreview {
                 path: urlPath,
                 isCompact: false
             )
-            .aspectRatio(1.91, contentMode: .fit)
             .frame(maxWidth: .infinity)
+            .frame(height: 160)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .allowsHitTesting(false)
             .task {
                 await fetchURLBannerIfNeeded()
             }
@@ -265,7 +266,8 @@ extension OverlayItemPreview {
                                 sign: pinboard.iconName,
                                 size: 14,
                                 isAssigned: isAssigned,
-                                isLocked: isLocked
+                                isLocked: isLocked,
+                                colorScheme: colorScheme
                             ))
                         }
                     }
@@ -274,8 +276,10 @@ extension OverlayItemPreview {
 
             Divider()
 
-            Button("New Pinboard...") {
+            Button {
                 onCreatePinboard(item)
+            } label: {
+                Label("New Pinboard...", systemImage: "plus")
             }
         } label: {
             PinboardMenuLabel(

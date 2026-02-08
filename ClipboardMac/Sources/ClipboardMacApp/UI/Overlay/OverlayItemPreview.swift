@@ -25,6 +25,7 @@ struct OverlayItemPreview: View {
     @State var cachedProps: CachedItemProperties?
     @State var rotationAngle: Angle = .zero
     @State var styledRichTextPreview: AttributedString?
+    @Environment(\.colorScheme) var colorScheme
 
     var cached: CachedItemProperties {
         cachedProps ?? CachedItemProperties(item: item)
@@ -33,8 +34,10 @@ struct OverlayItemPreview: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             topBar
+                .zIndex(1)
             previewContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .zIndex(0)
         }
         .padding(16)
         .onAppear {

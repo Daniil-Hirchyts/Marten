@@ -21,6 +21,8 @@ struct CardContextMenu: View {
     let onRename: (ClipItem) -> Void
     let onDelete: (ClipItem) -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     private var identifierPrefix: String {
         "overlay.itemMenu.\(itemID.uuidString)"
     }
@@ -82,7 +84,8 @@ struct CardContextMenu: View {
                             sign: pinboard.iconName,
                             size: 16,
                             isAssigned: isAssigned,
-                            isLocked: isLocked
+                            isLocked: isLocked,
+                            colorScheme: colorScheme
                         ))
                     }
                 }

@@ -27,6 +27,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.start()
     }
 
+    @MainActor
+    func applicationDidBecomeActive(_ notification: Notification) {
+        services.syncCoordinator?.handleAppDidBecomeActive()
+    }
+
+    @MainActor
+    func applicationWillResignActive(_ notification: Notification) {
+        services.syncCoordinator?.handleAppWillResignActive()
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         // Prevent clicking the dock icon from re-showing the settings window.
         true

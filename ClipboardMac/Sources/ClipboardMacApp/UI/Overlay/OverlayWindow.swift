@@ -111,6 +111,16 @@ final class OverlayWindowController {
                 self.handleScreenParametersChange()
             }
             .store(in: &cancellables)
+
+        DistributedNotificationCenter.default().publisher(
+            for: Notification.Name("AppleInterfaceThemeChangedNotification")
+        )
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.handleAppearanceChange()
+            }
+            .store(in: &cancellables)
     }
 
     func toggle() {
@@ -135,6 +145,7 @@ final class OverlayWindowController {
 
         panel.setFrame(startFrame, display: true)
         panel.alphaValue = 0
+        panel.appearance = nil // Inherit current system appearance
 
         panel.orderFrontRegardless()
         panel.makeKey()
@@ -213,6 +224,11 @@ final class OverlayWindowController {
     private func handleScreenParametersChange() {
         guard isVisible else { return }
         updateVisibleFrame(animated: true)
+    }
+
+    private func handleAppearanceChange() {
+        panel.appearance = nil
+        panel.contentView?.needsDisplay = true
     }
 
     private func preferredScreen() -> NSScreen? {

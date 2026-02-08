@@ -41,99 +41,108 @@ struct ItemCard: View {
     @State var lastLoadedURLBannerPath: String?
     @State var lastFetchedURLBannerURLString: String?
     @State var styledPreviewText: AttributedString?
+    @State var lastKnownModifiedAt: Date = Date()
     @FocusState var isFocused: Bool
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(spacing: 0) {
-                headerView
-                VStack(alignment: .leading, spacing: isCompactSize ? 8 : 10) {
-                    contentPreviewView
-                    Spacer(minLength: 0)
-                    footerView
-                }
-                .padding(.horizontal, cardPadding)
-                .padding(.bottom, cardPadding)
-                .padding(.top, isCompactSize ? 8 : 10)
-            }
-            .frame(width: cardSize, height: cardSize, alignment: .topLeading)
-            .background(cardBackground)
-            .clipShape(cardShape)
-            .shadow(
-                color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.12),
-                radius: isSelected ? 6 : 4,
-                x: 0,
-                y: isSelected ? 3 : 2
-            )
-            .overlay(selectionBorder)
-            .contentShape(cardShape)
-
-        }
-        .onTapGesture {
-            let now = Date()
-            if let lastTime = lastTapTime, now.timeIntervalSince(lastTime) < 0.3 {
-                onDoubleTap(item)
-                lastTapTime = nil
+        Group {
+            if item.isDeleted || item.managedObjectContext == nil {
+                EmptyView()
             } else {
-                onTap(item)
-                lastTapTime = now
-            }
-        }
-        .onAppear {
-            cachedProps = CachedItemProperties(item: item)
-            appColorLoader.load(bundleID: item.sourceAppBundleID)
-            refreshPreviewAssets()
-            refreshStyledPreviewText()
-        }
-        .onChange(of: contentSignature) { oldValue, newValue in
-            if item.isDeleted || item.managedObjectContext == nil { return }
+                ZStack(alignment: .topTrailing) {
+                    VStack(spacing: 0) {
+                        headerView
+                        VStack(alignment: .leading, spacing: isCompactSize ? 8 : 10) {
+                            contentPreviewView
+                            Spacer(minLength: 0)
+                            footerView
+                        }
+                        .padding(.horizontal, cardPadding)
+                        .padding(.bottom, cardPadding)
+                        .padding(.top, isCompactSize ? 8 : 10)
+                    }
+                    .frame(width: cardSize, height: cardSize, alignment: .topLeading)
+                    .background(cardBackground)
+                    .clipShape(cardShape)
+                    .shadow(
+                        color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.12),
+                        radius: isSelected ? 6 : 4,
+                        x: 0,
+                        y: isSelected ? 3 : 2
+                    )
+                    .overlay(selectionBorder)
+                    .contentShape(cardShape)
 
-            if let currentPinboardID = selectedPinboardID {
-                let isInCurrent = item.pinboards?.contains { $0.id == currentPinboardID } ?? false
-                if !isInCurrent { return }
-            }
+                }
+                .onTapGesture {
+                    let now = Date()
+                    if let lastTime = lastTapTime, now.timeIntervalSince(lastTime) < 0.3 {
+                        onDoubleTap(item)
+                        lastTapTime = nil
+                    } else {
+                        onTap(item)
+                        lastTapTime = now
+                    }
+                }
+                .onAppear {
+                    cachedProps = CachedItemProperties(item: item)
+                    appColorLoader.load(bundleID: item.sourceAppBundleID)
+                    lastKnownModifiedAt = item.modifiedAt
+                    refreshPreviewAssets()
+                    refreshStyledPreviewText()
+                }
+                .onChange(of: contentSignature) { oldValue, newValue in
+                    if item.isDeleted || item.managedObjectContext == nil { return }
 
-            cachedProps = CachedItemProperties(item: item)
+                    if let currentPinboardID = selectedPinboardID {
+                        let isInCurrent = item.pinboards?.contains { $0.id == currentPinboardID } ?? false
+                        if !isInCurrent { return }
+                    }
 
-            if oldValue.sourceAppBundleID != newValue.sourceAppBundleID {
-                appColorLoader.load(bundleID: newValue.sourceAppBundleID)
-            }
+                    cachedProps = CachedItemProperties(item: item)
+                    lastKnownModifiedAt = newValue.modifiedAt
 
-            if oldValue.primaryText != newValue.primaryText {
-                resetURLBannerState()
-            }
+                    if oldValue.sourceAppBundleID != newValue.sourceAppBundleID {
+                        appColorLoader.load(bundleID: newValue.sourceAppBundleID)
+                    }
 
-            if oldValue.thumbnailPath != newValue.thumbnailPath {
-                refreshThumbnailImage()
-            }
+                    if oldValue.primaryText != newValue.primaryText {
+                        resetURLBannerState()
+                    }
 
-            if oldValue.linkPreviewImagePath != newValue.linkPreviewImagePath
-                || oldValue.primaryText != newValue.primaryText
-            {
-                refreshURLBannerImage()
-            }
+                    if oldValue.thumbnailPath != newValue.thumbnailPath {
+                        refreshThumbnailImage()
+                    }
 
-            if oldValue.modifiedAt != newValue.modifiedAt || oldValue.itemType != newValue.itemType {
-                refreshPreviewAssets()
-            }
+                    if oldValue.linkPreviewImagePath != newValue.linkPreviewImagePath
+                        || oldValue.primaryText != newValue.primaryText
+                    {
+                        refreshURLBannerImage()
+                    }
 
-            if oldValue.primaryText != newValue.primaryText
-                || oldValue.customTitle != newValue.customTitle
-                || oldValue.modifiedAt != newValue.modifiedAt
-                || oldValue.itemType != newValue.itemType
-            {
-                refreshStyledPreviewText()
+                    if oldValue.modifiedAt != newValue.modifiedAt || oldValue.itemType != newValue.itemType {
+                        refreshPreviewAssets()
+                    }
+
+                    if oldValue.primaryText != newValue.primaryText
+                        || oldValue.customTitle != newValue.customTitle
+                        || oldValue.modifiedAt != newValue.modifiedAt
+                        || oldValue.itemType != newValue.itemType
+                    {
+                        refreshStyledPreviewText()
+                    }
+                }
+                .accessibilityElement(children: isEditing ? .contain : .ignore)
+                .accessibilityIdentifier("overlay.itemCard.\(item.id.uuidString)")
+                .accessibilityLabel(accessibilityLabelText)
+                .accessibilityValue(accessibilityValueText)
+                .accessibilityHint(accessibilityHintText)
+                .accessibilityAddTraits(.isButton)
+                .contextMenu {
+                    contextMenuContent
+                }
             }
-        }
-        .accessibilityElement(children: isEditing ? .contain : .ignore)
-        .accessibilityIdentifier("overlay.itemCard.\(item.id.uuidString)")
-        .accessibilityLabel(accessibilityLabelText)
-        .accessibilityValue(accessibilityValueText)
-        .accessibilityHint(accessibilityHintText)
-        .accessibilityAddTraits(.isButton)
-        .contextMenu {
-            contextMenuContent
         }
     }
 

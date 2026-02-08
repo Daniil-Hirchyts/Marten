@@ -366,14 +366,25 @@ extension ItemCard {
                 }
                 .frame(maxWidth: .infinity)
             } else if item.itemTypeValue == .url {
-                URLBannerPreview(
-                    image: urlBannerImage,
-                    host: urlHost,
-                    path: urlPath,
-                    isCompact: isCompactSize
-                )
-                .aspectRatio(1.91, contentMode: .fit)
-                .frame(width: cardSize - (cardPadding * 2))
+                VStack(alignment: .leading, spacing: isCompactSize ? 5 : 6) {
+                    URLBannerPreview(
+                        image: urlBannerImage,
+                        host: urlHost,
+                        path: urlPath,
+                        isCompact: isCompactSize
+                    )
+                    .frame(maxWidth: .infinity)
+                    .frame(height: urlBannerHeight)
+                    .clipped()
+
+                    Text(urlDisplayText)
+                        .font(.system(size: isCompactSize ? 9 : 10, weight: .medium))
+                        .foregroundStyle(secondaryTextColor)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .task(id: urlBannerTaskID) {
                     await fetchURLBannerIfNeeded()
                 }
@@ -434,6 +445,24 @@ extension ItemCard {
                 }
             }
         }
+    }
+
+    var urlBannerHeight: CGFloat {
+        let preferredHeight: CGFloat = isCompactSize ? 82 : 112
+        let contentTopPadding: CGFloat = isCompactSize ? 8 : 10
+        let contentSpacing: CGFloat = isCompactSize ? 8 : 10
+        let footerReserve: CGFloat = 18
+        let urlTextReserve: CGFloat = isCompactSize ? 16 : 18
+        let availableHeight =
+            cardSize
+            - headerMinHeight
+            - cardPadding
+            - contentTopPadding
+            - contentSpacing
+            - footerReserve
+            - urlTextReserve
+
+        return max(32, min(preferredHeight, max(0, availableHeight)))
     }
 
     var textDetailStack: some View {

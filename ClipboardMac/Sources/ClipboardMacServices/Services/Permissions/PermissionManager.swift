@@ -38,6 +38,14 @@ public final class PermissionManager: ObservableObject {
         return granted
     }
 
+    public func requestInputMonitoring() {
+        _ = checkInputMonitoring(prompt: true)
+
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     @discardableResult
     public func checkScreenRecording(prompt: Bool = false) -> Bool {
         let granted = prompt ? CGRequestScreenCaptureAccess() : CGPreflightScreenCaptureAccess()
