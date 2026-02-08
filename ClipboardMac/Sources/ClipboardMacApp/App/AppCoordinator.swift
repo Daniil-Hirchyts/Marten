@@ -58,6 +58,7 @@ public final class AppCoordinator: SettingsOpening {
                 "hideMenuBarIcon": false,
                 AppSettingsKeys.showDockIconForSettingsWindow: false,
                 AppSettingsKeys.hasSeededStarterContent: false,
+                AppSettingsKeys.starterContentSeedInProgress: false,
                 OCRSettingsKeys.defaultMode: OCRCaptureMode.staticSnapshot.rawValue,
                 OCRSettingsKeys.preferredLanguage: "",
                 OverlayLayoutSettings.Keys.overlayScreenEdge: OverlayLayoutSettings.defaultEdge.rawValue,

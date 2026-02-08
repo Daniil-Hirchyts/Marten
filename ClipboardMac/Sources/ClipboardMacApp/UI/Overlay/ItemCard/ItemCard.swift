@@ -41,6 +41,8 @@ struct ItemCard: View {
     @State var lastLoadedURLBannerPath: String?
     @State var lastFetchedURLBannerURLString: String?
     @State var styledPreviewText: AttributedString?
+    @State var originalImageResolution: String?
+    @State var imageResolutionRequestID: UUID = UUID()
     @State var lastKnownModifiedAt: Date = Date()
     @FocusState var isFocused: Bool
     @Environment(\.colorScheme) var colorScheme
@@ -113,6 +115,7 @@ struct ItemCard: View {
 
                     if oldValue.thumbnailPath != newValue.thumbnailPath {
                         refreshThumbnailImage()
+                        refreshImageResolution()
                     }
 
                     if oldValue.linkPreviewImagePath != newValue.linkPreviewImagePath

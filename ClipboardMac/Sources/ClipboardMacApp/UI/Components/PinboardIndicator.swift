@@ -50,6 +50,10 @@ struct PinboardIndicator: View {
         isAssigned ? 1.0 : 0.26
     }
 
+    private var signContainerSize: CGFloat {
+        max(6, size * 0.72)
+    }
+
     var body: some View {
         ZStack {
             Circle()
@@ -76,14 +80,23 @@ struct PinboardIndicator: View {
                 .foregroundStyle(signColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
+                .frame(width: signContainerSize, height: signContainerSize, alignment: .center)
+                .offset(y: size * 0.015)
                 .shadow(color: signShadowColor, radius: signShadowRadius, x: 0, y: 0.45)
         case .text(let token):
             Text(token)
                 .font(.system(size: size * 0.56))
+                .foregroundStyle(signColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.4)
+                .frame(width: signContainerSize, height: signContainerSize, alignment: .center)
+                .offset(y: textSignVerticalOffset(for: token))
                 .shadow(color: signShadowColor, radius: signShadowRadius, x: 0, y: 0.45)
         }
+    }
+
+    private func textSignVerticalOffset(for token: String) -> CGFloat {
+        token.containsEmojiGlyph ? size * 0.035 : size * 0.015
     }
 
     private var isDarkBackground: Bool {
@@ -91,5 +104,14 @@ struct PinboardIndicator: View {
         let luminance = (0.2126 * color.redComponent) + (0.7152 * color.greenComponent)
             + (0.0722 * color.blueComponent)
         return luminance < 0.56
+    }
+}
+
+private extension String {
+    var containsEmojiGlyph: Bool {
+        unicodeScalars.contains { scalar in
+            scalar.properties.isEmojiPresentation
+                || (scalar.properties.isEmoji && scalar.value > 0x238C)
+        }
     }
 }

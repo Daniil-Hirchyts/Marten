@@ -1,6 +1,62 @@
 import ClipboardCore
 import SwiftUI
 
+// MARK: - Animated Backdrop
+
+private struct SettingsAnimatedBackdrop: View {
+    @State private var animate = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var gradientColors: [Color] {
+        if colorScheme == .dark {
+            return [
+                Color(red: 0.08, green: 0.10, blue: 0.16),
+                Color(red: 0.12, green: 0.14, blue: 0.24),
+                Color(red: 0.05, green: 0.08, blue: 0.14),
+            ]
+        } else {
+            return [
+                Color(red: 0.85, green: 0.90, blue: 0.95),
+                Color(red: 0.80, green: 0.88, blue: 0.93),
+                Color(red: 0.86, green: 0.86, blue: 0.93),
+            ]
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: gradientColors,
+                startPoint: animate ? .topLeading : .bottomLeading,
+                endPoint: animate ? .bottomTrailing : .topTrailing
+            )
+
+            Circle()
+                .fill(Color.cyan.opacity(colorScheme == .dark ? 0.08 : 0.12))
+                .frame(width: 320, height: 320)
+                .blur(radius: 52)
+                .offset(
+                    x: animate ? -220 : 120,
+                    y: animate ? -140 : 110
+                )
+
+            Circle()
+                .fill(Color.blue.opacity(colorScheme == .dark ? 0.1 : 0.1))
+                .frame(width: 280, height: 280)
+                .blur(radius: 48)
+                .offset(
+                    x: animate ? 180 : -200,
+                    y: animate ? 150 : -120
+                )
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 12).repeatForever(autoreverses: true)) {
+                animate = true
+            }
+        }
+    }
+}
+
 // MARK: - Settings Tab Enum
 
 enum SettingsTab: String, CaseIterable, Identifiable {
@@ -59,11 +115,19 @@ struct SettingsView: View {
         NavigationSplitView {
             List(selection: $selectedTab) {
                 ForEach(SettingsTab.allCases) { tab in
-                    Label(tab.title, systemImage: tab.icon)
-                        .tag(tab)
+                    Label {
+                        Text(tab.title)
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                    } icon: {
+                        Image(systemName: tab.icon)
+                    }
+                    .tag(tab)
+
                 }
             }
             .listStyle(.sidebar)
+            .background(.regularMaterial)
+            .scrollContentBackground(.hidden)
         } detail: {
             ScrollView {
                 Group {
@@ -84,15 +148,17 @@ struct SettingsView: View {
                         SubscriptionSettingsContent()
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 20)
-                .background(ScrollViewAppearanceConfigurator())
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 32)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(SettingsAnimatedBackdrop().ignoresSafeArea())
             .navigationTitle(currentTab.title)
+            .background(ScrollViewAppearanceConfigurator())
+
         }
-        .frame(maxWidth: 720, maxHeight: 520)
+        .frame(maxWidth: 800, maxHeight: 600)
     }
 
     private var currentTab: SettingsTab {
@@ -115,25 +181,16 @@ struct SettingsCard<Content: View>: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(backgroundColor)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(.regularMaterial)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(.white.opacity(0.16), lineWidth: 1)
             )
-    }
-
-    private var backgroundColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.05)
-    }
-
-    private var borderColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.1)
+            .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
     }
 }
-
-
 
 // MARK: - Settings Section Header
 
@@ -147,18 +204,19 @@ struct SettingsSectionHeader: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             if let icon {
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.blue)
             }
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
         }
-        .padding(.bottom, 8)
+        .padding(.leading, 4)
+        .padding(.bottom, 6)
+        .padding(.top, 8)
     }
 }
 
@@ -222,22 +280,28 @@ struct SettingsToggleRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Toggle(isOn: $isOn) {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 13, weight: .medium))
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .accessibilityIdentifier(identifier)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundStyle(.primary)
 
-            if let description {
-                Text(description)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 2)
+                if let description {
+                    Text(description)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+
+            Spacer()
+
+            Toggle("", isOn: $isOn)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .accessibilityIdentifier(identifier)
         }
+        .padding(.vertical, 4)
     }
 }
 

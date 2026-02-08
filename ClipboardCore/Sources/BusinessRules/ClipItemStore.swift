@@ -94,6 +94,18 @@ public final class ClipItemStore {
         try repository.fetchRecentItems(limit: limit)
     }
 
+    public func fetchItems(
+        primaryText: String,
+        itemType: ItemType,
+        limit: Int = 50
+    ) throws -> [ClipItem] {
+        try repository.fetchItems(
+            primaryText: primaryText,
+            itemType: itemType,
+            limit: limit
+        )
+    }
+
     @discardableResult
     public func cleanupExpiredItems(policy: RetentionPolicy, now: Date = Date()) throws -> Int {
         try retentionService.cleanupExpiredItems(policy: policy, now: now)

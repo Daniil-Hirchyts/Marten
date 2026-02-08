@@ -1,10 +1,10 @@
 # Paste - Development Best Practices
 
-**Last Updated:** 2026-02-04  
+**Last Updated:** 2026-02-09  
 **Audience:** All contributors  
 **Status:** Active guidelines
 
-These standards reflect the current post-refactor architecture (`ClipboardCore` + `ClipboardMacServices` + `ClipboardMacApp`) and the privacy requirements of a clipboard manager.
+These standards reflect the beta-ready architecture (`ClipboardCore` + `ClipboardMacServices` + `ClipboardMacApp`) and privacy requirements for a clipboard manager.
 
 ---
 
@@ -43,15 +43,11 @@ Logger.pasteboard.info("Captured item (type=\(itemType.rawValue, privacy: .publi
 - Request permissions only when the feature is needed.
 - Provide graceful degraded behavior when denied.
 
-### 1.4 Sensitive Content Filtering Rules
+### 1.4 Screen Sharing Protection
 
-Capture filtering is split into dedicated components and should stay that way:
-
-- `PasteboardRepresentationExtractor` - extraction only
-- `ClipboardContentFilter` - transient/confidential filtering policy
-- `ItemTypeClassifier` - classification only
-
-Do not collapse these responsibilities into a single monolith.
+- Keep screen-sharing behavior centralized in `AppCoordinator` + `ScreenSharingManager`.
+- When screen-sharing mode is active, window capture policy must be applied consistently for newly visible windows.
+- Never apply ad-hoc per-view hiding logic that bypasses central policy.
 
 ---
 
@@ -66,13 +62,13 @@ Current module layering is strict:
 3. **ClipboardMacApp** - lifecycle orchestration and UI composition
 
 Rules:
-- `ClipboardCore` and `ClipboardMacServices` must remain SwiftUI-free.
+- `ClipboardCore` and `ClipboardMacServices` remain SwiftUI-free.
 - App-level wiring belongs in `AppCoordinator` and `AppServiceContainer`.
-- UI code should depend on protocols/handlers, not deep concrete service construction.
+- UI code depends on protocols/handlers, not deep concrete service construction.
 
 ### 2.2 Lifecycle and Composition
 
-- Keep `AppDelegate` thin (forward lifecycle only).
+- Keep `AppDelegate` thin (lifecycle forwarding only).
 - Keep startup orchestration in `AppCoordinator`.
 - Keep service construction in `AppServiceContainer`.
 
@@ -103,7 +99,7 @@ struct ExampleView {
 }
 ```
 
-Avoid constructing heavyweight services directly in views when wiring can happen in the composition root.
+Avoid constructing heavyweight services in views when wiring can happen in the composition root.
 
 ### 2.4 Overlay Dependency Pattern
 
@@ -114,30 +110,39 @@ Use `OverlayDependencies` to pass operational collaborators into overlay UI:
 - `any PinboardManaging`
 - `OverlayPreviewCoordinator`
 - `any AppleIntelligenceTextServicing`
-
-This keeps `OverlayShellView` focused on UI state and interaction.
+- `ScreenSharingManager`
+- `PasteboardMonitor`
 
 ### 2.5 Event Bus Injection Safety
 
 `clipboardEventBroadcaster` uses a sentinel default (`MissingClipboardEventBroadcaster`) that asserts when not injected.
 
-Rule: always inject `.environment(\.clipboardEventBroadcaster, services.eventBroadcaster)` at the root where overlay/content trees are built.
+Rule: always inject `.environment(\.clipboardEventBroadcaster, services.eventBroadcaster)` at the app root for overlay/content trees.
 
-### 2.6 SOLID in Practice
+### 2.6 First-Launch Seeding Rules
 
-- **SRP:** keep extraction, filtering, classification, orchestration, and rendering as separate units.
+Starter content seeding must be:
+- **Idempotent** (safe on repeated app starts)
+- **Atomic** (avoid partial pinboard/item states)
+- **Explicitly tracked** with dedicated app settings keys
+
+Do not infer seeding completion purely from "any data exists" when failures can leave partial content.
+
+### 2.7 SOLID in Practice
+
+- **SRP:** keep extraction, filtering, classification, orchestration, and rendering separate.
 - **DIP:** prefer interfaces like `PasteEngineProtocol`, `ClipItemStoring`, `SyncCoordinating`.
 - **ISP:** favor narrow protocols (`CaptureSettingsProviding`, `PasteSettingsProviding`, etc.).
 - **OCP:** extend by adding extractor/classifier strategies, not rewriting central switch blocks.
 
-### 2.7 File Size and Decomposition
+### 2.8 File Size and Decomposition
 
 Target guidance (not hard limits):
 - Coordinators: < 350 lines
-- Services/repositories: < 600 lines
-- SwiftUI views: < 450 lines
+- Services/repositories: < 650 lines
+- SwiftUI views: < 500 lines
 
-When larger files are unavoidable, split by concern into focused extensions/files (current overlay shell pattern is the model).
+When larger files are unavoidable, split by concern into focused extensions/files.
 
 ---
 
@@ -145,17 +150,22 @@ When larger files are unavoidable, split by concern into focused extensions/file
 
 ### 3.1 Actor/MainActor Discipline
 
-- UI state owners should be `@MainActor` (`AppCoordinator`, view models, controllers with UI state).
+- UI state owners should be `@MainActor`.
 - Async pipelines should avoid unnecessary main-thread work.
-- Use detached work only for true background boundaries (for example, async link-preview fetches).
+- Use detached/background work only for clear boundaries (thumbnail loading, metadata extraction, link preview fetches).
 
-### 3.2 `Sendable` and `@unchecked Sendable`
+### 3.2 Async UI Asset Loading
 
-`@unchecked Sendable` is present in several types for pragmatic reasons.
+For async preview work (thumbnail/banner/resolution):
+- Track request generations or use cancellable tasks.
+- Guard UI assignment against stale completion ordering.
+- Keep file IO and metadata extraction off the main actor.
+
+### 3.3 `Sendable` and `@unchecked Sendable`
 
 Rules:
-- Add a safety comment explaining why unchecked conformance is valid.
-- Ensure mutable shared state is synchronized (lock/queue/actor confinement).
+- Every `@unchecked Sendable` conformance requires a safety rationale comment.
+- Mutable shared state must be synchronized (actor confinement, dedicated queues, or locks).
 - Prefer true `Sendable` designs for new components.
 
 ---
@@ -189,12 +199,19 @@ Before merging behavior changes:
 
 - Unit-test repositories/services with controlled persistence contexts.
 - Unit-test coordinators and handlers with injected fakes.
-- Use `ClipboardMacValidation` for non-UI validation and performance sanity checks.
+- Use `ClipboardMacValidation` for non-UI validation and performance checks.
 
 ### 5.3 Regression Rules
 
-- Bug fixes require a failing test or a clear reason a test cannot be added.
-- If behavior changed intentionally, update both tests and docs in the same PR.
+- Bug fixes require a failing test, or a clear explanation why a test cannot be added.
+- Behavior changes must update tests and docs in the same PR.
+
+### 5.4 Current Validation Baseline
+
+(2026-02-09)
+- `ClipboardCore`: 194 tests executed, 0 failures
+- `ClipboardMac`: 192 tests executed, 0 failures, 10 skipped
+- UI skipped tests are host-dependent suites in plain SwiftPM runs
 
 ---
 
@@ -206,6 +223,8 @@ Before merging behavior changes:
 - [ ] Dependencies injected through protocols/containers
 - [ ] UI lifecycle logic stays in `AppCoordinator`/coordinators
 - [ ] Capture extractor/filter/classifier responsibilities remain separated
+- [ ] First-launch seeding remains idempotent and atomic
+- [ ] Async preview updates are race-safe
 - [ ] Tests added/updated for behavior changes
 - [ ] Build/test commands pass locally
 - [ ] Docs updated when architectural behavior changes
@@ -214,6 +233,7 @@ Before merging behavior changes:
 
 ## 7. References
 
+- [`INDEX.md`](./INDEX.md)
 - [`CODEBASE.md`](./CODEBASE.md)
 - [`ARCHITECTURE-DECISIONS.md`](./ARCHITECTURE-DECISIONS.md)
 - [`SETUP.md`](./SETUP.md)
@@ -229,4 +249,4 @@ These practices are enforced via:
 3. Ongoing architecture documentation maintenance
 4. Release hardening passes
 
-**Next Review:** 2026-06-01 (quarterly)
+**Next Review:** 2026-06-15

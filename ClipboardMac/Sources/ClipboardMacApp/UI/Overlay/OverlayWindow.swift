@@ -11,6 +11,12 @@ final class OverlayWindowController {
         let token: NSObjectProtocol
     }
 
+    private enum AnimationConstants {
+        static let showDuration: TimeInterval = 0.2
+        static let showTimingFunction = CAMediaTimingFunction(controlPoints: 0.22, 1, 0.36, 1)
+        static let activationObserverStartDelay: TimeInterval = 0.02
+    }
+
     private let panel: NSPanel
     private var viewModel: OverlayViewModel?
     private var isVisible = false
@@ -153,15 +159,16 @@ final class OverlayWindowController {
         startOutsideClickMonitor()
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.14
-            // Snappy Ease-Out: Fast start, smooth but quick stop
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+            context.duration = AnimationConstants.showDuration
+            // Softer ease-out to avoid abrupt overlay entry.
+            context.timingFunction = AnimationConstants.showTimingFunction
             panel.animator().alphaValue = 1
             panel.animator().setFrame(targetFrame, display: true)
         } completionHandler: { [weak self] in
             guard let self else { return }
-            // Slightly reduced delay to match faster animation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + AnimationConstants.activationObserverStartDelay
+            ) {
                 self.startActivationObservers()
             }
         }

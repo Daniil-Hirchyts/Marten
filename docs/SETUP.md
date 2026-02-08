@@ -87,11 +87,20 @@ swift test
 UI tests in `ClipboardMac/Tests/ClipboardMacUITests` require an Xcode host runner.
 Use Xcode Test Navigator for UI suites.
 
-### Current Validation Snapshot (2026-02-04)
+### Current Validation Snapshot (2026-02-09)
 
-- `ClipboardCore`: 189 tests executed, 0 failures
-- `ClipboardMac`: 167 tests executed, 0 failures, 10 skipped
+- `ClipboardCore`: 194 tests executed, 0 failures
+- `ClipboardMac`: 192 tests executed, 0 failures, 10 skipped
 - Skipped tests are host-dependent UI tests in plain SwiftPM runs
+
+### Beta Smoke Commands
+
+```bash
+# Optional: force onboarding flow for smoke validation
+swift run ClipboardMac -- -resetOnboarding
+```
+
+Use this only when validating onboarding and first-launch UX flows.
 
 ---
 
@@ -155,4 +164,4 @@ For detailed paths and ownership:
 
 ---
 
-**Last Updated:** 2026-02-04
+**Last Updated:** 2026-02-09

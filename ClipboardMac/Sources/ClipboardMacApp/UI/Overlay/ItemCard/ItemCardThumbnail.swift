@@ -1,5 +1,6 @@
 import AppKit
 import ClipboardCore
+import ImageIO
 import LinkPresentation
 import SwiftUI
 
@@ -36,10 +37,8 @@ extension ItemCard {
     }
 
     var imageResolution: String? {
-        guard item.itemTypeValue == .image, let image = thumbnailImage else { return nil }
-        let width = Int(image.size.width)
-        let height = Int(image.size.height)
-        return "\(width)×\(height)"
+        guard item.itemTypeValue == .image else { return nil }
+        return originalImageResolution
     }
 
     func shortenFileName(_ name: String, maxLength: Int) -> String {
@@ -101,6 +100,7 @@ extension ItemCard {
 
     func refreshPreviewAssets() {
         refreshThumbnailImage()
+        refreshImageResolution()
         refreshFileIcon()
         refreshURLBannerImage()
     }
@@ -222,6 +222,46 @@ extension ItemCard {
                     return
                 }
                 continuation.resume(returning: image)
+            }
+        }
+    }
+
+    func refreshImageResolution() {
+        let requestID = UUID()
+        imageResolutionRequestID = requestID
+
+        guard item.itemTypeValue == .image else {
+            originalImageResolution = nil
+            return
+        }
+
+        let previewItemID = item.objectID
+        let snapshots = (item.representations ?? []).sorted {
+            $0.displayOrder < $1.displayOrder
+        }.map {
+            ImageResolutionResolver.Source(
+                kind: $0.kindValue,
+                binaryData: $0.binaryData,
+                assetRef: $0.assetRef,
+                fileExtension: $0.fileExtension,
+                textData: $0.textData
+            )
+        }
+        let thumbnailPath = item.thumbnailPath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedThumbnailPath: String? = {
+            guard let thumbnailPath, !thumbnailPath.isEmpty else { return nil }
+            return thumbnailPath
+        }()
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let resolution = ImageResolutionResolver.resolve(
+                from: snapshots,
+                thumbnailPath: normalizedThumbnailPath
+            )
+            DispatchQueue.main.async {
+                guard item.objectID == previewItemID else { return }
+                guard imageResolutionRequestID == requestID else { return }
+                originalImageResolution = resolution
             }
         }
     }
@@ -360,5 +400,123 @@ extension ItemCard {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return trimmed
+    }
+}
+
+struct ImageResolutionResolver {
+    struct Source {
+        let kind: RepresentationKind
+        let binaryData: Data?
+        let assetRef: UUID?
+        let fileExtension: String?
+        let textData: Data?
+    }
+
+    static func resolve(from sources: [Source], thumbnailPath: String?) -> String? {
+        let imageKinds: Set<RepresentationKind> = [.png, .jpeg, .tiff, .pdf]
+
+        for source in sources where imageKinds.contains(source.kind) {
+            if let data = source.binaryData, let resolution = resolution(from: data) {
+                return resolution
+            }
+
+            if let assetRef = source.assetRef {
+                let path = AssetStore.shared.urlForAsset(
+                    assetRef,
+                    fileExtension: source.fileExtension
+                ).path
+                if let resolution = resolution(fromFileAtPath: path) {
+                    return resolution
+                }
+            }
+        }
+
+        if let fileURLSource = sources.first(where: { $0.kind == .fileURL }),
+            let data = fileURLSource.textData,
+            let path = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            !path.isEmpty,
+            let resolution = resolution(fromFileAtPath: path)
+        {
+            return resolution
+        }
+
+        if let thumbnailPath, let resolution = resolution(fromFileAtPath: thumbnailPath) {
+            return resolution
+        }
+
+        return nil
+    }
+
+    private static func resolution(from data: Data) -> String? {
+        if
+            let source = CGImageSourceCreateWithData(data as CFData, nil),
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let resolution = resolution(from: properties)
+        {
+            return resolution
+        }
+
+        guard let image = NSImage(data: data) else { return nil }
+        return resolution(from: image)
+    }
+
+    private static func resolution(fromFileAtPath path: String) -> String? {
+        let url = URL(fileURLWithPath: path)
+
+        if
+            let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let resolution = resolution(from: properties)
+        {
+            return resolution
+        }
+
+        guard let image = NSImage(contentsOfFile: path) else { return nil }
+        return resolution(from: image)
+    }
+
+    private static func resolution(from properties: [CFString: Any]) -> String? {
+        guard
+            let width = intValue(from: properties[kCGImagePropertyPixelWidth]),
+            let height = intValue(from: properties[kCGImagePropertyPixelHeight]),
+            width > 0,
+            height > 0
+        else {
+            return nil
+        }
+
+        return "\(width)×\(height)"
+    }
+
+    private static func resolution(from image: NSImage) -> String? {
+        let bitmapRepresentations = image.representations.compactMap { $0 as? NSBitmapImageRep }
+        if
+            let bestRepresentation = bitmapRepresentations.max(by: {
+                ($0.pixelsWide * $0.pixelsHigh) < ($1.pixelsWide * $1.pixelsHigh)
+            }),
+            bestRepresentation.pixelsWide > 0,
+            bestRepresentation.pixelsHigh > 0
+        {
+            return "\(bestRepresentation.pixelsWide)×\(bestRepresentation.pixelsHigh)"
+        }
+
+        let width = Int(image.size.width.rounded())
+        let height = Int(image.size.height.rounded())
+        guard width > 0, height > 0 else { return nil }
+        return "\(width)×\(height)"
+    }
+
+    private static func intValue(from value: Any?) -> Int? {
+        switch value {
+        case let number as NSNumber:
+            return number.intValue
+        case let int as Int:
+            return int
+        case let double as Double:
+            return Int(double)
+        default:
+            return nil
+        }
     }
 }

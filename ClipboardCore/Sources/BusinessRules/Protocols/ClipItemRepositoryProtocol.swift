@@ -10,6 +10,11 @@ public protocol ClipItemRepositoryProtocol: Sendable {
 
     func deleteAllItems() throws
     func fetchRecentItems(limit: Int) throws -> [ClipItem]
+    func fetchItems(
+        primaryText: String,
+        itemType: ItemType,
+        limit: Int
+    ) throws -> [ClipItem]
 
     @discardableResult
     func updateTextItem(objectID: NSManagedObjectID, newText: String) throws -> ClipItem

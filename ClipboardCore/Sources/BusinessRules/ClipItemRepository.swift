@@ -265,6 +265,34 @@ final class ClipItemRepository {
         return results
     }
 
+    func fetchItems(
+        primaryText: String,
+        itemType: ItemType,
+        limit: Int = 50
+    ) throws -> [ClipItem] {
+        let context = persistence.viewContext
+        var results: [ClipItem] = []
+
+        try context.performAndWaitThrowing {
+            let request = ClipItem.fetchRequest()
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "isTransient == NO"),
+                NSPredicate(format: "itemType == %d", itemType.rawValue),
+                NSPredicate(format: "primaryText == %@", primaryText),
+            ])
+            request.sortDescriptors = [
+                NSSortDescriptor(key: "displayOrder", ascending: false),
+                NSSortDescriptor(key: "createdAt", ascending: false),
+            ]
+            request.fetchLimit = max(1, limit)
+            request.returnsObjectsAsFaults = false
+            request.relationshipKeyPathsForPrefetching = ["pinboards"]
+            results = try context.fetch(request)
+        }
+
+        return results
+    }
+
     @discardableResult
     func updateTextItem(objectID: NSManagedObjectID, newText: String) throws -> ClipItem {
         let trimmedText = String(newText.prefix(10_000))

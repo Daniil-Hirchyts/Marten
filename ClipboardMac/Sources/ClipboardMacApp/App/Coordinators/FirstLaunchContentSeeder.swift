@@ -5,6 +5,8 @@ import OSLog
 
 @MainActor
 final class FirstLaunchContentSeeder {
+    private static let onboardingCompletedKey = "hasCompletedOnboarding"
+
     private let clipItemStore: ClipItemStore
     private let userDefaults: UserDefaults
 
@@ -16,22 +18,31 @@ final class FirstLaunchContentSeeder {
     func seedIfNeeded() {
         guard !userDefaults.bool(forKey: AppSettingsKeys.hasSeededStarterContent) else { return }
 
-        if userDefaults.bool(forKey: "hasCompletedOnboarding") {
-            userDefaults.set(true, forKey: AppSettingsKeys.hasSeededStarterContent)
+        if userDefaults.bool(forKey: Self.onboardingCompletedKey) {
+            markSeedingCompleted()
             return
         }
 
+        let recoveringInterruptedSeed = userDefaults.bool(
+            forKey: AppSettingsKeys.starterContentSeedInProgress)
+
         do {
-            if try hasExistingUserData() {
-                userDefaults.set(true, forKey: AppSettingsKeys.hasSeededStarterContent)
+            if !recoveringInterruptedSeed, try hasExistingUserData() {
+                markSeedingCompleted()
                 return
             }
 
+            userDefaults.set(true, forKey: AppSettingsKeys.starterContentSeedInProgress)
             try seedStarterContent()
-            userDefaults.set(true, forKey: AppSettingsKeys.hasSeededStarterContent)
+            markSeedingCompleted()
         } catch {
             Logger.app.error("Failed to seed starter content: \(error.localizedDescription)")
         }
+    }
+
+    private func markSeedingCompleted() {
+        userDefaults.set(true, forKey: AppSettingsKeys.hasSeededStarterContent)
+        userDefaults.set(false, forKey: AppSettingsKeys.starterContentSeedInProgress)
     }
 
     private func hasExistingUserData() throws -> Bool {
@@ -44,35 +55,72 @@ final class FirstLaunchContentSeeder {
     }
 
     private func seedStarterContent() throws {
-        var itemAssignments: [(objectID: NSManagedObjectID, pinboardName: String)] = []
+        let starterPinboardNames = Set(Self.starterPinboards.map(\.name))
+        var pinboardByName: [String: Pinboard] = [:]
+
+        for pinboard in try clipItemStore.fetchPinboards()
+        where starterPinboardNames.contains(pinboard.name) {
+            pinboardByName[pinboard.name] = pinboard
+        }
 
         for starterPinboard in Self.starterPinboards {
+            let targetPinboard: Pinboard
+            if let existing = pinboardByName[starterPinboard.name] {
+                targetPinboard = existing
+            } else {
+                let created = try clipItemStore.createPinboard(
+                    name: starterPinboard.name,
+                    colorHex: starterPinboard.colorHex,
+                    iconName: starterPinboard.iconName
+                )
+                pinboardByName[starterPinboard.name] = created
+                targetPinboard = created
+            }
+
             for card in starterPinboard.cards {
-                let item = try card.makeItem(in: clipItemStore)
-                itemAssignments.append(
-                    (objectID: item.objectID, pinboardName: starterPinboard.name)
+                try ensureStarterCardExists(
+                    card,
+                    in: targetPinboard
                 )
             }
         }
+    }
 
-        var pinboardByName: [String: Pinboard] = [:]
-        for starterPinboard in Self.starterPinboards {
-            let pinboard = try clipItemStore.createPinboard(
-                name: starterPinboard.name,
-                colorHex: starterPinboard.colorHex,
-                iconName: starterPinboard.iconName
-            )
-            pinboardByName[starterPinboard.name] = pinboard
+    private func ensureStarterCardExists(_ card: StarterCard, in pinboard: Pinboard) throws {
+        let signature = card.signature
+
+        if pinboard.items?.contains(where: { Self.matches($0, to: signature) }) == true {
+            return
         }
 
-        for assignment in itemAssignments {
-            guard let pinboard = pinboardByName[assignment.pinboardName] else { continue }
-            try clipItemStore.moveItem(objectID: assignment.objectID, toPinboard: pinboard.objectID)
+        let reusableItem = try clipItemStore.fetchItems(
+            primaryText: signature.primaryText,
+            itemType: signature.itemType,
+            limit: 20
+        ).first(where: { candidate in
+            let customPinboards = candidate.pinboards?.filter { !$0.isSystemClipboard } ?? []
+            return customPinboards.isEmpty
+        })
+
+        let item = try reusableItem ?? card.makeItem(in: clipItemStore)
+
+        if item.pinboards?.contains(where: { $0.id == pinboard.id }) != true {
+            try clipItemStore.moveItem(objectID: item.objectID, toPinboard: pinboard.objectID)
         }
+    }
+
+    private static func matches(_ item: ClipItem, to signature: StarterCardSignature) -> Bool {
+        item.itemTypeValue == signature.itemType
+            && item.primaryText == signature.primaryText
     }
 }
 
 private extension FirstLaunchContentSeeder {
+    struct StarterCardSignature {
+        let itemType: ItemType
+        let primaryText: String
+    }
+
     struct StarterPinboard {
         let name: String
         let colorHex: String
@@ -84,6 +132,17 @@ private extension FirstLaunchContentSeeder {
         case text(String)
         case code(String)
         case url(String)
+
+        var signature: StarterCardSignature {
+            switch self {
+            case .text(let text):
+                StarterCardSignature(itemType: .text, primaryText: text)
+            case .code(let snippet):
+                StarterCardSignature(itemType: .code, primaryText: snippet)
+            case .url(let url):
+                StarterCardSignature(itemType: .url, primaryText: url)
+            }
+        }
 
         func makeItem(in store: ClipItemStore) throws -> ClipItem {
             switch self {

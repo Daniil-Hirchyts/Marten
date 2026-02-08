@@ -2,7 +2,7 @@
 
 **Project:** Paste Clipboard Manager  
 **Version:** 1.3.0  
-**Last Updated:** 2026-02-04
+**Last Updated:** 2026-02-09
 
 ---
 
@@ -471,7 +471,95 @@ with `PasteboardExtractor` as composition shell.
 
 ---
 
+## ADR-017: First-Launch Starter Content Seeding
+
+**Date:** 2026-02-08  
+**Status:** Accepted
+
+**Context:** New users need immediate orientation and realistic sample content without requiring manual setup.
+
+**Options Considered:**
+1. Empty first launch
+2. Starter content seeded on first launch
+3. Remote-config driven templates
+
+**Decision:** Seed local starter pinboards/cards on first launch, gated by app settings and existing-user checks.
+
+**Rationale:**
+- Reduces first-use friction and improves discoverability of pinboards/workflows.
+- Keeps data local and deterministic (no backend dependency).
+- Can be tested with coordinator-level tests.
+
+**Consequences:**
+- ✅ Better out-of-box onboarding experience.
+- ✅ No external service dependency.
+- ❌ Requires careful idempotence/partial-failure handling in seeding logic.
+
+**References:** `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/FirstLaunchContentSeeder.swift`, `ClipboardMac/Tests/ClipboardMacAppTests/FirstLaunchContentSeederTests.swift`
+
+---
+
+## ADR-018: Native Drag Pipeline for Item Cards
+
+**Date:** 2026-02-08  
+**Status:** Accepted
+
+**Context:** Drag interactions across pinboards/apps needed native behavior with visual fidelity and explicit control over drag lifecycle.
+
+**Options Considered:**
+1. SwiftUI-only drag/drop abstractions
+2. Dedicated native drag pipeline with AppKit-backed preview/source handling
+
+**Decision:** Use a dedicated native drag pipeline (`NativeDragSource`, `DragCoordinator`, `DragPreviewWindow`, drag types).
+
+**Rationale:**
+- Better control over preview rendering, hit-testing, and interaction timing.
+- Clear separation between overlay UI state and drag transport mechanics.
+- Easier to evolve drag capabilities without overloading item-card views.
+
+**Consequences:**
+- ✅ More predictable drag behavior and improved preview quality.
+- ✅ Better extensibility for advanced drag scenarios.
+- ❌ Added AppKit coordination complexity and more moving parts.
+
+**References:** `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/NativeDragSource.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/DragCoordinator.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/DragPreviewWindow.swift`
+
+---
+
+## ADR-019: Inbound Sync Timeout Guard
+
+**Date:** 2026-02-08  
+**Status:** Accepted
+
+**Context:** Long or stalled CloudKit fetches can block inbound sync completion and degrade reliability perception.
+
+**Options Considered:**
+1. Rely only on CloudKit operation-level timeouts
+2. Add engine-level timeout guard around fetch execution
+
+**Decision:** Add explicit engine-level timeout guard (`withFetchTimeout`) in `InboundSyncEngine`.
+
+**Rationale:**
+- Ensures inbound sync returns control in bounded time.
+- Provides deterministic failure mode for retry/status handling.
+- Simplifies testing of timeout behavior in sync unit tests.
+
+**Consequences:**
+- ✅ Improved operational resilience and diagnosability.
+- ✅ Better user-facing responsiveness in degraded network conditions.
+- ❌ Introduces additional timeout tuning responsibility.
+
+**References:** `ClipboardCore/Sources/Sync/InboundSyncEngine.swift`, `ClipboardCore/Tests/ClipboardCoreTests/InboundSyncEngineTests.swift`
+
+---
+
 ## Changelog
+
+**Beta Readiness Update** (2026-02-09)
+- Added ADR for first-launch starter content seeding.
+- Added ADR for native drag pipeline architecture.
+- Added ADR for inbound sync timeout guard.
+- Updated metadata and references for beta readiness documentation pass.
 
 **1.3.0** (2026-02-04)
 - Refreshed ADR metadata and references for post-refactor architecture.
@@ -485,4 +573,4 @@ with `PasteboardExtractor` as composition shell.
 ---
 
 **Maintained By:** Engineering Team  
-**Last Updated:** 2026-02-04
+**Last Updated:** 2026-02-09
