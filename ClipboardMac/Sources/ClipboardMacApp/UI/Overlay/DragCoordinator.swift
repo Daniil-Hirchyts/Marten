@@ -57,13 +57,13 @@ final class DragCoordinator: ObservableObject {
     }
 
     func cleanupPreviewWindow() {
-        dragPreviewWindow?.orderOut(nil)
+        dragPreviewWindow?.close()
         dragPreviewWindow = nil
         dragPreviewData = nil
     }
 
     func cleanupPinboardPreviewWindow() {
-        pinboardDragPreviewWindow?.orderOut(nil)
+        pinboardDragPreviewWindow?.close()
         pinboardDragPreviewWindow = nil
         pinboardDragPreviewData = nil
     }
@@ -77,7 +77,7 @@ final class DragCoordinator: ObservableObject {
             // Create a fresh preview window each time the drag starts (window not yet visible)
             // to avoid a flash of stale content from a previous drag.
             if dragPreviewWindow == nil || !dragPreviewWindow!.isVisible {
-                dragPreviewWindow?.orderOut(nil)
+                dragPreviewWindow?.close()
                 dragPreviewWindow = DragPreviewWindow()
             }
 

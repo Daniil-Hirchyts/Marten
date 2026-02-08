@@ -23,6 +23,7 @@ class DragPreviewWindow: NSWindow {
             defer: false
         )
 
+        self.isReleasedWhenClosed = false
         self.level = .popUpMenu + 1
         self.isOpaque = false
         self.backgroundColor = .clear
@@ -216,6 +217,7 @@ class PinboardDragPreviewWindow: NSWindow {
             defer: false
         )
 
+        self.isReleasedWhenClosed = false
         self.level = .popUpMenu + 1
         self.isOpaque = false
         self.backgroundColor = .clear

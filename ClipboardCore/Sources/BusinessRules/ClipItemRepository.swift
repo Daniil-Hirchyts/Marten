@@ -555,6 +555,13 @@ final class ClipItemRepository {
                 try context.save()
             }
         }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            if let item = try? viewContext.existingObject(with: objectID) as? ClipItem {
+                viewContext.refresh(item, mergeChanges: true)
+            }
+        }
     }
 
     func renameItem(objectID: NSManagedObjectID, title: String?) throws {
@@ -573,6 +580,13 @@ final class ClipItemRepository {
             item.modifiedAt = Date()
             if context.hasChanges {
                 try context.save()
+            }
+        }
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            if let item = try? viewContext.existingObject(with: objectID) as? ClipItem {
+                viewContext.refresh(item, mergeChanges: true)
             }
         }
     }

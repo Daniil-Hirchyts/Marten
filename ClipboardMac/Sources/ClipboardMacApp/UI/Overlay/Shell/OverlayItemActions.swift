@@ -96,18 +96,26 @@ extension OverlayShellView {
         let items = filteredItems.filter { itemIDs.contains($0.objectID) }
         guard !items.isEmpty else { return false }
 
+        let vm = viewModel
         let started = dragCoordinator.beginNativeDrag(
             from: window,
             items: items,
             plainText: modifierMonitor.isShiftPressed,
             onCompleted: {},
-            onEnded: {}
+            onEnded: {
+                // Close the overlay after the native drag session ends.
+                // We can't close it earlier because the NSDraggingSession
+                // requires its source view (the panel's contentView) to
+                // remain in a valid window hierarchy.
+                vm.closeOverlayForSettings {}
+            }
         )
 
         if started {
-            // Auto-hide the overlay when dragging a card outside so the user
-            // can focus on the target app's drop zone.
-            viewModel.closeOverlayForSettings {}
+            // Visually hide the overlay so the user can focus on the target
+            // app's drop zone, but keep the panel ordered-in so the dragging
+            // session's source view stays valid.
+            window?.alphaValue = 0
         }
 
         return started

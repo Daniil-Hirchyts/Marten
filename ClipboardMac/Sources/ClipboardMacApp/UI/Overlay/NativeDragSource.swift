@@ -35,7 +35,9 @@ final class NativeDragSource: NSObject, NSDraggingSource, @unchecked Sendable {
         endedAt screenPoint: NSPoint,
         operation: NSDragOperation
     ) {
-        MainActor.assumeIsolated {
+        // AppKit delivers this callback on the main thread, but use async
+        // dispatch to avoid crashing if the runtime isolation check fails.
+        DispatchQueue.main.async { [self] in
             if operation != [] {
                 onDragCompleted?()
             }

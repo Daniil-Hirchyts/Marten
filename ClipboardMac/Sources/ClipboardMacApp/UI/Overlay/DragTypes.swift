@@ -15,6 +15,19 @@ enum PinboardDropTarget: Equatable {
     case pinboard(NSManagedObjectID)
 }
 
+/// Compute a hash signature for a ClipItem's pinboard assignments.
+/// Used for SwiftUI change detection across card views.
+func pinboardSignature(for item: ClipItem) -> Int {
+    var hasher = Hasher()
+    for pinboard in (item.pinboards ?? []).sorted(by: { $0.sortOrder < $1.sortOrder }) {
+        hasher.combine(pinboard.objectID)
+        hasher.combine(pinboard.name)
+        hasher.combine(pinboard.colorHex)
+        hasher.combine(pinboard.iconName)
+    }
+    return hasher.finalize()
+}
+
 /// Capture a card region from the overlay window as an `NSImage`.
 /// The `cardRect` is in the overlay's SwiftUI coordinate space (top-left origin),
 /// which maps to the flipped NSHostingView's coordinate system.

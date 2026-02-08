@@ -20,7 +20,11 @@
       "Bash(swift -e:*)",
       "WebSearch",
       "Bash(swiftc:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(git stash:*)",
+      "Bash(git stash pop:*)",
+      "Bash(log show:*)",
+      "Bash(sort:*)"
     ]
   }
 }

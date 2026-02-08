@@ -174,7 +174,7 @@ private struct ContentSignature: Equatable {
     let sourceAppBundleID: String?
     let modifiedAt: Date
     let itemType: ItemType
-    let pinboardSignature: Int
+    let pinboardAssignmentSignature: Int
 
     init(item: ClipItem) {
         primaryText = item.primaryText
@@ -185,13 +185,6 @@ private struct ContentSignature: Equatable {
         modifiedAt = item.modifiedAt
         itemType = item.itemTypeValue
 
-        var hasher = Hasher()
-        for pinboard in (item.pinboards ?? []).sorted(by: { $0.sortOrder < $1.sortOrder }) {
-            hasher.combine(pinboard.objectID)
-            hasher.combine(pinboard.name)
-            hasher.combine(pinboard.colorHex)
-            hasher.combine(pinboard.iconName)
-        }
-        pinboardSignature = hasher.finalize()
+        pinboardAssignmentSignature = pinboardSignature(for: item)
     }
 }

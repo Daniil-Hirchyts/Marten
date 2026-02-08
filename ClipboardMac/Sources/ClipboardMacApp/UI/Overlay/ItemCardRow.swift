@@ -198,17 +198,6 @@ struct ItemCardRow: View {
         }
     }
 
-    static func pinboardSignature(for item: ClipItem) -> Int {
-        var hasher = Hasher()
-        for pinboard in (item.pinboards ?? []).sorted(by: { $0.sortOrder < $1.sortOrder }) {
-            hasher.combine(pinboard.objectID)
-            hasher.combine(pinboard.name)
-            hasher.combine(pinboard.colorHex)
-            hasher.combine(pinboard.iconName)
-        }
-        return hasher.finalize()
-    }
-
     private var itemsSignature: Int {
         var hasher = Hasher()
         hasher.combine(items.count)
@@ -269,7 +258,7 @@ struct ItemCardRow: View {
                 pinboards: pinboards,
                 lockedPinboardIDs: lockedPinboardIDs,
                 selectedPinboardID: selectedPinboardID,
-                itemPinboardSignature: Self.pinboardSignature(for: item),
+                itemPinboardSignature: pinboardSignature(for: item),
                 isSelected: selectedItemIDs.contains(item.objectID),
                 isEditing: editingItemID == item.objectID,
                 badgeIndex: badgeIndex(for: index),
@@ -470,15 +459,18 @@ struct ItemCardRow: View {
 
             // Start centering animation timer - updates non-reactive offset and preview window directly
             centeringTimer?.invalidate()
+            var iterationCount = 0
+            let maxIterations = 120 // Safety cap: ~2 seconds at 60 FPS
             centeringTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) {
                 [self] timer in
                 Task { @MainActor [self] in
+                    iterationCount += 1
                     let easing: CGFloat = 0.2
                     let current = frameCoordinator.dragCenteringOffset
                     let nextX = current.width * (1 - easing)
                     let nextY = current.height * (1 - easing)
 
-                    if abs(nextX) < 0.5 && abs(nextY) < 0.5 {
+                    if (abs(nextX) < 0.5 && abs(nextY) < 0.5) || iterationCount >= maxIterations {
                         frameCoordinator.setDragCenteringOffset(.zero)
                         timer.invalidate()
                         centeringTimer = nil

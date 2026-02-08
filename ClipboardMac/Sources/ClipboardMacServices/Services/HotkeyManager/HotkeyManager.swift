@@ -118,8 +118,11 @@ public final class HotkeyManager {
                     // the tap is always disabled in stop() before the manager is deallocated.
                     // MEMORY: refcon is an untyped pointer. fromOpaque() assumes it was created via
                     // Unmanaged.passUnretained(self).toOpaque() for the same type.
+                    guard let refcon else {
+                        return Unmanaged.passUnretained(event)
+                    }
                     let manager = Unmanaged<HotkeyManager>
-                        .fromOpaque(refcon!)
+                        .fromOpaque(refcon)
                         .takeUnretainedValue()
                     return manager.handleEvent(proxy: proxy, type: type, event: event)
                 },

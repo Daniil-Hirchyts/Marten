@@ -79,7 +79,7 @@ struct ItemCompactColumn: View {
                             item: item,
                             pinboards: pinboards,
                             lockedPinboardIDs: lockedPinboardIDs,
-                            itemPinboardSignature: Self.pinboardSignature(for: item),
+                            itemPinboardSignature: pinboardSignature(for: item),
                             isSelected: selectedItemIDs.contains(item.objectID),
                             isEditing: editingItemID == item.objectID,
                             allowPinning: allowPinning,
@@ -193,17 +193,6 @@ struct ItemCompactColumn: View {
         hasher.combine(items.count)
         hasher.combine(items.first?.objectID)
         hasher.combine(items.last?.objectID)
-        return hasher.finalize()
-    }
-
-    static func pinboardSignature(for item: ClipItem) -> Int {
-        var hasher = Hasher()
-        for pinboard in (item.pinboards ?? []).sorted(by: { $0.sortOrder < $1.sortOrder }) {
-            hasher.combine(pinboard.objectID)
-            hasher.combine(pinboard.name)
-            hasher.combine(pinboard.colorHex)
-            hasher.combine(pinboard.iconName)
-        }
         return hasher.finalize()
     }
 
