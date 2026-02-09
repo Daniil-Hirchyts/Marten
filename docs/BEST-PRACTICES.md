@@ -1,18 +1,18 @@
-# Paste - Development Best Practices
+# Marten - Development Best Practices
 
 **Last Updated:** 2026-02-09  
 **Audience:** All contributors  
 **Status:** Active guidelines
 
-These standards reflect the beta-ready architecture (`ClipboardCore` + `ClipboardMacServices` + `ClipboardMacApp`) and privacy requirements for a clipboard manager.
+These standards reflect the beta-ready architecture (`MartenCore` + `MartenMacServices` + `MartenMacApp`) and privacy requirements for a clipboard manager.
 
 ---
 
 ## 1. Security & Privacy
 
-### 1.1 Never Log Clipboard Content
+### 1.1 Never Log Marten Content
 
-Clipboard data is sensitive by default.
+Marten data is sensitive by default.
 
 - Do not log copied text, URL strings, file paths, HTML payloads, or image bytes.
 - Log metadata only (counts, durations, state transitions).
@@ -29,7 +29,7 @@ Logger.pasteboard.info("Captured item (type=\(itemType.rawValue, privacy: .publi
 
 ### 1.2 Logging Policy
 
-- Use `OSLog` categories from `ClipboardMacServices/Services/Logging/Loggers.swift`.
+- Use `OSLog` categories from `MartenMacServices/Services/Logging/Loggers.swift`.
 - Never ship `print()` in production targets.
 - Use privacy annotations:
   - `.private` for user-originated strings and app identifiers
@@ -57,12 +57,12 @@ Logger.pasteboard.info("Captured item (type=\(itemType.rawValue, privacy: .publi
 
 Current module layering is strict:
 
-1. **ClipboardCore** - persistence, domain services, sync engines
-2. **ClipboardMacServices** - AppKit/system integrations
-3. **ClipboardMacApp** - lifecycle orchestration and UI composition
+1. **MartenCore** - persistence, domain services, sync engines
+2. **MartenMacServices** - AppKit/system integrations
+3. **MartenMacApp** - lifecycle orchestration and UI composition
 
 Rules:
-- `ClipboardCore` and `ClipboardMacServices` remain SwiftUI-free.
+- `MartenCore` and `MartenMacServices` remain SwiftUI-free.
 - App-level wiring belongs in `AppCoordinator` and `AppServiceContainer`.
 - UI code depends on protocols/handlers, not deep concrete service construction.
 
@@ -115,7 +115,7 @@ Use `OverlayDependencies` to pass operational collaborators into overlay UI:
 
 ### 2.5 Event Bus Injection Safety
 
-`clipboardEventBroadcaster` uses a sentinel default (`MissingClipboardEventBroadcaster`) that asserts when not injected.
+`clipboardEventBroadcaster` uses a sentinel default (`MissingMartenEventBroadcaster`) that asserts when not injected.
 
 Rule: always inject `.environment(\.clipboardEventBroadcaster, services.eventBroadcaster)` at the app root for overlay/content trees.
 
@@ -174,7 +174,7 @@ Rules:
 
 Services must not use SwiftUI property wrappers.
 
-Use provider protocols in `ClipboardMacServices/Services/Settings/`:
+Use provider protocols in `MartenMacServices/Services/Settings/`:
 - `CaptureSettingsProviding`
 - `LinkPreviewSettingsProviding`
 - `OCRSettingsProviding`
@@ -191,15 +191,15 @@ Inject fake providers in tests instead of mutating global `UserDefaults` directl
 
 Before merging behavior changes:
 
-- `swift test` in `ClipboardCore`
-- `swift test` in `ClipboardMac`
-- Run Xcode-hosted UI tests when UI behavior changes (`ClipboardMacUITests`)
+- `swift test` in `MartenCore`
+- `swift test` in `MartenMac`
+- Run Xcode-hosted UI tests when UI behavior changes (`MartenMacUITests`)
 
 ### 5.2 Test Strategy
 
 - Unit-test repositories/services with controlled persistence contexts.
 - Unit-test coordinators and handlers with injected fakes.
-- Use `ClipboardMacValidation` for non-UI validation and performance checks.
+- Use `MartenMacValidation` for non-UI validation and performance checks.
 
 ### 5.3 Regression Rules
 
@@ -209,8 +209,8 @@ Before merging behavior changes:
 ### 5.4 Current Validation Baseline
 
 (2026-02-09)
-- `ClipboardCore`: 194 tests executed, 0 failures
-- `ClipboardMac`: 192 tests executed, 0 failures, 10 skipped
+- `MartenCore`: 194 tests executed, 0 failures
+- `MartenMac`: 192 tests executed, 0 failures, 10 skipped
 - UI skipped tests are host-dependent suites in plain SwiftPM runs
 
 ---

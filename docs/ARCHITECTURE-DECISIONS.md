@@ -1,6 +1,6 @@
 # Architecture Decision Records (ADRs)
 
-**Project:** Paste Clipboard Manager  
+**Project:** Marten Marten Manager  
 **Version:** 1.3.0  
 **Last Updated:** 2026-02-09
 
@@ -8,7 +8,7 @@
 
 ## Purpose
 
-This document records architectural decisions that shape the current implementation of Paste. Each ADR captures context, options, decision, rationale, and consequences.
+This document records architectural decisions that shape the current implementation of Marten. Each ADR captures context, options, decision, rationale, and consequences.
 
 ---
 
@@ -47,7 +47,7 @@ Each ADR includes:
 - ✅ Good fit for repository/service layering.
 - ❌ More boilerplate than SwiftData.
 
-**References:** `ClipboardCore/Sources/Persistence/`, `ClipboardCore/Sources/DataModel/`
+**References:** `MartenCore/Sources/Persistence/`, `MartenCore/Sources/DataModel/`
 
 ---
 
@@ -74,7 +74,7 @@ Each ADR includes:
 - ✅ Better fit for custom behaviors (assets, conflict policies).
 - ❌ More implementation complexity.
 
-**References:** `ClipboardCore/Sources/Sync/SyncCoordinator.swift`, `ClipboardCore/Sources/Sync/OutboundSyncEngine.swift`, `ClipboardCore/Sources/Sync/InboundSyncEngine.swift`
+**References:** `MartenCore/Sources/Sync/SyncCoordinator.swift`, `MartenCore/Sources/Sync/OutboundSyncEngine.swift`, `MartenCore/Sources/Sync/InboundSyncEngine.swift`
 
 ---
 
@@ -90,20 +90,20 @@ Each ADR includes:
 2. Swift package modularization
 
 **Decision:** Two primary local packages:
-- `ClipboardCore`
-- `ClipboardMac` (`ClipboardMacApp` + `ClipboardMacServices` + validation executable)
+- `MartenCore`
+- `MartenMac` (`MartenMacApp` + `MartenMacServices` + validation executable)
 
 **Rationale:**
 - Clear compile-time boundaries.
 - Better test segmentation.
-- Supports future reuse of `ClipboardCore`.
+- Supports future reuse of `MartenCore`.
 
 **Consequences:**
 - ✅ Cleaner architecture and dependency direction.
 - ✅ Faster targeted builds/tests.
 - ❌ More package wiring overhead.
 
-**References:** `ClipboardCore/Package.swift`, `ClipboardMac/Package.swift`
+**References:** `MartenCore/Package.swift`, `MartenMac/Package.swift`
 
 ---
 
@@ -131,7 +131,7 @@ Each ADR includes:
 - ✅ Modern UI composition with required system control.
 - ❌ Requires careful boundary discipline between frameworks.
 
-**References:** `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayWindow.swift`, `ClipboardMac/Sources/ClipboardMacApp/App/MenuBarController.swift`
+**References:** `MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayWindow.swift`, `MartenMac/Sources/MartenMacApp/App/MenuBarController.swift`
 
 ---
 
@@ -158,7 +158,7 @@ Each ADR includes:
 - ✅ Easier reasoning about startup/shutdown side effects.
 - ❌ Requires explicit dependency interfaces at app boundary.
 
-**References:** `ClipboardMac/Sources/ClipboardMacApp/App/AppDelegate.swift`, `ClipboardMac/Sources/ClipboardMacApp/App/AppCoordinator.swift`
+**References:** `MartenMac/Sources/MartenMacApp/App/AppDelegate.swift`, `MartenMac/Sources/MartenMacApp/App/AppCoordinator.swift`
 
 ---
 
@@ -185,11 +185,11 @@ Each ADR includes:
 - ✅ Easier test setup for coordinators/view models.
 - ❌ Requires maintenance of protocol boundaries.
 
-**References:** `ClipboardMac/Sources/ClipboardMacApp/App/AppServiceContainer.swift`
+**References:** `MartenMac/Sources/MartenMacApp/App/AppServiceContainer.swift`
 
 ---
 
-## ADR-007: Clipboard Monitoring by Polling with Adaptive Intervals
+## ADR-007: Marten Monitoring by Polling with Adaptive Intervals
 
 **Date:** 2026-01-09  
 **Status:** Accepted
@@ -217,7 +217,7 @@ Each ADR includes:
 - ✅ Bounded CPU overhead with adaptive polling.
 - ❌ Polling latency is inherent.
 
-**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/PasteboardMonitor.swift`
+**References:** `MartenMac/Sources/MartenMacServices/Services/PasteboardMonitor/PasteboardMonitor.swift`
 
 ---
 
@@ -234,7 +234,7 @@ Each ADR includes:
 
 **Decision:** Split into:
 - `PasteboardRepresentationExtractor`
-- `ClipboardContentFilter`
+- `MartenContentFilter`
 - `ItemTypeClassifier`
 with `PasteboardExtractor` as composition shell.
 
@@ -248,11 +248,11 @@ with `PasteboardExtractor` as composition shell.
 - ✅ Easier maintainability and testing.
 - ❌ More component wiring.
 
-**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/`
+**References:** `MartenMac/Sources/MartenMacServices/Services/PasteboardMonitor/`
 
 ---
 
-## ADR-009: Repository/Service Layer in ClipboardCore
+## ADR-009: Repository/Service Layer in MartenCore
 
 **Date:** 2026-02-04  
 **Status:** Accepted
@@ -274,7 +274,7 @@ with `PasteboardExtractor` as composition shell.
 - ✅ Better testability and substitution.
 - ❌ More abstractions to maintain.
 
-**References:** `ClipboardCore/Sources/BusinessRules/ClipItemStore.swift`, `ClipboardCore/Sources/BusinessRules/Protocols/`
+**References:** `MartenCore/Sources/BusinessRules/ClipItemStore.swift`, `MartenCore/Sources/BusinessRules/Protocols/`
 
 ---
 
@@ -286,7 +286,7 @@ with `PasteboardExtractor` as composition shell.
 **Context:** Selecting an item should immediately paste into the previously active app with minimal friction.
 
 **Options Considered:**
-1. Clipboard write only (manual user paste)
+1. Marten write only (manual user paste)
 2. Synthetic Cmd+V after clipboard write
 
 **Decision:** Use synthetic Cmd+V with activation checks/retries in `PasteEngine`.
@@ -301,7 +301,7 @@ with `PasteboardExtractor` as composition shell.
 - ✅ Works with preserved/plain-text modes and stack paste.
 - ❌ Requires Accessibility permission and robust failure handling.
 
-**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/PasteEngine/PasteEngine.swift`
+**References:** `MartenMac/Sources/MartenMacServices/Services/PasteEngine/PasteEngine.swift`
 
 ---
 
@@ -328,7 +328,7 @@ with `PasteboardExtractor` as composition shell.
 - ✅ Better handling for large binary data.
 - ❌ Requires asset lifecycle cleanup.
 
-**References:** `ClipboardCore/Sources/BusinessRules/ClipItemRepository.swift`, `ClipboardCore/Sources/Assets/AssetStore.swift`
+**References:** `MartenCore/Sources/BusinessRules/ClipItemRepository.swift`, `MartenCore/Sources/Assets/AssetStore.swift`
 
 ---
 
@@ -356,7 +356,7 @@ with `PasteboardExtractor` as composition shell.
 - ✅ No third-party AI dependencies.
 - ❌ Feature availability depends on device/OS capability.
 
-**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/AppleIntelligence/`
+**References:** `MartenMac/Sources/MartenMacServices/Services/AppleIntelligence/`
 
 ---
 
@@ -383,7 +383,7 @@ with `PasteboardExtractor` as composition shell.
 - ✅ Good privacy control for interactive use.
 - ❌ Not equivalent to encrypted-at-rest partitioning.
 
-**References:** `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/PinboardLockController.swift`, `ClipboardMac/Sources/ClipboardMacApp/App/PinboardSecuritySettings.swift`
+**References:** `MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardLockController.swift`, `MartenMac/Sources/MartenMacApp/App/PinboardSecuritySettings.swift`
 
 ---
 
@@ -392,7 +392,7 @@ with `PasteboardExtractor` as composition shell.
 **Date:** 2026-02-03  
 **Status:** Accepted
 
-**Context:** Clipboard overlays can expose sensitive history while presenting.
+**Context:** Marten overlays can expose sensitive history while presenting.
 
 **Options Considered:**
 1. User-controlled screen sharing mode with visibility preference
@@ -410,7 +410,7 @@ with `PasteboardExtractor` as composition shell.
 - ✅ Deterministic behavior and clear settings surface.
 - ❌ Adds global state that must be reflected in UI and menu bar.
 
-**References:** `ClipboardMac/Sources/ClipboardMacServices/Services/ScreenSharing/ScreenSharingManager.swift`, `ClipboardMac/Sources/ClipboardMacApp/App/MenuBarController.swift`
+**References:** `MartenMac/Sources/MartenMacServices/Services/ScreenSharing/ScreenSharingManager.swift`, `MartenMac/Sources/MartenMacApp/App/MenuBarController.swift`
 
 ---
 
@@ -437,7 +437,7 @@ with `PasteboardExtractor` as composition shell.
 - ✅ Clean background presence.
 - ❌ Discoverability relies on onboarding and shortcuts.
 
-**References:** `ClipboardMac/Sources/ClipboardMacApp/App/AppCoordinator.swift`, `ClipboardMac/Sources/ClipboardMacApp/App/MenuBarController.swift`
+**References:** `MartenMac/Sources/MartenMacApp/App/AppCoordinator.swift`, `MartenMac/Sources/MartenMacApp/App/MenuBarController.swift`
 
 ---
 
@@ -453,7 +453,7 @@ with `PasteboardExtractor` as composition shell.
 2. Add a dedicated OCR pipeline with selection overlay, screen capture service, and Vision recognizer
 3. Use third-party OCR SDK/service
 
-**Decision:** Add a dedicated OCR pipeline in `ClipboardMacApp` + `ClipboardMacServices` using AppKit overlay selection and Apple Vision OCR.
+**Decision:** Add a dedicated OCR pipeline in `MartenMacApp` + `MartenMacServices` using AppKit overlay selection and Apple Vision OCR.
 
 **Rationale:**
 - OCR selection/capture is interactionally different from clipboard polling and should remain isolated.
@@ -467,7 +467,7 @@ with `PasteboardExtractor` as composition shell.
 - ✅ Better testability via protocol boundaries (`TextRecognizing`, `ScreenImageCapturing`, settings providers).
 - ❌ Requires Screen Recording permission for OCR flows and user guidance when denied.
 
-**References:** `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/OCRCaptureCoordinator.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/OCR/OCRSelectionOverlayController.swift`, `ClipboardMac/Sources/ClipboardMacServices/Services/OCR/`, `ClipboardMac/Sources/ClipboardMacServices/Services/Settings/OCRSettingsProviding.swift`
+**References:** `MartenMac/Sources/MartenMacApp/App/Coordinators/OCRCaptureCoordinator.swift`, `MartenMac/Sources/MartenMacApp/UI/OCR/OCRSelectionOverlayController.swift`, `MartenMac/Sources/MartenMacServices/Services/OCR/`, `MartenMac/Sources/MartenMacServices/Services/Settings/OCRSettingsProviding.swift`
 
 ---
 
@@ -495,7 +495,7 @@ with `PasteboardExtractor` as composition shell.
 - ✅ No external service dependency.
 - ❌ Requires careful idempotence/partial-failure handling in seeding logic.
 
-**References:** `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/FirstLaunchContentSeeder.swift`, `ClipboardMac/Tests/ClipboardMacAppTests/FirstLaunchContentSeederTests.swift`
+**References:** `MartenMac/Sources/MartenMacApp/App/Coordinators/FirstLaunchContentSeeder.swift`, `MartenMac/Tests/MartenMacAppTests/FirstLaunchContentSeederTests.swift`
 
 ---
 
@@ -522,7 +522,7 @@ with `PasteboardExtractor` as composition shell.
 - ✅ Better extensibility for advanced drag scenarios.
 - ❌ Added AppKit coordination complexity and more moving parts.
 
-**References:** `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/NativeDragSource.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/DragCoordinator.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/DragPreviewWindow.swift`
+**References:** `MartenMac/Sources/MartenMacApp/UI/Overlay/NativeDragSource.swift`, `MartenMac/Sources/MartenMacApp/UI/Overlay/DragCoordinator.swift`, `MartenMac/Sources/MartenMacApp/UI/Overlay/DragPreviewWindow.swift`
 
 ---
 
@@ -549,7 +549,7 @@ with `PasteboardExtractor` as composition shell.
 - ✅ Better user-facing responsiveness in degraded network conditions.
 - ❌ Introduces additional timeout tuning responsibility.
 
-**References:** `ClipboardCore/Sources/Sync/InboundSyncEngine.swift`, `ClipboardCore/Tests/ClipboardCoreTests/InboundSyncEngineTests.swift`
+**References:** `MartenCore/Sources/Sync/InboundSyncEngine.swift`, `MartenCore/Tests/MartenCoreTests/InboundSyncEngineTests.swift`
 
 ---
 

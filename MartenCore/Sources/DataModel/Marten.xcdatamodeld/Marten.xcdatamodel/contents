@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="21512" systemVersion="24A335" minimumToolsVersion="Xcode 9.0" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+    <entity name="ClipItem" representedClassName="ClipItem" syncable="YES">
+        <attribute name="id" optional="NO" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="createdAt" optional="NO" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="modifiedAt" optional="NO" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="displayOrder" optional="NO" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="sourceAppBundleID" optional="YES" attributeType="String"/>
+        <attribute name="sourceAppName" optional="YES" attributeType="String"/>
+        <attribute name="itemType" optional="NO" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="primaryText" optional="YES" attributeType="String"/>
+        <attribute name="customTitle" optional="YES" attributeType="String"/>
+        <attribute name="searchableText" optional="YES" attributeType="String"/>
+        <attribute name="contentHash" optional="NO" attributeType="String" defaultValueString=""/>
+        <attribute name="isSensitive" optional="NO" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="isTransient" optional="NO" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="needsLinkPreview" optional="NO" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="thumbnailPath" optional="YES" attributeType="String"/>
+        <attribute name="byteCount" optional="NO" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="isUserCreated" optional="NO" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="isPinned" optional="NO" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <relationship name="representations" destinationEntity="ClipRepresentation" toMany="YES" deletionRule="Cascade" inverseName="clipItem" inverseEntity="ClipRepresentation"/>
+        <relationship name="pinboards" destinationEntity="Pinboard" toMany="YES" deletionRule="Nullify" inverseName="items" inverseEntity="Pinboard"/>
+        <relationship name="stackEntries" destinationEntity="StackEntry" toMany="YES" deletionRule="Nullify" inverseName="clipItem" inverseEntity="StackEntry"/>
+        <relationship name="linkPreview" optional="YES" destinationEntity="LinkPreview" maxCount="1" deletionRule="Cascade" inverseName="clipItem" inverseEntity="LinkPreview"/>
+        <uniquenessConstraints>
+            <constraint>
+                <constraintElement name="id"/>
+            </constraint>
+            <constraint>
+                <constraintElement name="contentHash"/>
+            </constraint>
+        </uniquenessConstraints>
+        <fetchIndex name="ClipItemByCreatedAt">
+            <fetchIndexElement property="createdAt" type="Binary"/>
+        </fetchIndex>
+        <fetchIndex name="ClipItemByContentHash">
+            <fetchIndexElement property="contentHash" type="Binary"/>
+        </fetchIndex>
+        <fetchIndex name="ClipItemBySourceAppCreatedAt">
+            <fetchIndexElement property="sourceAppBundleID" type="Binary"/>
+            <fetchIndexElement property="createdAt" type="Binary"/>
+        </fetchIndex>
+        <fetchIndex name="ClipItemByPinnedCreatedAt">
+            <fetchIndexElement property="isPinned" type="Binary"/>
+            <fetchIndexElement property="createdAt" type="Binary"/>
+        </fetchIndex>
+        <fetchIndex name="ClipItemByTypeCreatedAt">
+            <fetchIndexElement property="itemType" type="Binary"/>
+            <fetchIndexElement property="createdAt" type="Binary"/>
+        </fetchIndex>
+        <fetchIndex name="ClipItemByNeedsLinkPreviewCreatedAt">
+            <fetchIndexElement property="needsLinkPreview" type="Binary"/>
+            <fetchIndexElement property="linkPreview" type="Binary"/>
+            <fetchIndexElement property="createdAt" type="Binary"/>
+        </fetchIndex>
+    </entity>
+    <entity name="ClipRepresentation" representedClassName="ClipRepresentation" syncable="YES">
+        <attribute name="id" optional="NO" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="uti" optional="NO" attributeType="String" defaultValueString=""/>
+        <attribute name="kind" optional="NO" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="displayOrder" optional="NO" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="textData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
+        <attribute name="binaryData" optional="YES" attributeType="Binary" allowsExternalBinaryDataStorage="YES"/>
+        <attribute name="assetRef" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="fileExtension" optional="YES" attributeType="String"/>
+        <attribute name="byteCount" optional="NO" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="clipItem" destinationEntity="ClipItem" maxCount="1" deletionRule="Nullify" inverseName="representations" inverseEntity="ClipItem"/>
+        <uniquenessConstraints>
+            <constraint>
+                <constraintElement name="id"/>
+            </constraint>
+        </uniquenessConstraints>
+        <fetchIndex name="ClipRepresentationByClipItemDisplayOrder">
+            <fetchIndexElement property="clipItem" type="Binary"/>
+            <fetchIndexElement property="displayOrder" type="Binary"/>
+        </fetchIndex>
+    </entity>
+    <entity name="Pinboard" representedClassName="Pinboard" syncable="YES">
+        <attribute name="id" optional="NO" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="name" optional="NO" attributeType="String" defaultValueString=""/>
+        <attribute name="colorHex" optional="NO" attributeType="String" defaultValueString="#808080"/>
+        <attribute name="sortOrder" optional="NO" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="isSystemMarten" optional="NO" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="createdAt" optional="NO" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="iconName" optional="YES" attributeType="String"/>
+        <attribute name="shareToken" optional="YES" attributeType="String"/>
+        <relationship name="items" destinationEntity="ClipItem" toMany="YES" deletionRule="Nullify" inverseName="pinboards" inverseEntity="ClipItem"/>
+        <uniquenessConstraints>
+            <constraint>
+                <constraintElement name="id"/>
+            </constraint>
+        </uniquenessConstraints>
+        <fetchIndex name="PinboardBySortOrderName">
+            <fetchIndexElement property="sortOrder" type="Binary"/>
+            <fetchIndexElement property="name" type="Binary"/>
+        </fetchIndex>
+    </entity>
+    <entity name="LinkPreview" representedClassName="LinkPreview" syncable="YES">
+        <attribute name="id" optional="NO" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="url" optional="NO" attributeType="String" defaultValueString=""/>
+        <attribute name="title" optional="YES" attributeType="String"/>
+        <attribute name="summary" optional="YES" attributeType="String"/>
+        <attribute name="imageURL" optional="YES" attributeType="String"/>
+        <attribute name="imagePath" optional="YES" attributeType="String"/>
+        <attribute name="siteName" optional="YES" attributeType="String"/>
+        <attribute name="fetchedAt" optional="NO" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="fetchFailed" optional="NO" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <relationship name="clipItem" destinationEntity="ClipItem" maxCount="1" deletionRule="Nullify" inverseName="linkPreview" inverseEntity="ClipItem"/>
+        <uniquenessConstraints>
+            <constraint>
+                <constraintElement name="id"/>
+            </constraint>
+        </uniquenessConstraints>
+        <fetchIndex name="LinkPreviewByFetchFailedFetchedAt">
+            <fetchIndexElement property="fetchFailed" type="Binary"/>
+            <fetchIndexElement property="fetchedAt" type="Binary"/>
+        </fetchIndex>
+    </entity>
+    <entity name="StackSession" representedClassName="StackSession" syncable="YES">
+        <attribute name="id" optional="NO" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="createdAt" optional="NO" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="isActive" optional="NO" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="separator" optional="NO" attributeType="String" defaultValueString="\n"/>
+        <attribute name="mode" optional="NO" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="entries" destinationEntity="StackEntry" toMany="YES" deletionRule="Cascade" inverseName="session" inverseEntity="StackEntry"/>
+        <uniquenessConstraints>
+            <constraint>
+                <constraintElement name="id"/>
+            </constraint>
+        </uniquenessConstraints>
+    </entity>
+    <entity name="StackEntry" representedClassName="StackEntry" syncable="YES">
+        <attribute name="id" optional="NO" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="position" optional="NO" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="addedAt" optional="NO" attributeType="Date" usesScalarValueType="NO"/>
+        <relationship name="session" destinationEntity="StackSession" maxCount="1" deletionRule="Nullify" inverseName="entries" inverseEntity="StackSession"/>
+        <relationship name="clipItem" destinationEntity="ClipItem" maxCount="1" deletionRule="Nullify" inverseName="stackEntries" inverseEntity="ClipItem"/>
+        <uniquenessConstraints>
+            <constraint>
+                <constraintElement name="id"/>
+            </constraint>
+        </uniquenessConstraints>
+        <fetchIndex name="StackEntryBySessionPosition">
+            <fetchIndexElement property="session" type="Binary"/>
+            <fetchIndexElement property="position" type="Binary"/>
+        </fetchIndex>
+    </entity>
+</model>

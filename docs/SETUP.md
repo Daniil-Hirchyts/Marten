@@ -14,57 +14,57 @@
 ### 1) Build and Test (Unsigned Development)
 
 ```bash
-# ClipboardCore
-cd ClipboardCore
+# MartenCore
+cd MartenCore
 swift build
 swift test
 
-# ClipboardMac
-cd ../ClipboardMac
+# MartenMac
+cd ../MartenMac
 swift build
 swift test
 
 # Run unsigned executable (local development)
-swift run ClipboardMac
+swift run MartenMac
 ```
 
 Notes:
-- Unsigned `swift run ClipboardMac` is useful for local workflow validation.
+- Unsigned `swift run MartenMac` is useful for local workflow validation.
 - iCloud sync and push workflows require a signed app with proper entitlements.
 
 ### 2) Signed Build for CloudKit Sync
 
 CloudKit requires a signed `.app` with matching entitlements/container.
 
-This repo includes wrapper resources under `ClipboardMacWrapper/ClipboardMacWrapper/`:
-- `ClipboardMacWrapper/ClipboardMacWrapper/Info.plist`
-- `ClipboardMacWrapper/ClipboardMacWrapper/ClipboardMacWrapper.entitlements`
-- `ClipboardMacWrapper/ClipboardMacWrapper/Assets.xcassets`
+This repo includes wrapper resources under `MartenMacWrapper/MartenMacWrapper/`:
+- `MartenMacWrapper/MartenMacWrapper/Info.plist`
+- `MartenMacWrapper/MartenMacWrapper/MartenMacWrapper.entitlements`
+- `MartenMacWrapper/MartenMacWrapper/Assets.xcassets`
 
 The wrapper Xcode project itself is intentionally not checked in.
 
 If you already have a local wrapper project:
-1. Open `ClipboardMacWrapper.xcodeproj` locally.
+1. Open `MartenMacWrapper.xcodeproj` locally.
 2. Select your app target.
 3. In **Signing & Capabilities**:
    - choose your Team
-   - set a bundle identifier you own (e.g. `com.yourcompany.paste`)
+   - set a bundle identifier you own (e.g. `com.yourcompany.marten`)
    - add **iCloud** + **CloudKit**
-   - set/select your CloudKit container (e.g. `iCloud.com.yourcompany.paste`)
+   - set/select your CloudKit container (e.g. `iCloud.com.yourcompany.marten`)
    - add **Push Notifications**
-4. If needed, update container ID in `ClipboardCore/Sources/Sync/CloudKitConfiguration.swift`.
+4. If needed, update container ID in `MartenCore/Sources/Sync/CloudKitConfiguration.swift`.
 5. Build and run signed app.
 
 If you do not yet have a local wrapper project:
 - Create one locally (do not commit it).
-- Wire it to package/build the `ClipboardMac` executable target.
+- Wire it to package/build the `MartenMac` executable target.
 - Reuse the provided wrapper resources above.
 
 ---
 
 ## Permissions
 
-Paste uses runtime permission requests when related features are used.
+Marten uses runtime permission requests when related features are used.
 
 - **Accessibility** - required for synthetic paste (Cmd+V injection)
 - **Input Monitoring** - required for global hotkeys
@@ -77,27 +77,27 @@ Paste uses runtime permission requests when related features are used.
 ### Test Commands
 
 ```bash
-# from ClipboardCore/
+# from MartenCore/
 swift test
 
-# from ClipboardMac/
+# from MartenMac/
 swift test
 ```
 
-UI tests in `ClipboardMac/Tests/ClipboardMacUITests` require an Xcode host runner.
+UI tests in `MartenMac/Tests/MartenMacUITests` require an Xcode host runner.
 Use Xcode Test Navigator for UI suites.
 
 ### Current Validation Snapshot (2026-02-09)
 
-- `ClipboardCore`: 194 tests executed, 0 failures
-- `ClipboardMac`: 192 tests executed, 0 failures, 10 skipped
+- `MartenCore`: 194 tests executed, 0 failures
+- `MartenMac`: 192 tests executed, 0 failures, 10 skipped
 - Skipped tests are host-dependent UI tests in plain SwiftPM runs
 
 ### Beta Smoke Commands
 
 ```bash
 # Optional: force onboarding flow for smoke validation
-swift run ClipboardMac -- -resetOnboarding
+swift run MartenMac -- -resetOnboarding
 ```
 
 Use this only when validating onboarding and first-launch UX flows.
@@ -107,14 +107,14 @@ Use this only when validating onboarding and first-launch UX flows.
 ## Project Structure
 
 ```text
-Paste/
-├── ClipboardCore/
+Marten/
+├── MartenCore/
 │   ├── Sources/
 │   └── Tests/
-├── ClipboardMac/
+├── MartenMac/
 │   ├── Sources/
 │   └── Tests/
-├── ClipboardMacWrapper/
+├── MartenMacWrapper/
 └── docs/
 ```
 

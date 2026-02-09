@@ -1,4 +1,4 @@
-# Paste - Documentation
+# Marten - Documentation
 
 **macOS clipboard manager with iCloud sync**  
 **Status:** Phase 7 Beta Testing (Ready)  
@@ -53,19 +53,19 @@
 - **Swift files (Sources + Tests):** 304
 - **Swift LOC (Sources + Tests):** 43,619
 - **Module breakdown:**
-  - `ClipboardCore/Sources` - 61 files / 8,366 LOC
-  - `ClipboardCore/Tests` - 27 files / 4,635 LOC
-  - `ClipboardMac/Sources` - 165 files / 26,161 LOC
-  - `ClipboardMac/Tests` - 51 files / 4,457 LOC
+  - `MartenCore/Sources` - 61 files / 8,366 LOC
+  - `MartenCore/Tests` - 27 files / 4,635 LOC
+  - `MartenMac/Sources` - 165 files / 26,161 LOC
+  - `MartenMac/Tests` - 51 files / 4,457 LOC
 - **Core Data entities:** 6 (`ClipItem`, `ClipRepresentation`, `Pinboard`, `LinkPreview`, `StackSession`, `StackEntry`)
 
 ---
 
 ## Validation Snapshot (2026-02-09)
 
-- `ClipboardCore`: `swift test` passed (194 tests, 0 failures)
-- `ClipboardMac`: `swift test` passed (192 tests, 0 failures, 10 skipped)
-- UI tests in `ClipboardMacUITests` require an Xcode host runner and are skipped in plain SwiftPM runs
+- `MartenCore`: `swift test` passed (194 tests, 0 failures)
+- `MartenMac`: `swift test` passed (192 tests, 0 failures, 10 skipped)
+- UI tests in `MartenMacUITests` require an Xcode host runner and are skipped in plain SwiftPM runs
 
 ---
 

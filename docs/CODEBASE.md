@@ -1,4 +1,4 @@
-# Paste - Codebase Guide
+# Marten - Codebase Guide
 
 **macOS clipboard manager with iCloud sync**  
 **Status:** Phase 7 Beta Testing (Ready) | SwiftPM tests passing
@@ -8,8 +8,8 @@
 ## Quick Navigation
 
 ```text
-Paste/
-├── ClipboardCore/                 Platform-agnostic package
+Marten/
+├── MartenCore/                 Platform-agnostic package
 │   ├── Sources/
 │   │   ├── Assets/
 │   │   ├── BusinessRules/
@@ -18,14 +18,14 @@ Paste/
 │   │   └── Sync/
 │   └── Tests/
 │
-├── ClipboardMac/                  macOS package
+├── MartenMac/                  macOS package
 │   ├── Sources/
-│   │   ├── ClipboardMacApp/       App lifecycle + UI composition
-│   │   ├── ClipboardMacServices/  System/macOS integrations
-│   │   └── ClipboardMacValidation/ Validation executable
+│   │   ├── MartenMacApp/       App lifecycle + UI composition
+│   │   ├── MartenMacServices/  System/macOS integrations
+│   │   └── MartenMacValidation/ Validation executable
 │   └── Tests/
 │
-├── ClipboardMacWrapper/           Local wrapper resources (signing/entitlements/assets)
+├── MartenMacWrapper/           Local wrapper resources (signing/entitlements/assets)
 └── docs/
     ├── INDEX.md
     ├── CODEBASE.md
@@ -41,20 +41,20 @@ Paste/
 - **Swift files (Sources + Tests):** 304
 - **Swift LOC (Sources + Tests):** 43,619
 - **Module footprint:**
-  - `ClipboardCore/Sources` - 61 files / 8,366 LOC
-  - `ClipboardCore/Tests` - 27 files / 4,635 LOC
-  - `ClipboardMac/Sources` - 165 files / 26,161 LOC
-  - `ClipboardMac/Tests` - 51 files / 4,457 LOC
+  - `MartenCore/Sources` - 61 files / 8,366 LOC
+  - `MartenCore/Tests` - 27 files / 4,635 LOC
+  - `MartenMac/Sources` - 165 files / 26,161 LOC
+  - `MartenMac/Tests` - 51 files / 4,457 LOC
 - **Type map (major declarations):**
-  - `ClipboardCore/Sources` - 93 protocol/class/struct/actor declarations
-  - `ClipboardMac/Sources` - 287 protocol/class/struct/actor declarations
+  - `MartenCore/Sources` - 93 protocol/class/struct/actor declarations
+  - `MartenMac/Sources` - 287 protocol/class/struct/actor declarations
 - **Largest source files (maintainability hotspots):**
-  - `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemCardRow.swift` (~1,106)
-  - `ClipboardCore/Sources/Sync/InboundSyncEngine.swift` (~796)
-  - `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemCompactColumn.swift` (~729)
-  - `ClipboardCore/Sources/BusinessRules/ClipItemRepository.swift` (~715)
-  - `ClipboardCore/Sources/Sync/OutboundSyncEngine.swift` (~621)
-  - `ClipboardMac/Sources/ClipboardMacApp/UI/Onboarding/OnboardingScreens.swift` (~601)
+  - `MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCardRow.swift` (~1,106)
+  - `MartenCore/Sources/Sync/InboundSyncEngine.swift` (~796)
+  - `MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCompactColumn.swift` (~729)
+  - `MartenCore/Sources/BusinessRules/ClipItemRepository.swift` (~715)
+  - `MartenCore/Sources/Sync/OutboundSyncEngine.swift` (~621)
+  - `MartenMac/Sources/MartenMacApp/UI/Onboarding/OnboardingScreens.swift` (~601)
 
 ---
 
@@ -62,44 +62,44 @@ Paste/
 
 | Feature | Location |
 |--------|----------|
-| Clipboard monitoring | `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/PasteboardMonitor.swift` |
-| Capture orchestration | `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/CaptureCoordinator.swift` |
-| Capture extraction/filter/classification | `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/PasteboardRepresentationExtractor.swift`, `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/ClipboardContentFilter.swift`, `ClipboardMac/Sources/ClipboardMacServices/Services/PasteboardMonitor/ItemTypeClassifier.swift` |
-| OCR capture orchestration | `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/OCRCaptureCoordinator.swift` |
-| OCR selection overlay | `ClipboardMac/Sources/ClipboardMacApp/UI/OCR/OCRSelectionOverlayController.swift` |
-| OCR recognition and capture services | `ClipboardMac/Sources/ClipboardMacServices/Services/OCR/` |
-| OCR settings provider | `ClipboardMac/Sources/ClipboardMacServices/Services/Settings/OCRSettingsProviding.swift` |
-| First-launch starter content seeding | `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/FirstLaunchContentSeeder.swift` |
-| Onboarding flow | `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/OnboardingCoordinator.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Onboarding/` |
-| Paste engine | `ClipboardMac/Sources/ClipboardMacServices/Services/PasteEngine/PasteEngine.swift` |
-| Global hotkeys | `ClipboardMac/Sources/ClipboardMacServices/Services/HotkeyManager/HotkeyManager.swift` |
-| Hotkey orchestration | `ClipboardMac/Sources/ClipboardMacApp/App/Coordinators/HotkeyCoordinator.swift` |
-| Overlay window/controller | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayWindow.swift` |
-| Overlay root + shell | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayRootView.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/Shell/OverlayShellView.swift` |
-| Overlay dependencies/interfaces | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayDependencies.swift` |
-| Native drag source and pipeline | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/NativeDragSource.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/DragCoordinator.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/DragTypes.swift` |
-| Drag preview rendering | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/DragPreviewWindow.swift` |
-| Item card UI | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemCard/ItemCard.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemCard/ItemCardThumbnail.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemCardRow.swift` |
-| Image resolution metadata resolver | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemCard/ItemCardThumbnail.swift` |
-| Item editor | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemEditor/ItemEditorContentView.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemEditorWindow.swift` |
-| Overlay coordinators/handlers | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayPreviewCoordinator.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayActionHandlers.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayPinboardLockHandler.swift` |
-| Overlay search state | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlaySearchViewModel.swift` |
-| Settings UI | `ClipboardMac/Sources/ClipboardMacApp/UI/Settings/` |
-| Settings providers | `ClipboardMac/Sources/ClipboardMacServices/Services/Settings/` |
-| Core item store facade | `ClipboardCore/Sources/BusinessRules/ClipItemStore.swift` |
-| Core CRUD repository | `ClipboardCore/Sources/BusinessRules/ClipItemRepository.swift` |
-| Asset lifecycle and cleanup planning | `ClipboardCore/Sources/BusinessRules/AssetManagementService.swift` |
-| CloudKit sync orchestration | `ClipboardCore/Sources/Sync/SyncCoordinator.swift` |
-| Inbound fetch timeout guard | `ClipboardCore/Sources/Sync/InboundSyncEngine.swift` |
-| Outbound batching/retry engine | `ClipboardCore/Sources/Sync/OutboundSyncEngine.swift` |
-| Menu bar controller | `ClipboardMac/Sources/ClipboardMacApp/App/MenuBarController.swift` |
-| Permissions manager | `ClipboardMac/Sources/ClipboardMacServices/Services/Permissions/PermissionManager.swift` |
-| Crash reporting | `ClipboardMac/Sources/ClipboardMacServices/Services/CrashReporter.swift` |
-| Apple Intelligence text transforms | `ClipboardMac/Sources/ClipboardMacServices/Services/AppleIntelligence/`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/ItemEditorAITextEditing.swift` |
-| Screen sharing mode logic | `ClipboardMac/Sources/ClipboardMacServices/Services/ScreenSharing/ScreenSharingManager.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Settings/PrivacyTab.swift` |
-| Screen-sharing capture protection for windows | `ClipboardMac/Sources/ClipboardMacApp/App/AppCoordinator.swift` |
-| Pinboard lock | `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/PinboardLockController.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Overlay/OverlayPinboardLockHandler.swift` |
-| Sign in with Apple (sync gating) | `ClipboardCore/Sources/BusinessRules/AppleAuthManager.swift`, `ClipboardMac/Sources/ClipboardMacApp/UI/Settings/AccountTab.swift` |
+| Marten monitoring | `MartenMac/Sources/MartenMacServices/Services/PasteboardMonitor/PasteboardMonitor.swift` |
+| Capture orchestration | `MartenMac/Sources/MartenMacApp/App/Coordinators/CaptureCoordinator.swift` |
+| Capture extraction/filter/classification | `MartenMac/Sources/MartenMacServices/Services/PasteboardMonitor/PasteboardRepresentationExtractor.swift`, `MartenMac/Sources/MartenMacServices/Services/PasteboardMonitor/MartenContentFilter.swift`, `MartenMac/Sources/MartenMacServices/Services/PasteboardMonitor/ItemTypeClassifier.swift` |
+| OCR capture orchestration | `MartenMac/Sources/MartenMacApp/App/Coordinators/OCRCaptureCoordinator.swift` |
+| OCR selection overlay | `MartenMac/Sources/MartenMacApp/UI/OCR/OCRSelectionOverlayController.swift` |
+| OCR recognition and capture services | `MartenMac/Sources/MartenMacServices/Services/OCR/` |
+| OCR settings provider | `MartenMac/Sources/MartenMacServices/Services/Settings/OCRSettingsProviding.swift` |
+| First-launch starter content seeding | `MartenMac/Sources/MartenMacApp/App/Coordinators/FirstLaunchContentSeeder.swift` |
+| Onboarding flow | `MartenMac/Sources/MartenMacApp/App/Coordinators/OnboardingCoordinator.swift`, `MartenMac/Sources/MartenMacApp/UI/Onboarding/` |
+| Paste engine | `MartenMac/Sources/MartenMacServices/Services/PasteEngine/PasteEngine.swift` |
+| Global hotkeys | `MartenMac/Sources/MartenMacServices/Services/HotkeyManager/HotkeyManager.swift` |
+| Hotkey orchestration | `MartenMac/Sources/MartenMacApp/App/Coordinators/HotkeyCoordinator.swift` |
+| Overlay window/controller | `MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayWindow.swift` |
+| Overlay root + shell | `MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayRootView.swift`, `MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayShellView.swift` |
+| Overlay dependencies/interfaces | `MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayDependencies.swift` |
+| Native drag source and pipeline | `MartenMac/Sources/MartenMacApp/UI/Overlay/NativeDragSource.swift`, `MartenMac/Sources/MartenMacApp/UI/Overlay/DragCoordinator.swift`, `MartenMac/Sources/MartenMacApp/UI/Overlay/DragTypes.swift` |
+| Drag preview rendering | `MartenMac/Sources/MartenMacApp/UI/Overlay/DragPreviewWindow.swift` |
+| Item card UI | `MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCard.swift`, `MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCardThumbnail.swift`, `MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCardRow.swift` |
+| Image resolution metadata resolver | `MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCardThumbnail.swift` |
+| Item editor | `MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorContentView.swift`, `MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditorWindow.swift` |
+| Overlay coordinators/handlers | `MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPreviewCoordinator.swift`, `MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayActionHandlers.swift`, `MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPinboardLockHandler.swift` |
+| Overlay search state | `MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySearchViewModel.swift` |
+| Settings UI | `MartenMac/Sources/MartenMacApp/UI/Settings/` |
+| Settings providers | `MartenMac/Sources/MartenMacServices/Services/Settings/` |
+| Core item store facade | `MartenCore/Sources/BusinessRules/ClipItemStore.swift` |
+| Core CRUD repository | `MartenCore/Sources/BusinessRules/ClipItemRepository.swift` |
+| Asset lifecycle and cleanup planning | `MartenCore/Sources/BusinessRules/AssetManagementService.swift` |
+| CloudKit sync orchestration | `MartenCore/Sources/Sync/SyncCoordinator.swift` |
+| Inbound fetch timeout guard | `MartenCore/Sources/Sync/InboundSyncEngine.swift` |
+| Outbound batching/retry engine | `MartenCore/Sources/Sync/OutboundSyncEngine.swift` |
+| Menu bar controller | `MartenMac/Sources/MartenMacApp/App/MenuBarController.swift` |
+| Permissions manager | `MartenMac/Sources/MartenMacServices/Services/Permissions/PermissionManager.swift` |
+| Crash reporting | `MartenMac/Sources/MartenMacServices/Services/CrashReporter.swift` |
+| Apple Intelligence text transforms | `MartenMac/Sources/MartenMacServices/Services/AppleIntelligence/`, `MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditorAITextEditing.swift` |
+| Screen sharing mode logic | `MartenMac/Sources/MartenMacServices/Services/ScreenSharing/ScreenSharingManager.swift`, `MartenMac/Sources/MartenMacApp/UI/Settings/PrivacyTab.swift` |
+| Screen-sharing capture protection for windows | `MartenMac/Sources/MartenMacApp/App/AppCoordinator.swift` |
+| Pinboard lock | `MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardLockController.swift`, `MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPinboardLockHandler.swift` |
+| Sign in with Apple (sync gating) | `MartenCore/Sources/BusinessRules/AppleAuthManager.swift`, `MartenMac/Sources/MartenMacApp/UI/Settings/AccountTab.swift` |
 
 ---
 
@@ -107,8 +107,8 @@ Paste/
 
 ### Lifecycle Root
 
-- `ClipboardMac/Sources/ClipboardMacApp/App/AppDelegate.swift` remains intentionally thin.
-- `ClipboardMac/Sources/ClipboardMacApp/App/AppCoordinator.swift` owns startup/shutdown orchestration:
+- `MartenMac/Sources/MartenMacApp/App/AppDelegate.swift` remains intentionally thin.
+- `MartenMac/Sources/MartenMacApp/App/AppCoordinator.swift` owns startup/shutdown orchestration:
   - overlay setup
   - capture + hotkey + OCR coordinators
   - onboarding and first-launch seeding
@@ -119,7 +119,7 @@ Paste/
 
 ### Composition Root and DI
 
-- `ClipboardMac/Sources/ClipboardMacApp/App/AppServiceContainer.swift` composes app dependencies.
+- `MartenMac/Sources/MartenMacApp/App/AppServiceContainer.swift` composes app dependencies.
 - Provider protocols define scoped boundaries:
   - `CaptureServicesProviding`
   - `OCRServicesProviding`
@@ -130,7 +130,7 @@ Paste/
 
 ### Core Persistence and Domain Layer
 
-- `ClipboardCore` encapsulates Core Data entities, repositories, services, and sync engine.
+- `MartenCore` encapsulates Core Data entities, repositories, services, and sync engine.
 - Key protocol boundaries:
   - `ClipItemStoring`, `ClipItemRepositoryProtocol`
   - `PinboardRepositoryProtocol`
@@ -153,7 +153,7 @@ Paste/
 ### Capture Pipeline Split
 
 - `PasteboardRepresentationExtractor` - representation extraction
-- `ClipboardContentFilter` - transient/confidential filtering policy
+- `MartenContentFilter` - transient/confidential filtering policy
 - `ItemTypeClassifier` - item type classification
 - `PasteboardExtractor` composes the above into `ClipItemPayload`
 
@@ -229,7 +229,7 @@ Menu command / OCR hotkey -> OCRCaptureCoordinator
   -> OCRSelectionOverlayController (drag region)
   -> ScreenImageCapturing + SelectionImageCropper
   -> VisionTextRecognizer
-  -> PasteEngine.copyPlainTextToClipboard
+  -> PasteEngine.copyPlainTextToMarten
 ```
 
 ### Sync (Inbound)
@@ -245,23 +245,23 @@ Push notification/App trigger -> AppCoordinator -> SyncCoordinator
 
 ## Testing
 
-- **Core package:** `ClipboardCore/Tests/ClipboardCoreTests` (unit/integration/perf)
+- **Core package:** `MartenCore/Tests/MartenCoreTests` (unit/integration/perf)
 - **macOS package:**
-  - `ClipboardMac/Tests/ClipboardMacTests` (services)
-  - `ClipboardMac/Tests/ClipboardMacAppTests` (UI-adjacent app logic)
-  - `ClipboardMac/Tests/ClipboardMacUITests` (hosted UI tests)
+  - `MartenMac/Tests/MartenMacTests` (services)
+  - `MartenMac/Tests/MartenMacAppTests` (UI-adjacent app logic)
+  - `MartenMac/Tests/MartenMacUITests` (hosted UI tests)
 
 **Validation snapshot (2026-02-09):**
-- `ClipboardCore`: `swift test` passed (194 tests, 0 failures)
-- `ClipboardMac`: `swift test` passed (192 tests, 0 failures, 10 skipped)
+- `MartenCore`: `swift test` passed (194 tests, 0 failures)
+- `MartenMac`: `swift test` passed (192 tests, 0 failures, 10 skipped)
 - UI tests require Xcode host runner and are skipped in plain SwiftPM runs
 
 ---
 
 ## Dependencies
 
-- **ClipboardCore:** Foundation, CoreData, CloudKit, CryptoKit, Combine
-- **ClipboardMac:** AppKit, SwiftUI, AVFoundation, CoreGraphics, LocalAuthentication, OSLog, Vision, ImageIO, FoundationModels
+- **MartenCore:** Foundation, CoreData, CloudKit, CryptoKit, Combine
+- **MartenMac:** AppKit, SwiftUI, AVFoundation, CoreGraphics, LocalAuthentication, OSLog, Vision, ImageIO, FoundationModels
 - **Third-party dependencies:** None
 
 ---

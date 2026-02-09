@@ -1,0 +1,227 @@
+{
+  "fill" : "system-light",
+  "groups" : [
+    {
+      "blur-material" : 0.5,
+      "layers" : [
+        {
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "ChatGPT Image Feb 9, 2026, 11_41_51 AM.png",
+          "name" : "ChatGPT Image Feb 9, 2026, 11_41_51 AM",
+          "position" : {
+            "scale" : 0.36,
+            "translation-in-points" : [
+              168.7664935030332,
+              -302.3589168674717
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "layer-color",
+        "opacity" : 1
+      },
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0.5
+      }
+    },
+    {
+      "blur-material" : 0.3,
+      "layers" : [
+        {
+          "fill" : {
+            "solid" : "gray:0.68539,1.00000"
+          },
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "SVG Image 13.svg",
+          "name" : "SVG Image 13",
+          "position" : {
+            "scale" : 2.08,
+            "translation-in-points" : [
+              43.36199847209127,
+              5.6619211208137585
+            ]
+          }
+        },
+        {
+          "fill" : {
+            "solid" : "extended-gray:0.75000,1.00000"
+          },
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "SVG Image 15.svg",
+          "name" : "SVG Image 15",
+          "position" : {
+            "scale" : 2.08,
+            "translation-in-points" : [
+              95.55939480111908,
+              137.16395522831044
+            ]
+          }
+        },
+        {
+          "fill" : {
+            "solid" : "gray:0.67907,1.00000"
+          },
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "SVG Image 14.svg",
+          "name" : "SVG Image 14",
+          "position" : {
+            "scale" : 2.08,
+            "translation-in-points" : [
+              70.60216935773815,
+              71.16367552785925
+            ]
+          }
+        },
+        {
+          "fill" : {
+            "linear-gradient" : [
+              "display-p3:0.19071,1.00000,0.76832,1.00000",
+              "display-p3:0.46992,0.73413,0.96783,1.00000"
+            ],
+            "orientation" : {
+              "start" : {
+                "x" : 0.02646649771710686,
+                "y" : 0.5
+              },
+              "stop" : {
+                "x" : 1,
+                "y" : 0.6096926249508295
+              }
+            }
+          },
+          "glass-specializations" : [
+            {
+              "value" : false
+            },
+            {
+              "appearance" : "dark",
+              "value" : false
+            }
+          ],
+          "hidden" : false,
+          "image-name" : "SVG Image 12.svg",
+          "name" : "SVG Image 12",
+          "position" : {
+            "scale" : 2.08,
+            "translation-in-points" : [
+              152.92284335241231,
+              -142.64609738934564
+            ]
+          }
+        },
+        {
+          "blend-mode" : "normal",
+          "fill" : {
+            "solid" : "srgb:1.00000,1.00000,1.00000,1.00000"
+          },
+          "glass" : true,
+          "hidden" : false,
+          "image-name" : "SVG Image 11.svg",
+          "name" : "SVG Image 11",
+          "position" : {
+            "scale" : 2.08,
+            "translation-in-points" : [
+              117.99746525291437,
+              28.95391387224504
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 1
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
+    },
+    {
+      "blur-material" : 0.3,
+      "hidden" : false,
+      "layers" : [
+        {
+          "fill" : {
+            "solid" : "extended-gray:0.75000,1.00000"
+          },
+          "hidden" : false,
+          "image-name" : "SVG Image 10.svg",
+          "name" : "SVG Image 10",
+          "position" : {
+            "scale" : 2.04,
+            "translation-in-points" : [
+              -209.2372902764061,
+              155.20140345591074
+            ]
+          }
+        },
+        {
+          "fill" : {
+            "linear-gradient" : [
+              "display-p3:1.00000,0.57654,0.60518,1.00000",
+              "display-p3:0.35551,0.13171,0.96783,1.00000"
+            ],
+            "orientation" : {
+              "start" : {
+                "x" : 0.8774712497404119,
+                "y" : 0.5975587665617148
+              },
+              "stop" : {
+                "x" : -0.044135990083938585,
+                "y" : 0.4220745643989826
+              }
+            }
+          },
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "SVG Image 9.svg",
+          "name" : "SVG Image 9",
+          "position" : {
+            "scale" : 2.04,
+            "translation-in-points" : [
+              -137.42153378713482,
+              -117.76629073711092
+            ]
+          }
+        },
+        {
+          "fill" : {
+            "solid" : "extended-gray:1.00000,1.00000"
+          },
+          "hidden" : false,
+          "image-name" : "SVG Image 8.svg",
+          "name" : "SVG Image 8",
+          "position" : {
+            "scale" : 2.04,
+            "translation-in-points" : [
+              -100.85000677041995,
+              50.51408003261531
+            ]
+          }
+        }
+      ],
+      "name" : "Group",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 1
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

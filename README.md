@@ -1,12 +1,12 @@
-# Paste
+# Marten
 
 macOS clipboard manager with iCloud sync.
 
 - **Status:** Phase 7 Beta Testing (Ready)
 - **Version:** 1.3.0
 - **Validation Snapshot (2026-02-09):**
-  - `ClipboardCore`: `swift test` passed (194 tests, 0 failures)
-  - `ClipboardMac`: `swift test` passed (192 tests, 0 failures, 10 skipped)
+  - `MartenCore`: `swift test` passed (194 tests, 0 failures)
+  - `MartenMac`: `swift test` passed (192 tests, 0 failures, 10 skipped)
 
 ## Documentation
 
