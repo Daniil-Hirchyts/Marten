@@ -1,8 +1,33 @@
 {
-  "fill" : "system-light",
+  "fill-specializations" : [
+    {
+      "value" : {
+        "linear-gradient" : [
+          "srgb:1.00000,0.57811,0.00000,1.00000",
+          "srgb:1.00000,0.17936,0.00000,1.00000"
+        ],
+        "orientation" : {
+          "start" : {
+            "x" : 0.5,
+            "y" : 0
+          },
+          "stop" : {
+            "x" : 0.5,
+            "y" : 0.7
+          }
+        }
+      }
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "solid" : "srgb:0.12984,0.12985,0.12984,1.00000"
+      }
+    }
+  ],
   "groups" : [
     {
-      "blur-material" : 0.5,
+      "blur-material" : null,
       "layers" : [
         {
           "glass" : false,
@@ -10,21 +35,28 @@
           "image-name" : "ChatGPT Image Feb 9, 2026, 11_41_51 AM.png",
           "name" : "ChatGPT Image Feb 9, 2026, 11_41_51 AM",
           "position" : {
-            "scale" : 0.36,
+            "scale" : 0.7,
             "translation-in-points" : [
-              168.7664935030332,
-              -302.3589168674717
+              142.2470239633139,
+              -264.0249148372377
             ]
           }
         }
       ],
+      "position" : {
+        "scale" : 0.75,
+        "translation-in-points" : [
+          0,
+          0
+        ]
+      },
       "shadow" : {
         "kind" : "layer-color",
         "opacity" : 1
       },
       "translucency" : {
         "enabled" : false,
-        "value" : 0.5
+        "value" : 0
       }
     },
     {
@@ -32,7 +64,7 @@
       "layers" : [
         {
           "fill" : {
-            "solid" : "gray:0.68539,1.00000"
+            "solid" : "extended-gray:0.50000,1.00000"
           },
           "glass" : true,
           "hidden" : false,
@@ -41,14 +73,14 @@
           "position" : {
             "scale" : 2.08,
             "translation-in-points" : [
-              43.36199847209127,
-              5.6619211208137585
+              29.534837978265386,
+              100.57550136772716
             ]
           }
         },
         {
           "fill" : {
-            "solid" : "extended-gray:0.75000,1.00000"
+            "solid" : "extended-gray:0.50000,1.00000"
           },
           "glass" : true,
           "hidden" : false,
@@ -57,14 +89,14 @@
           "position" : {
             "scale" : 2.08,
             "translation-in-points" : [
-              95.55939480111908,
-              137.16395522831044
+              81.7322343072932,
+              232.07753547522384
             ]
           }
         },
         {
           "fill" : {
-            "solid" : "gray:0.67907,1.00000"
+            "solid" : "extended-gray:0.50000,1.00000"
           },
           "glass" : true,
           "hidden" : false,
@@ -73,8 +105,8 @@
           "position" : {
             "scale" : 2.08,
             "translation-in-points" : [
-              70.60216935773815,
-              71.16367552785925
+              56.77500886391226,
+              166.07725577477265
             ]
           }
         },
@@ -82,7 +114,7 @@
           "fill" : {
             "linear-gradient" : [
               "display-p3:0.19071,1.00000,0.76832,1.00000",
-              "display-p3:0.46992,0.73413,0.96783,1.00000"
+              "srgb:0.01680,0.19835,1.00000,1.00000"
             ],
             "orientation" : {
               "start" : {
@@ -110,8 +142,8 @@
           "position" : {
             "scale" : 2.08,
             "translation-in-points" : [
-              152.92284335241231,
-              -142.64609738934564
+              140.33025075982096,
+              -35.386838130085835
             ]
           }
         },
@@ -127,12 +159,19 @@
           "position" : {
             "scale" : 2.08,
             "translation-in-points" : [
-              117.99746525291437,
-              28.95391387224504
+              105.40487266032301,
+              136.2131731315037
             ]
           }
         }
       ],
+      "position" : {
+        "scale" : 0.75,
+        "translation-in-points" : [
+          0,
+          0
+        ]
+      },
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 1
@@ -148,7 +187,7 @@
       "layers" : [
         {
           "fill" : {
-            "solid" : "extended-gray:0.75000,1.00000"
+            "solid" : "extended-gray:0.50000,1.00000"
           },
           "hidden" : false,
           "image-name" : "SVG Image 10.svg",
@@ -156,8 +195,8 @@
           "position" : {
             "scale" : 2.04,
             "translation-in-points" : [
-              -209.2372902764061,
-              155.20140345591074
+              -248.4965495356655,
+              253.1273293818358
             ]
           }
         },
@@ -185,14 +224,14 @@
           "position" : {
             "scale" : 2.04,
             "translation-in-points" : [
-              -137.42153378713482,
-              -117.76629073711092
+              -188.68079304639446,
+              -19.84036481118585
             ]
           }
         },
         {
           "fill" : {
-            "solid" : "extended-gray:1.00000,1.00000"
+            "solid" : "srgb:1.00000,1.00000,1.00000,1.00000"
           },
           "hidden" : false,
           "image-name" : "SVG Image 8.svg",
@@ -200,13 +239,20 @@
           "position" : {
             "scale" : 2.04,
             "translation-in-points" : [
-              -100.85000677041995,
-              50.51408003261531
+              -152.10926602967936,
+              148.44000595854038
             ]
           }
         }
       ],
       "name" : "Group",
+      "position" : {
+        "scale" : 0.75,
+        "translation-in-points" : [
+          0,
+          0
+        ]
+      },
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 1
