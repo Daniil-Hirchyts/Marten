@@ -1,7 +1,7 @@
 # Marten - Codebase Guide
 
 **macOS clipboard manager with iCloud sync**  
-**Status:** Phase 7 Beta Testing (Ready) | SwiftPM tests passing
+**Status:** Phase 7 Beta Testing (Ready) | SwiftPM tests passing | iOS Phase 3 complete
 
 ---
 
@@ -25,7 +25,13 @@ Marten/
 │   │   └── MartenMacValidation/ Validation executable
 │   └── Tests/
 │
+├── MartenIOS/                  iOS package (Phase 3 complete; Phase 4 planned)
+│   ├── Sources/
+│   │   └── MartenIOSApp/       iOS app composition root
+│   └── Tests/
+│
 ├── MartenMacWrapper/           Local wrapper resources (signing/entitlements/assets)
+├── MartenIOSWrapper/           Local iOS wrapper resources and Xcode app target
 └── docs/
     ├── INDEX.md
     ├── CODEBASE.md
@@ -100,6 +106,13 @@ Marten/
 | Screen-sharing capture protection for windows | `MartenMac/Sources/MartenMacApp/App/AppCoordinator.swift` |
 | Pinboard lock | `MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardLockController.swift`, `MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPinboardLockHandler.swift` |
 | Sign in with Apple (sync gating) | `MartenCore/Sources/BusinessRules/AppleAuthManager.swift`, `MartenMac/Sources/MartenMacApp/UI/Settings/AccountTab.swift` |
+| iOS sharing management UI | `MartenIOS/Sources/MartenIOSApp/UI/Sharing/ShareSettingsSheet.swift`, `MartenIOS/Sources/MartenIOSApp/UI/Sharing/ShareSettingsViewModel.swift`, `MartenIOS/Sources/MartenIOSApp/UI/Dashboard/PinboardManagementSheet.swift` |
+| iOS shared App Group storage + migration | `MartenCore/Sources/Persistence/MartenSharedStorage.swift`, `MartenIOS/Sources/MartenIOSApp/App/MartenIOSStorageConfiguration.swift` |
+| iOS share extension integration | `MartenIOS/Sources/MartenIOSApp/Integrations/ShareExtensionPayloadLoader.swift`, `MartenIOS/Sources/MartenIOSApp/Integrations/ShareExtensionSaveService.swift`, `MartenIOSWrapper/MartenShareExtension/` |
+| iOS keyboard extension integration | `MartenIOS/Sources/MartenIOSApp/Integrations/SharedClipQueryService.swift`, `MartenIOS/Sources/MartenIOSApp/Integrations/SharedClipItemSummary.swift`, `MartenIOSWrapper/MartenKeyboardExtension/` |
+| iOS widgets integration | `MartenIOS/Sources/MartenIOSApp/Integrations/WidgetTimelineService.swift`, `MartenIOSWrapper/MartenWidgetsExtension/` |
+| iOS Siri Shortcuts (App Intents) | `MartenIOS/Sources/MartenIOSApp/Integrations/Shortcuts/` |
+| iOS integrations onboarding + status | `MartenIOS/Sources/MartenIOSApp/UI/Settings/IntegrationsSettingsSection.swift`, `MartenIOS/Sources/MartenIOSApp/UI/Settings/IntegrationsStatusModel.swift`, `MartenIOS/Sources/MartenIOSApp/UI/Dashboard/MartenIOSDashboardView.swift` |
 
 ---
 
@@ -251,10 +264,12 @@ Push notification/App trigger -> AppCoordinator -> SyncCoordinator
   - `MartenMac/Tests/MartenMacAppTests` (UI-adjacent app logic)
   - `MartenMac/Tests/MartenMacUITests` (hosted UI tests)
 
-**Validation snapshot (2026-02-09):**
-- `MartenCore`: `swift test` passed (194 tests, 0 failures)
-- `MartenMac`: `swift test` passed (192 tests, 0 failures, 10 skipped)
-- UI tests require Xcode host runner and are skipped in plain SwiftPM runs
+**Validation snapshot (2026-02-11):**
+- `MartenCore`: `swift test` passed
+- `MartenMac`: `swift test` passed (hosted UI suites still require Xcode runner)
+- `MartenIOS`: `swift test` passed
+- `MartenIOSWrapper`: unsigned iOS build passed with
+  - `xcodebuild -project MartenIOSWrapper/MartenIOSWrapper.xcodeproj -scheme MartenIOSWrapper -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`
 
 ---
 
@@ -284,4 +299,4 @@ Push notification/App trigger -> AppCoordinator -> SyncCoordinator
 ---
 
 **Version:** 1.3.0  
-**Last Updated:** 2026-02-09
+**Last Updated:** 2026-02-11

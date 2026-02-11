@@ -70,5 +70,31 @@ final class ConflictResolverTests: XCTestCase {
         XCTAssertEqual(resolver.resolveDeletedWins(localIsDeleted: false, remoteIsDeleted: true), .deleteRecord)
         XCTAssertEqual(resolver.resolveDeletedWins(localIsDeleted: false, remoteIsDeleted: false), .keepRecord)
     }
+
+    func testLastWriterWinsLocalNewer() {
+        let zoneID = CKRecordZone.ID(zoneName: "Test", ownerName: CKCurrentUserDefaultName)
+
+        let id = UUID()
+        let local = CKRecord.pinboard(id: id, zoneID: zoneID)
+        let remote = CKRecord.pinboard(id: id, zoneID: zoneID)
+
+        let now = Date()
+        local.setDate(now, for: PinboardField.modifiedAt.rawValue)
+        remote.setDate(now.addingTimeInterval(-10), for: PinboardField.modifiedAt.rawValue)
+
+        let resolver = ConflictResolver()
+        let resolution = resolver.resolveLastWriterWins(
+            local: local,
+            remote: remote,
+            modifiedAtKey: PinboardField.modifiedAt.rawValue
+        )
+
+        XCTAssertEqual(resolution, .keepLocal)
+    }
+
+    func testDeletedWinsBothDeleted() {
+        let resolver = ConflictResolver()
+        XCTAssertEqual(resolver.resolveDeletedWins(localIsDeleted: true, remoteIsDeleted: true), .deleteRecord)
+    }
 }
 

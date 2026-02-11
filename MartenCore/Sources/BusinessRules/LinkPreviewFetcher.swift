@@ -1,6 +1,12 @@
-import AppKit
 import Foundation
 import LinkPresentation
+#if canImport(AppKit)
+import AppKit
+private typealias PlatformImage = NSImage
+#elseif canImport(UIKit)
+import UIKit
+private typealias PlatformImage = UIImage
+#endif
 
 public struct LinkPreviewPayload: Codable, Sendable {
     public let url: URL
@@ -124,14 +130,14 @@ public final class LinkPreviewFetcher {
     }
 
     private func loadImage(from provider: NSItemProvider) async throws -> Data? {
-        let image: NSImage = try await withDeadline(nanoseconds: Self.imageTimeoutNanoseconds) {
+        let image: PlatformImage = try await withDeadline(nanoseconds: Self.imageTimeoutNanoseconds) {
             try await withCheckedThrowingContinuation { continuation in
-                provider.loadObject(ofClass: NSImage.self) { object, error in
+                provider.loadObject(ofClass: PlatformImage.self) { object, error in
                     if let error {
                         continuation.resume(throwing: error)
                         return
                     }
-                    guard let image = object as? NSImage else {
+                    guard let image = object as? PlatformImage else {
                         continuation.resume(throwing: LinkPreviewError.noMetadata)
                         return
                     }
@@ -140,12 +146,21 @@ public final class LinkPreviewFetcher {
             }
         }
 
-        guard let tiffData = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiffData)
-        else {
+        return pngData(from: image)
+    }
+
+    private func pngData(from image: PlatformImage) -> Data? {
+        #if canImport(AppKit)
+        guard let tiffData = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiffData) else {
             return nil
         }
-
         return bitmap.representation(using: .png, properties: [:])
+        #elseif canImport(UIKit)
+        return image.pngData()
+        #else
+        return nil
+        #endif
     }
 
     private func withDeadline<T>(nanoseconds: UInt64, _ body: @escaping () async throws -> T) async throws -> T {

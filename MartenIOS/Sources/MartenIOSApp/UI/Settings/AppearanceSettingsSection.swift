@@ -1,0 +1,29 @@
+import SwiftUI
+
+struct AppearanceSettingsSection: View {
+    @Bindable var container: MartenIOSAppContainer
+
+    var body: some View {
+        MartenGlassSurface(cornerRadius: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Appearance", systemImage: "paintbrush")
+                    .font(.headline)
+
+                Picker(
+                    "Theme",
+                    selection: Binding(
+                        get: { container.appearance },
+                        set: { container.setAppearance($0) }
+                    )
+                ) {
+                    ForEach(MartenIOSAppearance.allCases, id: \.rawValue) { appearance in
+                        Text(appearance.displayName)
+                            .tag(appearance)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityLabel("App theme")
+            }
+        }
+    }
+}

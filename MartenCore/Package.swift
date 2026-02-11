@@ -5,6 +5,7 @@ import PackageDescription
 let package = Package(
     name: "MartenCore",
     platforms: [
+        .iOS("26.0"),
         .macOS("26.0")
     ],
     products: [

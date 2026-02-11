@@ -24,6 +24,17 @@ cd ../MartenMac
 swift build
 swift test
 
+# MartenIOS (Phase 3 complete)
+cd ../MartenIOS
+swift build
+swift test
+
+# MartenIOSWrapper unsigned build (app + share/keyboard/widgets extensions)
+xcodebuild -project ../MartenIOSWrapper/MartenIOSWrapper.xcodeproj \
+  -scheme MartenIOSWrapper \
+  -destination 'generic/platform=iOS' \
+  CODE_SIGNING_ALLOWED=NO build
+
 # Run unsigned executable (local development)
 swift run MartenMac
 ```
@@ -87,10 +98,13 @@ swift test
 UI tests in `MartenMac/Tests/MartenMacUITests` require an Xcode host runner.
 Use Xcode Test Navigator for UI suites.
 
-### Current Validation Snapshot (2026-02-09)
+### Current Validation Snapshot (2026-02-11)
 
-- `MartenCore`: 194 tests executed, 0 failures
-- `MartenMac`: 192 tests executed, 0 failures, 10 skipped
+- `MartenCore`: `swift test` passed
+- `MartenMac`: `swift test` passed (hosted UI suites still require Xcode runner)
+- `MartenIOS`: `swift test` passed
+- `MartenIOSWrapper`: unsigned iOS build passed with
+  - `xcodebuild -project MartenIOSWrapper/MartenIOSWrapper.xcodeproj -scheme MartenIOSWrapper -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`
 - Skipped tests are host-dependent UI tests in plain SwiftPM runs
 
 ### Beta Smoke Commands
@@ -114,7 +128,11 @@ Marten/
 ├── MartenMac/
 │   ├── Sources/
 │   └── Tests/
+├── MartenIOS/
+│   ├── Sources/
+│   └── Tests/
 ├── MartenMacWrapper/
+├── MartenIOSWrapper/
 └── docs/
 ```
 
@@ -164,4 +182,4 @@ For detailed paths and ownership:
 
 ---
 
-**Last Updated:** 2026-02-09
+**Last Updated:** 2026-02-11

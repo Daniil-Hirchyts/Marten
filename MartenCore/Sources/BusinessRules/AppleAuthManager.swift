@@ -3,6 +3,9 @@ import Foundation
 #if canImport(AppKit)
 import AppKit
 #endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Represents Apple ID user credentials.
 public struct AppleIDCredentials: Codable, Sendable {

@@ -1,5 +1,7 @@
-import AppKit
 import Foundation
+#if canImport(AppKit)
+import AppKit
+#endif
 
 public struct IgnoredApp: Codable, Identifiable, Equatable {
     public let bundleIdentifier: String
@@ -66,14 +68,16 @@ public final class IgnoredAppsManager {
     /// This method checks each ignored app's bundle identifier and removes it
     /// if the app cannot be found on the system via NSWorkspace.
     public func filterInstalledApps() {
+        #if canImport(AppKit)
         let originalCount = ignoredApps.count
         ignoredApps.removeAll { app in
             NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.bundleIdentifier) == nil
         }
-        
+
         if ignoredApps.count != originalCount {
             save()
         }
+        #endif
     }
 
     private func save() {

@@ -202,6 +202,12 @@ public final class ClipItemStore {
         try pinboardRepository.moveItem(objectID: objectID, toPinboard: pinboardID)
     }
 
+    public func moveItems(objectIDs: [NSManagedObjectID], toPinboard pinboardID: NSManagedObjectID)
+        throws
+    {
+        try pinboardRepository.moveItems(objectIDs: objectIDs, toPinboard: pinboardID)
+    }
+
     public func updateThumbnail(
         objectID: NSManagedObjectID,
         data: Data,
@@ -261,10 +267,20 @@ public final class ClipItemStore {
         try pinboardRepository.reorderPinboards(orderedIDs: orderedIDs)
     }
 
+    public func searchItems(request: ClipItemSearchRequest) throws -> [ClipItem] {
+        try searchService.searchItems(request: request)
+    }
+
     public func searchItems(query: String, limit: Int = 50, pinboardID: UUID? = nil) throws
         -> [ClipItem]
     {
-        try searchService.searchItems(query: query, limit: limit, pinboardID: pinboardID)
+        try searchService.searchItems(
+            request: ClipItemSearchRequest(
+                query: query,
+                pinboardID: pinboardID,
+                limit: limit
+            )
+        )
     }
 
     public func saveChanges() throws {

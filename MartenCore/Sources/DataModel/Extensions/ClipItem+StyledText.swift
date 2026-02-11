@@ -1,5 +1,9 @@
-import AppKit
 import Foundation
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 
 public extension ClipItem {
     /// Rich text content (RTF preferred, HTML fallback) decoded from stored representations.

@@ -14,6 +14,7 @@
 - **[BEST-PRACTICES.md](./BEST-PRACTICES.md)** - Security, logging, architecture, concurrency, and testing standards
 - **[ARCHITECTURE-DECISIONS.md](./ARCHITECTURE-DECISIONS.md)** - ADRs for major technical decisions
 - **[SETUP.md](./SETUP.md)** - Local setup, testing commands, signed CloudKit workflow
+- **[ios_development_phases.md](./ios_development_phases.md)** - Multi-agent iOS execution spec and 4-phase delivery plan
 
 ---
 
@@ -21,6 +22,8 @@
 
 **Current:** Phase 7 - Beta Testing (Ready) ✅  
 **Next:** Phase 8 - App Store Preparation
+
+**iOS Delivery:** Phase 3 complete (`P1-01` to `P3-06`) ✅
 
 | Phase | Status | Description |
 |-------|--------|-------------|
@@ -61,11 +64,13 @@
 
 ---
 
-## Validation Snapshot (2026-02-09)
+## Validation Snapshot (2026-02-11)
 
-- `MartenCore`: `swift test` passed (194 tests, 0 failures)
-- `MartenMac`: `swift test` passed (192 tests, 0 failures, 10 skipped)
-- UI tests in `MartenMacUITests` require an Xcode host runner and are skipped in plain SwiftPM runs
+- `MartenCore`: `swift test` passed
+- `MartenMac`: `swift test` passed (hosted UI suites require an Xcode runner)
+- `MartenIOS`: `swift test` passed
+- `MartenIOSWrapper`: unsigned iOS build passed with
+  - `xcodebuild -project MartenIOSWrapper/MartenIOSWrapper.xcodeproj -scheme MartenIOSWrapper -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`
 
 ---
 
@@ -76,4 +81,4 @@ Swift 5.9+ | SwiftUI + AppKit | Core Data | CloudKit | XCTest
 
 ---
 
-**Last Updated:** 2026-02-09
+**Last Updated:** 2026-02-11

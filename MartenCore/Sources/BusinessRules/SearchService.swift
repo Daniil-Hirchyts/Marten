@@ -8,32 +8,61 @@ final class SearchService {
         self.persistence = persistence
     }
 
-    func searchItems(query: String, limit: Int = 50, pinboardID: UUID? = nil) throws -> [ClipItem] {
-        let normalized = query.normalizedForSearch()
+    func searchItems(request searchRequest: ClipItemSearchRequest) throws -> [ClipItem] {
+        let trimmedQuery = searchRequest.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedQuery = trimmedQuery.isEmpty ? nil : trimmedQuery.normalizedForSearch()
+        let fetchLimit = max(1, searchRequest.limit)
 
         let bgContext = persistence.newBackgroundContext()
         var fetchedIDs: [NSManagedObjectID] = []
 
         try bgContext.performAndWaitThrowing {
-            let request = ClipItem.fetchRequest()
-            var predicates: [NSPredicate] = [
-                NSPredicate(format: "searchableText CONTAINS[cd] %@", normalized)
-            ]
+            let fetchRequest = ClipItem.fetchRequest()
+            var predicates: [NSPredicate] = [NSPredicate(format: "isTransient == NO")]
 
-            if let pinboardID {
+            if let normalizedQuery {
+                predicates.append(
+                    NSPredicate(format: "searchableText CONTAINS[cd] %@", normalizedQuery)
+                )
+            }
+
+            if let pinboardID = searchRequest.pinboardID {
                 predicates.append(
                     NSPredicate(format: "ANY pinboards.id == %@", pinboardID as CVarArg)
                 )
             }
 
-            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
-            request.sortDescriptors = [
+            if let datePredicate = datePredicate(for: searchRequest.dateFilter) {
+                predicates.append(datePredicate)
+            }
+
+            if !searchRequest.itemTypes.isEmpty {
+                let rawValues = searchRequest.itemTypes.map(\.rawValue)
+                predicates.append(NSPredicate(format: "itemType IN %@", rawValues))
+            }
+
+            if !searchRequest.sourceApps.isEmpty {
+                let values = Array(searchRequest.sourceApps)
+                predicates.append(
+                    NSCompoundPredicate(orPredicateWithSubpredicates: [
+                        NSPredicate(format: "sourceAppBundleID IN %@", values),
+                        NSPredicate(format: "sourceAppName IN %@", values),
+                    ])
+                )
+            }
+
+            if let devicePredicate = sourceDevicePredicate(searchRequest.sourceDevices) {
+                predicates.append(devicePredicate)
+            }
+
+            fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+            fetchRequest.sortDescriptors = [
                 NSSortDescriptor(key: "displayOrder", ascending: false),
                 NSSortDescriptor(key: "createdAt", ascending: false),
             ]
-            request.fetchLimit = limit
-            request.relationshipKeyPathsForPrefetching = []
-            let items = try bgContext.fetch(request)
+            fetchRequest.fetchLimit = fetchLimit
+            fetchRequest.relationshipKeyPathsForPrefetching = []
+            let items = try bgContext.fetch(fetchRequest)
             fetchedIDs = items.map { $0.objectID }
         }
 
@@ -47,6 +76,77 @@ final class SearchService {
         }
 
         return results
+    }
+
+    private func datePredicate(for filter: ClipItemDateFilter, now: Date = Date()) -> NSPredicate? {
+        let calendar = Calendar.current
+        switch filter {
+        case .any:
+            return nil
+        case .today:
+            let start = calendar.startOfDay(for: now)
+            return NSPredicate(format: "createdAt >= %@", start as NSDate)
+        case .yesterday:
+            let startOfToday = calendar.startOfDay(for: now)
+            guard let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: startOfToday)
+            else {
+                return nil
+            }
+            return NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "createdAt >= %@", startOfYesterday as NSDate),
+                NSPredicate(format: "createdAt < %@", startOfToday as NSDate),
+            ])
+        case .last7Days:
+            guard let cutoff = calendar.date(byAdding: .day, value: -7, to: now) else {
+                return nil
+            }
+            return NSPredicate(format: "createdAt >= %@", cutoff as NSDate)
+        case .last30Days:
+            guard let cutoff = calendar.date(byAdding: .day, value: -30, to: now) else {
+                return nil
+            }
+            return NSPredicate(format: "createdAt >= %@", cutoff as NSDate)
+        }
+    }
+
+    private func sourceDevicePredicate(_ filters: Set<ClipItemSourceDevice>) -> NSPredicate? {
+        guard !filters.isEmpty else { return nil }
+
+        let thisDeviceMarkers = [
+            "This Device",
+            "local",
+            "local device",
+            "current device",
+        ]
+        let unknownMarkers = [
+            "Unknown",
+            "n/a",
+            "na",
+        ]
+
+        let predicates: [NSPredicate] = filters.map { filter in
+            switch filter {
+            case .thisDevice:
+                let markerPredicates = thisDeviceMarkers.map {
+                    NSPredicate(format: "lastModifiedBy ==[c] %@", $0)
+                }
+                return NSCompoundPredicate(
+                    orPredicateWithSubpredicates: [
+                    NSPredicate(format: "lastModifiedBy == nil"),
+                    NSPredicate(format: "lastModifiedBy == ''"),
+                    ] + markerPredicates
+                )
+            case .unknown:
+                let markerPredicates = unknownMarkers.map {
+                    NSPredicate(format: "lastModifiedBy ==[c] %@", $0)
+                }
+                return NSCompoundPredicate(orPredicateWithSubpredicates: markerPredicates)
+            case .named(let deviceName):
+                return NSPredicate(format: "lastModifiedBy == %@", deviceName)
+            }
+        }
+
+        return NSCompoundPredicate(orPredicateWithSubpredicates: predicates)
     }
 
     func deriveSearchableText(
