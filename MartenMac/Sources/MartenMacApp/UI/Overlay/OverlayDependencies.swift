@@ -53,6 +53,8 @@ public protocol PinboardManaging: AnyObject {
         visiblePinboards: [Pinboard]
     )
     func saveChanges()
+    func canSharePinboard(_ pinboard: Pinboard, isLocked: Bool) -> Bool
+    func canLockPinboard(_ pinboard: Pinboard) -> Bool
 }
 
 extension PinboardManager: PinboardManaging {}
@@ -66,6 +68,7 @@ public struct OverlayDependencies {
     public let soundPlayer: SoundEffectPlayer
     public let screenSharingManager: ScreenSharingManager
     public let pasteboardMonitor: PasteboardMonitor
+    public let sharing: (any PinboardSharingRepositoryProtocol)?
 
     public init(
         clipItemStore: any ClipItemStoring,
@@ -75,7 +78,8 @@ public struct OverlayDependencies {
         appleIntelligence: any AppleIntelligenceTextServicing,
         soundPlayer: SoundEffectPlayer,
         screenSharingManager: ScreenSharingManager = ScreenSharingManager(),
-        pasteboardMonitor: PasteboardMonitor = PasteboardMonitor()
+        pasteboardMonitor: PasteboardMonitor = PasteboardMonitor(),
+        sharing: (any PinboardSharingRepositoryProtocol)? = nil
     ) {
         self.clipItemStore = clipItemStore
         self.itemOperations = itemOperations
@@ -85,5 +89,6 @@ public struct OverlayDependencies {
         self.soundPlayer = soundPlayer
         self.screenSharingManager = screenSharingManager
         self.pasteboardMonitor = pasteboardMonitor
+        self.sharing = sharing
     }
 }

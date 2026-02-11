@@ -242,6 +242,13 @@ public final class OutboundSyncEngine: @unchecked Sendable {
     private func handleContextDidSave(_ notification: Notification) {
         guard isNotificationFromOurStack(notification) else { return }
 
+        // Skip saves from inbound sync to avoid sync loops
+        if let context = notification.object as? NSManagedObjectContext,
+           let author = context.transactionAuthor,
+           author == "private-inbound-sync" || author == "shared-inbound-sync" {
+            return
+        }
+
         guard let userInfo = notification.userInfo else { return }
 
         let insertedObjects = (userInfo[NSInsertedObjectsKey] as? Set<NSManagedObject>) ?? []

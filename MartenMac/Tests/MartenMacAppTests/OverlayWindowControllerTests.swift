@@ -36,11 +36,11 @@ final class OverlayWindowControllerTests: XCTestCase {
         )
 
         controller.toggle()
-        spinRunLoop(for: 0.3)
+        spinRunLoop(for: 0.5)
         XCTAssertTrue(controller.isVisibleForTesting)
 
         controller.toggle()
-        spinRunLoop(for: 0.3)
+        spinRunLoop(for: 0.5)
         XCTAssertFalse(controller.isVisibleForTesting)
     }
 

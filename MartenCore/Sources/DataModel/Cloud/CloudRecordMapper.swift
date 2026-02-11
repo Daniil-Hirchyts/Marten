@@ -70,6 +70,53 @@ public final class CloudRecordMapper {
         record.setBool(item.isTransient, for: ClipItemField.isTransient.rawValue)
         record.setBool(item.isPinned, for: ClipItemField.isPinned.rawValue)
         record.setInt64(item.byteCount, for: ClipItemField.byteCount.rawValue)
+        record.setString(item.lastModifiedBy, for: ClipItemField.lastModifiedBy.rawValue)
+        record.setDate(item.lastModifiedAt, for: ClipItemField.lastModifiedAt.rawValue)
+
+        return record
+    }
+
+    /// Maps a ClipItem entity to a CKRecord in a specific zone.
+    public func mapToRecord(_ item: ClipItem, zoneID targetZoneID: CKRecordZone.ID) -> CKRecord {
+        let recordID = CKRecord.ID.clipItemID(item.id, zoneID: targetZoneID)
+        let record = CKRecord(recordType: CloudRecordType.clipItem.rawValue, recordID: recordID)
+
+        record.setUUID(item.id, for: ClipItemField.id.rawValue)
+        record.setDate(item.createdAt, for: ClipItemField.createdAt.rawValue)
+        record.setDate(item.modifiedAt, for: ClipItemField.modifiedAt.rawValue)
+        record.setString(item.sourceAppBundleID, for: ClipItemField.sourceAppBundleID.rawValue)
+        record.setString(item.sourceAppName, for: ClipItemField.sourceAppName.rawValue)
+        record.setItemType(item.itemTypeValue, for: ClipItemField.itemType.rawValue)
+
+        if let primaryText = item.primaryText {
+            let truncated = String(primaryText.prefix(maxPrimaryTextLength))
+            record.setString(truncated, for: ClipItemField.primaryText.rawValue)
+        }
+
+        record.setString(item.contentHash, for: ClipItemField.contentHash.rawValue)
+        record.setBool(item.isSensitive, for: ClipItemField.isSensitive.rawValue)
+        record.setBool(item.isTransient, for: ClipItemField.isTransient.rawValue)
+        record.setBool(item.isPinned, for: ClipItemField.isPinned.rawValue)
+        record.setInt64(item.byteCount, for: ClipItemField.byteCount.rawValue)
+        record.setString(item.lastModifiedBy, for: ClipItemField.lastModifiedBy.rawValue)
+        record.setDate(item.lastModifiedAt, for: ClipItemField.lastModifiedAt.rawValue)
+
+        return record
+    }
+
+    /// Maps a Pinboard entity to a CKRecord in a specific zone.
+    public func mapToRecord(_ pinboard: Pinboard, zoneID targetZoneID: CKRecordZone.ID) -> CKRecord {
+        let recordID = CKRecord.ID.pinboardID(pinboard.id, zoneID: targetZoneID)
+        let record = CKRecord(recordType: CloudRecordType.pinboard.rawValue, recordID: recordID)
+
+        record.setUUID(pinboard.id, for: PinboardField.id.rawValue)
+        record.setString(pinboard.name, for: PinboardField.name.rawValue)
+        record.setString(pinboard.colorHex, for: PinboardField.colorHex.rawValue)
+        record.setInt16(pinboard.sortOrder, for: PinboardField.sortOrder.rawValue)
+        record.setBool(pinboard.isSystemMarten, for: PinboardField.isSystemMarten.rawValue)
+        record.setDate(pinboard.createdAt, for: PinboardField.createdAt.rawValue)
+        record.setDate(Date(), for: PinboardField.modifiedAt.rawValue)
+        record.setString(pinboard.iconName, for: PinboardField.iconName.rawValue)
 
         return record
     }
@@ -143,6 +190,9 @@ public final class CloudRecordMapper {
         if let byteCount = record.int64(for: ClipItemField.byteCount.rawValue) {
             item.byteCount = byteCount
         }
+
+        item.lastModifiedBy = record.string(for: ClipItemField.lastModifiedBy.rawValue)
+        item.lastModifiedAt = record.date(for: ClipItemField.lastModifiedAt.rawValue)
 
         // Calculate displayOrder from modifiedAt
         if let modifiedAt = record.date(for: ClipItemField.modifiedAt.rawValue) {

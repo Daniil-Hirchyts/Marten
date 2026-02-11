@@ -45,6 +45,7 @@ struct ItemGridSection: View {
     let selectedItemIDs: Set<NSManagedObjectID>
     let editingItemID: NSManagedObjectID?
     let allowPinning: Bool
+    let readOnly: Bool
     let clipItemEditor: any ClipItemEditing
     let isDragEnabled: Bool
     let isReorderingEnabled: Bool
@@ -93,6 +94,7 @@ struct ItemGridSection: View {
                             selectedItemIDs: selectedItemIDs,
                             editingItemID: editingItemID,
                             allowPinning: allowPinning,
+                            readOnly: readOnly,
                             clipItemEditor: clipItemEditor,
                             isDragEnabled: isDragEnabled,
                             isReorderingEnabled: isReorderingEnabled,
@@ -134,6 +136,7 @@ struct ItemGridSection: View {
                             selectedItemIDs: selectedItemIDs,
                             editingItemID: editingItemID,
                             allowPinning: allowPinning,
+                            readOnly: readOnly,
                             clipItemEditor: clipItemEditor,
                             isDragEnabled: isDragEnabled,
                             isReorderingEnabled: isReorderingEnabled,
@@ -174,6 +177,13 @@ struct ItemGridSection: View {
         }
         .animation(.easeInOut(duration: 0.2), value: isSelectedPinboardAwaitingUnlock)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .overlay(alignment: .topLeading) {
+            if readOnly {
+                ReadOnlyHintBadge()
+                    .padding(.horizontal, 14)
+                    .padding(.top, 8)
+            }
+        }
 
     }
 }
@@ -248,5 +258,23 @@ private struct LockedPinboardOverlayView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
+    }
+}
+
+private struct ReadOnlyHintBadge: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "eye")
+                .font(.system(size: 10, weight: .semibold))
+            Text("View only: editing actions are disabled")
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.secondary.opacity(0.14))
+        )
     }
 }

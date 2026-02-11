@@ -20,6 +20,7 @@ struct ItemCompactRow: View {
     let isSelected: Bool
     let isEditing: Bool
     let allowPinning: Bool
+    let readOnly: Bool
     let clipItemEditor: any ClipItemEditing
     let onPaste: (ClipItem) -> Void
     let onPastePlainText: (ClipItem) -> Void
@@ -139,7 +140,10 @@ struct ItemCompactRow: View {
                     isPreviewPopoverPresented = false
                 }
             )
-            .frame(width: 560, height: 380)
+            .frame(
+                width: item.shouldUseLargePreviewPopover ? 920 : 560,
+                height: item.shouldUseLargePreviewPopover ? 640 : 380
+            )
         }
         .contextMenu {
             CardContextMenu(
@@ -147,6 +151,7 @@ struct ItemCompactRow: View {
                 itemID: item.id,
                 isPinned: item.isPinned,
                 allowPinning: allowPinning,
+                readOnly: readOnly,
                 assignedPinboardIDs: assignedPinboardIDs,
                 pinboards: pinboards,
                 lockedPinboardIDs: lockedPinboardIDs,
@@ -288,7 +293,7 @@ struct ItemCompactRow: View {
             return pinboardColor
         }
         if let appColor = appColorLoader.color {
-            return Color(nsColor: appColor).opacity(0.9)
+            return Color(nsColor: appColor).opacity(0.96)
         }
         return colorScheme == .dark
             ? Color.white.opacity(0.24)

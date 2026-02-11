@@ -7,6 +7,15 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension OverlayItemPreview {
+    func openURLInExternalBrowser() {
+        guard item.itemTypeValue == .url, let url = normalizedPrimaryURL else {
+            NSSound.beep()
+            return
+        }
+
+        NSWorkspace.shared.open(url)
+    }
+
     func shareItem() {
         let items = shareItems
         guard !items.isEmpty else {

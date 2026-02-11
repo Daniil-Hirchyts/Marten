@@ -18,6 +18,7 @@ struct ItemCardRow: View {
     let selectedItemIDs: Set<NSManagedObjectID>
     let editingItemID: NSManagedObjectID?
     let allowPinning: Bool
+    let readOnly: Bool
     let clipItemEditor: any ClipItemEditing
     let isDragEnabled: Bool
     let isReorderingEnabled: Bool
@@ -276,6 +277,7 @@ struct ItemCardRow: View {
                 isDropTarget: false,
                 showPinIndicator: allowPinning,
                 allowPinning: allowPinning,
+                readOnly: readOnly,
                 isDragEnabled: isDragEnabled,
                 cardSize: size,
                 onPaste: onPaste,
@@ -340,7 +342,10 @@ struct ItemCardRow: View {
                         isPreviewPopoverPresented = false
                     }
                 )
-                .frame(width: 560, height: 380)
+                .frame(
+                    width: item.shouldUseLargePreviewPopover ? 920 : 560,
+                    height: item.shouldUseLargePreviewPopover ? 640 : 380
+                )
             }
             .frame(width: size, height: size)
             .opacity(isDragging ? 0.25 : 1)
@@ -986,6 +991,7 @@ struct ItemCardDragPreview: View {
             isDropTarget: false,
             showPinIndicator: false,
             allowPinning: false,
+            readOnly: false,
             isDragEnabled: false,
             cardSize: cardSize,
             onPaste: { _ in },
@@ -1032,6 +1038,7 @@ struct MultiItemCardDragPreview: View {
                     isDropTarget: false,
                     showPinIndicator: false,
                     allowPinning: false,
+                    readOnly: false,
                     isDragEnabled: false,
                     cardSize: cardSize,
                     onPaste: { _ in },

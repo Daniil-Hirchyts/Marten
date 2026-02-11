@@ -117,7 +117,11 @@ extension OverlayShellView {
                         )
                         Text(pinboard.name)
                         Spacer(minLength: 0)
-                        if pinboardLockController.isLocked(pinboardID: pinboard.id) {
+                        if pinboard.isShared {
+                            Image(systemName: "person.2.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        } else if pinboardLockController.isLocked(pinboardID: pinboard.id) {
                             Image(systemName: "lock.fill")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(.secondary)

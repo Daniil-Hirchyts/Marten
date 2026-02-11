@@ -15,6 +15,7 @@ public extension Pinboard {
     @NSManaged var iconName: String?
     @NSManaged var shareToken: String?
     @NSManaged var items: Set<ClipItem>?
+    @NSManaged var shareMetadata: ShareMetadata?
 }
 
 extension Pinboard: Identifiable {}

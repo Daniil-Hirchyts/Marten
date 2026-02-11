@@ -59,6 +59,69 @@ final class MigrationTests: XCTestCase {
         XCTAssertNil(item.value(forKey: "sourceAppVersion") as? String)
     }
 
+    func testLightweightMigrationFromV2ToV3PreservesData() throws {
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fileManager.createDirectory(
+            at: tempDir, withIntermediateDirectories: true, attributes: nil)
+        defer { try? fileManager.removeItem(at: tempDir) }
+
+        let storeURL = tempDir.appendingPathComponent("MartenCore.sqlite")
+
+        let v2Model = try loadModelVersion(named: "MartenV2")
+        try seedStore(at: storeURL, model: v2Model)
+
+        let v3Model = try loadModelVersion(named: "MartenV3")
+        let container = NSPersistentContainer(name: "Marten", managedObjectModel: v3Model)
+        let description = NSPersistentStoreDescription(url: storeURL)
+        description.type = NSSQLiteStoreType
+        description.setOption(
+            true as NSNumber, forKey: NSMigratePersistentStoresAutomaticallyOption)
+        description.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)
+        container.persistentStoreDescriptions = [description]
+
+        let loadExpectation = expectation(description: "load v3 store")
+        var loadError: Error?
+        container.loadPersistentStores { _, error in
+            loadError = error
+            loadExpectation.fulfill()
+        }
+        wait(for: [loadExpectation], timeout: 5)
+        if let loadError {
+            throw loadError
+        }
+
+        let context = container.viewContext
+
+        // Verify ClipItem data preserved
+        let itemRequest = ClipItem.fetchRequest()
+        let items = try context.fetch(itemRequest)
+        XCTAssertEqual(items.count, 1)
+
+        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(item.primaryText, "Hello world")
+        XCTAssertEqual(item.contentHash, "hash-1")
+        XCTAssertEqual(item.isPinned, true)
+
+        // Verify new ClipItem fields default to nil
+        XCTAssertNil(item.lastModifiedBy)
+        XCTAssertNil(item.lastModifiedAt)
+
+        // Verify Pinboard data preserved
+        let pinboard = try XCTUnwrap(item.pinboards?.first)
+        XCTAssertEqual(pinboard.name, "Favorites")
+        XCTAssertEqual(pinboard.colorHex, "#FF00AA")
+
+        // Verify new Pinboard relationship defaults to nil
+        XCTAssertNil(pinboard.shareMetadata)
+        XCTAssertFalse(pinboard.isShared)
+
+        // Verify ShareMetadata entity exists but is empty
+        let metadataRequest = ShareMetadata.fetchRequest()
+        let metadata = try context.fetch(metadataRequest)
+        XCTAssertEqual(metadata.count, 0)
+    }
+
     private func seedStore(at storeURL: URL, model: NSManagedObjectModel) throws {
         let container = NSPersistentContainer(name: "Marten", managedObjectModel: model)
         let description = NSPersistentStoreDescription(url: storeURL)

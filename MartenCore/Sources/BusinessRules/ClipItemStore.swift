@@ -8,6 +8,7 @@ public final class ClipItemStore {
     private let retentionService: any ClipItemRetentionServicing
     private let usageService: any ClipItemUsageServicing
     private let searchService: any SearchServicing
+    public let sharingRepository: (any PinboardSharingRepositoryProtocol)?
 
     public init(
         repository: any ClipItemRepositoryProtocol,
@@ -15,7 +16,8 @@ public final class ClipItemStore {
         usageService: any ClipItemUsageServicing,
         assetManagementService: any AssetManagementServicing,
         pinboardRepository: any PinboardRepositoryProtocol,
-        searchService: any SearchServicing
+        searchService: any SearchServicing,
+        sharingRepository: (any PinboardSharingRepositoryProtocol)? = nil
     ) {
         self.repository = repository
         self.retentionService = retentionService
@@ -23,6 +25,7 @@ public final class ClipItemStore {
         self.assetManagementService = assetManagementService
         self.pinboardRepository = pinboardRepository
         self.searchService = searchService
+        self.sharingRepository = sharingRepository
     }
 
     public convenience init(persistence: PersistenceController = .shared, assetStore: AssetStore = .shared) {

@@ -220,6 +220,14 @@ final class TestSyncCoordinator: ObservableObject, SyncCoordinating {
         }
     }
 
+    func acceptShare(metadata: CKShare.Metadata) async throws {
+        // stub
+    }
+
+    func syncSharedNow() async throws {
+        // stub
+    }
+
     private func handleSyncEnabledChange() {
         if syncEnabled {
             Task {

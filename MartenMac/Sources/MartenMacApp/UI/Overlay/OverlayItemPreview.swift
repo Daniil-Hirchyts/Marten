@@ -19,9 +19,6 @@ struct OverlayItemPreview: View {
 
     @State var image: NSImage?
     @State var fileIcon: NSImage?
-    @State var urlBannerImage: NSImage?
-    @State var lastLoadedURLBannerPath: String?
-    @State var lastFetchedURLBannerURLString: String?
     @State var cachedProps: CachedItemProperties?
     @State var rotationAngle: Angle = .zero
     @State var styledRichTextPreview: AttributedString?
@@ -59,9 +56,6 @@ struct OverlayItemPreview: View {
             refreshCachedProperties()
             loadAssetsIfNeeded()
             refreshStyledTextPreview()
-        }
-        .onChange(of: item.linkPreview?.imagePath) { _, _ in
-            loadURLBannerIfNeeded()
         }
     }
 
@@ -106,6 +100,15 @@ struct OverlayItemPreview: View {
                         action: shareItem,
                         applyBackground: false
                     )
+                    if item.itemTypeValue == .url {
+                        PreviewIconButton(
+                            title: "Open in Browser",
+                            systemImage: "safari",
+                            action: openURLInExternalBrowser,
+                            applyBackground: false
+                        )
+                        .disabled(normalizedPrimaryURL == nil)
+                    }
                 }
                 .padding(2)
                 .adaptiveGlassBackground(shape: .capsule)

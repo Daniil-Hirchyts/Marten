@@ -17,6 +17,7 @@ struct ItemCompactColumn: View {
     let selectedItemIDs: Set<NSManagedObjectID>
     let editingItemID: NSManagedObjectID?
     let allowPinning: Bool
+    let readOnly: Bool
     let clipItemEditor: any ClipItemEditing
     let isDragEnabled: Bool
     let isReorderingEnabled: Bool
@@ -97,6 +98,7 @@ struct ItemCompactColumn: View {
                             isSelected: selectedItemIDs.contains(item.objectID),
                             isEditing: editingItemID == item.objectID,
                             allowPinning: allowPinning,
+                            readOnly: readOnly,
                             clipItemEditor: clipItemEditor,
                             onPaste: onPaste,
                             onPastePlainText: onPastePlainText,

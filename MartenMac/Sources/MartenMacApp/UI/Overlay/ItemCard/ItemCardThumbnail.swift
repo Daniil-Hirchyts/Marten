@@ -20,15 +20,8 @@ extension ItemCard {
             return customTitle
         }
 
-        guard let reps = item.representations,
-            let fileRep = reps.first(where: { $0.kindValue == .fileURL }),
-            let data = fileRep.textData,
-            let path = String(data: data, encoding: .utf8)
-        else {
-            return nil
-        }
-        let url = URL(fileURLWithPath: path.trimmingCharacters(in: .whitespacesAndNewlines))
-        return url.lastPathComponent
+        guard let path = filePathFromRepresentations() else { return nil }
+        return URL(fileURLWithPath: path).lastPathComponent
     }
 
     var imageFileNameShortened: String? {
@@ -392,14 +385,10 @@ extension ItemCard {
     }
 
     func filePathFromRepresentations() -> String? {
-        guard let reps = item.representations else { return nil }
-        guard let rep = reps.first(where: { $0.kindValue == .fileURL }) else { return nil }
-        guard let data = rep.textData, let path = String(data: data, encoding: .utf8) else {
+        guard let resolvedURL = FileURLAccessResolver.resolvedFileURL(from: item) else {
             return nil
         }
-        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return trimmed
+        return resolvedURL.path
     }
 }
 

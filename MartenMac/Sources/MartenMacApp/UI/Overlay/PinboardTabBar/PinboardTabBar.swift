@@ -63,6 +63,12 @@ struct PinboardTabBar<CreatePopoverContent: View>: View {
     let onMoveItem: (Pinboard, String) -> Void
     let onCommit: () -> Void
     let onCancel: () -> Void
+    var onSharePinboard: ((Pinboard) -> Void)? = nil
+    var onManageSharing: ((Pinboard) -> Void)? = nil
+    var onStopSharing: ((Pinboard) -> Void)? = nil
+    var onLeaveSharedPinboard: ((Pinboard) -> Void)? = nil
+    @Binding var shareSheetPinboard: Pinboard?
+    var sharingRepository: (any PinboardSharingRepositoryProtocol)?
     let coordinateSpaceName: String
 
     static var allTabObjectID: NSManagedObjectID { PinboardTabBarIDs.allTabObjectID }

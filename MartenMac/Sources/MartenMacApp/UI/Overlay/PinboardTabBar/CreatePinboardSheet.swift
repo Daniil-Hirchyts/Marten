@@ -128,9 +128,20 @@ extension PinboardTabBar {
         .frame(height: headerButtonSize)
         .background(
             GeometryReader { proxy in
+                let overlayFrm = overlayFrame(from: proxy)
+                let localFrm = localFrame(from: proxy)
+                let tabFrameEntry: [NSManagedObjectID: CGRect] = {
+                    if let pinboard {
+                        return [pinboard.objectID: localFrm]
+                    }
+                    return [:]
+                }()
                 Color.clear.preference(
                     key: PinboardLayoutInfoKey.self,
-                    value: PinboardLayoutInfo(editorOverlayFrame: overlayFrame(from: proxy))
+                    value: PinboardLayoutInfo(
+                        tabFrames: tabFrameEntry,
+                        editorOverlayFrame: overlayFrm
+                    )
                 )
             }
         )

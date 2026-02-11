@@ -1,5 +1,6 @@
 import CloudKit
 import Combine
+import CoreData
 import Foundation
 import os.log
 
@@ -55,6 +56,8 @@ public protocol SyncCoordinating: AnyObject {
     func stopSync()
     func triggerSyncNow() async throws
     func handlePushNotification() async
+    func acceptShare(metadata: CKShare.Metadata) async throws
+    func syncSharedNow() async throws
 }
 
 // MARK: - Sync Coordinator Delegate
@@ -172,6 +175,11 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     private let configuration: SyncCoordinatorConfiguration
     private let userDefaults: UserDefaults
 
+    // Shared pinboard sync infrastructure (nil when feature flag is off)
+    private let shareCoordinator: ShareCoordinator?
+    private let sharedInboundEngine: SharedInboundSyncEngine?
+    private let sharedOutboundEngine: SharedOutboundSyncEngine?
+
     // MARK: - Private State
 
     private let periodicScheduler = PeriodicSyncScheduler()
@@ -205,7 +213,10 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         assetSyncManager: AssetSyncManager,
         persistenceController: PersistenceController,
         configuration: SyncCoordinatorConfiguration = .default,
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        shareCoordinator: ShareCoordinator? = nil,
+        sharedInboundEngine: SharedInboundSyncEngine? = nil,
+        sharedOutboundEngine: SharedOutboundSyncEngine? = nil
     ) {
         self.cloudKitManager = cloudKitManager
         self.outboundEngine = outboundEngine
@@ -214,6 +225,9 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         self.persistenceController = persistenceController
         self.configuration = configuration
         self.userDefaults = userDefaults
+        self.shareCoordinator = shareCoordinator
+        self.sharedInboundEngine = sharedInboundEngine
+        self.sharedOutboundEngine = sharedOutboundEngine
         self.syncEnabled = userDefaults.bool(forKey: configuration.syncEnabledKey)
         self.lastSyncDate = userDefaults.object(forKey: configuration.lastSyncDateKey) as? Date
 
@@ -250,13 +264,25 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         updateStatus(.syncing)
 
         do {
-            // Verify account and set up CloudKit
-            try await cloudKitManager.performCompleteSetup()
-            log("CloudKit setup complete")
+            // Verify account and set up CloudKit.
+            // If subscription creation is transiently cancelled, continue with periodic sync.
+            do {
+                try await cloudKitManager.performCompleteSetup()
+                log("CloudKit setup complete")
+            } catch let error as CloudKitSyncError where shouldContinueWithoutSubscription(error) {
+                log("CloudKit subscription setup failed transiently (\(error.localizedDescription)); continuing without push subscription")
+            }
 
             // Start outbound engine (monitors Core Data saves)
             outboundEngine.start()
             log("Outbound engine started")
+
+            // Start shared sync engines when feature flag is enabled
+            if SharedPinboardsFeatureFlag.isEnabled, sharedOutboundEngine != nil {
+                sharedOutboundEngine?.start()
+                try? await cloudKitManager.setupSharedDatabaseSubscription()
+                log("Shared sync engines started")
+            }
 
             // Start periodic inbound sync
             startPeriodicInboundSync()
@@ -283,6 +309,9 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
 
         // Stop outbound engine
         outboundEngine.stop()
+
+        // Stop shared engines
+        sharedOutboundEngine?.stop()
 
         isSetUp = false
         updateStatus(.idle)
@@ -370,6 +399,15 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
             updateStatus(.syncing)
             let result = try await inboundEngine.syncInbound()
 
+            // Also trigger shared inbound sync when feature flag is enabled
+            if SharedPinboardsFeatureFlag.isEnabled, let sharedInbound = sharedInboundEngine {
+                let sharedZoneIDs = fetchSharedZoneIDs()
+                if !sharedZoneIDs.isEmpty {
+                    let sharedResult = try await sharedInbound.syncInbound(zoneIDs: sharedZoneIDs)
+                    log("Push-triggered shared sync: \(sharedResult.fetchedRecordCount) fetched")
+                }
+            }
+
             updateProgress(SyncProgress(
                 itemsQueued: 0,
                 itemsUploaded: 0,
@@ -386,6 +424,55 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
                 handleError(syncError)
             }
         }
+    }
+
+    // MARK: - Shared Pinboard Operations
+
+    /// Accepts a CloudKit share invitation.
+    ///
+    /// Delegates to ShareCoordinator to accept the share and persist metadata,
+    /// then triggers an immediate shared inbound sync.
+    ///
+    /// - Parameter metadata: The share metadata from the system callback.
+    public func acceptShare(metadata: CKShare.Metadata) async throws {
+        guard let coordinator = shareCoordinator else {
+            let error = PinboardSharingError.featureDisabled
+            log("acceptShare failed: shared infrastructure not available (\(error.localizedDescription))")
+            throw error
+        }
+
+        log("Accepting share invitation")
+        try await coordinator.acceptShare(metadata: metadata)
+
+        // Trigger shared inbound sync to pull the shared data
+        do {
+            try await syncSharedNow()
+            log("Share accepted and synced")
+        } catch {
+            log("Share accepted but shared sync failed: \(String(describing: error))")
+        }
+    }
+
+    /// Triggers an immediate sync for shared data only.
+    ///
+    /// Fetches all known shared zone IDs from local ShareMetadata and
+    /// syncs each zone via SharedInboundSyncEngine.
+    public func syncSharedNow() async throws {
+        guard let sharedInbound = sharedInboundEngine else {
+            let error = PinboardSharingError.featureDisabled
+            log("syncSharedNow failed: shared inbound engine not available (\(error.localizedDescription))")
+            throw error
+        }
+
+        let sharedZoneIDs = fetchSharedZoneIDs()
+        guard !sharedZoneIDs.isEmpty else {
+            log("No shared zones to sync")
+            return
+        }
+
+        log("Syncing \(sharedZoneIDs.count) shared zone(s)")
+        let result = try await sharedInbound.syncInbound(zoneIDs: sharedZoneIDs)
+        log("Shared sync completed: \(result.fetchedRecordCount) fetched, \(result.deletedRecordCount) deleted")
     }
 
     // MARK: - App Lifecycle
@@ -515,8 +602,53 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         isSyncInProgress = false
     }
 
+    /// Fetches all shared zone IDs from local ShareMetadata.
+    private func fetchSharedZoneIDs() -> [CKRecordZone.ID] {
+        let context = persistenceController.newBackgroundContext()
+        var zoneIDs: [CKRecordZone.ID] = []
+
+        context.performAndWait {
+            let request = ShareMetadata.fetchRequest()
+            guard let results = try? context.fetch(request) else { return }
+
+            for meta in results {
+                let zoneID = CKRecordZone.ID(
+                    zoneName: meta.zoneName,
+                    ownerName: meta.isOwner ? CKCurrentUserDefaultName : meta.zoneOwnerName
+                )
+                if !zoneIDs.contains(zoneID) {
+                    zoneIDs.append(zoneID)
+                }
+            }
+        }
+
+        return zoneIDs
+    }
+
+    private func shouldContinueWithoutSubscription(_ error: CloudKitSyncError) -> Bool {
+        guard case .subscriptionSetupFailed(let underlyingError) = error else {
+            return false
+        }
+
+        if let ckError = underlyingError as? CKError {
+            switch ckError.code {
+            case .operationCancelled, .serviceUnavailable, .networkFailure, .networkUnavailable, .requestRateLimited, .zoneBusy:
+                return true
+            default:
+                break
+            }
+        }
+
+        let nsError = underlyingError as NSError
+        if nsError.domain == NSCocoaErrorDomain, nsError.code == 4097 || nsError.code == 4099 {
+            return true
+        }
+
+        return false
+    }
+
     private func log(_ message: String) {
-        _ = message
+        Self.logger.debug("\(message, privacy: .public)")
     }
 }
 
@@ -577,6 +709,42 @@ extension SyncCoordinator {
 
         let assetSyncManager = AssetSyncManager()
 
+        // Conditionally build shared sync infrastructure
+        var shareCoord: ShareCoordinator?
+        var sharedInbound: SharedInboundSyncEngine?
+        var sharedOutbound: SharedOutboundSyncEngine?
+
+        if SharedPinboardsFeatureFlag.isEnabled {
+            let shareZoneRegistry = ShareZoneRegistry(privateZoneID: zoneID)
+
+            shareCoord = ShareCoordinator(
+                cloudKitManager: cloudKitManager,
+                persistenceController: persistenceController,
+                recordMapper: recordMapper
+            )
+
+            let sharedDatabase = container.sharedCloudDatabase
+            let sharedChangesFetcher = CloudKitZoneChangesFetcher(
+                database: sharedDatabase
+            )
+
+            sharedInbound = SharedInboundSyncEngine(
+                changesFetcher: sharedChangesFetcher,
+                tokenManager: tokenManager,
+                persistenceController: persistenceController,
+                recordMapper: recordMapper
+            )
+
+            sharedOutbound = SharedOutboundSyncEngine(
+                persistenceController: persistenceController,
+                privateDatabase: database,
+                sharedDatabase: sharedDatabase,
+                shareZoneRegistry: shareZoneRegistry,
+                recordMapper: recordMapper,
+                isSyncEnabled: syncEnabledProvider
+            )
+        }
+
         return SyncCoordinator(
             cloudKitManager: cloudKitManager,
             outboundEngine: outboundEngine,
@@ -586,7 +754,10 @@ extension SyncCoordinator {
             configuration: SyncCoordinatorConfiguration(
                 periodicFetchInterval: 30.0
             ),
-            userDefaults: userDefaults
+            userDefaults: userDefaults,
+            shareCoordinator: shareCoord,
+            sharedInboundEngine: sharedInbound,
+            sharedOutboundEngine: sharedOutbound
         )
     }
 }

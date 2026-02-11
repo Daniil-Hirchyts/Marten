@@ -5,6 +5,9 @@ import SwiftUI
 
 final class AppIconCache {
     static let shared = AppIconCache()
+    static let martenCardAccentHex = "#FF2E00"
+
+    private static let martenCardAccentColor = NSColor(hex: martenCardAccentHex)
 
     private let cache = NSCache<NSString, NSImage>()
     private let colorCache = NSCache<NSString, NSColor>()
@@ -17,7 +20,15 @@ final class AppIconCache {
     }
 
     func cachedColor(bundleID: String) -> NSColor? {
-        colorCache.object(forKey: bundleID as NSString)
+        if let preferred = Self.preferredColor(for: bundleID) {
+            return preferred
+        }
+        return colorCache.object(forKey: bundleID as NSString)
+    }
+
+    static func preferredColor(for bundleID: String) -> NSColor? {
+        guard bundleID.isMartenBundleIdentifier else { return nil }
+        return martenCardAccentColor
     }
 
     func hasMissing(bundleID: String) -> Bool {
@@ -97,6 +108,11 @@ final class AppIconColorLoader: ObservableObject {
         color = nil
 
         guard let bundleID, !bundleID.isEmpty else { return }
+        if let preferredColor = AppIconCache.preferredColor(for: bundleID) {
+            AppIconCache.shared.setColor(preferredColor, bundleID: bundleID)
+            color = preferredColor
+            return
+        }
         if let cached = AppIconCache.shared.cachedColor(bundleID: bundleID) {
             color = cached
             return
@@ -218,20 +234,41 @@ extension NSColor {
         var alpha: CGFloat = 0
         srgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
 
-        let boostedSaturation: CGFloat
-        if saturation < 0.08 {
-            boostedSaturation = 0.65
-        } else if saturation < 0.25 {
-            boostedSaturation = 0.9
-        } else {
-            boostedSaturation = min(0.95, max(0.9, saturation * 2.9))
+        // Very low-saturation icons often average to gray; anchor hue from the dominant channel.
+        if saturation < 0.14 {
+            hue = srgb.dominantChannelHue
         }
-        let boostedBrightness = min(0.95, max(0.9, brightness * 1.85 + 0.12))
+
+        let boostedSaturation = min(1.0, max(0.88, saturation * 2.2 + 0.18))
+        let boostedBrightness = min(1.0, max(0.9, brightness * 1.35 + 0.15))
         return NSColor(
             hue: hue,
             saturation: boostedSaturation,
             brightness: boostedBrightness,
             alpha: 1.0
         )
+    }
+
+    private var dominantChannelHue: CGFloat {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+
+        if red >= green, red >= blue {
+            return 0.02
+        }
+        if green >= red, green >= blue {
+            return 0.34
+        }
+        return 0.59
+    }
+}
+
+private extension String {
+    var isMartenBundleIdentifier: Bool {
+        let normalized = lowercased()
+        return normalized == "com.hirchyts.marten" || normalized.hasPrefix("com.hirchyts.marten.")
     }
 }

@@ -1,6 +1,7 @@
 import AppKit
 @preconcurrency import MartenCore
 @preconcurrency import MartenMacServices
+import OSLog
 import SwiftUI
 
 struct PinboardRenameState {
@@ -54,6 +55,7 @@ struct OverlayShellView: View {
     @State var isVerticalPinboardDropdownPresented = false
 
     @State var renameItemID: NSManagedObjectID?
+    @State var shareSheetPinboard: Pinboard?
 
     @AppStorage(OverlayLayoutSettings.Keys.overlayScreenEdge)
     var overlayScreenEdgeRawValue = OverlayLayoutSettings.defaultEdge.rawValue
@@ -73,6 +75,7 @@ struct OverlayShellView: View {
 
     let itemOperationsHandler: any ItemOperating
     let pinboardManager: any PinboardManaging
+    let sharingRepository: (any PinboardSharingRepositoryProtocol)?
     let pasteStackManager = PasteStackManager()
 
     var actionHandlers: OverlayActionHandlers {
@@ -116,6 +119,7 @@ struct OverlayShellView: View {
         self.clipItemEditor = store
         self.itemOperationsHandler = dependencies.itemOperations
         self.pinboardManager = dependencies.pinboards
+        self.sharingRepository = dependencies.sharing
         self.screenSharingManager = dependencies.screenSharingManager
         self.pasteboardMonitor = dependencies.pasteboardMonitor
         _searchModel = StateObject(wrappedValue: OverlaySearchViewModel(store: store))
@@ -168,25 +172,9 @@ struct OverlayShellView: View {
         ZStack {
             backgroundView.ignoresSafeArea()
 
-            Group {
-                if overlayLayoutAxis == .horizontal {
-                    VStack(alignment: .leading, spacing: 14) {
-                        horizontalHeaderBar
-                        itemGridSection
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.top, 14)
-                } else {
-                    VStack(alignment: .leading, spacing: 10) {
-                        verticalToolbarRow
-                        verticalPinboardPickerRow
-                        itemGridSection
-                    }
-                    .padding(.top, 10)
-                }
-            }
-            .padding(.bottom, 0)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            layoutContent
+                .padding(.bottom, 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             ResizeHandleView(window: window)
         }
@@ -212,6 +200,25 @@ struct OverlayShellView: View {
         .environmentObject(frameCoordinator)
     }
 
+    @ViewBuilder
+    private var layoutContent: some View {
+        if overlayLayoutAxis == .horizontal {
+            VStack(alignment: .leading, spacing: 14) {
+                horizontalHeaderBar
+                itemGridSection
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 14)
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                verticalToolbarRow
+                verticalPinboardPickerRow
+                itemGridSection
+            }
+            .padding(.top, 10)
+        }
+    }
+
     private var itemGridSection: some View {
         ItemGridSection(
             layoutAxis: overlayLayoutAxis,
@@ -229,6 +236,7 @@ struct OverlayShellView: View {
             selectedItemIDs: viewModel.selectedItemIDs,
             editingItemID: renameItemID,
             allowPinning: allowPinning,
+            readOnly: selectedPinboardIsReadOnly,
             clipItemEditor: clipItemEditor,
             isDragEnabled: isDragEnabled,
             isReorderingEnabled: isReorderingEnabled,

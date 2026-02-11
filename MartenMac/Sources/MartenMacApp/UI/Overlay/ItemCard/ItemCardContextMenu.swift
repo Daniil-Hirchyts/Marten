@@ -9,6 +9,7 @@ extension ItemCard {
             itemID: item.id,
             isPinned: item.isPinned,
             allowPinning: allowPinning,
+            readOnly: readOnly,
             assignedPinboardIDs: assignedPinboardIDs,
             pinboards: pinboards,
             lockedPinboardIDs: lockedPinboardIDs,
@@ -24,4 +25,3 @@ extension ItemCard {
         )
     }
 }
-

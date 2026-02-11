@@ -241,6 +241,7 @@ public final class InboundSyncEngine: @unchecked Sendable {
     private func syncInboundInternal(allowTokenReset: Bool) async throws -> InboundSyncResult {
         let previousTokenData = try tokenStore.load()
         let context = persistenceController.newBackgroundContext()
+        context.transactionAuthor = "private-inbound-sync"
 
         var pendingRecords: [CKRecord] = []
         var pendingDeletions: [(CKRecord.ID, String)] = []

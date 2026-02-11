@@ -51,10 +51,16 @@ struct URLExtractor: PasteboardTypeExtractor {
     
     private func extractFileURL(_ url: URL, displayOrder: Int16) -> ExtractionResult {
         let fileName = url.lastPathComponent
+        let bookmarkData = try? url.bookmarkData(
+            options: [.withSecurityScope],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
         let representation = ClipRepresentationPayload(
             kind: .fileURL,
             uti: UTType.fileURL.identifier,
             text: url.path,
+            data: bookmarkData,
             fileExtension: url.pathExtension.isEmpty ? nil : url.pathExtension,
             displayOrder: displayOrder
         )

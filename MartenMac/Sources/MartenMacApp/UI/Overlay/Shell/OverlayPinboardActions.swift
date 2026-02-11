@@ -1,6 +1,7 @@
 import AppKit
 @preconcurrency import MartenCore
 @preconcurrency import MartenMacServices
+import OSLog
 import SwiftUI
 
 extension OverlayShellView {
@@ -94,6 +95,7 @@ extension OverlayShellView {
     }
 
     func handleSetPinboardLock(_ pinboard: Pinboard, _ isEnabled: Bool) {
+        guard pinboardManager.canLockPinboard(pinboard) else { return }
         lockHandler.setPinboardLock(pinboard, enabled: isEnabled)
     }
 
@@ -113,6 +115,17 @@ extension OverlayShellView {
     }
 
     func handleDeletePinboard(_ pinboard: Pinboard) {
+        let alert = NSAlert()
+        alert.messageText = "Delete \"\(pinboard.name)\"?"
+        alert.informativeText = "This pinboard will be permanently deleted. Items inside will remain in All."
+        alert.alertStyle = .warning
+        let deleteButton = alert.addButton(withTitle: "Delete")
+        deleteButton.hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn else { return }
+
         searchModel.selectedPinboardID = actionHandlers.deletePinboard(
             pinboard,
             selectedPinboardID: searchModel.selectedPinboardID
@@ -201,5 +214,54 @@ extension OverlayShellView {
     func beginPinboardCreate(for item: ClipItem?) {
         pinboardRenameState.pendingItem = item
         presentPinboardCreate()
+    }
+
+    // MARK: - Sharing Actions
+
+    func handleSharePinboard(_ pinboard: Pinboard) {
+        shareSheetPinboard = pinboard
+    }
+
+    func handleManageSharing(_ pinboard: Pinboard) {
+        shareSheetPinboard = pinboard
+    }
+
+    func handleStopSharing(_ pinboard: Pinboard) {
+        let alert = NSAlert()
+        alert.messageText = "Stop sharing this pinboard?"
+        alert.informativeText = "All participant access will be removed immediately."
+        alert.alertStyle = .warning
+        let stopButton = alert.addButton(withTitle: "Stop Sharing")
+        stopButton.hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            Task {
+                do {
+                    try await sharingRepository?.stopSharing(pinboardID: pinboard.objectID)
+                } catch {
+                    Logger.ui.error("Failed to stop sharing: \(error.localizedDescription, privacy: .private)")
+                }
+            }
+        }
+    }
+
+    func handleLeaveSharedPinboard(_ pinboard: Pinboard) {
+        guard let sharing = sharingRepository else { return }
+        let wasSelected = searchModel.selectedPinboardID == pinboard.id
+        Task {
+            do {
+                try await sharing.leaveShare(pinboardID: pinboard.objectID)
+                if wasSelected {
+                    await MainActor.run {
+                        searchModel.selectedPinboardID = nil
+                    }
+                }
+            } catch {
+                Logger.ui.error("Failed to leave shared pinboard: \(error.localizedDescription, privacy: .private)")
+                NSSound.beep()
+            }
+        }
     }
 }

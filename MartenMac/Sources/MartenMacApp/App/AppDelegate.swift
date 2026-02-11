@@ -1,4 +1,5 @@
 import AppKit
+import CloudKit
 import MartenMacServices
 import Foundation
 import OSLog
@@ -64,6 +65,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ) {
         Task {
             await coordinator.handleRemoteNotification(userInfo)
+        }
+    }
+
+    func application(
+        _ application: NSApplication,
+        userDidAcceptCloudKitShareWith metadata: CKShare.Metadata
+    ) {
+        Task {
+            await coordinator.handleShareAcceptance(metadata)
         }
     }
 

@@ -8,15 +8,40 @@ public protocol CloudKitDatabaseProviding: AnyObject, Sendable {
     func save(_ subscription: CKSubscription) async throws -> CKSubscription
     func deleteSubscription(withID subscriptionID: CKSubscription.ID) async throws -> CKSubscription.ID
     func recordZone(for zoneID: CKRecordZone.ID) async throws -> CKRecordZone
+    func record(for recordID: CKRecord.ID) async throws -> CKRecord
+    func save(records: [CKRecord], deleting recordIDs: [CKRecord.ID]) async throws
 }
 
 /// Default implementation using CKDatabase.
-extension CKDatabase: CloudKitDatabaseProviding {}
+extension CKDatabase: CloudKitDatabaseProviding {
+    public func save(records: [CKRecord], deleting recordIDs: [CKRecord.ID]) async throws {
+        let operation = CKModifyRecordsOperation(
+            recordsToSave: records.isEmpty ? nil : records,
+            recordIDsToDelete: recordIDs.isEmpty ? nil : recordIDs
+        )
+        operation.savePolicy = .changedKeys
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            operation.modifyRecordsResultBlock = { result in
+                switch result {
+                case .success:
+                    continuation.resume()
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+            add(operation)
+        }
+    }
+}
 
 /// Protocol for CloudKit container operations, enabling testability.
 public protocol CloudKitContainerProviding: Sendable {
     var privateCloudDatabase: CloudKitDatabaseProviding { get }
+    var sharedCloudDatabase: CloudKitDatabaseProviding { get }
     func accountStatus() async throws -> CKAccountStatus
+    func accept(_ metadata: CKShare.Metadata) async throws
+    func shareParticipant(forEmailAddress emailAddress: String) async throws -> CKShare.Participant
 }
 
 /// Wrapper to make CKContainer conform to CloudKitContainerProviding.
@@ -33,8 +58,24 @@ public final class SystemCloudKitContainer: CloudKitContainerProviding, @uncheck
         container.privateCloudDatabase
     }
 
+    public var sharedCloudDatabase: CloudKitDatabaseProviding {
+        container.sharedCloudDatabase
+    }
+
+    public var underlyingContainer: CKContainer {
+        container
+    }
+
     public func accountStatus() async throws -> CKAccountStatus {
         try await container.accountStatus()
+    }
+
+    public func accept(_ metadata: CKShare.Metadata) async throws {
+        try await container.accept(metadata)
+    }
+
+    public func shareParticipant(forEmailAddress emailAddress: String) async throws -> CKShare.Participant {
+        try await container.shareParticipant(forEmailAddress: emailAddress)
     }
 }
 
@@ -72,6 +113,11 @@ public final class CloudKitManager {
     /// The private database for sync operations.
     public var privateDatabase: CloudKitDatabaseProviding {
         container.privateCloudDatabase
+    }
+
+    /// The shared database for participant sync operations.
+    public var sharedDatabase: CloudKitDatabaseProviding {
+        container.sharedCloudDatabase
     }
 
     /// The custom zone ID for clipboard data.
@@ -300,6 +346,62 @@ public final class CloudKitManager {
     /// Clears the zone change token, forcing a full re-sync.
     public func clearZoneChangeToken() throws {
         try tokenManager.clearToken(for: zoneID)
+    }
+
+    // MARK: - Shared Pinboard Zone Setup
+
+    /// Creates a dedicated zone for a shared pinboard in the private database.
+    ///
+    /// - Parameter name: The zone name (format: `SharedPinboard-<pinboardUUID>`).
+    /// - Returns: The zone ID of the created zone.
+    public func setupSharedZone(named name: String) async throws -> CKRecordZone.ID {
+        try await verifyAccountAvailable()
+
+        let sharedZoneID = CKRecordZone.ID(zoneName: name, ownerName: CKCurrentUserDefaultName)
+        let zone = CKRecordZone(zoneID: sharedZoneID)
+
+        do {
+            _ = try await privateDatabase.save(zone)
+            return sharedZoneID
+        } catch let error as CKError {
+            throw handleZoneSetupError(error)
+        } catch {
+            throw CloudKitSyncError.zoneCreationFailed(error)
+        }
+    }
+
+    /// Sets up a database-level subscription on the shared database.
+    ///
+    /// This receives notifications when any shared zone changes.
+    public func setupSharedDatabaseSubscription() async throws {
+        try await verifyAccountAvailable()
+
+        let subscription = CKDatabaseSubscription(subscriptionID: "shared-database-subscription")
+        let notificationInfo = CKSubscription.NotificationInfo()
+        notificationInfo.shouldSendContentAvailable = true
+        subscription.notificationInfo = notificationInfo
+
+        do {
+            _ = try await sharedDatabase.save(subscription)
+        } catch let error as CKError {
+            let syncError = handleSubscriptionSetupError(error)
+            delegate?.cloudKitManager(self, didEncounterError: syncError)
+            throw syncError
+        } catch {
+            let syncError = CloudKitSyncError.subscriptionSetupFailed(error)
+            delegate?.cloudKitManager(self, didEncounterError: syncError)
+            throw syncError
+        }
+    }
+
+    /// Accepts a CloudKit share invitation.
+    public func acceptShare(_ metadata: CKShare.Metadata) async throws {
+        try await container.accept(metadata)
+    }
+
+    /// Resolves a CloudKit share participant from an email address.
+    public func shareParticipant(forEmailAddress emailAddress: String) async throws -> CKShare.Participant {
+        try await container.shareParticipant(forEmailAddress: emailAddress)
     }
 
     // MARK: - Private Helpers

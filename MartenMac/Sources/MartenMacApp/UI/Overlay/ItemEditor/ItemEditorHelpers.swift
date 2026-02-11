@@ -17,13 +17,7 @@ struct ItemEditorAppleIntelligencePreview: Identifiable {
 
 enum ItemEditorHelpers {
     static func fileURLPath(from item: ClipItem) -> String? {
-        guard let reps = item.representations else { return nil }
-        guard let rep = reps.first(where: { $0.kindValue == .fileURL }) else { return nil }
-        guard let data = rep.textData, let path = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        FileURLAccessResolver.resolvedFileURL(from: item)?.path
     }
 
     static func imageFromRepresentations(for item: ClipItem) -> NSImage? {

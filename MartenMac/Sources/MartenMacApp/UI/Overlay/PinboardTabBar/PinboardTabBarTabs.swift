@@ -59,12 +59,37 @@ extension PinboardTabBar {
             title: pinboard.name,
             iconName: pinboard.iconName,
             colorHex: pinboard.colorHex,
-            trailingIconName: locked ? (unlocked ? "lock.open.fill" : "lock.fill") : nil,
+            trailingIconName: pinboard.isShared ? "person.2.fill" : (locked ? (unlocked ? "lock.open.fill" : "lock.fill") : nil),
             isSelected: selectedID == pinboard.id,
             isDropTarget: itemDragPinboardDropTargetID == pinboard.objectID,
             maxWidth: maxTabWidth
         ) {
             onSelect(pinboard.id)
+        }
+        .popover(
+            isPresented: Binding(
+                get: { shareSheetPinboard?.objectID == pinboard.objectID },
+                set: { isPresented in
+                    if !isPresented && shareSheetPinboard?.objectID == pinboard.objectID {
+                        shareSheetPinboard = nil
+                    }
+                }
+            )
+        ) {
+            if let sharing = sharingRepository {
+                let shareMetadata = pinboard.shareMetadata
+                let initialShareURL = shareMetadata
+                    .flatMap(\.shareURL)
+                    .flatMap(URL.init(string:))
+
+                ShareSettingsSheet(
+                    pinboardID: pinboard.objectID,
+                    sharingRepository: sharing,
+                    initialAccessControl: shareMetadata?.accessControl ?? .onlyInvited,
+                    initialPermission: shareMetadata?.defaultPermission ?? .canMakeChanges,
+                    initialShareURL: initialShareURL
+                )
+            }
         }
         .id(pinboard.id)
         .accessibilityIdentifier("overlay.pinboard.\(pinboard.id.uuidString)")
@@ -97,6 +122,9 @@ extension PinboardTabBar {
                 pinboardID: pinboard.id,
                 isLocked: locked,
                 isUnlocked: unlocked,
+                isShared: pinboard.isShared,
+                isShareOwner: pinboard.shareRole == .owner,
+                sharingEnabled: MartenCore.SharedPinboardsFeatureFlag.isEnabled,
                 onSetLockEnabled: { enabled in onSetLockEnabled(pinboard, enabled) },
                 onUnlock: { onUnlock(pinboard) },
                 onLockNow: { onLockNow(pinboard) },
@@ -115,7 +143,11 @@ extension PinboardTabBar {
                         onRename(pinboard)
                     }
                 },
-                onDelete: { onDelete(pinboard) }
+                onDelete: { onDelete(pinboard) },
+                onSharePinboard: onSharePinboard.map { handler in { handler(pinboard) } },
+                onManageSharing: onManageSharing.map { handler in { handler(pinboard) } },
+                onStopSharing: onStopSharing.map { handler in { handler(pinboard) } },
+                onLeaveSharedPinboard: onLeaveSharedPinboard.map { handler in { handler(pinboard) } }
             )
         }
 

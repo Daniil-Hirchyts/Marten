@@ -36,6 +36,12 @@ struct PinboardTabBarSection<CreatePopoverContent: View>: View {
     let onMoveItem: (Pinboard, String) -> Void
     let onCommit: () -> Void
     let onCancel: () -> Void
+    var onSharePinboard: ((Pinboard) -> Void)? = nil
+    var onManageSharing: ((Pinboard) -> Void)? = nil
+    var onStopSharing: ((Pinboard) -> Void)? = nil
+    var onLeaveSharedPinboard: ((Pinboard) -> Void)? = nil
+    @Binding var shareSheetPinboard: Pinboard?
+    var sharingRepository: (any PinboardSharingRepositoryProtocol)?
 
     let coordinateSpaceName: String
     let horizontalPadding: CGFloat
@@ -73,6 +79,12 @@ struct PinboardTabBarSection<CreatePopoverContent: View>: View {
             onMoveItem: onMoveItem,
             onCommit: onCommit,
             onCancel: onCancel,
+            onSharePinboard: onSharePinboard,
+            onManageSharing: onManageSharing,
+            onStopSharing: onStopSharing,
+            onLeaveSharedPinboard: onLeaveSharedPinboard,
+            shareSheetPinboard: $shareSheetPinboard,
+            sharingRepository: sharingRepository,
             coordinateSpaceName: coordinateSpaceName
         )
         .padding(.horizontal, horizontalPadding)

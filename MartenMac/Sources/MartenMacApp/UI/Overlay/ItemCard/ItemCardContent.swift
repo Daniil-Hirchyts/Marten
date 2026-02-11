@@ -316,42 +316,29 @@ extension ItemCard {
                 .frame(maxWidth: .infinity)
             } else if item.itemTypeValue == .image {
                 ZStack(alignment: .topTrailing) {
-                    VStack(spacing: 0) {
-                        if let image = thumbnailImage {
-                            ZStack {
-                                TransparencyGrid(squareSize: 12)
-                                Image(nsImage: image)
-                                    .resizable()
-                                    .scaledToFit()
-                            }
-                            .frame(maxWidth: .infinity)
-                            .layoutPriority(1)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        } else {
-                            ZStack {
-                                Image(systemName: "photo")
-                                    .font(.system(size: isCompactSize ? 36 : 48, weight: .light))
-                                    .foregroundStyle(
-                                        colorScheme == .dark
-                                            ? Color.white.opacity(0.3)
-                                            : Color.black.opacity(0.2)
-                                    )
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .layoutPriority(1)
+                    if let image = thumbnailImage {
+                        ZStack {
+                            TransparencyGrid(squareSize: 12)
+                            Image(nsImage: image)
+                                .resizable()
+                                .scaledToFit()
                         }
-
-                        if let fileName = imageFileNameShortened {
-                            Text(fileName)
-                                .font(.system(size: isCompactSize ? 9 : 11, weight: .medium))
-                                .foregroundStyle(primaryTextColor)
-                                .lineLimit(1)
-                                .padding(.horizontal, isCompactSize ? 8 : 12)
-                                .padding(.vertical, isCompactSize ? 4 : 6)
-                                .frame(maxWidth: .infinity)
-                                .layoutPriority(0)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                    } else {
+                        ZStack {
+                            Image(systemName: "photo")
+                                .font(.system(size: isCompactSize ? 36 : 48, weight: .light))
+                                .foregroundStyle(
+                                    colorScheme == .dark
+                                        ? Color.white.opacity(0.3)
+                                        : Color.black.opacity(0.2)
+                                )
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
+
+
 
                     if let resolution = imageResolution {
                         Text(resolution)
@@ -365,26 +352,18 @@ extension ItemCard {
                     }
                 }
                 .frame(maxWidth: .infinity)
+                .layoutPriority(1)
             } else if item.itemTypeValue == .url {
-                VStack(alignment: .leading, spacing: isCompactSize ? 5 : 6) {
-                    URLBannerPreview(
-                        image: urlBannerImage,
-                        host: urlHost,
-                        path: urlPath,
-                        isCompact: isCompactSize
-                    )
-                    .frame(maxWidth: .infinity)
-                    .frame(height: urlBannerHeight)
-                    .clipped()
-
-                    Text(urlDisplayText)
-                        .font(.system(size: isCompactSize ? 9 : 10, weight: .medium))
-                        .foregroundStyle(secondaryTextColor)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                URLBannerPreview(
+                    image: urlBannerImage,
+                    host: urlHost,
+                    path: urlPath,
+                    isCompact: isCompactSize
+                )
+                .frame(maxWidth: .infinity)
+                .frame(height: urlBannerHeight)
+                .clipped()
+                .layoutPriority(1)
                 .task(id: urlBannerTaskID) {
                     await fetchURLBannerIfNeeded()
                 }
@@ -448,19 +427,14 @@ extension ItemCard {
     }
 
     var urlBannerHeight: CGFloat {
-        let preferredHeight: CGFloat = isCompactSize ? 82 : 112
+        let preferredHeight: CGFloat = isCompactSize ? 110 : 140
         let contentTopPadding: CGFloat = isCompactSize ? 8 : 10
-        let contentSpacing: CGFloat = isCompactSize ? 8 : 10
-        let footerReserve: CGFloat = 18
-        let urlTextReserve: CGFloat = isCompactSize ? 16 : 18
+        let footerReserve: CGFloat = isCompactSize ? 28 : 32
         let availableHeight =
             cardSize
             - headerMinHeight
-            - cardPadding
             - contentTopPadding
-            - contentSpacing
             - footerReserve
-            - urlTextReserve
 
         return max(32, min(preferredHeight, max(0, availableHeight)))
     }
@@ -507,9 +481,17 @@ extension ItemCard {
 
             Spacer()
 
-            Text(cached.statsLabel)
+            Text(footerRightLabel)
                 .font(.system(size: 10))
                 .foregroundStyle(tertiaryTextColor)
+                .lineLimit(1)
         }
+    }
+
+    var footerRightLabel: String {
+        if item.itemTypeValue == .url {
+            return urlHost
+        }
+        return cached.statsLabel
     }
 }

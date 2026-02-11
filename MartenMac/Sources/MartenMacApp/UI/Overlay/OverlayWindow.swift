@@ -12,8 +12,10 @@ final class OverlayWindowController {
     }
 
     private enum AnimationConstants {
-        static let showDuration: TimeInterval = 0.2
-        static let showTimingFunction = CAMediaTimingFunction(controlPoints: 0.22, 1, 0.36, 1)
+        static let showDuration: TimeInterval = 0.35
+        static let showTimingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+        static let hideDuration: TimeInterval = 0.18
+        static let hideTimingFunction = CAMediaTimingFunction(controlPoints: 0.7, 0, 0.84, 0)
         static let activationObserverStartDelay: TimeInterval = 0.02
     }
 
@@ -192,9 +194,8 @@ final class OverlayWindowController {
         let endFrame = panel.frame.offsetBy(dx: hideOffset.width, dy: hideOffset.height)
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.12
-            // Snappy Ease-In: Smooth start, fast exit
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.7, 0, 0.84, 0)
+            context.duration = AnimationConstants.hideDuration
+            context.timingFunction = AnimationConstants.hideTimingFunction
             panel.animator().alphaValue = 0
             panel.animator().setFrame(endFrame, display: true)
         } completionHandler: { [weak self] in

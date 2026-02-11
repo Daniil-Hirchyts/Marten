@@ -24,6 +24,8 @@ public extension ClipItem {
     @NSManaged var byteCount: Int64
     @NSManaged var isUserCreated: Bool
     @NSManaged var isPinned: Bool
+    @NSManaged var lastModifiedBy: String?
+    @NSManaged var lastModifiedAt: Date?
     @NSManaged var representations: Set<ClipRepresentation>?
     @NSManaged var pinboards: Set<Pinboard>?
     @NSManaged var stackEntries: Set<StackEntry>?

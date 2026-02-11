@@ -53,10 +53,10 @@ extension ItemCard {
 
     var headerBackgroundColor: Color {
         if let pinboardColor = cached.primaryPinboardColor {
-            return pinboardColor.opacity(0.9)
+            return pinboardColor.opacity(0.96)
         }
         if let appColor = appColorLoader.color {
-            return Color(nsColor: appColor).opacity(0.9)
+            return Color(nsColor: appColor).opacity(0.96)
         }
         return colorScheme == .dark
             ? Color(.sRGB, white: 0.2, opacity: 0.6)
@@ -106,6 +106,11 @@ extension ItemCard {
         isCompactSize ? 10 : 12
     }
 
+    var isEdgeToEdgeContent: Bool {
+        let t = item.itemTypeValue
+        return t == .image || t == .url
+    }
+
     var titleFontSize: CGFloat {
         isCompactSize ? 13 : 14
     }
@@ -148,7 +153,7 @@ extension ItemCard {
     }
 
     var timeAgo: String {
-        ItemCardFormatters.relativeDate.localizedString(for: modifiedAtForDisplay, relativeTo: Date())
+        ItemCardFormatters.shortRelativeTime(from: modifiedAtForDisplay)
     }
 
     private var modifiedAtForDisplay: Date {
@@ -193,11 +198,28 @@ extension ItemCard {
 }
 
 private enum ItemCardFormatters {
-    static let relativeDate: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter
-    }()
+    static func shortRelativeTime(from date: Date) -> String {
+        let now = Date()
+        let interval = now.timeIntervalSince(date)
+
+        if interval < 0 { return "now" }
+        if interval < 60 { return "now" }
+
+        let minutes = Int(interval / 60)
+        if minutes < 60 { return "\(minutes)m" }
+
+        let hours = Int(interval / 3600)
+        if hours < 24 { return "\(hours)h" }
+
+        let days = Int(interval / 86400)
+        if days < 30 { return "\(days)d" }
+
+        let months = Int(interval / (86400 * 30))
+        if months < 12 { return "\(months)mo" }
+
+        let years = Int(interval / (86400 * 365))
+        return "\(years)y"
+    }
 }
 
 enum MartenHexColor {

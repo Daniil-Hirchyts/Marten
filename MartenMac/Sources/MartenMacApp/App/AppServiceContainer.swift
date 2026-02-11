@@ -1,3 +1,4 @@
+import CloudKit
 import MartenCore
 import MartenMacServices
 import Foundation
@@ -70,6 +71,7 @@ final class AppServiceContainer: AppServiceProviding {
     let selectionImageCropper: SelectionImageCropper
 
     let syncCoordinator: SyncCoordinator?
+    let sharingRepository: PinboardSharingRepository?
 
     lazy var screenSharingManager = ScreenSharingManager(
         settings: UserDefaultsScreenSharingSettingsProvider()
@@ -117,15 +119,39 @@ final class AppServiceContainer: AppServiceProviding {
         if syncConfigurationProvider.canUseCloudKit(
             containerIdentifier: cloudKitConfiguration.containerIdentifier
         ) {
-            self.syncCoordinator = SyncCoordinator.create(
+            let coordinator = SyncCoordinator.create(
                 cloudKitConfiguration: cloudKitConfiguration,
                 persistenceController: persistence,
                 syncEnabledProvider: { [syncConfigurationProvider] in
                     syncConfigurationProvider.isSyncEnabled()
                 }
             )
+            self.syncCoordinator = coordinator
+
+            if SharedPinboardsFeatureFlag.isEnabled {
+                let zoneID = CKRecordZone.ID(
+                    zoneName: cloudKitConfiguration.zoneName,
+                    ownerName: CKCurrentUserDefaultName
+                )
+                let cloudKitManager = CloudKitManager(
+                    configuration: cloudKitConfiguration
+                )
+                let recordMapper = CloudRecordMapper(zoneID: zoneID)
+                let shareCoordinator = ShareCoordinator(
+                    cloudKitManager: cloudKitManager,
+                    persistenceController: persistence,
+                    recordMapper: recordMapper
+                )
+                self.sharingRepository = PinboardSharingRepository(
+                    shareCoordinator: shareCoordinator,
+                    persistenceController: persistence
+                )
+            } else {
+                self.sharingRepository = nil
+            }
         } else {
             self.syncCoordinator = nil
+            self.sharingRepository = nil
         }
     }
 }

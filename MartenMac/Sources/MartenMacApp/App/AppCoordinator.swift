@@ -1,4 +1,5 @@
 import AppKit
+import CloudKit
 @preconcurrency import MartenCore
 @preconcurrency import MartenMacServices
 import Combine
@@ -89,6 +90,8 @@ public final class AppCoordinator: SettingsOpening {
         let previewCoordinator = OverlayPreviewCoordinator(
             itemEditorWindowController: itemEditorWindowController
         )
+        let sharingRepo: (any PinboardSharingRepositoryProtocol)? =
+            (services as? AppServiceContainer)?.sharingRepository
         let overlayDependencies = OverlayDependencies(
             clipItemStore: clipItemStore,
             itemOperations: ItemOperationsHandler(store: clipItemStore, soundPlayer: services.soundPlayer),
@@ -97,7 +100,8 @@ public final class AppCoordinator: SettingsOpening {
             appleIntelligence: appleIntelligence,
             soundPlayer: services.soundPlayer,
             screenSharingManager: screenSharingManager,
-            pasteboardMonitor: pasteboardMonitor
+            pasteboardMonitor: pasteboardMonitor,
+            sharing: sharingRepo
         )
 
         overlayController = OverlayWindowController(
@@ -253,6 +257,25 @@ public final class AppCoordinator: SettingsOpening {
     public func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) async {
         guard let syncCoordinator = services.syncCoordinator else { return }
         await syncCoordinator.handlePushNotification()
+    }
+
+    public func handleShareAcceptance(_ metadata: CKShare.Metadata) async {
+        guard let syncCoordinator = services.syncCoordinator else {
+            Logger.app.error("Cannot accept share: sync coordinator not available")
+            return
+        }
+
+        let shareRecordName = metadata.share.recordID.recordName
+        Logger.app.info(
+            "Received CloudKit share callback share=\(shareRecordName, privacy: .public)"
+        )
+
+        do {
+            try await syncCoordinator.acceptShare(metadata: metadata)
+            Logger.app.info("Successfully accepted CloudKit share")
+        } catch {
+            Logger.app.error("Failed to accept share: \(String(describing: error), privacy: .public)")
+        }
     }
 
     public func openSettings() {

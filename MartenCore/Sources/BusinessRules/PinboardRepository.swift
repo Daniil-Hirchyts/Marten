@@ -144,6 +144,7 @@ final class PinboardRepository {
                 throw ClipItemStoreError.missingItem
             }
 
+            try validateMixedMembership(item: item, targetPinboard: pinboard)
             item.addToPinboards(pinboard)
             try context.save()
         }
@@ -201,6 +202,7 @@ final class PinboardRepository {
                 item.removeFromPinboards(pinboard)
             }
 
+            try validateMixedMembership(item: item, targetPinboard: target)
             item.addToPinboards(target)
             try context.save()
         }
@@ -233,6 +235,7 @@ final class PinboardRepository {
                     item.removeFromPinboards(pinboard)
                 }
 
+                try validateMixedMembership(item: item, targetPinboard: target)
                 item.addToPinboards(target)
             }
 
@@ -305,6 +308,19 @@ final class PinboardRepository {
         pinboard.isSystemMarten = true
         pinboard.createdAt = Date()
         return pinboard
+    }
+
+    /// Validates that adding an item to a pinboard won't create mixed shared/non-shared membership.
+    /// An item cannot belong to both a shared and a non-shared custom pinboard simultaneously.
+    private func validateMixedMembership(item: ClipItem, targetPinboard: Pinboard) throws {
+        let targetIsShared = targetPinboard.isShared
+        guard let existingPinboards = item.pinboards else { return }
+
+        for pinboard in existingPinboards where !pinboard.isSystemMarten {
+            if pinboard.isShared != targetIsShared {
+                throw PinboardSharingError.insufficientPermission
+            }
+        }
     }
 
     private func nextPinboardSortOrder(in context: NSManagedObjectContext) throws -> Int {

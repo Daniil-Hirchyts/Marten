@@ -1,5 +1,6 @@
 import MartenCore
 import Combine
+import CloudKit
 import XCTest
 
 @testable import MartenMac
@@ -17,6 +18,8 @@ final class MockSyncCoordinating: ObservableObject, SyncCoordinating {
     var stopSyncCalled = false
     var triggerSyncNowCalled = false
     var handlePushNotificationCalled = false
+    var acceptShareCalled = false
+    var syncSharedNowCalled = false
 
     var triggerSyncNowError: Error?
 
@@ -39,6 +42,14 @@ final class MockSyncCoordinating: ObservableObject, SyncCoordinating {
 
     func handlePushNotification() async {
         handlePushNotificationCalled = true
+    }
+
+    func acceptShare(metadata: CKShare.Metadata) async throws {
+        acceptShareCalled = true
+    }
+
+    func syncSharedNow() async throws {
+        syncSharedNowCalled = true
     }
 }
 

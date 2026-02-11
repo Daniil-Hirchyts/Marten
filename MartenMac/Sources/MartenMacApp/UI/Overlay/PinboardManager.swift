@@ -185,4 +185,16 @@ final class PinboardManager {
             Logger.app.error("Failed to save reorder: \(error.localizedDescription)")
         }
     }
+
+    // MARK: - Share / Lock Mutual Exclusivity
+
+    /// Returns whether a pinboard can be shared (not locked, not system).
+    func canSharePinboard(_ pinboard: Pinboard, isLocked: Bool) -> Bool {
+        !pinboard.isSystemMarten && !isLocked
+    }
+
+    /// Returns whether a pinboard can be locked (not shared).
+    func canLockPinboard(_ pinboard: Pinboard) -> Bool {
+        !pinboard.isShared
+    }
 }

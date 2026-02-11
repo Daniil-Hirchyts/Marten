@@ -445,7 +445,7 @@ struct ItemCompactRowDragPreview: View {
         }
         if let bundleID = item.sourceAppBundleID,
            let appColor = AppIconCache.shared.cachedColor(bundleID: bundleID) {
-            return Color(nsColor: appColor).opacity(0.9)
+            return Color(nsColor: appColor).opacity(0.96)
         }
         return colorScheme == .dark
             ? Color.white.opacity(0.24)

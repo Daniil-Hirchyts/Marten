@@ -1,6 +1,5 @@
 import AppKit
 import MartenCore
-import LinkPresentation
 import SwiftUI
 
 extension OverlayItemPreview {
@@ -35,117 +34,87 @@ extension OverlayItemPreview {
     }
 
     var urlContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            URLBannerPreview(
-                image: urlBannerImage,
-                host: urlHost,
-                path: urlPath,
-                isCompact: false
-            )
-            .frame(maxWidth: .infinity)
-            .frame(height: 160)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .allowsHitTesting(false)
-            .task {
-                await fetchURLBannerIfNeeded()
+        VStack(alignment: .leading, spacing: 0) {
+            if let previewURL = previewableURL {
+                URLInternalBrowserPreview(url: previewURL)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Unable to preview this URL")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(urlDisplayText)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .lineLimit(3)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
+                )
+            }
+        }
+    }
+
+    var fileContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let previewableFileURL {
+                FileDocumentPreview(fileURL: previewableFileURL)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
+                VStack(spacing: 10) {
+                    if let icon = fileIcon {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 96, height: 96)
+                            .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                    } else {
+                        Image(systemName: "doc.fill")
+                            .font(.system(size: 64, weight: .regular))
+                            .foregroundStyle(.secondary.opacity(0.6))
+                    }
+
+                    Text("Preview unavailable for this file")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
+                )
             }
 
-            if let title = nonEmptyText(item.linkPreview?.title) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(title)
-                        .font(.system(size: 18, weight: .semibold))
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(fileDisplayName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(2)
 
-                    if let summary = nonEmptyText(item.linkPreview?.summary) {
-                        Text(summary)
-                            .font(.system(size: 14))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(3)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                if let size = fileSizeText {
+                    Text(size)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
                 }
             }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("URL")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.tertiary)
-                    .textCase(.uppercase)
-
-                Text(urlDisplayText)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(14)
+            .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
             )
         }
-    }
-
-    var fileContent: some View {
-        VStack(spacing: 8) {
-            Spacer(minLength: 0)
-
-            if let icon = fileIcon {
-                Image(nsImage: icon)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 120, height: 120)
-                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-            } else {
-                Image(systemName: "doc.fill")
-                    .font(.system(size: 84, weight: .regular))
-                    .foregroundStyle(.secondary.opacity(0.6))
-            }
-
-            if let name = nonEmptyText(fileDisplayName) {
-                Text(name)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-            }
-
-            if let size = fileSizeText {
-                Text(size)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
-            }
-
-            Spacer(minLength: 0)
-        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     var colorContent: some View {
-        VStack(alignment: .center, spacing: 16) {
-            ColorPreview(hex: item.primaryText ?? "")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-            if let normalized = normalizedColor {
-                Text(normalized)
-                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.white.opacity(DesignTokens.Opacity.backgroundSubtle))
-                    )
-            }
-        }
+        ColorPreview(hex: item.primaryText ?? "")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     var mixedContent: some View {
@@ -357,6 +326,16 @@ extension OverlayItemPreview {
         return URL(string: "https://\(raw)")
     }
 
+    var previewableURL: URL? {
+        guard let normalizedPrimaryURL else { return nil }
+        guard let scheme = normalizedPrimaryURL.scheme?.lowercased(),
+            scheme == "http" || scheme == "https"
+        else {
+            return nil
+        }
+        return normalizedPrimaryURL
+    }
+
     var urlHost: String {
         guard item.itemTypeValue == .url, let url = normalizedPrimaryURL else {
             return "URL"
@@ -383,8 +362,26 @@ extension OverlayItemPreview {
         return filePathFromRepresentations()
     }
 
+    var previewableFileURL: URL? {
+        guard let filePath else { return nil }
+        let candidateURL: URL
+        if let parsedURL = URL(string: filePath), parsedURL.isFileURL {
+            candidateURL = parsedURL
+        } else {
+            candidateURL = URL(fileURLWithPath: filePath)
+        }
+        guard FileManager.default.fileExists(atPath: candidateURL.path) else { return nil }
+        return candidateURL
+    }
+
     var fileDisplayName: String {
+        if let previewableFileURL {
+            return previewableFileURL.lastPathComponent
+        }
         if let path = filePath {
+            if let parsedURL = URL(string: path), parsedURL.isFileURL {
+                return parsedURL.lastPathComponent
+            }
             return URL(fileURLWithPath: path).lastPathComponent
         }
         if let text = nonEmptyText(item.primaryText) {
@@ -420,38 +417,24 @@ extension OverlayItemPreview {
     }
 
     var imageResolution: String? {
-        guard item.itemTypeValue == .image, let image else { return nil }
-        return "\(Int(image.size.width))×\(Int(image.size.height))"
-    }
+        guard item.itemTypeValue == .image else { return nil }
 
-    var normalizedColor: String? {
-        guard item.itemTypeValue == .color, let raw = nonEmptyText(item.primaryText) else {
-            return nil
+        let sources = (item.representations ?? []).sorted { $0.displayOrder < $1.displayOrder }.map {
+            ImageResolutionResolver.Source(
+                kind: $0.kindValue,
+                binaryData: $0.binaryData,
+                assetRef: $0.assetRef,
+                fileExtension: $0.fileExtension,
+                textData: $0.textData
+            )
         }
+        let thumbnailPath = item.thumbnailPath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedThumbnailPath: String? = {
+            guard let thumbnailPath, !thumbnailPath.isEmpty else { return nil }
+            return thumbnailPath
+        }()
 
-        var value = raw
-        if value.lowercased().hasPrefix("0x") {
-            value = String(value.dropFirst(2))
-        }
-        if value.hasPrefix("#") {
-            value = String(value.dropFirst())
-        }
-        let cleaned = value.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-
-        if cleaned.count == 3 {
-            let chars = Array(cleaned)
-            return
-                "#\(String(repeating: String(chars[0]), count: 2))\(String(repeating: String(chars[1]), count: 2))\(String(repeating: String(chars[2]), count: 2))"
-                .uppercased()
-        }
-        if cleaned.count == 6 {
-            return "#\(cleaned)".uppercased()
-        }
-        if cleaned.count == 8 {
-            let end = cleaned.index(cleaned.startIndex, offsetBy: 6)
-            return "#\(String(cleaned[..<end]))".uppercased()
-        }
-        return nil
+        return ImageResolutionResolver.resolve(from: sources, thumbnailPath: normalizedThumbnailPath)
     }
 
     var mixedRepresentationLabels: [String] {

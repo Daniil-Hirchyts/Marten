@@ -8,6 +8,9 @@ final class MockCloudKitDatabase: CloudKitDatabaseProviding, @unchecked Sendable
     var savedSubscriptions: [CKSubscription] = []
     var deletedZoneIDs: [CKRecordZone.ID] = []
     var deletedSubscriptionIDs: [CKSubscription.ID] = []
+    var recordsByID: [CKRecord.ID: CKRecord] = [:]
+    var savedRecordsBatches: [[CKRecord]] = []
+    var deletedRecordIDBatches: [[CKRecord.ID]] = []
 
     var zoneExistsToReturn: CKRecordZone?
     var saveZoneError: Error?
@@ -15,6 +18,8 @@ final class MockCloudKitDatabase: CloudKitDatabaseProviding, @unchecked Sendable
     var saveSubscriptionError: Error?
     var deleteSubscriptionError: Error?
     var fetchZoneError: Error?
+    var fetchRecordError: Error?
+    var saveRecordsError: Error?
 
     // Track call counts
     var saveZoneCallCount = 0
@@ -22,6 +27,8 @@ final class MockCloudKitDatabase: CloudKitDatabaseProviding, @unchecked Sendable
     var saveSubscriptionCallCount = 0
     var deleteSubscriptionCallCount = 0
     var fetchZoneCallCount = 0
+    var fetchRecordCallCount = 0
+    var saveRecordsCallCount = 0
 
     func save(_ zone: CKRecordZone) async throws -> CKRecordZone {
         saveZoneCallCount += 1
@@ -69,6 +76,32 @@ final class MockCloudKitDatabase: CloudKitDatabaseProviding, @unchecked Sendable
         }
         throw CKError(.zoneNotFound)
     }
+
+    func record(for recordID: CKRecord.ID) async throws -> CKRecord {
+        fetchRecordCallCount += 1
+        if let error = fetchRecordError {
+            throw error
+        }
+        if let record = recordsByID[recordID] {
+            return record
+        }
+        throw CKError(.unknownItem)
+    }
+
+    func save(records: [CKRecord], deleting recordIDs: [CKRecord.ID]) async throws {
+        saveRecordsCallCount += 1
+        if let error = saveRecordsError {
+            throw error
+        }
+        savedRecordsBatches.append(records)
+        deletedRecordIDBatches.append(recordIDs)
+        for record in records {
+            recordsByID[record.recordID] = record
+        }
+        for recordID in recordIDs {
+            recordsByID.removeValue(forKey: recordID)
+        }
+    }
 }
 
 /// Mock CloudKit container for testing.
@@ -87,12 +120,24 @@ final class MockCloudKitContainer: CloudKitContainerProviding, @unchecked Sendab
         mockDatabase
     }
 
+    var sharedCloudDatabase: CloudKitDatabaseProviding {
+        mockDatabase
+    }
+
     func accountStatus() async throws -> CKAccountStatus {
         accountStatusCallCount += 1
         if let error = accountStatusError {
             throw error
         }
         return accountStatusToReturn
+    }
+
+    func accept(_ metadata: CKShare.Metadata) async throws {
+        // stub
+    }
+
+    func shareParticipant(forEmailAddress emailAddress: String) async throws -> CKShare.Participant {
+        throw CKError(.unknownItem)
     }
 }
 

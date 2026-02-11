@@ -1,6 +1,5 @@
 import AppKit
 import MartenCore
-import LinkPresentation
 import SwiftUI
 
 extension OverlayItemPreview {
@@ -25,97 +24,6 @@ extension OverlayItemPreview {
     func loadAssetsIfNeeded() {
         loadImageIfNeeded()
         loadFileIconIfNeeded()
-        loadURLBannerIfNeeded()
-    }
-
-    func loadURLBannerIfNeeded() {
-        guard item.itemTypeValue == .url else {
-            urlBannerImage = nil
-            lastLoadedURLBannerPath = nil
-            return
-        }
-
-        guard
-            let path = item.linkPreview?.imagePath?.trimmingCharacters(in: .whitespacesAndNewlines),
-            !path.isEmpty
-        else {
-            urlBannerImage = nil
-            lastLoadedURLBannerPath = nil
-            return
-        }
-
-        if lastLoadedURLBannerPath == path {
-            return
-        }
-        lastLoadedURLBannerPath = path
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let img = NSImage(contentsOfFile: path)
-            DispatchQueue.main.async {
-                urlBannerImage = img
-            }
-        }
-    }
-
-    func fetchURLBannerIfNeeded() async {
-        guard item.itemTypeValue == .url else { return }
-
-        guard let url = normalizedPrimaryURL, let scheme = url.scheme?.lowercased(),
-            scheme == "http" || scheme == "https"
-        else {
-            return
-        }
-        let urlString = url.absoluteString
-
-        if urlBannerImage != nil {
-            lastFetchedURLBannerURLString = urlString
-            return
-        }
-
-        if lastFetchedURLBannerURLString == urlString {
-            return
-        }
-
-        let provider = LPMetadataProvider()
-        let metadata: LPLinkMetadata
-        do {
-            metadata = try await provider.startFetchingMetadata(for: url)
-        } catch {
-            return
-        }
-
-        let itemProvider = metadata.imageProvider ?? metadata.iconProvider
-        guard let itemProvider else { return }
-
-        let image: NSImage?
-        do {
-            image = try await loadNSImage(from: itemProvider)
-        } catch {
-            return
-        }
-
-        guard let image else { return }
-        await MainActor.run {
-            if urlBannerImage == nil {
-                urlBannerImage = image
-            }
-        }
-    }
-
-    func loadNSImage(from provider: NSItemProvider) async throws -> NSImage {
-        try await withCheckedThrowingContinuation { continuation in
-            provider.loadObject(ofClass: NSImage.self) { object, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                guard let image = object as? NSImage else {
-                    continuation.resume(throwing: NSError(domain: "URLBannerPreview", code: 1))
-                    return
-                }
-                continuation.resume(returning: image)
-            }
-        }
     }
 
     func loadImageIfNeeded() {
@@ -218,13 +126,9 @@ extension OverlayItemPreview {
     }
 
     func filePathFromRepresentations() -> String? {
-        guard let reps = item.representations else { return nil }
-        guard let rep = reps.first(where: { $0.kindValue == .fileURL }) else { return nil }
-        guard let data = rep.textData, let path = String(data: data, encoding: .utf8) else {
+        guard let resolvedURL = FileURLAccessResolver.resolvedFileURL(from: item) else {
             return nil
         }
-        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return trimmed
+        return resolvedURL.path
     }
 }

@@ -15,6 +15,7 @@ struct ItemCard: View {
     let isDropTarget: Bool
     let showPinIndicator: Bool
     let allowPinning: Bool
+    let readOnly: Bool
     let isDragEnabled: Bool
     let cardSize: CGFloat
     let onPaste: (ClipItem) -> Void
@@ -55,14 +56,20 @@ struct ItemCard: View {
                 ZStack(alignment: .topTrailing) {
                     VStack(spacing: 0) {
                         headerView
-                        VStack(alignment: .leading, spacing: isCompactSize ? 8 : 10) {
-                            contentPreviewView
+                        VStack(alignment: .leading, spacing: 0) {
+                            if isEdgeToEdgeContent {
+                                contentPreviewView
+                            } else {
+                                contentPreviewView
+                                    .padding(.horizontal, cardPadding)
+                                    .padding(.top, isCompactSize ? 8 : 10)
+                            }
                             Spacer(minLength: 0)
                             footerView
+                                .padding(.horizontal, cardPadding)
+                                .padding(.bottom, cardPadding)
+                                .padding(.top, isCompactSize ? 6 : 8)
                         }
-                        .padding(.horizontal, cardPadding)
-                        .padding(.bottom, cardPadding)
-                        .padding(.top, isCompactSize ? 8 : 10)
                     }
                     .frame(width: cardSize, height: cardSize, alignment: .topLeading)
                     .background(cardBackground)

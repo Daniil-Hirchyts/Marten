@@ -81,7 +81,7 @@ public struct PinboardColor: Hashable {
 
 public enum PinboardPalette {
     public static let all = [
-        PinboardColor(name: "Blue", hex: "#3A86FF"),
+        PinboardColor(name: "Blue", hex: "#4A95FF"),
         PinboardColor(name: "Indigo", hex: "#5A67D8"),
         PinboardColor(name: "Violet", hex: "#7C4DFF"),
         PinboardColor(name: "Purple", hex: "#8338EC"),

@@ -8,6 +8,7 @@ struct CardContextMenu: View {
     let itemID: UUID
     let isPinned: Bool
     let allowPinning: Bool
+    let readOnly: Bool
     let assignedPinboardIDs: Set<UUID>
     let pinboards: [Pinboard]
     let lockedPinboardIDs: Set<UUID>
@@ -33,6 +34,7 @@ struct CardContextMenu: View {
         } label: {
             Label("Paste", systemImage: "arrow.turn.up.left")
         }
+        .disabled(readOnly)
         .accessibilityIdentifier("\(identifierPrefix).paste")
 
         Button {
@@ -40,6 +42,7 @@ struct CardContextMenu: View {
         } label: {
             Label("Paste as Plain Text", systemImage: "textformat")
         }
+        .disabled(readOnly)
         .accessibilityIdentifier("\(identifierPrefix).pastePlainText")
 
         Divider()
@@ -69,39 +72,41 @@ struct CardContextMenu: View {
         }
         .accessibilityIdentifier("\(identifierPrefix).copy")
 
-        Menu {
-            ForEach(pinboards) { pinboard in
-                let isAssigned = assignedPinboardIDs.contains(pinboard.id)
-                let isLocked = lockedPinboardIDs.contains(pinboard.id)
-                Button {
-                    onMoveToPinboard(item, pinboard)
-                } label: {
-                    Label {
-                        Text(pinboard.name)
-                    } icon: {
-                        Image(nsImage: NSImage.pinboardMenuIcon(
-                            colorHex: pinboard.colorHex,
-                            sign: pinboard.iconName,
-                            size: 16,
-                            isAssigned: isAssigned,
-                            isLocked: isLocked,
-                            colorScheme: colorScheme
-                        ))
+        if !readOnly {
+            Menu {
+                ForEach(pinboards) { pinboard in
+                    let isAssigned = assignedPinboardIDs.contains(pinboard.id)
+                    let isLocked = lockedPinboardIDs.contains(pinboard.id)
+                    Button {
+                        onMoveToPinboard(item, pinboard)
+                    } label: {
+                        Label {
+                            Text(pinboard.name)
+                        } icon: {
+                            Image(nsImage: NSImage.pinboardMenuIcon(
+                                colorHex: pinboard.colorHex,
+                                sign: pinboard.iconName,
+                                size: 16,
+                                isAssigned: isAssigned,
+                                isLocked: isLocked,
+                                colorScheme: colorScheme
+                            ))
+                        }
                     }
+                    .accessibilityIdentifier("\(identifierPrefix).move.\(pinboard.id.uuidString)")
                 }
-                .accessibilityIdentifier("\(identifierPrefix).move.\(pinboard.id.uuidString)")
-            }
-            Divider()
-            Button {
-                onCreatePinboard(item)
+                Divider()
+                Button {
+                    onCreatePinboard(item)
+                } label: {
+                    Label("New Pinboard...", systemImage: "plus")
+                }
+                .accessibilityIdentifier("\(identifierPrefix).move.new")
             } label: {
-                Label("New Pinboard...", systemImage: "plus")
+                Label("Move to Pinboard", systemImage: "circle.dashed")
             }
-            .accessibilityIdentifier("\(identifierPrefix).move.new")
-        } label: {
-            Label("Move to Pinboard", systemImage: "circle.dashed")
+            .accessibilityIdentifier("\(identifierPrefix).move")
         }
-        .accessibilityIdentifier("\(identifierPrefix).move")
 
         Divider()
 
@@ -110,6 +115,7 @@ struct CardContextMenu: View {
         } label: {
             Label("Edit...", systemImage: "square.and.pencil")
         }
+        .disabled(readOnly)
         .accessibilityIdentifier("\(identifierPrefix).edit")
 
         Button {
@@ -117,6 +123,7 @@ struct CardContextMenu: View {
         } label: {
             Label("Rename...", systemImage: "character.cursor.ibeam")
         }
+        .disabled(readOnly)
         .accessibilityIdentifier("\(identifierPrefix).rename")
 
         Button {
@@ -124,6 +131,7 @@ struct CardContextMenu: View {
         } label: {
             Label("Delete", systemImage: "trash")
         }
+        .disabled(readOnly)
         .accessibilityIdentifier("\(identifierPrefix).delete")
     }
     
@@ -153,12 +161,19 @@ struct PinboardContextMenu: View {
     let pinboardID: UUID
     let isLocked: Bool
     let isUnlocked: Bool
+    let isShared: Bool
+    let isShareOwner: Bool
+    let sharingEnabled: Bool
     let onSetLockEnabled: (Bool) -> Void
     let onUnlock: () -> Void
     let onLockNow: () -> Void
     let onRename: () -> Void
     let onCustomize: () -> Void
     let onDelete: () -> Void
+    var onSharePinboard: (() -> Void)? = nil
+    var onManageSharing: (() -> Void)? = nil
+    var onStopSharing: (() -> Void)? = nil
+    var onLeaveSharedPinboard: (() -> Void)? = nil
 
     private var identifierPrefix: String {
         "overlay.pinboardMenu.\(pinboardID.uuidString)"
@@ -166,57 +181,106 @@ struct PinboardContextMenu: View {
 
     var body: some View {
         if canEdit {
-            if isLocked {
-                if isUnlocked {
-                    Button {
-                        onLockNow()
-                    } label: {
-                        Label("Lock Now", systemImage: "lock.fill")
+            // Sharing actions
+            if sharingEnabled {
+                if isShared {
+                    if isShareOwner {
+                        Menu {
+                            Button {
+                                onManageSharing?()
+                            } label: {
+                                Label("Manage Sharing…", systemImage: "person.2")
+                            }
+                            .accessibilityIdentifier("\(identifierPrefix).manageSharing")
+
+                            Divider()
+
+                            Button(role: .destructive) {
+                                onStopSharing?()
+                            } label: {
+                                Label("Stop Sharing…", systemImage: "person.2.slash.fill")
+                            }
+                            .accessibilityIdentifier("\(identifierPrefix).stopSharing")
+                        } label: {
+                            Label("Sharing", systemImage: "person.2")
+                        }
+                        .accessibilityIdentifier("\(identifierPrefix).sharing")
+                    } else {
+                        Button {
+                            onLeaveSharedPinboard?()
+                        } label: {
+                            Label("Leave Shared Pinboard", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
+                        .accessibilityIdentifier("\(identifierPrefix).leaveShare")
                     }
-                    .accessibilityIdentifier("\(identifierPrefix).lockNow")
+                    Divider()
+                } else if !isLocked {
                     Button {
-                        onSetLockEnabled(false)
+                        onSharePinboard?()
                     } label: {
-                        Label("Disable Lock", systemImage: "lock.open")
+                        Label("Share Pinboard…", systemImage: "person.2")
                     }
-                    .accessibilityIdentifier("\(identifierPrefix).disableLock")
+                    .accessibilityIdentifier("\(identifierPrefix).share")
+                    Divider()
+                }
+            }
+
+            // Lock actions (hidden when shared)
+            if !isShared {
+                if isLocked {
+                    if isUnlocked {
+                        Button {
+                            onLockNow()
+                        } label: {
+                            Label("Lock Now", systemImage: "lock.fill")
+                        }
+                        .accessibilityIdentifier("\(identifierPrefix).lockNow")
+                        Button {
+                            onSetLockEnabled(false)
+                        } label: {
+                            Label("Disable Lock", systemImage: "lock.open")
+                        }
+                        .accessibilityIdentifier("\(identifierPrefix).disableLock")
+                    } else {
+                        Button {
+                            onUnlock()
+                        } label: {
+                            Label("Unlock", systemImage: "lock.open")
+                        }
+                        .accessibilityIdentifier("\(identifierPrefix).unlock")
+                    }
                 } else {
                     Button {
-                        onUnlock()
+                        onSetLockEnabled(true)
                     } label: {
-                        Label("Unlock", systemImage: "lock.open")
+                        Label("Lock Pinboard", systemImage: "lock")
                     }
-                    .accessibilityIdentifier("\(identifierPrefix).unlock")
+                    .accessibilityIdentifier("\(identifierPrefix).enableLock")
                 }
-            } else {
+
+                Divider()
+            }
+
+            if !isShared || isShareOwner {
                 Button {
-                    onSetLockEnabled(true)
+                    onRename()
                 } label: {
-                    Label("Lock Pinboard", systemImage: "lock")
+                    Label("Rename", systemImage: "character.cursor.ibeam")
                 }
-                .accessibilityIdentifier("\(identifierPrefix).enableLock")
+                .accessibilityIdentifier("\(identifierPrefix).rename")
+                Button {
+                    onCustomize()
+                } label: {
+                    Label("Customize…", systemImage: "paintbrush")
+                }
+                .accessibilityIdentifier("\(identifierPrefix).customize")
+                Button {
+                    onDelete()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .accessibilityIdentifier("\(identifierPrefix).delete")
             }
-
-            Divider()
-
-            Button {
-                onRename()
-            } label: {
-                Label("Rename", systemImage: "character.cursor.ibeam")
-            }
-            .accessibilityIdentifier("\(identifierPrefix).rename")
-            Button {
-                onCustomize()
-            } label: {
-                Label("Customize…", systemImage: "paintbrush")
-            }
-            .accessibilityIdentifier("\(identifierPrefix).customize")
-            Button {
-                onDelete()
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-            .accessibilityIdentifier("\(identifierPrefix).delete")
         }
     }
 }

@@ -283,11 +283,11 @@ private struct PinboardStylePicker: View {
                             }
                         } label: {
                             Text(tab.rawValue)
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(selectedTab == tab ? Color.white : Color.primary.opacity(0.75))
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 8)
                                 .background {
                                     if selectedTab == tab {
                                         Capsule()
@@ -303,7 +303,11 @@ private struct PinboardStylePicker: View {
                 .padding(4)
                 .background(
                     Capsule()
-                        .fill(mediumSurfaceColor)
+                        .fill(adaptiveSurfaceColor(opacity: DesignTokens.Opacity.backgroundSubtle))
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(adaptiveSurfaceColor(opacity: DesignTokens.Opacity.borderSubtle), lineWidth: 1)
                 )
 
                 HStack(spacing: 8) {

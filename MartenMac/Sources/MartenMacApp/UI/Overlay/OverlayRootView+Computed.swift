@@ -83,6 +83,13 @@ extension OverlayShellView {
         return visiblePinboards.first(where: { $0.id == selectedPinboardID })
     }
 
+    var selectedPinboardIsReadOnly: Bool {
+        OverlayReadOnlyResolver.isReadOnly(
+            selectedPinboardID: searchModel.selectedPinboardID,
+            pinboards: visiblePinboards
+        )
+    }
+
     var selectedPinboardIsLocked: Bool {
         guard let selectedCustomPinboard else { return false }
         return pinboardLockController.isLocked(pinboardID: selectedCustomPinboard.id)
@@ -103,11 +110,11 @@ extension OverlayShellView {
     }
 
     var isDragEnabled: Bool {
-        !isSearchActive
+        !isSearchActive && !selectedPinboardIsReadOnly
     }
 
     var isReorderingEnabled: Bool {
-        !isSearchActive && searchModel.selectedPinboardID != nil
+        !isSearchActive && searchModel.selectedPinboardID != nil && !selectedPinboardIsReadOnly
     }
 
     var pinboardSelectionKey: String {
@@ -128,4 +135,14 @@ extension OverlayShellView {
         "\(pinboardRenameState.isCreating)-\(pinboardRenameState.id?.description ?? "")-\(renameItemID?.description ?? "")-\(isSearchExpanded)-\(searchFocused)-\(previewCoordinator.isPreviewPopoverPresented)"
     }
 
+}
+
+enum OverlayReadOnlyResolver {
+    static func isReadOnly(selectedPinboardID: UUID?, pinboards: [Pinboard]) -> Bool {
+        guard let selectedPinboardID else { return false }
+        guard let selectedPinboard = pinboards.first(where: { $0.id == selectedPinboardID }) else {
+            return false
+        }
+        return selectedPinboard.isShared && !selectedPinboard.canMakeChanges
+    }
 }

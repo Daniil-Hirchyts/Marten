@@ -40,6 +40,14 @@ public extension CKRecord.ID {
         CKRecord.ID(recordName: "LinkPreview-\(uuid.uuidString)", zoneID: zoneID)
     }
 
+    /// Creates a zone ID for a shared pinboard.
+    static func sharedPinboardZoneID(_ pinboardUUID: UUID) -> CKRecordZone.ID {
+        CKRecordZone.ID(
+            zoneName: "SharedPinboard-\(pinboardUUID.uuidString)",
+            ownerName: CKCurrentUserDefaultName
+        )
+    }
+
     /// Extracts the UUID from a record name with a prefix.
     func extractUUID() -> UUID? {
         let components = recordName.split(separator: "-", maxSplits: 1)
@@ -67,6 +75,8 @@ public enum ClipItemField: String {
     case isPinned
     case thumbnailAsset
     case byteCount
+    case lastModifiedBy
+    case lastModifiedAt
 }
 
 /// Field keys for CKClipRepresentation records.
