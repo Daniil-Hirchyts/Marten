@@ -232,4 +232,106 @@ final class InboundSyncEngineTests: XCTestCase {
 
         XCTAssertEqual(tokenStore.saveCallCount, 0)
     }
+
+    func testMembershipDeletionRemovesLocalPinboardRelationship() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: "Test", ownerName: CKCurrentUserDefaultName)
+        let persistence = PersistenceController(inMemory: true)
+        let mapper = CloudRecordMapper(zoneID: zoneID)
+
+        let context = persistence.viewContext
+        let item = NSEntityDescription.insertNewObject(forEntityName: "ClipItem", into: context) as! ClipItem
+        item.id = UUID()
+        item.createdAt = Date()
+        item.modifiedAt = Date()
+        item.displayOrder = Int64(Date().timeIntervalSince1970 * 1000)
+        item.primaryText = "membership delete"
+        item.searchableText = "membership delete"
+        item.contentHash = "membership-delete-hash"
+        item.itemTypeValue = .text
+        item.isSensitive = false
+        item.isTransient = false
+        item.isPinned = false
+        item.byteCount = 0
+        item.needsLinkPreview = false
+        item.isUserCreated = true
+
+        let pinboard = NSEntityDescription.insertNewObject(forEntityName: "Pinboard", into: context) as! Pinboard
+        pinboard.id = UUID()
+        pinboard.name = "Work"
+        pinboard.colorHex = "#123456"
+        pinboard.sortOrder = 1
+        pinboard.isSystemMarten = false
+        pinboard.createdAt = Date()
+        item.addToPinboards(pinboard)
+        try context.save()
+
+        let membershipRecordID = CKRecord.ID.membershipID(
+            clipItemID: item.id,
+            pinboardID: pinboard.id,
+            zoneID: zoneID
+        )
+
+        let tokenStore = InMemoryZoneTokenStore()
+        let fetcher = MockZoneChangesFetcher()
+        fetcher.plans = [
+            .success(
+                events: [.deleted(membershipRecordID, CloudRecordType.pinboardMembership.rawValue)],
+                finalToken: nil
+            )
+        ]
+
+        let engine = InboundSyncEngine(
+            zoneID: zoneID,
+            changesFetcher: fetcher,
+            tokenStore: tokenStore,
+            persistenceController: persistence,
+            recordMapper: mapper
+        )
+
+        _ = try await engine.syncInbound()
+
+        let request = ClipItem.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", item.id as CVarArg)
+        request.fetchLimit = 1
+        let refreshed = try XCTUnwrap(context.fetch(request).first)
+        XCTAssertFalse(refreshed.pinboards?.contains(where: { $0.id == pinboard.id }) ?? true)
+    }
+
+    func testSystemPinboardRecordsAreIgnored() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: "Test", ownerName: CKCurrentUserDefaultName)
+        let persistence = PersistenceController(inMemory: true)
+        let mapper = CloudRecordMapper(zoneID: zoneID)
+
+        let tokenStore = InMemoryZoneTokenStore()
+        let fetcher = MockZoneChangesFetcher()
+
+        let pinboardID = UUID()
+        let record = CKRecord.pinboard(id: pinboardID, zoneID: zoneID)
+        record.setUUID(pinboardID, for: PinboardField.id.rawValue)
+        record.setString("Marten", for: PinboardField.name.rawValue)
+        record.setString("#808080", for: PinboardField.colorHex.rawValue)
+        record.setInt16(0, for: PinboardField.sortOrder.rawValue)
+        record.setBool(true, for: PinboardField.isSystemMarten.rawValue)
+        record.setDate(Date(), for: PinboardField.createdAt.rawValue)
+
+        fetcher.plans = [
+            .success(events: [.changed(record)], finalToken: nil)
+        ]
+
+        let engine = InboundSyncEngine(
+            zoneID: zoneID,
+            changesFetcher: fetcher,
+            tokenStore: tokenStore,
+            persistenceController: persistence,
+            recordMapper: mapper
+        )
+
+        _ = try await engine.syncInbound()
+
+        let context = persistence.viewContext
+        let request = Pinboard.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", pinboardID as CVarArg)
+        let pinboards = try context.fetch(request)
+        XCTAssertTrue(pinboards.isEmpty)
+    }
 }

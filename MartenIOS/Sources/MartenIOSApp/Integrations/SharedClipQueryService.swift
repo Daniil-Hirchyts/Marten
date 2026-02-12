@@ -68,6 +68,7 @@ public actor SharedClipQueryService {
                     id: $0.id,
                     name: $0.name,
                     colorHex: $0.colorHex,
+                    iconName: $0.iconName,
                     isSystemMarten: $0.isSystemMarten,
                     isShared: $0.isShared,
                     canMakeChanges: $0.canMakeChanges

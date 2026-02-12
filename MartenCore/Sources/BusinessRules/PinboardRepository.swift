@@ -286,10 +286,34 @@ final class PinboardRepository {
     func fetchOrCreateSystemMartenPinboard(in context: NSManagedObjectContext) throws -> Pinboard {
         let request = Pinboard.fetchRequest()
         request.predicate = NSPredicate(format: "isSystemMarten == YES")
-        request.fetchLimit = 1
 
-        if let existing = try context.fetch(request).first {
-            return existing
+        let existingSystemPinboards = try context.fetch(request)
+        if let canonical = existingSystemPinboards.sorted(by: { lhs, rhs in
+            let lhsCount = lhs.items?.count ?? 0
+            let rhsCount = rhs.items?.count ?? 0
+            if lhsCount != rhsCount {
+                return lhsCount > rhsCount
+            }
+            if lhs.createdAt != rhs.createdAt {
+                return lhs.createdAt < rhs.createdAt
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }).first {
+            canonical.name = "Marten"
+            canonical.colorHex = "#808080"
+            canonical.sortOrder = 0
+            canonical.isSystemMarten = true
+
+            for duplicate in existingSystemPinboards where duplicate.objectID != canonical.objectID {
+                if let items = duplicate.items {
+                    for item in items where !(canonical.items?.contains(item) ?? false) {
+                        canonical.addToItems(item)
+                    }
+                }
+                context.delete(duplicate)
+            }
+
+            return canonical
         }
 
         guard

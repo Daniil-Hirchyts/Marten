@@ -43,6 +43,7 @@ public struct SharedPinboardSummary: Identifiable, Sendable, Equatable {
     public let id: UUID
     public let name: String
     public let colorHex: String
+    public let iconName: String?
     public let isSystemMarten: Bool
     public let isShared: Bool
     public let canMakeChanges: Bool
@@ -51,6 +52,7 @@ public struct SharedPinboardSummary: Identifiable, Sendable, Equatable {
         id: UUID,
         name: String,
         colorHex: String,
+        iconName: String? = nil,
         isSystemMarten: Bool,
         isShared: Bool,
         canMakeChanges: Bool
@@ -58,6 +60,7 @@ public struct SharedPinboardSummary: Identifiable, Sendable, Equatable {
         self.id = id
         self.name = name
         self.colorHex = colorHex
+        self.iconName = iconName
         self.isSystemMarten = isSystemMarten
         self.isShared = isShared
         self.canMakeChanges = canMakeChanges

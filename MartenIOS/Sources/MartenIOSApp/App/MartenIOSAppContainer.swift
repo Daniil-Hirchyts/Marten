@@ -14,9 +14,17 @@ public final class MartenIOSAppContainer {
     public let lockStateStore: PinboardLockStateStore
     public let syncCoordinator: SyncCoordinator?
     public let sharingRepository: (any PinboardSharingRepositoryProtocol)?
+    public let appleIntelligence: any AppleIntelligenceTextTransforming
 
     public var selectedTab: MartenIOSTab = .dashboard
     public var selectedPinboardID: UUID?
+    public var pendingWidgetAction: WidgetAction?
+
+    public enum WidgetAction: Equatable {
+        case search
+        case paste
+        case create
+    }
     public var shouldShowIntegrationsOnboarding: Bool {
         didSet {
             userDefaults.set(
@@ -57,7 +65,8 @@ public final class MartenIOSAppContainer {
             clipboardReader: SystemClipboardReader(),
             clipboardPayloadBuilder: ClipboardPayloadBuilder(),
             linkPreviewFetcher: LinkPreviewFetcher(),
-            syncConfigurationProvider: MartenIOSSyncConfigurationProvider()
+            syncConfigurationProvider: MartenIOSSyncConfigurationProvider(),
+            appleIntelligence: AppleIntelligenceTextService()
         )
     }
 
@@ -68,14 +77,17 @@ public final class MartenIOSAppContainer {
         clipboardReader: any ClipboardReading = SystemClipboardReader(),
         clipboardPayloadBuilder: ClipboardPayloadBuilder = ClipboardPayloadBuilder(),
         linkPreviewFetcher: any LinkPreviewFetching = LinkPreviewFetcher(),
-        syncConfigurationProvider: any MartenIOSSyncConfigurationProviding = MartenIOSSyncConfigurationProvider(),
-        sharingRepository: (any PinboardSharingRepositoryProtocol)? = nil
+        syncConfigurationProvider: any MartenIOSSyncConfigurationProviding =
+            MartenIOSSyncConfigurationProvider(),
+        sharingRepository: (any PinboardSharingRepositoryProtocol)? = nil,
+        appleIntelligence: any AppleIntelligenceTextTransforming = AppleIntelligenceTextService()
     ) {
         self.persistenceController = persistenceController
         self.userDefaults = userDefaults
         self.clipboardReader = clipboardReader
         self.clipboardPayloadBuilder = clipboardPayloadBuilder
         self.syncConfigurationProvider = syncConfigurationProvider
+        self.appleIntelligence = appleIntelligence
 
         MartenIOSDefaults.registerDefaults(userDefaults)
 
@@ -107,10 +119,12 @@ public final class MartenIOSAppContainer {
             userDefaults: userDefaults,
             syncConfigurationProvider: syncConfigurationProvider
         )
-        self.sharingRepository = sharingRepository ?? Self.makeSharingRepository(
-            persistenceController: persistenceController,
-            syncConfigurationProvider: syncConfigurationProvider
-        )
+        self.sharingRepository =
+            sharingRepository
+            ?? Self.makeSharingRepository(
+                persistenceController: persistenceController,
+                syncConfigurationProvider: syncConfigurationProvider
+            )
     }
 
     public func start() async {
@@ -119,13 +133,24 @@ public final class MartenIOSAppContainer {
 
         ensureSystemPinboardExists()
         await maybeStartSyncIfEnabled()
+        ensureSystemPinboardExists()
         await refreshPendingLinkPreviews()
     }
 
     public func setSelectedPinboardID(_ pinboardID: UUID?) {
-        selectedPinboardID = pinboardID
+        if let pinboardID, isSelectablePinboard(pinboardID) {
+            selectedPinboardID = pinboardID
+        } else {
+            selectedPinboardID = nil
+        }
+
         if let pinboardID {
-            userDefaults.set(pinboardID.uuidString, forKey: MartenIOSDefaults.selectedPinboardIDKey)
+            if selectedPinboardID == pinboardID {
+                userDefaults.set(
+                    pinboardID.uuidString, forKey: MartenIOSDefaults.selectedPinboardIDKey)
+            } else {
+                userDefaults.removeObject(forKey: MartenIOSDefaults.selectedPinboardIDKey)
+            }
         } else {
             userDefaults.removeObject(forKey: MartenIOSDefaults.selectedPinboardIDKey)
         }
@@ -155,7 +180,9 @@ public final class MartenIOSAppContainer {
     public func handleScenePhase(_ phase: ScenePhase) async {
         switch phase {
         case .active:
+            ensureSystemPinboardExists()
             await maybeStartSyncIfEnabled()
+            ensureSystemPinboardExists()
             await refreshPendingLinkPreviews()
         case .background:
             if let syncCoordinator, syncCoordinator.syncEnabled {
@@ -203,6 +230,36 @@ public final class MartenIOSAppContainer {
         do {
             try await commandService.createTextItem(
                 text: trimmed,
+                sourceApp: sourceAppInfo(),
+                isUserCreated: true
+            )
+        } catch {
+            lastOperationErrorMessage = error.localizedDescription
+        }
+    }
+
+    public func createRichTextItem(plainText: String, rtfData: Data) async {
+        let trimmed = plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        do {
+            let payload = ClipItemPayload(
+                representations: [
+                    .plainText(trimmed, displayOrder: 0),
+                    ClipRepresentationPayload(
+                        kind: .rtf,
+                        uti: "public.rtf",
+                        data: rtfData,
+                        fileExtension: "rtf",
+                        displayOrder: 1
+                    ),
+                ],
+                primaryText: trimmed,
+                itemType: .richText
+            )
+
+            try await commandService.createItem(
+                payload: payload,
                 sourceApp: sourceAppInfo(),
                 isUserCreated: true
             )
@@ -321,7 +378,9 @@ public final class MartenIOSAppContainer {
         }
     }
 
-    public func moveItems(_ objectIDs: [NSManagedObjectID], toPinboardID pinboardID: NSManagedObjectID)
+    public func moveItems(
+        _ objectIDs: [NSManagedObjectID], toPinboardID pinboardID: NSManagedObjectID
+    )
         async
     {
         guard !objectIDs.isEmpty else { return }
@@ -331,6 +390,43 @@ public final class MartenIOSAppContainer {
                 objectIDs: objectIDs,
                 toPinboardID: pinboardID
             )
+        } catch {
+            lastOperationErrorMessage = error.localizedDescription
+        }
+    }
+
+    public func moveItemsToAll(_ objectIDs: [NSManagedObjectID]) async {
+        guard !objectIDs.isEmpty else { return }
+
+        do {
+            let viewContext = persistenceController.viewContext
+            let removalsByPinboardID: [NSManagedObjectID: [NSManagedObjectID]] =
+                try viewContext
+                .performAndWaitThrowing {
+                    var mapping: [NSManagedObjectID: [NSManagedObjectID]] = [:]
+
+                    for objectID in objectIDs {
+                        guard
+                            let item = try? viewContext.existingObject(with: objectID) as? ClipItem
+                        else {
+                            continue
+                        }
+
+                        let pinboards = item.pinboards?.filter { !$0.isSystemMarten } ?? []
+                        for pinboard in pinboards {
+                            mapping[pinboard.objectID, default: []].append(item.objectID)
+                        }
+                    }
+
+                    return mapping
+                }
+
+            for (pinboardID, itemObjectIDs) in removalsByPinboardID {
+                try await commandService.removeItems(
+                    objectIDs: itemObjectIDs,
+                    fromPinboardID: pinboardID
+                )
+            }
         } catch {
             lastOperationErrorMessage = error.localizedDescription
         }
@@ -346,7 +442,9 @@ public final class MartenIOSAppContainer {
         }
     }
 
-    public func removeItems(_ objectIDs: [NSManagedObjectID], fromPinboardID pinboardID: NSManagedObjectID)
+    public func removeItems(
+        _ objectIDs: [NSManagedObjectID], fromPinboardID pinboardID: NSManagedObjectID
+    )
         async
     {
         guard !objectIDs.isEmpty else { return }
@@ -398,6 +496,15 @@ public final class MartenIOSAppContainer {
             if let pinboardID = pinboardIDForItem(itemID: itemID) {
                 setSelectedPinboardID(pinboardID)
             }
+        case "search":
+            selectedTab = .search
+            pendingWidgetAction = .search
+        case "paste":
+            selectedTab = .dashboard
+            pendingWidgetAction = .paste
+        case "create":
+            selectedTab = .dashboard
+            pendingWidgetAction = .create
         default:
             break
         }
@@ -462,10 +569,9 @@ public final class MartenIOSAppContainer {
 
     private func sourceAppInfo() -> SourceAppInfo {
         let bundle = Bundle.main
-        let name = (
-            bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-            ?? bundle.object(forInfoDictionaryKey: "CFBundleName") as? String
-        )
+        let name =
+            (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+                ?? bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
 
         return SourceAppInfo(
             bundleID: bundle.bundleIdentifier,
@@ -511,7 +617,10 @@ public final class MartenIOSAppContainer {
         }
 
         let cloudKitConfiguration = CloudKitConfiguration.default
-        guard syncConfigurationProvider.canUseCloudKit(containerIdentifier: cloudKitConfiguration.containerIdentifier) else {
+        guard
+            syncConfigurationProvider.canUseCloudKit(
+                containerIdentifier: cloudKitConfiguration.containerIdentifier)
+        else {
             return nil
         }
 
@@ -553,28 +662,42 @@ public final class MartenIOSAppContainer {
             request.predicate = NSPredicate(format: "id == %@", itemID as NSUUID)
             if let item = try? context.fetch(request).first {
                 let pinboards = (item.pinboards ?? [])
-                    .sorted { lhs, rhs in
-                        if lhs.isSystemMarten != rhs.isSystemMarten {
-                            return !lhs.isSystemMarten
-                        }
-                        return lhs.sortOrder < rhs.sortOrder
-                    }
+                    .filter { !$0.isSystemMarten }
+                    .sorted { $0.sortOrder < $1.sortOrder }
                 resolvedPinboardID = pinboards.first?.id
             }
         }
         return resolvedPinboardID
     }
 
+    private func isSelectablePinboard(_ pinboardID: UUID) -> Bool {
+        let context = persistenceController.viewContext
+        var isSelectable = false
+        context.performAndWait {
+            let request = Pinboard.fetchRequest()
+            request.fetchLimit = 1
+            request.predicate = NSPredicate(
+                format: "id == %@ AND isSystemMarten == NO",
+                pinboardID as NSUUID
+            )
+            isSelectable = ((try? context.fetch(request).first) != nil)
+        }
+        return isSelectable
+    }
+
     private func ensureSystemPinboardExists() {
         let context = persistenceController.newBackgroundContext()
+        var survivingSystemPinboardID: UUID?
+        var removedSystemPinboardIDs = Set<UUID>()
 
         do {
             try context.performAndWaitThrowing {
                 let request = Pinboard.fetchRequest()
                 request.predicate = NSPredicate(format: "isSystemMarten == YES")
-                request.fetchLimit = 1
 
-                if try context.fetch(request).isEmpty {
+                let systemPinboards = try context.fetch(request)
+
+                if systemPinboards.isEmpty {
                     guard
                         let pinboard = NSEntityDescription.insertNewObject(
                             forEntityName: "Pinboard",
@@ -590,12 +713,57 @@ public final class MartenIOSAppContainer {
                     pinboard.sortOrder = 0
                     pinboard.isSystemMarten = true
                     pinboard.createdAt = Date()
+                    survivingSystemPinboardID = pinboard.id
 
+                    try context.save()
+                    return
+                }
+
+                let sortedPinboards = systemPinboards.sorted { lhs, rhs in
+                    let lhsItemCount = lhs.items?.count ?? 0
+                    let rhsItemCount = rhs.items?.count ?? 0
+                    if lhsItemCount != rhsItemCount {
+                        return lhsItemCount > rhsItemCount
+                    }
+                    if lhs.createdAt != rhs.createdAt {
+                        return lhs.createdAt < rhs.createdAt
+                    }
+                    return lhs.id.uuidString < rhs.id.uuidString
+                }
+
+                guard let canonical = sortedPinboards.first else { return }
+                survivingSystemPinboardID = canonical.id
+
+                canonical.name = "Marten"
+                canonical.colorHex = "#808080"
+                canonical.sortOrder = 0
+                canonical.isSystemMarten = true
+
+                for duplicate in sortedPinboards.dropFirst() {
+                    removedSystemPinboardIDs.insert(duplicate.id)
+
+                    if let items = duplicate.items {
+                        for item in items where !(canonical.items?.contains(item) ?? false) {
+                            canonical.addToItems(item)
+                        }
+                    }
+
+                    context.delete(duplicate)
+                }
+
+                if context.hasChanges {
                     try context.save()
                 }
             }
         } catch {
             lastOperationErrorMessage = error.localizedDescription
+            return
+        }
+
+        if let selectedPinboardID,
+            removedSystemPinboardIDs.contains(selectedPinboardID)
+        {
+            setSelectedPinboardID(survivingSystemPinboardID)
         }
     }
 }

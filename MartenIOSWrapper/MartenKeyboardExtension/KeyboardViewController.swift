@@ -5,10 +5,21 @@ import UIKit
 
 final class KeyboardViewController: UIInputViewController {
     private var hostingController: UIHostingController<KeyboardRootView>?
+    private var heightConstraint: NSLayoutConstraint?
 
     override func viewDidLoad() {
         super.viewDidLoad()
         installRootView()
+        setupKeyboardHeight()
+    }
+    
+    private func setupKeyboardHeight() {
+        // Set a fixed height for the keyboard extension
+        let height: CGFloat = 280
+        let constraint = view.heightAnchor.constraint(equalToConstant: height)
+        constraint.priority = .required
+        constraint.isActive = true
+        heightConstraint = constraint
     }
 
     private func installRootView() {

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "group:MartenIOSWrapper/MartenIOSWrapper.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:MartenMacWrapper/MartenMacWrapper.xcodeproj">
+   </FileRef>
+</Workspace>

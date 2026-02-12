@@ -54,6 +54,57 @@ final class DeepLinkRoutingTests: XCTestCase {
 
         XCTAssertEqual(container.selectedPinboardID, pinboard.id)
     }
+
+    func testSearchDeepLinkSetsSearchTab() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+
+        let container = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider()
+        )
+
+        container.handleDeepLink(URL(string: "marten://search")!)
+
+        XCTAssertEqual(container.selectedTab, .search)
+        XCTAssertEqual(container.pendingWidgetAction, .search)
+    }
+
+    func testPasteDeepLinkSetsPasteAction() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+
+        let container = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider()
+        )
+
+        container.handleDeepLink(URL(string: "marten://paste")!)
+
+        XCTAssertEqual(container.selectedTab, .dashboard)
+        XCTAssertEqual(container.pendingWidgetAction, .paste)
+    }
+
+    func testCreateDeepLinkSetsCreateAction() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+
+        let container = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider()
+        )
+
+        container.handleDeepLink(URL(string: "marten://create")!)
+
+        XCTAssertEqual(container.selectedTab, .dashboard)
+        XCTAssertEqual(container.pendingWidgetAction, .create)
+    }
 }
 
 private struct AlwaysDisabledSyncConfigurationProvider: MartenIOSSyncConfigurationProviding {

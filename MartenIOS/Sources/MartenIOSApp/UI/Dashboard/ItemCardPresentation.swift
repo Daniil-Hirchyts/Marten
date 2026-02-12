@@ -31,6 +31,10 @@ struct ItemCardPresentation: Identifiable {
     let footerTitle: String
 
     let needsLinkPreview: Bool
+    
+    // Pinboard information
+    let primaryPinboardColorHex: String?
+    let primaryPinboardSign: String?
 
     init(item: ClipItem) {
         id = item.objectID
@@ -119,6 +123,11 @@ struct ItemCardPresentation: Identifiable {
         footerSource = Self.sourceLabel(for: item) ?? "Unknown"
         footerDate = RelativeTime.short(from: item.modifiedAt)
         footerTitle = normalizedText ?? title
+        
+        // Compute primary pinboard
+        let pinboardInfo = Self.computePrimaryPinboard(for: item)
+        primaryPinboardColorHex = pinboardInfo.colorHex
+        primaryPinboardSign = pinboardInfo.sign
     }
 
     private static func defaultTitle(for item: ClipItem) -> String {
@@ -175,5 +184,12 @@ struct ItemCardPresentation: Identifiable {
 
         guard let primary = item.primaryText, !primary.isEmpty else { return nil }
         return URL(fileURLWithPath: primary).lastPathComponent
+    }
+    
+    private static func computePrimaryPinboard(for item: ClipItem) -> (colorHex: String?, sign: String?) {
+        let pinboards = item.pinboards?.filter { !$0.isSystemMarten } ?? []
+        let sorted = pinboards.sorted { $0.sortOrder < $1.sortOrder }
+        guard let pinboard = sorted.first else { return (nil, nil) }
+        return (pinboard.colorHex, pinboard.iconName)
     }
 }

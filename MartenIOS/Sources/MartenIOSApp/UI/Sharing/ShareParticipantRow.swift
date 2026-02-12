@@ -12,21 +12,14 @@ struct ShareParticipantRow: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(participant.displayName)
+                    Text(participant.isCurrentUser ? "You" : participant.displayName)
                         .font(.subheadline.weight(.semibold))
-                    if participant.isOwner {
+                    if participant.isOwner && !participant.isCurrentUser {
                         Text("Owner")
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(Color.accentColor.opacity(0.16), in: Capsule())
-                    }
-                    if participant.isCurrentUser {
-                        Text("You")
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.secondary.opacity(0.14), in: Capsule())
                     }
                 }
                 if let email = participant.email, !email.isEmpty {

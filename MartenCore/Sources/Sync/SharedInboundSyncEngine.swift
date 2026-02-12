@@ -57,6 +57,13 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
         var fetchedCount = 0
         var deletedCount = 0
 
+        try context.performAndWait {
+            try removeOrphanedLinkPreviews(in: context)
+            if context.hasChanges {
+                try context.save()
+            }
+        }
+
         do {
             let finalToken = try await changesFetcher.fetchChanges(
                 zoneID: zoneID,
@@ -64,6 +71,7 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
                 recordChanged: { record in
                     try context.performAndWait {
                         try self.applyRecord(record, in: context)
+                        try self.removeOrphanedLinkPreviews(in: context)
                         fetchedCount += 1
                         if context.hasChanges {
                             try context.save()
@@ -73,6 +81,7 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
                 recordDeleted: { recordID, recordType in
                     try context.performAndWait {
                         self.applyDeletion(recordID: recordID, recordType: recordType, in: context)
+                        try self.removeOrphanedLinkPreviews(in: context)
                         deletedCount += 1
                         if context.hasChanges {
                             try context.save()
@@ -115,6 +124,9 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
             }
 
         case .pinboard:
+            if record.bool(for: PinboardField.isSystemMarten.rawValue) {
+                return
+            }
             guard let id = record.uuid(for: PinboardField.id.rawValue) else { return }
             let request = Pinboard.fetchRequest()
             request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
@@ -177,6 +189,7 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
             pbRequest.predicate = NSPredicate(format: "id == %@", membership.pinboardID as CVarArg)
             pbRequest.fetchLimit = 1
             guard let pinboard = try context.fetch(pbRequest).first else { return }
+            guard !pinboard.isSystemMarten else { return }
 
             if !(pinboard.items?.contains(item) ?? false) {
                 pinboard.addToItems(item)
@@ -212,6 +225,9 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
             request.predicate = NSPredicate(format: "id == %@", uuid as CVarArg)
             request.fetchLimit = 1
             if let existing = try? context.fetch(request).first {
+                if existing.isSystemMarten {
+                    return
+                }
                 context.delete(existing)
             }
         case .linkPreview:
@@ -222,7 +238,40 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
                 context.delete(existing)
             }
         case .pinboardMembership:
-            break
+            removeMembership(membershipID: uuid, in: context)
+        }
+    }
+
+    private func removeMembership(membershipID: UUID, in context: NSManagedObjectContext) {
+        let request = ClipItem.fetchRequest()
+        request.relationshipKeyPathsForPrefetching = ["pinboards"]
+
+        guard let items = try? context.fetch(request) else { return }
+
+        for item in items {
+            let customPinboards = (item.pinboards ?? []).filter { !$0.isSystemMarten }
+            for pinboard in customPinboards {
+                let candidateID = CKRecord.ID.deterministicMembershipUUID(
+                    clipItemID: item.id,
+                    pinboardID: pinboard.id
+                )
+                if candidateID == membershipID {
+                    item.removeFromPinboards(pinboard)
+                    return
+                }
+            }
+        }
+    }
+
+    private func removeOrphanedLinkPreviews(in context: NSManagedObjectContext) throws {
+        let request = LinkPreview.fetchRequest()
+        request.predicate = NSPredicate(format: "clipItem == nil")
+
+        let orphans = try context.fetch(request)
+        guard !orphans.isEmpty else { return }
+
+        for orphan in orphans {
+            context.delete(orphan)
         }
     }
 }

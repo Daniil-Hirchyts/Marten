@@ -8,56 +8,96 @@ struct QuickAddMenuSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Button {
-                    activeSheet = .newText
-                } label: {
-                    Label("New Text", systemImage: "square.and.pencil")
-                }
-                .accessibilityHint("Create a new text clip")
-
-                Button {
-                    Task {
-                        await container.createItemFromClipboard()
-                        dismiss()
+            VStack(spacing: 16) {
+                HStack(spacing: 16) {
+                    quickAddButton(
+                        title: "New Text",
+                        systemImage: "square.and.pencil",
+                        color: .blue
+                    ) {
+                        activeSheet = .newText
                     }
-                } label: {
-                    Label("Paste Clipboard", systemImage: "doc.on.clipboard")
-                }
-                .accessibilityHint("Save current clipboard contents")
 
-                Button {
-                    activeSheet = .scan
-                } label: {
-                    Label("Scan Document", systemImage: "doc.text.viewfinder")
+                    quickAddButton(
+                        title: "Paste",
+                        systemImage: "doc.on.clipboard",
+                        color: .green
+                    ) {
+                        Task {
+                            await container.createItemFromClipboard()
+                            dismiss()
+                        }
+                    }
+
+                    quickAddButton(
+                        title: "Scan",
+                        systemImage: "doc.text.viewfinder",
+                        color: .orange
+                    ) {
+                        activeSheet = .scan
+                    }
                 }
-                .accessibilityHint("Scan a document with the camera")
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+
+                Spacer()
             }
             .navigationTitle("Quick Add")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
+                    Button("Close") { dismiss() }
                 }
             }
         }
+        .presentationDetents([.medium])
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .newText:
-                NewTextItemSheet { text in
+                NewTextItemSheet(
+                    appleIntelligence: container.appleIntelligence
+                ) { plainText, rtfData in
                     Task {
-                        await container.createTextItem(text)
+                        await container.createRichTextItem(plainText: plainText, rtfData: rtfData)
                     }
                 }
             case .scan:
                 DocumentScannerSheet { pages in
-                    Task {
-                        await container.createScannedPages(pages)
-                    }
+                    Task { await container.createScannedPages(pages) }
                 }
             }
         }
+    }
+
+    private func quickAddButton(
+        title: String,
+        systemImage: String,
+        color: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.title2)
+                    .foregroundStyle(color)
+                    .frame(
+                        width: MartenButtonSize.largeIconButton,
+                        height: MartenButtonSize.largeIconButton
+                    )
+                    .background(color.opacity(0.12), in: .circle)
+
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Create a new \(title.lowercased()) clip")
     }
 }
 

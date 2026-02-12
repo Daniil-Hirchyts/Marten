@@ -1,7 +1,7 @@
 import FoundationModels
 import XCTest
 
-@testable import MartenMacServices
+@testable import MartenCore
 
 final class AppleIntelligenceTextServiceTests: XCTestCase {
     func testAvailabilityMapsDeviceNotEligible() {

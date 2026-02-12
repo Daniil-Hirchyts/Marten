@@ -252,6 +252,13 @@ public final class InboundSyncEngine: @unchecked Sendable {
         var deletedCount = 0
         var lastUpdatedTokenData: Data?
 
+        try context.performAndWait {
+            try removeOrphanedLinkPreviews(in: context)
+            if context.hasChanges {
+                try context.save()
+            }
+        }
+
         func applyPendingIfNeeded(force: Bool) throws {
             guard force || pendingRecords.count + pendingDeletions.count >= applyBatchSize else { return }
 
@@ -268,6 +275,7 @@ public final class InboundSyncEngine: @unchecked Sendable {
                     deferredMemberships: &deferredMemberships,
                     in: context
                 )
+                try removeOrphanedLinkPreviews(in: context)
 
                 if context.hasChanges {
                     try context.save()
@@ -304,6 +312,7 @@ public final class InboundSyncEngine: @unchecked Sendable {
                         memberships: &deferredMemberships,
                         in: context
                     )
+                    try removeOrphanedLinkPreviews(in: context)
                     if context.hasChanges {
                         try context.save()
                     }
@@ -470,6 +479,7 @@ public final class InboundSyncEngine: @unchecked Sendable {
               let pinboard = fetchPinboard(id: membership.pinboardID, in: context) else {
             return false
         }
+        guard !pinboard.isSystemMarten else { return true }
 
         if !(pinboard.items?.contains(item) ?? false) {
             pinboard.addToItems(item)
@@ -554,6 +564,9 @@ public final class InboundSyncEngine: @unchecked Sendable {
             }
 
         case .pinboard:
+            if record.bool(for: PinboardField.isSystemMarten.rawValue) {
+                return
+            }
             guard let id = record.uuid(for: PinboardField.id.rawValue) else { return }
             if let existing = cache.pinboards[id] {
                 try recordMapper.updateEntity(existing, from: record)
@@ -621,6 +634,7 @@ public final class InboundSyncEngine: @unchecked Sendable {
               let pinboard = cache.pinboards[membership.pinboardID] else {
             return false
         }
+        guard !pinboard.isSystemMarten else { return true }
 
         if !(pinboard.items?.contains(item) ?? false) {
             pinboard.addToItems(item)
@@ -648,6 +662,9 @@ public final class InboundSyncEngine: @unchecked Sendable {
             }
         case .pinboard:
             if let existing = cache.pinboards[uuid] {
+                if existing.isSystemMarten {
+                    return
+                }
                 context.delete(existing)
                 cache.pinboards.removeValue(forKey: uuid)
             }
@@ -657,7 +674,7 @@ public final class InboundSyncEngine: @unchecked Sendable {
                 cache.linkPreviews.removeValue(forKey: uuid)
             }
         case .pinboardMembership:
-            return
+            removeMembership(membershipID: uuid, in: context)
         }
     }
 
@@ -713,7 +730,11 @@ public final class InboundSyncEngine: @unchecked Sendable {
                 if let id = record.uuid(for: LinkPreviewField.id.rawValue) { linkPreviewIDs.insert(id) }
                 if let parentID = recordMapper.extractParentClipItemID(from: record) { clipItemIDs.insert(parentID) }
             case .pinboard:
-                if let id = record.uuid(for: PinboardField.id.rawValue) { pinboardIDs.insert(id) }
+                if record.bool(for: PinboardField.isSystemMarten.rawValue) == false,
+                    let id = record.uuid(for: PinboardField.id.rawValue)
+                {
+                    pinboardIDs.insert(id)
+                }
             case .pinboardMembership:
                 if let membership = try? recordMapper.createPinboardMembershipData(from: record) {
                     clipItemIDs.insert(membership.clipItemID)
@@ -793,5 +814,38 @@ public final class InboundSyncEngine: @unchecked Sendable {
         request.fetchLimit = 1
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         return try? context.fetch(request).first
+    }
+
+    private func removeOrphanedLinkPreviews(in context: NSManagedObjectContext) throws {
+        let request = LinkPreview.fetchRequest()
+        request.predicate = NSPredicate(format: "clipItem == nil")
+
+        let orphans = try context.fetch(request)
+        guard !orphans.isEmpty else { return }
+
+        for orphan in orphans {
+            context.delete(orphan)
+        }
+    }
+
+    private func removeMembership(membershipID: UUID, in context: NSManagedObjectContext) {
+        let request = ClipItem.fetchRequest()
+        request.relationshipKeyPathsForPrefetching = ["pinboards"]
+
+        guard let items = try? context.fetch(request) else { return }
+
+        for item in items {
+            let customPinboards = (item.pinboards ?? []).filter { !$0.isSystemMarten }
+            for pinboard in customPinboards {
+                let candidateID = CKRecord.ID.deterministicMembershipUUID(
+                    clipItemID: item.id,
+                    pinboardID: pinboard.id
+                )
+                if candidateID == membershipID {
+                    item.removeFromPinboards(pinboard)
+                    return
+                }
+            }
+        }
     }
 }

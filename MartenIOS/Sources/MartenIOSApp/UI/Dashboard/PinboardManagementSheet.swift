@@ -128,74 +128,78 @@ struct PinboardManagementSheet: View {
     }
 
     private func row(for pinboard: Pinboard) -> some View {
-        HStack(spacing: 10) {
+        let isLocked = container.lockStateStore.isLocked(pinboard.id)
+        let canAccess = container.lockStateStore.canAccess(pinboard.id)
+
+        return HStack(spacing: 12) {
             Circle()
                 .fill(Color(hex: pinboard.colorHex, fallback: .gray))
                 .frame(width: 12, height: 12)
 
+            if let iconName = pinboard.iconName, !iconName.isEmpty {
+                Image(systemName: iconName)
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: pinboard.colorHex, fallback: .gray))
+                    .frame(width: 16)
+            }
+
             VStack(alignment: .leading, spacing: 2) {
-                Text(pinboard.isSystemMarten ? "Clipboard History" : pinboard.name)
+                Text(pinboard.name)
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
 
-                if pinboard.isSystemMarten {
-                    Text("System pinboard")
-                        .font(.caption)
+                if pinboard.isShared {
+                    Label("Shared", systemImage: "person.2")
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
 
             Spacer()
 
-            if !pinboard.isSystemMarten {
-                Toggle(
-                    "Lock \(pinboard.name)",
-                    isOn: Binding(
-                        get: { container.lockStateStore.isLocked(pinboard.id) },
-                        set: { isEnabled in
-                            container.lockStateStore.setLock(isEnabled, for: pinboard.id)
-                        }
-                    )
-                )
-                .labelsHidden()
-                .help("Lock Hook")
-                .accessibilityLabel("Lock \(pinboard.name)")
+            Text("\(pinboard.itemCount)")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.tertiary)
+                .monospacedDigit()
+
+            if isLocked {
+                Image(systemName: canAccess ? "lock.open.fill" : "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+
+            lockMenu(for: pinboard)
         }
         .contentShape(Rectangle())
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            if !pinboard.isSystemMarten {
-                Button("Edit") {
-                    editorContext = .edit(
-                        objectIDURI: pinboard.objectID.uriRepresentation().absoluteString,
-                        name: pinboard.name,
-                        colorHex: pinboard.colorHex,
-                        iconName: pinboard.iconName
-                    )
-                }
-                .tint(.blue)
+            Button("Edit") {
+                editorContext = .edit(
+                    objectIDURI: pinboard.objectID.uriRepresentation().absoluteString,
+                    name: pinboard.name,
+                    colorHex: pinboard.colorHex,
+                    iconName: pinboard.iconName
+                )
+            }
+            .tint(.blue)
 
-                Button("Delete", role: .destructive) {
-                    Task {
-                        await container.deletePinboard(pinboard)
-                    }
+            Button("Delete", role: .destructive) {
+                Task {
+                    await container.deletePinboard(pinboard)
                 }
             }
         }
         .contextMenu {
-            if !pinboard.isSystemMarten {
-                Button("Edit") {
-                    editorContext = .edit(
-                        objectIDURI: pinboard.objectID.uriRepresentation().absoluteString,
-                        name: pinboard.name,
-                        colorHex: pinboard.colorHex,
-                        iconName: pinboard.iconName
-                    )
-                }
-                Divider()
+            Button("Edit") {
+                editorContext = .edit(
+                    objectIDURI: pinboard.objectID.uriRepresentation().absoluteString,
+                    name: pinboard.name,
+                    colorHex: pinboard.colorHex,
+                    iconName: pinboard.iconName
+                )
             }
+            Divider()
 
-            if container.sharingRepository != nil, !pinboard.isSystemMarten {
+            if container.sharingRepository != nil {
                 let metadata = pinboard.shareMetadata
                 let initialShareURL = metadata?.shareURL.flatMap(URL.init(string:))
                 let context = ShareContext(
@@ -229,13 +233,68 @@ struct PinboardManagementSheet: View {
                 Divider()
             }
 
-            if !pinboard.isSystemMarten {
-                Button("Delete", role: .destructive) {
-                    Task {
-                        await container.deletePinboard(pinboard)
-                    }
+            lockActions(for: pinboard)
+            Divider()
+
+            Button("Delete", role: .destructive) {
+                Task {
+                    await container.deletePinboard(pinboard)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func lockActions(for pinboard: Pinboard) -> some View {
+        let isLocked = container.lockStateStore.isLocked(pinboard.id)
+        let canAccess = container.lockStateStore.canAccess(pinboard.id)
+
+        if isLocked {
+            Button {
+                requestUnlock(for: pinboard)
+            } label: {
+                Label("Unlock", systemImage: "lock.open")
+            }
+
+            if canAccess {
+                Button {
+                    container.lockStateStore.lockNow(pinboardID: pinboard.id)
+                } label: {
+                    Label("Lock Now", systemImage: "lock.fill")
+                }
+                Button {
+                    container.lockStateStore.setLock(false, for: pinboard.id)
+                } label: {
+                    Label("Disable Lock", systemImage: "lock.slash")
+                }
+            }
+        } else {
+            Button {
+                container.lockStateStore.setLock(true, for: pinboard.id)
+            } label: {
+                Label("Lock Pinboard", systemImage: "lock")
+            }
+        }
+    }
+
+    private func lockMenu(for pinboard: Pinboard) -> some View {
+        Menu {
+            lockActions(for: pinboard)
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.body.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Lock options for \(pinboard.name)")
+    }
+
+    private func requestUnlock(for pinboard: Pinboard) {
+        Task { @MainActor in
+            _ = await container.lockStateStore.unlock(
+                pinboardID: pinboard.id,
+                pinboardName: pinboard.name
+            )
         }
     }
 
@@ -271,6 +330,7 @@ private enum EditorContext: Identifiable {
 
 private func pinboardFetchRequest() -> NSFetchRequest<Pinboard> {
     let request = Pinboard.fetchRequest()
+    request.predicate = NSPredicate(format: "isSystemMarten == NO")
     request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
     request.returnsObjectsAsFaults = false
     return request

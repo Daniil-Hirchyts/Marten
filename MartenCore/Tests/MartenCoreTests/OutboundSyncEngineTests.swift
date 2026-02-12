@@ -294,6 +294,114 @@ final class OutboundSyncEngineTests: XCTestCase {
 
         await fulfillment(of: [done], timeout: 1.5)
     }
+
+    func testCustomPinboardMembershipsAreUploadedAndStaleMembershipsDeleted() async throws {
+        let db = MockOutboundCloudDatabase()
+        let engine = OutboundSyncEngine(
+            persistenceController: persistence,
+            database: db,
+            zoneID: zoneID,
+            configuration: .init(debounceInterval: 0.05, retryBackoff: 0.01, maxRetries: 1)
+        )
+        engine.start()
+        defer { engine.stop() }
+
+        let context = persistence.viewContext
+        let pinboardA = makePinboard(in: context, name: "A", isSystem: false)
+        let pinboardB = makePinboard(in: context, name: "B", isSystem: false)
+        let item = makeClipItem(in: context, text: "membership")
+        item.addToPinboards(pinboardA)
+        try context.save()
+        try await Task.sleep(nanoseconds: 180_000_000)
+
+        let firstCalls = await db.calls
+        let firstSaved = firstCalls.flatMap(\.saved)
+        let membershipRecord = try XCTUnwrap(
+            firstSaved.first(where: { $0.recordType == CloudRecordType.pinboardMembership.rawValue })
+        )
+        XCTAssertEqual(
+            membershipRecord.recordID,
+            .membershipID(clipItemID: item.id, pinboardID: pinboardA.id, zoneID: zoneID)
+        )
+        XCTAssertEqual(
+            membershipRecord.uuid(for: PinboardMembershipField.clipItemID.rawValue),
+            item.id
+        )
+        XCTAssertEqual(
+            membershipRecord.uuid(for: PinboardMembershipField.pinboardID.rawValue),
+            pinboardA.id
+        )
+
+        await db.resetCalls()
+
+        item.removeFromPinboards(pinboardA)
+        try context.save()
+        try await Task.sleep(nanoseconds: 180_000_000)
+
+        let secondCalls = await db.calls
+        let deletedIDs = Set(secondCalls.flatMap(\.deleted))
+        XCTAssertTrue(
+            deletedIDs.contains(
+                .membershipID(clipItemID: item.id, pinboardID: pinboardA.id, zoneID: zoneID)
+            )
+        )
+        XCTAssertTrue(
+            deletedIDs.contains(
+                .membershipID(clipItemID: item.id, pinboardID: pinboardB.id, zoneID: zoneID)
+            )
+        )
+    }
+
+    func testSystemPinboardChangesAreNotUploaded() async throws {
+        let db = MockOutboundCloudDatabase()
+        let engine = OutboundSyncEngine(
+            persistenceController: persistence,
+            database: db,
+            zoneID: zoneID,
+            configuration: .init(debounceInterval: 0.05, retryBackoff: 0.01, maxRetries: 1)
+        )
+        engine.start()
+        defer { engine.stop() }
+
+        let context = persistence.viewContext
+        _ = makePinboard(in: context, name: "Marten", isSystem: true)
+        try context.save()
+        try await Task.sleep(nanoseconds: 180_000_000)
+
+        let calls = await db.calls
+        XCTAssertTrue(calls.isEmpty)
+    }
+
+    func testMembershipBackfillEnqueuesExistingItemMemberships() async throws {
+        let context = persistence.viewContext
+        let pinboard = makePinboard(in: context, name: "Projects", isSystem: false)
+        let item = makeClipItem(in: context, text: "backfill")
+        item.addToPinboards(pinboard)
+        try context.save()
+
+        let db = MockOutboundCloudDatabase()
+        let engine = OutboundSyncEngine(
+            persistenceController: persistence,
+            database: db,
+            zoneID: zoneID,
+            configuration: .init(debounceInterval: 0.05, retryBackoff: 0.01, maxRetries: 1)
+        )
+        engine.start()
+        defer { engine.stop() }
+
+        await engine.enqueueMembershipBackfillForAllItems()
+        await engine.flushAndAwait()
+
+        let calls = await db.calls
+        let savedRecords = calls.flatMap(\.saved)
+        let membershipRecord = try XCTUnwrap(
+            savedRecords.first(where: { $0.recordType == CloudRecordType.pinboardMembership.rawValue })
+        )
+        XCTAssertEqual(
+            membershipRecord.recordID,
+            .membershipID(clipItemID: item.id, pinboardID: pinboard.id, zoneID: zoneID)
+        )
+    }
 }
 
 private func makeClipItem(in context: NSManagedObjectContext, id: UUID = UUID(), text: String)
@@ -353,4 +461,20 @@ private func makeLinkPreview(for item: ClipItem, in context: NSManagedObjectCont
     preview.clipItem = item
     item.linkPreview = preview
     return preview
+}
+
+private func makePinboard(
+    in context: NSManagedObjectContext,
+    name: String,
+    isSystem: Bool
+) -> Pinboard {
+    let pinboard = NSEntityDescription.insertNewObject(forEntityName: "Pinboard", into: context)
+        as! Pinboard
+    pinboard.id = UUID()
+    pinboard.name = name
+    pinboard.colorHex = "#808080"
+    pinboard.sortOrder = 0
+    pinboard.isSystemMarten = isSystem
+    pinboard.createdAt = Date()
+    return pinboard
 }

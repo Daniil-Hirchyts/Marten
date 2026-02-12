@@ -45,4 +45,46 @@ final class PinboardLockStateStoreTests: XCTestCase {
         XCTAssertTrue(store.isLocked(first))
         XCTAssertFalse(store.isLocked(second))
     }
+
+    func testUnlockSuccessGrantsTemporaryAccessAndExpires() async {
+        let pinboardID = UUID()
+        let store = PinboardLockStateStore(
+            userDefaults: userDefaults,
+            authenticator: StubPinboardAuthenticator(result: true),
+            unlockDurationSeconds: 1
+        )
+        store.setLock(true, for: pinboardID)
+
+        XCTAssertFalse(store.canAccess(pinboardID))
+
+        let unlocked = await store.unlock(pinboardID: pinboardID, pinboardName: "Private")
+        XCTAssertTrue(unlocked)
+        XCTAssertTrue(store.canAccess(pinboardID))
+
+        try? await Task.sleep(nanoseconds: 1_300_000_000)
+        XCTAssertFalse(store.canAccess(pinboardID))
+    }
+
+    func testUnlockFailureKeepsPinboardLocked() async {
+        let pinboardID = UUID()
+        let store = PinboardLockStateStore(
+            userDefaults: userDefaults,
+            authenticator: StubPinboardAuthenticator(result: false)
+        )
+        store.setLock(true, for: pinboardID)
+
+        let unlocked = await store.unlock(pinboardID: pinboardID, pinboardName: "Private")
+        XCTAssertFalse(unlocked)
+        XCTAssertTrue(store.isLocked(pinboardID))
+        XCTAssertFalse(store.canAccess(pinboardID))
+    }
+
+}
+
+private struct StubPinboardAuthenticator: PinboardAuthenticationProviding {
+    let result: Bool
+
+    func authenticate(reason: String) async -> Bool {
+        result
+    }
 }

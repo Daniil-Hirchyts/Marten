@@ -7,67 +7,79 @@ struct IntegrationsSettingsSection: View {
     @State private var statusModel = IntegrationsStatusModel()
 
     var body: some View {
-        MartenGlassSurface(cornerRadius: 16) {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Integrations", systemImage: "puzzlepiece.extension")
-                    .font(.headline)
+        Section {
+            integrationRow(
+                title: "Share Extension",
+                icon: "square.and.arrow.up",
+                isEnabled: statusModel.shareExtensionRecentlyUsed,
+                help: statusModel.shareExtensionRecentlyUsed
+                    ? "Used recently"
+                    : "Enable in the iOS Share Sheet"
+            )
 
-                VStack(alignment: .leading, spacing: 8) {
-                    statusRow(
-                        title: "Share Extension",
-                        isEnabled: statusModel.shareExtensionRecentlyUsed,
-                        help: statusModel.shareExtensionRecentlyUsed
-                            ? "Used recently"
-                            : "Enable in the iOS Share Sheet"
-                    )
-                    statusRow(
-                        title: "Keyboard Extension",
-                        isEnabled: statusModel.keyboardLikelyEnabled,
-                        help: statusModel.keyboardLikelyEnabled
-                            ? "Activity detected recently"
-                            : "Enable keyboard + Full Access in Settings"
-                    )
-                    statusRow(
-                        title: "Widgets",
-                        isEnabled: true,
-                        help: "Add Marten widgets from Home or Lock Screen"
-                    )
-                    statusRow(
-                        title: "Siri Shortcuts",
-                        isEnabled: true,
-                        help: "Open Shortcuts and add Marten actions"
-                    )
-                }
+            integrationRow(
+                title: "Keyboard",
+                icon: "keyboard",
+                isEnabled: statusModel.keyboardLikelyEnabled,
+                help: statusModel.keyboardLikelyEnabled
+                    ? "Activity detected"
+                    : "Enable keyboard + Full Access in Settings"
+            )
 
-                #if canImport(UIKit)
-                HStack {
-                    Spacer()
-                    MartenGlassButton(action: openSystemSettings) {
-                        Label("Open iOS Settings", systemImage: "gearshape")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                }
-                #endif
+            integrationRow(
+                title: "Widgets",
+                icon: "widget.small",
+                isEnabled: true,
+                help: "Add from Home or Lock Screen"
+            )
+
+            integrationRow(
+                title: "Siri Shortcuts",
+                icon: "sparkles",
+                isEnabled: true,
+                help: "Available in the Shortcuts app"
+            )
+
+            #if canImport(UIKit)
+            Button {
+                openSystemSettings()
+            } label: {
+                Label("Open iOS Settings", systemImage: "gearshape")
             }
+            #endif
+        } header: {
+            Label("Integrations", systemImage: "puzzlepiece.extension")
         }
         .task {
             statusModel.refresh()
         }
     }
 
-    private func statusRow(title: String, isEnabled: Bool, help: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack {
+    private func integrationRow(
+        title: String,
+        icon: String,
+        isEnabled: Bool,
+        help: String
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.subheadline)
+                .foregroundStyle(isEnabled ? Color.accentColor : Color.secondary)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Text(isEnabled ? "Ready" : "Not Enabled")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(isEnabled ? .green : .secondary)
+                    .font(.subheadline)
+                Text(help)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            Text(help)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Circle()
+                .fill(isEnabled ? Color.green : Color.secondary.opacity(0.3))
+                .frame(width: 8, height: 8)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title), \(isEnabled ? "Ready" : "Not Enabled"), \(help)")

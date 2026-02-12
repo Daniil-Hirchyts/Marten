@@ -556,8 +556,12 @@ public extension CloudRecordMapper {
             // Skip system clipboard pinboard
             guard !pinboard.isSystemMarten else { return nil }
 
+            let membershipID = CKRecord.ID.deterministicMembershipUUID(
+                clipItemID: item.id,
+                pinboardID: pinboard.id
+            )
             let membership = PinboardMembershipData(
-                id: UUID(),
+                id: membershipID,
                 clipItemID: item.id,
                 pinboardID: pinboard.id
             )

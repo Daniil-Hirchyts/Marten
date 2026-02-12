@@ -1,4 +1,5 @@
 import CloudKit
+import CryptoKit
 import Foundation
 
 // MARK: - CloudKit Record Types
@@ -35,6 +36,18 @@ public extension CKRecord.ID {
         CKRecord.ID(recordName: "Membership-\(uuid.uuidString)", zoneID: zoneID)
     }
 
+    /// Creates a deterministic record ID for a ClipItem-Pinboard membership pair.
+    static func membershipID(
+        clipItemID: UUID,
+        pinboardID: UUID,
+        zoneID: CKRecordZone.ID
+    ) -> CKRecord.ID {
+        membershipID(
+            deterministicMembershipUUID(clipItemID: clipItemID, pinboardID: pinboardID),
+            zoneID: zoneID
+        )
+    }
+
     /// Creates a record ID for a LinkPreview.
     static func linkPreviewID(_ uuid: UUID, zoneID: CKRecordZone.ID) -> CKRecord.ID {
         CKRecord.ID(recordName: "LinkPreview-\(uuid.uuidString)", zoneID: zoneID)
@@ -55,6 +68,32 @@ public extension CKRecord.ID {
             return nil
         }
         return uuid
+    }
+
+    /// Builds a deterministic UUID for a ClipItem-Pinboard membership pair.
+    static func deterministicMembershipUUID(clipItemID: UUID, pinboardID: UUID) -> UUID {
+        let seed = "\(clipItemID.uuidString.lowercased())|\(pinboardID.uuidString.lowercased())"
+        let digest = SHA256.hash(data: Data(seed.utf8))
+        let bytes = Array(digest.prefix(16))
+        let adjusted = (
+            bytes[0],
+            bytes[1],
+            bytes[2],
+            bytes[3],
+            bytes[4],
+            bytes[5],
+            (bytes[6] & 0x0F) | 0x50, // Version 5 UUID
+            bytes[7],
+            (bytes[8] & 0x3F) | 0x80, // RFC 4122 variant
+            bytes[9],
+            bytes[10],
+            bytes[11],
+            bytes[12],
+            bytes[13],
+            bytes[14],
+            bytes[15]
+        )
+        return UUID(uuid: adjusted)
     }
 }
 

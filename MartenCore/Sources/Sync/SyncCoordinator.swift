@@ -193,6 +193,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         subsystem: Bundle.main.bundleIdentifier ?? "com.hirchyts.marten",
         category: "SyncCoordinator"
     )
+    private static let membershipBackfillCompletedKey = "com.hirchyts.marten.sync.membershipBackfill.completed"
 
     // MARK: - Initialization
 
@@ -276,6 +277,8 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
             // Start outbound engine (monitors Core Data saves)
             outboundEngine.start()
             log("Outbound engine started")
+
+            await performMembershipBackfillIfNeeded()
 
             // Start shared sync engines when feature flag is enabled
             if SharedPinboardsFeatureFlag.isEnabled, sharedOutboundEngine != nil {
@@ -516,6 +519,14 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
                 self?.log("Asset progress: \(progressUpdate.recordName) - \(Int(progressUpdate.fractionCompleted * 100))%")
             }
             .store(in: &cancellables)
+    }
+
+    private func performMembershipBackfillIfNeeded() async {
+        guard userDefaults.bool(forKey: Self.membershipBackfillCompletedKey) == false else { return }
+
+        await outboundEngine.enqueueMembershipBackfillForAllItems()
+        userDefaults.set(true, forKey: Self.membershipBackfillCompletedKey)
+        log("Queued one-time pinboard membership backfill")
     }
 
     private func handleSyncEnabledChange() {

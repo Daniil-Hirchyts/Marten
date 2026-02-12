@@ -5,22 +5,24 @@ struct SyncSettingsSection: View {
     @Bindable var container: MartenIOSAppContainer
 
     var body: some View {
-        MartenGlassSurface(cornerRadius: 16) {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("iCloud Sync", systemImage: "icloud")
-                    .font(.headline)
-
-                if let syncCoordinator = container.syncCoordinator {
-                    LiveSyncSettingsContent(
-                        container: container,
-                        syncCoordinator: syncCoordinator
-                    )
-                } else {
-                    Text("iCloud sync is unavailable for this build configuration.")
+        Section {
+            if let syncCoordinator = container.syncCoordinator {
+                LiveSyncSettingsContent(
+                    container: container,
+                    syncCoordinator: syncCoordinator
+                )
+            } else {
+                Label {
+                    Text("iCloud sync is unavailable for this build.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: "icloud.slash")
+                        .foregroundStyle(.tertiary)
                 }
             }
+        } header: {
+            Label("iCloud Sync", systemImage: "icloud")
         }
     }
 }
@@ -30,85 +32,62 @@ private struct LiveSyncSettingsContent: View {
     @ObservedObject var syncCoordinator: SyncCoordinator
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle(
-                "Enable iCloud Sync",
-                isOn: Binding(
-                    get: { syncCoordinator.syncEnabled },
-                    set: { enabled in
-                        Task {
-                            await container.setSyncEnabled(enabled)
-                        }
-                    }
-                )
+        Toggle(
+            "Enable iCloud Sync",
+            isOn: Binding(
+                get: { syncCoordinator.syncEnabled },
+                set: { enabled in
+                    Task { await container.setSyncEnabled(enabled) }
+                }
             )
+        )
 
+        HStack {
+            Text("Status")
+            Spacer()
+            statusBadge
+        }
+
+        if let lastSyncDate = syncCoordinator.lastSyncDate {
             HStack {
-                Text("Status")
-                    .font(.subheadline.weight(.medium))
+                Text("Last Sync")
                 Spacer()
-                Text(statusText)
+                Text(lastSyncDate.formatted(date: .abbreviated, time: .shortened))
                     .font(.subheadline)
-                    .foregroundStyle(statusColor)
-                    .accessibilityLabel("Sync status: \(statusText)")
+                    .foregroundStyle(.secondary)
             }
+        }
 
-            if let lastSyncDate = syncCoordinator.lastSyncDate {
-                HStack {
-                    Text("Last Sync")
-                        .font(.subheadline.weight(.medium))
-                    Spacer()
-                    Text(lastSyncDate.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
+        Button {
+            Task { await container.triggerSyncNow() }
+        } label: {
             HStack {
-                Spacer()
-                MartenGlassButton(action: {
-                    Task {
-                        await container.triggerSyncNow()
-                    }
-                }) {
-                    HStack(spacing: 6) {
-                        if container.isRunningSyncAction {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                        Text(container.isRunningSyncAction ? "Syncing" : "Sync Now")
-                    }
-                    .font(.subheadline.weight(.semibold))
+                if container.isRunningSyncAction {
+                    ProgressView()
+                        .controlSize(.small)
                 }
-                .disabled(container.isRunningSyncAction || !syncCoordinator.syncEnabled)
-                .accessibilityHint("Trigger an immediate iCloud sync")
+                Text(container.isRunningSyncAction ? "Syncing…" : "Sync Now")
             }
         }
+        .disabled(container.isRunningSyncAction || !syncCoordinator.syncEnabled)
+        .accessibilityHint("Trigger an immediate iCloud sync")
     }
 
-    private var statusText: String {
+    @ViewBuilder
+    private var statusBadge: some View {
         switch syncCoordinator.status {
         case .idle:
-            return "Idle"
+            StatusBadge(title: "Idle", systemImage: "minus.circle", tint: .secondary)
         case .syncing:
-            return "Syncing"
+            StatusBadge(title: "Syncing", systemImage: "arrow.triangle.2.circlepath", tint: .blue)
         case .synced:
-            return "Synced"
+            StatusBadge(title: "Synced", systemImage: "checkmark.circle.fill", tint: .green)
         case .error(let error):
-            return error.localizedDescription
-        }
-    }
-
-    private var statusColor: Color {
-        switch syncCoordinator.status {
-        case .idle:
-            return .secondary
-        case .syncing:
-            return .blue
-        case .synced:
-            return .green
-        case .error:
-            return .red
+            StatusBadge(
+                title: error.localizedDescription,
+                systemImage: "exclamationmark.triangle.fill",
+                tint: .red
+            )
         }
     }
 }

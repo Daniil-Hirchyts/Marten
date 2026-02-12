@@ -239,6 +239,37 @@ public final class OutboundSyncEngine: @unchecked Sendable {
         }
     }
 
+    /// Queues all existing clip items for one-time membership backfill.
+    ///
+    /// This emits membership records using the same enqueue path as normal saves, including
+    /// stale membership deletions for custom pinboards no longer assigned to each item.
+    public func enqueueMembershipBackfillForAllItems() async {
+        let context = persistenceController.newBackgroundContext()
+        var objectIDs: [NSManagedObjectID] = []
+
+        context.performAndWait {
+            let request = NSFetchRequest<NSManagedObjectID>(entityName: "ClipItem")
+            request.resultType = .managedObjectIDResultType
+            objectIDs = (try? context.fetch(request)) ?? []
+        }
+
+        guard !objectIDs.isEmpty else { return }
+
+        await withCheckedContinuation { continuation in
+            stateQueue.async { [weak self] in
+                guard let self else {
+                    continuation.resume()
+                    return
+                }
+                self.enqueueSaveObjectIDs(objectIDs)
+                if self.isSyncEnabled() {
+                    self.scheduleFlush(after: 0)
+                }
+                continuation.resume()
+            }
+        }
+    }
+
     private func handleContextDidSave(_ notification: Notification) {
         guard isNotificationFromOurStack(notification) else { return }
 
@@ -281,14 +312,34 @@ public final class OutboundSyncEngine: @unchecked Sendable {
 
         let context = persistenceController.newBackgroundContext()
         var records: [CKRecord] = []
+        var membershipRecords: [CKRecord] = []
+        var membershipDeleteIDs: Set<CKRecord.ID> = []
 
         context.performAndWait {
+            let allCustomPinboardIDs = fetchAllCustomPinboardIDs(in: context)
+
             for objectID in objectIDs {
                 guard let entityName = objectID.entity.name else { continue }
                 guard let object = try? context.existingObject(with: objectID) else { continue }
 
                 if entityName == "ClipItem", let item = object as? ClipItem {
                     records.append(mapper.mapToRecord(item))
+
+                    let currentCustomPinboardIDs = Set(
+                        (item.pinboards ?? [])
+                            .filter { !$0.isSystemMarten }
+                            .map(\.id)
+                    )
+                    membershipRecords.append(contentsOf: mapper.mapPinboardMemberships(for: item))
+                    for pinboardID in allCustomPinboardIDs.subtracting(currentCustomPinboardIDs) {
+                        membershipDeleteIDs.insert(
+                            .membershipID(
+                                clipItemID: item.id,
+                                pinboardID: pinboardID,
+                                zoneID: zoneID
+                            )
+                        )
+                    }
                     continue
                 }
 
@@ -305,17 +356,23 @@ public final class OutboundSyncEngine: @unchecked Sendable {
                 }
 
                 if entityName == "Pinboard", let pinboard = object as? Pinboard {
+                    guard !pinboard.isSystemMarten else { continue }
                     records.append(mapper.mapToRecord(pinboard))
                     continue
                 }
             }
         }
 
-        for record in records {
+        let activeMembershipRecordIDs = Set(membershipRecords.map(\.recordID))
+        let staleMembershipDeleteIDs = membershipDeleteIDs.subtracting(activeMembershipRecordIDs)
+
+        for record in records + membershipRecords {
             pendingDeletes.remove(record.recordID)
             pendingSaves[record.recordID] = record
             statusByID[record.recordID] = .pending
         }
+
+        enqueueDeleteRecordIDs(staleMembershipDeleteIDs)
     }
 
     private func enqueueDeleteRecordIDs(_ recordIDs: Set<CKRecord.ID>) {
@@ -339,16 +396,47 @@ public final class OutboundSyncEngine: @unchecked Sendable {
                 if let preview = item.linkPreview {
                     recordIDs.insert(.linkPreviewID(preview.id, zoneID: zoneID))
                 }
+                if let pinboards = item.pinboards {
+                    for pinboard in pinboards where !pinboard.isSystemMarten {
+                        recordIDs.insert(
+                            .membershipID(
+                                clipItemID: item.id,
+                                pinboardID: pinboard.id,
+                                zoneID: zoneID
+                            )
+                        )
+                    }
+                }
             } else if let rep = object as? ClipRepresentation {
                 recordIDs.insert(.clipRepresentationID(rep.id, zoneID: zoneID))
             } else if let preview = object as? LinkPreview {
                 recordIDs.insert(.linkPreviewID(preview.id, zoneID: zoneID))
             } else if let pinboard = object as? Pinboard {
+                guard !pinboard.isSystemMarten else { continue }
                 recordIDs.insert(.pinboardID(pinboard.id, zoneID: zoneID))
+
+                if let items = pinboard.items {
+                    for item in items {
+                        recordIDs.insert(
+                            .membershipID(
+                                clipItemID: item.id,
+                                pinboardID: pinboard.id,
+                                zoneID: zoneID
+                            )
+                        )
+                    }
+                }
             }
         }
 
         return recordIDs
+    }
+
+    private func fetchAllCustomPinboardIDs(in context: NSManagedObjectContext) -> Set<UUID> {
+        let request = Pinboard.fetchRequest()
+        request.predicate = NSPredicate(format: "isSystemMarten == NO")
+        let pinboards = (try? context.fetch(request)) ?? []
+        return Set(pinboards.map(\.id))
     }
 
     private func enqueueDelete(recordID: CKRecord.ID) {
