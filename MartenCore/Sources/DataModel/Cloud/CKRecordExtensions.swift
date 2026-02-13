@@ -106,6 +106,7 @@ public enum ClipItemField: String {
     case modifiedAt
     case sourceAppBundleID
     case sourceAppName
+    case sourceAppIconData
     case itemType
     case primaryText
     case contentHash
@@ -183,6 +184,18 @@ public extension CKRecord {
 
     /// Sets a string value for a field.
     func setString(_ value: String?, for key: String) {
+        self[key] = value
+    }
+
+    // MARK: - Data Fields
+
+    /// Gets a binary data value for a field.
+    func data(for key: String) -> Data? {
+        self[key] as? Data
+    }
+
+    /// Sets a binary data value for a field.
+    func setData(_ value: Data?, for key: String) {
         self[key] = value
     }
 

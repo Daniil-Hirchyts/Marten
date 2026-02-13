@@ -99,9 +99,13 @@ final class ShareViewController: UIViewController {
         defer { state.isSaving = false }
 
         do {
+            let sourceAppInfo = MartenSourceIdentity.sourceAppInfo(
+                iconData: MartenSourceIdentity.iconData(for: sourceAppIconCandidateBundles())
+            )
             _ = try await saveService.save(
                 payloads: payloads,
-                toPinboardID: pinboardID
+                toPinboardID: pinboardID,
+                sourceApp: sourceAppInfo
             )
             let timestamp = Date().timeIntervalSince1970
             let groupDefaults = UserDefaults(suiteName: MartenIOSStorageConfiguration.defaultAppGroupIdentifier)
@@ -113,14 +117,36 @@ final class ShareViewController: UIViewController {
     }
 
     private func extractItemProviders() -> [NSItemProvider] {
+        let items = extractExtensionItems()
+        return items.flatMap { $0.attachments ?? [] }
+    }
+
+    private func extractExtensionItems() -> [NSExtensionItem] {
         guard let items = extensionContext?.inputItems as? [NSExtensionItem] else {
             return []
         }
-        return items.flatMap { $0.attachments ?? [] }
+        return items
     }
 
     private func cancel() {
         extensionContext?.cancelRequest(withError: NSError(domain: "MartenShareExtension", code: 0))
+    }
+
+    private func sourceAppIconCandidateBundles() -> [Bundle] {
+        if let containingAppBundle = containingAppBundle() {
+            return [containingAppBundle]
+        }
+        return [Bundle.main]
+    }
+
+    private func containingAppBundle() -> Bundle? {
+        let extensionBundleURL = Bundle.main.bundleURL
+        let plugInsURL = extensionBundleURL.deletingLastPathComponent()
+        let appBundleURL = plugInsURL.deletingLastPathComponent()
+        guard appBundleURL.pathExtension.lowercased() == "app" else {
+            return nil
+        }
+        return Bundle(url: appBundleURL)
     }
 }
 

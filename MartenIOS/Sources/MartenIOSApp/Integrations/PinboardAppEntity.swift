@@ -6,6 +6,15 @@ public struct PinboardAppEntity: AppEntity {
     public static var typeDisplayRepresentation: TypeDisplayRepresentation = "Pinboard"
     public static var defaultQuery = PinboardEntityQuery()
 
+    public static let noneID = "__none__"
+
+    public static let noneOption = PinboardAppEntity(
+        id: noneID,
+        name: "None",
+        colorHex: "#8E8E93",
+        iconName: "minus.circle"
+    )
+
     public var id: String
     public var name: String
     public var colorHex: String
@@ -28,11 +37,17 @@ public struct PinboardEntityQuery: EntityQuery {
 
     public func entities(for identifiers: [String]) async throws -> [PinboardAppEntity] {
         let all = try await loadPinboards()
-        return all.filter { identifiers.contains($0.id) }
+        let allByID = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+        return identifiers.compactMap { identifier in
+            if identifier == PinboardAppEntity.noneID {
+                return PinboardAppEntity.noneOption
+            }
+            return allByID[identifier]
+        }
     }
 
     public func suggestedEntities() async throws -> [PinboardAppEntity] {
-        try await loadPinboards()
+        [PinboardAppEntity.noneOption] + (try await loadPinboards())
     }
 
     private func loadPinboards() async throws -> [PinboardAppEntity] {

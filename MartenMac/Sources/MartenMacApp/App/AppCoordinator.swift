@@ -478,7 +478,8 @@ public final class AppCoordinator: SettingsOpening {
     func saveNewTextItem(_ text: String) async {
         let sourceApp = SourceAppInfo(
             bundleID: Bundle.main.bundleIdentifier,
-            name: Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
+            name: Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String,
+            iconData: Self.applicationIconPNGData()
         )
 
         var savedToHistory = false
@@ -511,5 +512,46 @@ public final class AppCoordinator: SettingsOpening {
         } else {
             Logger.app.error("Failed to save new text item to history and clipboard")
         }
+    }
+
+    private static func applicationIconPNGData() -> Data? {
+        guard
+            let icon = NSApp.applicationIconImage,
+            let bitmap = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: 64,
+                pixelsHigh: 64,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: 0,
+                bitsPerPixel: 0
+            )
+        else {
+            return nil
+        }
+
+        bitmap.size = NSSize(width: 64, height: 64)
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+
+        guard let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
+            return nil
+        }
+
+        NSGraphicsContext.current = context
+        context.imageInterpolation = .high
+        icon.draw(
+            in: NSRect(x: 0, y: 0, width: 64, height: 64),
+            from: NSRect(origin: .zero, size: icon.size),
+            operation: .sourceOver,
+            fraction: 1.0,
+            respectFlipped: false,
+            hints: nil
+        )
+
+        return bitmap.representation(using: .png, properties: [:])
     }
 }

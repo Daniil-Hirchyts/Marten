@@ -5,7 +5,6 @@ import WidgetKit
 struct MartenWidgetsBundle: WidgetBundle {
     var body: some Widget {
         MartenQuickAccessWidget()
-        SelectedPinboardWidget()
         RecentItemsLockWidget()
     }
 }

@@ -4,56 +4,7 @@ import MartenIOSApp
 import SwiftUI
 import UIKit
 
-// MARK: - Animation Constants
-
-private enum KeyboardAnimation {
-    static let quickSpringResponse: Double = 0.25
-    static let quickSpringDamping: Double = 0.86
-
-    static var quick: Animation {
-        .spring(response: quickSpringResponse, dampingFraction: quickSpringDamping)
-    }
-}
-
 // MARK: - Helper Views
-
-private struct KeyboardSearchBar: View {
-    @Binding var text: String
-    var prompt: String = "Search"
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.secondary)
-            
-            TextField(prompt, text: $text)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled(true)
-                .font(.system(size: 16))
-            
-            if !text.isEmpty {
-                Button {
-                    text = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 15))
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .frame(height: 38)
-        .padding(.horizontal, 12)
-        .background(.regularMaterial, in: .capsule)
-        .overlay(
-            Capsule()
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
-        )
-    }
-}
 
 private struct KeyboardPinboardIndicator: View {
     let colorHex: String
@@ -146,31 +97,8 @@ extension UIColor {
     }
 }
 
-private extension View {
-    @ViewBuilder
-    func keyboardChipBackground(isHighlighted: Bool) -> some View {
-        self
-            .background(
-                isHighlighted
-                    ? Color.accentColor.opacity(0.2)
-                    : Color.secondary.opacity(0.1),
-                in: .capsule
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(
-                        isHighlighted
-                            ? Color.accentColor.opacity(0.3)
-                            : Color.clear,
-                        lineWidth: 1
-                    )
-            )
-    }
-}
-
 @MainActor
 final class KeyboardExtensionViewModel: ObservableObject {
-    @Published var query = ""
     @Published var selectedPinboardID: UUID?
     @Published private(set) var pinboards: [SharedPinboardSummary] = []
     @Published private(set) var items: [SharedClipItemSummary] = []
@@ -178,8 +106,6 @@ final class KeyboardExtensionViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private let queryService: SharedClipQueryService
-    private var queryTask: Task<Void, Never>?
-
     init(queryService: SharedClipQueryService) {
         self.queryService = queryService
     }
@@ -187,16 +113,13 @@ final class KeyboardExtensionViewModel: ObservableObject {
     func load() {
         Task {
             await refreshPinboards()
-            await searchNow()
+            await refreshItems()
         }
     }
 
-    func search() {
-        queryTask?.cancel()
-        queryTask = Task {
-            try? await Task.sleep(nanoseconds: 220_000_000)
-            guard !Task.isCancelled else { return }
-            await searchNow()
+    func refresh() {
+        Task {
+            await refreshItems()
         }
     }
 
@@ -208,22 +131,14 @@ final class KeyboardExtensionViewModel: ObservableObject {
         }
     }
 
-    private func searchNow() async {
+    private func refreshItems() async {
         isLoading = true
         defer { isLoading = false }
         do {
-            if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                items = try await queryService.recentItems(
-                    pinboardID: selectedPinboardID,
-                    limit: 30
-                )
-            } else {
-                items = try await queryService.searchItems(
-                    query: query,
-                    pinboardID: selectedPinboardID,
-                    limit: 50
-                )
-            }
+            items = try await queryService.recentItems(
+                pinboardID: selectedPinboardID,
+                limit: 50
+            )
             errorMessage = nil
         } catch {
             items = []
@@ -235,60 +150,12 @@ final class KeyboardExtensionViewModel: ObservableObject {
 struct KeyboardRootView: View {
     @StateObject var viewModel: KeyboardExtensionViewModel
     let onInsertText: (String) -> Void
+    let onDeleteBackward: () -> Void
     let onRecordHeartbeat: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            // Modern glass search bar
-            VStack(spacing: 10) {
-                KeyboardSearchBar(
-                    text: $viewModel.query,
-                    prompt: "Search Marten"
-                )
-                .padding(.horizontal, 12)
-                .padding(.top, 10)
-                .onChange(of: viewModel.query) {
-                    viewModel.search()
-                }
-
-                // Filter chips with liquid glass design
-                if !viewModel.pinboards.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            filterChip(
-                                title: "All",
-                                icon: nil,
-                                isSelected: viewModel.selectedPinboardID == nil
-                            ) {
-                                withAnimation(KeyboardAnimation.quick) {
-                                    viewModel.selectedPinboardID = nil
-                                    viewModel.search()
-                                }
-                            }
-                            
-                            ForEach(viewModel.pinboards.filter { !$0.isSystemMarten }) { pinboard in
-                                filterChip(
-                                    title: pinboard.name,
-                                    icon: pinboard.iconName,
-                                    colorHex: pinboard.colorHex,
-                                    isSelected: viewModel.selectedPinboardID == pinboard.id
-                                ) {
-                                    withAnimation(KeyboardAnimation.quick) {
-                                        viewModel.selectedPinboardID = pinboard.id
-                                        viewModel.search()
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                    }
-                    .frame(height: 40)
-                }
-            }
-            .padding(.bottom, 10)
-            .background(.ultraThinMaterial)
-
-            Divider()
+            header
 
             // Content area
             if let errorMessage = viewModel.errorMessage, !errorMessage.isEmpty {
@@ -314,103 +181,169 @@ struct KeyboardRootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if viewModel.items.isEmpty {
                 VStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
+                    Image(systemName: "tray")
                         .font(.system(size: 22))
                         .foregroundStyle(.secondary.opacity(0.6))
-                    Text("No matching items")
+                    Text("No items")
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 0) {
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 148), spacing: 10)],
+                        spacing: 10
+                    ) {
                         ForEach(viewModel.items) { item in
-                            itemRow(item)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    handleItemTap(item)
-                                }
-                            
-                            if item.id != viewModel.items.last?.id {
-                                Divider()
-                                    .padding(.leading, 14)
+                            Button {
+                                handleItemTap(item)
+                            } label: {
+                                KeyboardItemCard(item: item)
                             }
+                            .buttonStyle(.plain)
                         }
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 10)
                 }
             }
+            
+            keyboardActions
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 280)
-        .background(Color(uiColor: .systemGroupedBackground))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             onRecordHeartbeat()
             viewModel.load()
         }
+        .onChange(of: viewModel.selectedPinboardID) {
+            viewModel.refresh()
+        }
     }
 
-    private func filterChip(
-        title: String,
-        icon: String?,
-        colorHex: String? = nil,
-        isSelected: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                if let colorHex = colorHex {
+    private var header: some View {
+        HStack(spacing: 10) {
+            pinboardMenu
+
+            Spacer(minLength: 0)
+
+            if viewModel.isLoading {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+    
+    private var keyboardActions: some View {
+        HStack(spacing: 12) {
+            Button {
+                onInsertText(" ")
+                onRecordHeartbeat()
+            } label: {
+                Text("Space")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.primary.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .frame(height: 42)
+            
+            Button {
+                onDeleteBackward()
+                onRecordHeartbeat()
+            } label: {
+                Image(systemName: "delete.left")
+                    .font(.system(size: 20))
+                    .foregroundStyle(.primary)
+                    .frame(width: 42, height: 42)
+                    .background(Color.primary.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                onInsertText("\n")
+                onRecordHeartbeat()
+            } label: {
+                Image(systemName: "return")
+                    .font(.system(size: 20))
+                    .foregroundStyle(.primary)
+                    .frame(width: 42, height: 42)
+                    .background(Color.blue.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 10)
+        .padding(.bottom, 8)
+        .padding(.top, 4)
+    }
+
+    private var pinboardMenu: some View {
+        Menu {
+            Button {
+                viewModel.selectedPinboardID = nil
+            } label: {
+                if viewModel.selectedPinboardID == nil {
+                    Label("All pinboards", systemImage: "checkmark")
+                } else {
+                    Text("All pinboards")
+                }
+            }
+            
+            ForEach(viewModel.pinboards.filter { !$0.isSystemMarten }) { pinboard in
+                Button {
+                    viewModel.selectedPinboardID = pinboard.id
+                } label: {
+                    Label {
+                        Text(pinboard.name)
+                    } icon: {
+                        if let iconName = pinboard.iconName, !iconName.isEmpty {
+                            Image(systemName: iconName)
+                        } else {
+                            Image(systemName: "folder")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                if let selected = selectedPinboard {
                     KeyboardPinboardIndicator(
-                        colorHex: colorHex,
-                        sign: icon,
+                        colorHex: selected.colorHex,
+                        sign: selected.iconName,
                         size: 18
                     )
                 }
-                
-                Text(title)
+
+                Text(selectedPinboardTitle)
                     .font(.system(size: 14, weight: .semibold))
                     .lineLimit(1)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .contentShape(Capsule())
-            .keyboardChipBackground(isHighlighted: isSelected)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+            )
         }
-        .buttonStyle(.plain)
     }
 
-    private func itemRow(_ item: SharedClipItemSummary) -> some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.insertionText.isEmpty ? "Untitled Item" : item.insertionText)
-                    .font(.system(size: 15))
-                    .lineLimit(2)
-                    .foregroundStyle(.primary)
-                
-                HStack(spacing: 5) {
-                    Text(item.createdAt.formatted(date: .abbreviated, time: .shortened))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                    
-                    Text("•")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                    
-                    Text(itemTypeLabel(item.itemType))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            
-            Spacer(minLength: 8)
-            
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.quaternary)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(Color(uiColor: .systemBackground))
+    private var selectedPinboard: SharedPinboardSummary? {
+        guard let id = viewModel.selectedPinboardID else { return nil }
+        return viewModel.pinboards.first(where: { $0.id == id })
+    }
+
+    private var selectedPinboardTitle: String {
+        selectedPinboard?.name ?? "All pinboards"
     }
 
     private func handleItemTap(_ item: SharedClipItemSummary) {
@@ -424,17 +357,45 @@ struct KeyboardRootView: View {
         onInsertText(text)
         onRecordHeartbeat()
     }
+}
 
-    private func itemTypeLabel(_ type: ItemType) -> String {
+private struct KeyboardItemCard: View {
+    let item: SharedClipItemSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: itemTypeIcon(item.itemType))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+            }
+
+            Text(item.insertionText.isEmpty ? "Untitled" : item.insertionText)
+                .font(.system(size: 14))
+                .foregroundStyle(.primary)
+                .lineLimit(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+        )
+    }
+
+    private func itemTypeIcon(_ type: ItemType) -> String {
         switch type {
-        case .text: return "Text"
-        case .url: return "Link"
-        case .image: return "Image"
-        case .file: return "File"
-        case .richText: return "Rich Text"
-        case .code: return "Code"
-        case .color: return "Color"
-        case .mixed: return "Mixed"
+        case .text: return "text.alignleft"
+        case .url: return "link"
+        case .image: return "photo"
+        case .file: return "doc"
+        case .richText: return "doc.richtext"
+        case .code: return "chevron.left.slash.chevron.right"
+        case .color: return "paintpalette"
+        case .mixed: return "square.stack.3d.up"
         }
     }
 }

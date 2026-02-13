@@ -19,7 +19,6 @@ struct ItemCardGridView: View {
     @State private var orderedItems: [ClipItem] = []
     @State private var draggingItemID: NSManagedObjectID?
     @State private var sweepState = SweepSelectionState()
-    @State private var dragPileIDs: Set<NSManagedObjectID> = []
 
     private let gridCoordinateSpace = "itemCardGrid"
 
@@ -29,12 +28,6 @@ struct ItemCardGridView: View {
             repeating: GridItem(.flexible(minimum: 150, maximum: 500), spacing: 12, alignment: .top),
             count: count
         )
-    }
-
-    /// Total count for the drag pile badge (primary dragged card + piled cards).
-    private var dragGroupCount: Int {
-        guard draggingItemID != nil else { return 0 }
-        return 1 + dragPileIDs.count
     }
 
     var body: some View {
@@ -61,19 +54,16 @@ struct ItemCardGridView: View {
             }
             .coordinateSpace(name: gridCoordinateSpace)
             .scrollIndicators(.hidden)
+            .onDrop(of: [.text], delegate: GridFallbackDropDelegate(
+                draggingItemID: $draggingItemID
+            ))
             .overlay { sweepGestureOverlay }
             .onAppear {
                 orderedItems = items
             }
             .onChange(of: items.map(\.objectID)) {
-                if draggingItemID == nil {
-                    orderedItems = items
-                }
-            }
-            .onChange(of: draggingItemID) {
-                if draggingItemID == nil {
-                    dragPileIDs.removeAll()
-                }
+                draggingItemID = nil
+                orderedItems = items
             }
         }
     }
@@ -82,25 +72,18 @@ struct ItemCardGridView: View {
 
     @ViewBuilder
     private func cardCell(for item: ClipItem) -> some View {
-        let isDragPrimary = draggingItemID == item.objectID
-        let isInPile = dragPileIDs.contains(item.objectID)
-
         ItemCardView(
             item: item,
             isSelectionMode: selectionModel.isSelectionMode,
             isSelected: selectionModel.isSelected(item),
-            dragPayload: selectionModel.dragPayload(for: item),
             onTap: { handleTap(item) },
             onCopy: { onCopyItem(item) },
             onCopyPlainText: { onCopyPlainTextItem(item) },
             onPreview: { onPreviewItem(item) },
             onShare: { onShareItem(item) },
             onMove: { onMoveItem(item) },
-            onDelete: { onDeleteItem(item) },
-            isInDragPile: isInPile,
-            dragPileCount: isDragPrimary ? dragGroupCount : 0
+            onDelete: { onDeleteItem(item) }
         )
-        .opacity(isDragPrimary ? 0.5 : (isInPile ? 0.6 : 1.0))
         .reportCardFrame(objectID: item.objectID, coordinateSpace: gridCoordinateSpace)
         .onDrag {
             if canReorder && !selectionModel.isSelectionMode {
@@ -113,7 +96,6 @@ struct ItemCardGridView: View {
             targetItem: item,
             orderedItems: $orderedItems,
             draggingItemID: $draggingItemID,
-            dragPileIDs: $dragPileIDs,
             canReorder: canReorder,
             isSelectionMode: selectionModel.isSelectionMode,
             onReorderCommit: { ids in
@@ -126,14 +108,9 @@ struct ItemCardGridView: View {
     // MARK: - Tap Handling
 
     private func handleTap(_ item: ClipItem) {
-        // When dragging in reorder mode, taps add/remove from drag pile
-        if draggingItemID != nil && canReorder && !selectionModel.isSelectionMode {
-            guard item.objectID != draggingItemID else { return }
-            if dragPileIDs.contains(item.objectID) {
-                dragPileIDs.remove(item.objectID)
-            } else {
-                dragPileIDs.insert(item.objectID)
-            }
+        // Clear stale drag state if a drag ended without a proper drop
+        if draggingItemID != nil {
+            draggingItemID = nil
             return
         }
         onTapItem(item)
@@ -206,7 +183,6 @@ private struct ItemCardDropDelegate: DropDelegate {
     let targetItem: ClipItem
     @Binding var orderedItems: [ClipItem]
     @Binding var draggingItemID: NSManagedObjectID?
-    @Binding var dragPileIDs: Set<NSManagedObjectID>
     let canReorder: Bool
     let isSelectionMode: Bool
     let onReorderCommit: ([NSManagedObjectID]) -> Void
@@ -215,35 +191,14 @@ private struct ItemCardDropDelegate: DropDelegate {
         guard canReorder, !isSelectionMode else { return }
         guard let draggingItemID else { return }
         guard draggingItemID != targetItem.objectID else { return }
-        // Don't rearrange within the pile
-        guard !dragPileIDs.contains(targetItem.objectID) else { return }
 
-        // Collect all IDs in the drag group (primary + pile)
-        let dragGroupIDs: Set<NSManagedObjectID> = dragPileIDs.union([draggingItemID])
-
-        // Find the target index
-        guard let toIndex = orderedItems.firstIndex(where: { $0.objectID == targetItem.objectID }) else {
+        guard let fromIndex = orderedItems.firstIndex(where: { $0.objectID == draggingItemID }),
+              let toIndex = orderedItems.firstIndex(where: { $0.objectID == targetItem.objectID }) else {
             return
         }
-
-        // Find the primary dragged item's current index for direction determination
-        guard let primaryFromIndex = orderedItems.firstIndex(where: { $0.objectID == draggingItemID }) else {
-            return
-        }
-
-        let movingDown = toIndex > primaryFromIndex
 
         withAnimation(MartenAnimation.quick) {
-            // Remove all drag group items
-            let groupItems = orderedItems.filter { dragGroupIDs.contains($0.objectID) }
-            orderedItems.removeAll { dragGroupIDs.contains($0.objectID) }
-
-            // Re-find target index after removal
-            if let newToIndex = orderedItems.firstIndex(where: { $0.objectID == targetItem.objectID }) {
-                let insertIndex = movingDown ? newToIndex + 1 : newToIndex
-                let clampedIndex = min(insertIndex, orderedItems.count)
-                orderedItems.insert(contentsOf: groupItems, at: clampedIndex)
-            }
+            orderedItems.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
         }
     }
 
@@ -260,13 +215,25 @@ private struct ItemCardDropDelegate: DropDelegate {
 
         let orderedIDs = orderedItems.map(\.objectID)
         onReorderCommit(orderedIDs)
-        dragPileIDs.removeAll()
         draggingItemID = nil
 
         return true
     }
 
-    func dropExited(info: DropInfo) {
-        // Optional: Handle any cleanup when drag exits
+    func dropExited(info: DropInfo) {}
+}
+
+// MARK: - Fallback Drop Delegate (catches drops in empty grid areas)
+
+private struct GridFallbackDropDelegate: DropDelegate {
+    @Binding var draggingItemID: NSManagedObjectID?
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingItemID = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: draggingItemID != nil ? .move : .cancel)
     }
 }

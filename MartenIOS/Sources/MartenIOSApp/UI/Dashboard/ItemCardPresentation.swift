@@ -26,6 +26,15 @@ struct ItemCardPresentation: Identifiable {
     let fileName: String?
     let fileSize: String?
 
+    let headerSubtitle: String?
+    let sourceAppBundleID: String?
+    let sourceAppDisplayName: String?
+    let sourceAppIconData: Data?
+    let footerLeadingText: String
+    let footerTrailingText: String
+    let statsLabel: String
+
+    // Legacy fields retained for compatibility with existing callers.
     let footerSource: String
     let footerDate: String
     let footerTitle: String
@@ -44,8 +53,12 @@ struct ItemCardPresentation: Identifiable {
         let primaryText = item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedText = primaryText?.isEmpty == false ? primaryText : nil
         let customTitle = item.customTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pinboardInfo = Self.computePrimaryPinboard(for: item)
 
         title = customTitle?.isEmpty == false ? customTitle! : Self.defaultTitle(for: item)
+        sourceAppBundleID = Self.normalizedSourceBundleID(for: item)
+        sourceAppDisplayName = Self.sourceLabel(for: item)
+        sourceAppIconData = item.sourceAppIconData
 
         switch item.itemTypeValue {
         case .text:
@@ -120,12 +133,15 @@ struct ItemCardPresentation: Identifiable {
             fileSize = Self.byteCountString(for: item.byteCount)
         }
 
-        footerSource = Self.sourceLabel(for: item) ?? "Unknown"
-        footerDate = RelativeTime.short(from: item.modifiedAt)
+        statsLabel = Self.statsLabel(for: item)
+        footerLeadingText = RelativeTime.short(from: item.modifiedAt)
+        footerTrailingText = previewKind == .link ? (urlHost ?? "URL") : statsLabel
+        headerSubtitle = pinboardInfo.name ?? sourceAppDisplayName
+
+        footerSource = sourceAppDisplayName ?? "Unknown"
+        footerDate = footerLeadingText
         footerTitle = normalizedText ?? title
-        
-        // Compute primary pinboard
-        let pinboardInfo = Self.computePrimaryPinboard(for: item)
+
         primaryPinboardColorHex = pinboardInfo.colorHex
         primaryPinboardSign = pinboardInfo.sign
     }
@@ -156,12 +172,21 @@ struct ItemCardPresentation: Identifiable {
         return ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
     }
 
+    private static func normalizedSourceBundleID(for item: ClipItem) -> String? {
+        guard let bundleID = item.sourceAppBundleID?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !bundleID.isEmpty else {
+            return nil
+        }
+        return bundleID
+    }
+
     private static func sourceLabel(for item: ClipItem) -> String? {
-        if let sourceName = item.sourceAppName, !sourceName.isEmpty {
+        if let sourceName = item.sourceAppName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !sourceName.isEmpty {
             return sourceName
         }
 
-        if let bundleID = item.sourceAppBundleID, !bundleID.isEmpty {
+        if let bundleID = normalizedSourceBundleID(for: item) {
             if let suffix = bundleID.split(separator: ".").last {
                 return String(suffix)
             }
@@ -185,11 +210,23 @@ struct ItemCardPresentation: Identifiable {
         guard let primary = item.primaryText, !primary.isEmpty else { return nil }
         return URL(fileURLWithPath: primary).lastPathComponent
     }
-    
-    private static func computePrimaryPinboard(for item: ClipItem) -> (colorHex: String?, sign: String?) {
+
+    private static func statsLabel(for item: ClipItem) -> String {
+        switch item.itemTypeValue {
+        case .text, .richText, .code:
+            let count = item.primaryText?.count ?? 0
+            return "\(count) chars"
+        case .color:
+            return "Color"
+        default:
+            return byteCountString(for: item.byteCount) ?? defaultTitle(for: item)
+        }
+    }
+
+    private static func computePrimaryPinboard(for item: ClipItem) -> (colorHex: String?, sign: String?, name: String?) {
         let pinboards = item.pinboards?.filter { !$0.isSystemMarten } ?? []
         let sorted = pinboards.sorted { $0.sortOrder < $1.sortOrder }
-        guard let pinboard = sorted.first else { return (nil, nil) }
-        return (pinboard.colorHex, pinboard.iconName)
+        guard let pinboard = sorted.first else { return (nil, nil, nil) }
+        return (pinboard.colorHex, pinboard.iconName, pinboard.name)
     }
 }

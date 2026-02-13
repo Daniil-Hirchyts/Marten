@@ -5,10 +5,12 @@ import OSLog
 public struct SourceAppInfo: Sendable {
     public let bundleID: String?
     public let name: String?
+    public let iconData: Data?
 
-    public init(bundleID: String?, name: String?) {
+    public init(bundleID: String?, name: String?, iconData: Data? = nil) {
         self.bundleID = bundleID
         self.name = name
+        self.iconData = iconData
     }
 }
 
@@ -108,6 +110,17 @@ final class ClipItemRepository {
             if let existing = try deduplicationService.fetchExistingItem(hash: hash, in: context) {
                 existing.modifiedAt = now
                 existing.displayOrder = displayOrder
+                if let sourceApp {
+                    let previousBundleID = existing.sourceAppBundleID
+                    let previousName = existing.sourceAppName
+                    existing.sourceAppBundleID = sourceApp.bundleID
+                    existing.sourceAppName = sourceApp.name
+                    if let iconData = sourceApp.iconData, !iconData.isEmpty {
+                        existing.sourceAppIconData = iconData
+                    } else if sourceApp.bundleID != previousBundleID || sourceApp.name != previousName {
+                        existing.sourceAppIconData = nil
+                    }
+                }
                 try context.save()
                 createdObjectID = existing.objectID
                 return
@@ -128,6 +141,7 @@ final class ClipItemRepository {
             item.displayOrder = displayOrder
             item.sourceAppBundleID = sourceApp?.bundleID
             item.sourceAppName = sourceApp?.name
+            item.sourceAppIconData = sourceApp?.iconData
             item.itemTypeValue = payload.itemType
             item.primaryText = payload.primaryText
             item.searchableText = searchService.deriveSearchableText(

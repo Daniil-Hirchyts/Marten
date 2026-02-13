@@ -5,7 +5,6 @@ struct ItemCardView: View {
     let item: ClipItem
     let isSelectionMode: Bool
     let isSelected: Bool
-    let dragPayload: ItemDragPayload
     let onTap: () -> Void
     let onCopy: () -> Void
     let onCopyPlainText: () -> Void
@@ -13,8 +12,6 @@ struct ItemCardView: View {
     let onShare: () -> Void
     let onMove: () -> Void
     let onDelete: () -> Void
-    var isInDragPile: Bool = false
-    var dragPileCount: Int = 0
 
     #if canImport(UIKit)
     @State private var thumbnailImage: UIImage?
@@ -27,41 +24,26 @@ struct ItemCardView: View {
     @State private var cachedImageTaskID: String?
     @State private var isPressed = false
 
+    @Environment(\.colorScheme) private var colorScheme
+
+    private let cardCornerRadius: CGFloat = 20
+    private let cardPadding: CGFloat = 12
+    private let headerMinHeight: CGFloat = 50
+
     private var resolvedPresentation: ItemCardPresentation {
         presentation ?? ItemCardPresentation(item: item)
-    }
-    
-    private var headerBackgroundColor: Color? {
-        guard let colorHex = resolvedPresentation.primaryPinboardColorHex,
-              ColorHex.normalizedHex(from: colorHex) != nil else {
-            return nil
-        }
-        return Color(hex: colorHex, fallback: .gray)
-    }
-    
-    private var headerTextColor: Color {
-        headerBackgroundColor != nil ? .white : .primary
-    }
-    
-    private var cardAccentColor: Color? {
-        headerBackgroundColor?.opacity(0.3)
     }
 
     var body: some View {
         let pres = resolvedPresentation
 
         cardContent(pres)
-            .contentShape(.rect(cornerRadius: 18))
+            .contentShape(.rect(cornerRadius: cardCornerRadius))
             .scaleEffect(isPressed ? 0.97 : 1.0)
             .animation(MartenAnimation.quick, value: isPressed)
             .sensoryFeedback(.selection, trigger: isSelected)
             .onTapGesture { onTap() }
-            .onLongPressGesture(minimumDuration: 0.3, perform: {
-                // Enter selection mode on long press
-                if !isSelectionMode {
-                    onTap()
-                }
-            }, onPressingChanged: { pressing in
+            .onLongPressGesture(minimumDuration: .infinity, perform: {}, onPressingChanged: { pressing in
                 isPressed = pressing
             })
             .contextMenu {
@@ -79,14 +61,13 @@ struct ItemCardView: View {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }
                 Button { onMove() } label: {
-                    Label("Move to Pinboard", systemImage: "tray.full")
+                    Label("Move to Pinboard", systemImage: "circle.dashed")
                 }
                 Divider()
                 Button(role: .destructive) { onDelete() } label: {
                     Label("Delete", systemImage: "trash")
                 }
             }
-            .draggable(dragPayload)
             .onAppear {
                 refreshPresentation()
                 refreshImageTaskID()
@@ -99,10 +80,7 @@ struct ItemCardView: View {
                 await loadPreviewImages()
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(
-                "\(pres.title), \(pres.footerSource), \(pres.footerDate)"
-                    + (isSelected ? ", selected" : "")
-            )
+            .accessibilityLabel(accessibilityLabel(for: pres))
             .accessibilityHint("Double tap to open")
             .accessibilityAddTraits(.isButton)
     }
@@ -110,81 +88,81 @@ struct ItemCardView: View {
     private func cardContent(_ pres: ItemCardPresentation) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             cardHeader(pres)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 18,
-                        bottomLeadingRadius: 0,
-                        bottomTrailingRadius: 0,
-                        topTrailingRadius: 18
-                    )
-                    .fill(headerBackgroundColor?.opacity(0.96) ?? Color.clear)
-                )
-            
-            VStack(alignment: .leading, spacing: 6) {
-                previewContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 0) {
+                if isEdgeToEdgeContent(pres) {
+                    previewContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .clipped()
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        previewContent
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, cardPadding)
+                    .padding(.top, 10)
+                }
+
                 cardFooter(pres)
+                    .padding(.horizontal, cardPadding)
+                    .padding(.top, 8)
+                    .padding(.bottom, cardPadding)
             }
-            .padding(14)
-            .padding(.top, 6)
         }
-        .background(.ultraThinMaterial, in: .rect(cornerRadius: 18))
+        .background(
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                .fill(cardBackgroundColor(for: pres))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 18)
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
                 .strokeBorder(
-                    isSelected || isInDragPile
-                        ? Color.accentColor
-                        : (cardAccentColor ?? Color.white.opacity(0.14)),
-                    lineWidth: isSelected || isInDragPile ? 3 : 1.5
+                    isSelected ? Color.accentColor : cardBorderColor(for: pres),
+                    lineWidth: isSelected ? 4 : 1
                 )
         )
-        .overlay(alignment: .topTrailing) {
-            if dragPileCount > 1 {
-                Text("\(dragPileCount)")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 24, height: 24)
-                    .background(Color.accentColor, in: Circle())
-                    .offset(x: 6, y: -6)
-                    .transition(.scale.combined(with: .opacity))
-            }
-        }
         .shadow(
-            color: (cardAccentColor ?? Color.black).opacity(0.08),
-            radius: 4,
+            color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.12),
+            radius: isSelected ? 6 : 4,
             x: 0,
-            y: 2
+            y: isSelected ? 3 : 2
         )
         .aspectRatio(1, contentMode: .fit)
     }
 
     private func cardHeader(_ pres: ItemCardPresentation) -> some View {
-        HStack(alignment: .center, spacing: 6) {
-            typeIcon
-                .font(.caption)
-                .foregroundStyle(
-                    headerBackgroundColor != nil 
-                        ? Color.white.opacity(0.9) 
-                        : Color(platformColor: .platformTertiaryLabel)
-                )
-                .frame(width: 14, alignment: .center)
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(pres.title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(headerTextColor(for: pres))
+                    .lineLimit(1)
 
-            Text(pres.title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(headerTextColor)
-                .lineLimit(1)
+                if let subtitle = pres.headerSubtitle {
+                    Text(subtitle)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(headerTextColor(for: pres).opacity(0.7))
+                        .lineLimit(1)
+                }
+            }
 
-            Spacer(minLength: 4)
+            Spacer(minLength: 8)
 
             if let colorHex = pres.primaryPinboardColorHex,
                let sign = pres.primaryPinboardSign {
                 PinboardIndicator(
                     colorHex: colorHex,
                     sign: sign,
-                    size: 24,
-                    showBorder: headerBackgroundColor == nil
+                    size: 30,
+                    showBorder: false
+                )
+            } else {
+                SourceAppIconBadge(
+                    bundleID: pres.sourceAppBundleID,
+                    appName: pres.sourceAppDisplayName,
+                    iconData: pres.sourceAppIconData,
+                    size: 30
                 )
             }
 
@@ -192,50 +170,40 @@ struct ItemCardView: View {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.body)
                     .foregroundStyle(
-                        isSelected 
-                            ? Color.accentColor 
-                            : (headerBackgroundColor != nil ? Color.white.opacity(0.7) : Color(platformColor: .platformTertiaryLabel))
+                        isSelected
+                            ? Color.accentColor
+                            : headerTextColor(for: pres).opacity(0.72)
                     )
                     .animation(MartenAnimation.quick, value: isSelected)
             }
         }
+        .padding(.horizontal, cardPadding)
+        .padding(.vertical, 10)
+        .frame(minHeight: headerMinHeight, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            UnevenRoundedRectangle(
+                topLeadingRadius: cardCornerRadius,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: cardCornerRadius
+            )
+            .fill(headerBackgroundColor(for: pres))
+        )
     }
 
     private func cardFooter(_ pres: ItemCardPresentation) -> some View {
-        HStack(spacing: 6) {
-            HStack(spacing: 4) {
-                if let accentColor = cardAccentColor {
-                    Circle()
-                        .fill(accentColor)
-                        .frame(width: 4, height: 4)
-                }
-                
-                Text(pres.footerSource)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+        HStack(alignment: .center, spacing: 8) {
+            Text(pres.footerLeadingText)
+                .font(.system(size: 10))
+                .foregroundStyle(tertiaryTextColor(for: pres))
 
             Spacer(minLength: 0)
 
-            Text(pres.footerDate)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-    }
-
-    private var typeIcon: some View {
-        Group {
-            switch resolvedPresentation.previewKind {
-            case .text: Image(systemName: "doc.text")
-            case .richText: Image(systemName: "doc.richtext")
-            case .code: Image(systemName: "chevron.left.forwardslash.chevron.right")
-            case .link: Image(systemName: "link")
-            case .image: Image(systemName: "photo")
-            case .file: Image(systemName: "doc")
-            case .color: Image(systemName: "paintpalette")
-            case .mixed: Image(systemName: "square.stack")
-            }
+            Text(pres.footerTrailingText)
+                .font(.system(size: 10))
+                .foregroundStyle(tertiaryTextColor(for: pres))
+                .lineLimit(1)
         }
     }
 
@@ -244,15 +212,15 @@ struct ItemCardView: View {
         switch resolvedPresentation.previewKind {
         case .text, .richText:
             Text(resolvedPresentation.snippet ?? "")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(4)
+                .font(.system(size: 12))
+                .foregroundStyle(secondaryTextColor(for: resolvedPresentation))
+                .lineLimit(5)
                 .frame(maxWidth: .infinity, alignment: .leading)
         case .code:
             Text(resolvedPresentation.snippet ?? "")
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .lineLimit(4)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(secondaryTextColor(for: resolvedPresentation))
+                .lineLimit(5)
                 .frame(maxWidth: .infinity, alignment: .leading)
         case .link:
             linkPreview
@@ -264,103 +232,94 @@ struct ItemCardView: View {
             colorPreview
         case .mixed:
             Text(resolvedPresentation.snippet ?? "Mixed item")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
+                .font(.system(size: 12))
+                .foregroundStyle(secondaryTextColor(for: resolvedPresentation))
+                .lineLimit(4)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     private var imagePreview: some View {
-        GeometryReader { geometry in
-            ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(.quaternary.opacity(0.5))
+        ZStack {
+            TransparencyGrid(squareSize: 10)
 
-                if let thumbnailImage {
-                    #if canImport(UIKit)
-                    Image(uiImage: thumbnailImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .clipped()
-                        .transition(.opacity)
-                    #elseif canImport(AppKit)
-                    Image(nsImage: thumbnailImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .clipped()
-                        .transition(.opacity)
-                    #endif
-                } else {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(.quaternary.opacity(0.3))
-                        .shimmer()
-                        .overlay {
-                            Image(systemName: "photo")
-                                .font(.title3)
-                                .foregroundStyle(.quaternary)
-                        }
-                }
+            if let thumbnailImage {
+                #if canImport(UIKit)
+                Image(uiImage: thumbnailImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
+                #elseif canImport(AppKit)
+                Image(nsImage: thumbnailImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
+                #endif
+            } else {
+                Image(systemName: "photo")
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.3) : Color.black.opacity(0.2))
             }
-            .clipShape(.rect(cornerRadius: 10))
         }
     }
 
     private var linkPreview: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        ZStack {
             if let linkPreviewImage {
                 #if canImport(UIKit)
                 Image(uiImage: linkPreviewImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(height: 70)
-                    .frame(maxWidth: .infinity)
-                    .clipShape(.rect(cornerRadius: 10))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
                 #elseif canImport(AppKit)
                 Image(nsImage: linkPreviewImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(height: 70)
-                    .frame(maxWidth: .infinity)
-                    .clipShape(.rect(cornerRadius: 10))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
                 #endif
-            }
+            } else {
+                Rectangle()
+                    .fill(
+                        colorScheme == .dark
+                            ? Color.white.opacity(0.08)
+                            : Color.black.opacity(0.05)
+                    )
 
-            if let host = resolvedPresentation.urlHost {
-                Text(host)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-            }
-
-            if let snippet = resolvedPresentation.snippet {
-                Text(snippet)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                Image(systemName: "link")
+                    .font(.system(size: 36, weight: .light))
+                    .foregroundStyle(
+                        colorScheme == .dark
+                            ? Color.white.opacity(0.35)
+                            : Color.black.opacity(0.25)
+                    )
             }
         }
     }
 
     private var filePreview: some View {
-        HStack(spacing: 10) {
+        VStack(spacing: 4) {
+            Spacer(minLength: 0)
+
             Image(systemName: "doc.fill")
-                .font(.title3)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 30, weight: .regular))
+                .foregroundStyle(secondaryTextColor(for: resolvedPresentation))
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(resolvedPresentation.fileName ?? "File")
-                    .font(.caption.weight(.medium))
+            if let fileName = resolvedPresentation.fileName {
+                Text(fileName)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(primaryTextColor(for: resolvedPresentation))
                     .lineLimit(1)
-
-                if let fileSize = resolvedPresentation.fileSize {
-                    Text(fileSize)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 6)
             }
+
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var colorPreview: some View {
@@ -372,7 +331,7 @@ struct ItemCardView: View {
 
         return RoundedRectangle(cornerRadius: 10)
             .fill(background)
-            .frame(height: 50)
+            .frame(height: 56)
             .overlay {
                 Text(resolvedPresentation.snippet ?? hex)
                     .font(.caption.weight(.semibold).monospaced())
@@ -381,6 +340,108 @@ struct ItemCardView: View {
                     .minimumScaleFactor(0.7)
                     .padding(.horizontal, 8)
             }
+    }
+
+    private func isEdgeToEdgeContent(_ pres: ItemCardPresentation) -> Bool {
+        pres.previewKind == .image || pres.previewKind == .link
+    }
+
+    private func sourceIconDescriptor(for pres: ItemCardPresentation) -> SourceAppIconDescriptor {
+        SourceAppIconDescriptor.resolve(bundleID: pres.sourceAppBundleID, appName: pres.sourceAppDisplayName)
+    }
+
+    private func headerBackgroundColor(for pres: ItemCardPresentation) -> Color {
+        if let pinboardHex = pres.primaryPinboardColorHex,
+           let normalized = ColorHex.normalizedHex(from: pinboardHex) {
+            return Color(hex: normalized, fallback: .gray).opacity(0.96)
+        }
+
+        return sourceIconDescriptor(for: pres).backgroundColor.opacity(0.94)
+    }
+
+    private func headerTextColor(for pres: ItemCardPresentation) -> Color {
+        if let pinboardHex = pres.primaryPinboardColorHex,
+           let normalized = ColorHex.normalizedHex(from: pinboardHex) {
+            return ColorHex.foregroundColor(for: normalized)
+        }
+
+        return sourceIconDescriptor(for: pres).foregroundColor
+    }
+
+    private func cardBackgroundColor(for pres: ItemCardPresentation) -> Color {
+        if pres.previewKind == .color,
+           let colorHex = pres.colorHex,
+           let normalized = ColorHex.normalizedHex(from: colorHex) {
+            return Color(hex: normalized, fallback: .gray)
+        }
+
+        return colorScheme == .dark
+            ? Color(.sRGB, white: 0.04, opacity: 0.72)
+            : Color(.sRGB, white: 0.96, opacity: 0.9)
+    }
+
+    private func cardBorderColor(for pres: ItemCardPresentation) -> Color {
+        if let pinboardHex = pres.primaryPinboardColorHex,
+           let normalized = ColorHex.normalizedHex(from: pinboardHex) {
+            return Color(hex: normalized, fallback: .gray).opacity(0.35)
+        }
+
+        if pres.previewKind == .color,
+           let colorHex = pres.colorHex,
+           let normalized = ColorHex.normalizedHex(from: colorHex) {
+            return ColorHex.foregroundColor(for: normalized).opacity(0.3)
+        }
+
+        return colorScheme == .dark
+            ? Color.white.opacity(0.14)
+            : Color.black.opacity(0.12)
+    }
+
+    private func primaryTextColor(for pres: ItemCardPresentation) -> Color {
+        if pres.previewKind == .color,
+           let colorHex = pres.colorHex,
+           let normalized = ColorHex.normalizedHex(from: colorHex) {
+            return ColorHex.foregroundColor(for: normalized)
+        }
+
+        return colorScheme == .dark ? Color.white.opacity(0.9) : Color.black.opacity(0.9)
+    }
+
+    private func secondaryTextColor(for pres: ItemCardPresentation) -> Color {
+        if pres.previewKind == .color,
+           let colorHex = pres.colorHex,
+           let normalized = ColorHex.normalizedHex(from: colorHex) {
+            return ColorHex.foregroundColor(for: normalized).opacity(0.8)
+        }
+
+        return colorScheme == .dark ? Color.white.opacity(0.75) : Color.black.opacity(0.75)
+    }
+
+    private func tertiaryTextColor(for pres: ItemCardPresentation) -> Color {
+        if pres.previewKind == .color,
+           let colorHex = pres.colorHex,
+           let normalized = ColorHex.normalizedHex(from: colorHex) {
+            return ColorHex.foregroundColor(for: normalized).opacity(0.7)
+        }
+
+        return colorScheme == .dark ? Color.white.opacity(0.6) : Color.black.opacity(0.5)
+    }
+
+    private func accessibilityLabel(for pres: ItemCardPresentation) -> String {
+        var parts: [String] = [pres.title]
+
+        if let subtitle = pres.headerSubtitle, !subtitle.isEmpty {
+            parts.append(subtitle)
+        }
+
+        parts.append(pres.footerLeadingText)
+        parts.append(pres.footerTrailingText)
+
+        if isSelected {
+            parts.append("selected")
+        }
+
+        return parts.joined(separator: ", ")
     }
 
     private func refreshPresentation() {

@@ -88,41 +88,48 @@ struct MartenIOSDashboardView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            
-            // Gradient fade overlays (behind controls, in front of cards)
+
+            // Top gradient fade at screen edge (behind controls, in front of cards)
             VStack(spacing: 0) {
-                // Top gradient fade
                 LinearGradient(
-                    colors: [
-                        Color(platformColor: .platformSystemBackground),
-                        Color(platformColor: .platformSystemBackground).opacity(0.8),
-                        Color(platformColor: .platformSystemBackground).opacity(0.4),
-                        Color.clear
+                    stops: [
+                        .init(
+                            color: Color(platformColor: .platformSystemBackground).opacity(1.0),
+                            location: 0.0),
+                        .init(
+                            color: Color(platformColor: .platformSystemBackground).opacity(0.0),
+                            location: 1.0),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 100)
+                .allowsHitTesting(false)
+
+                Spacer()
+            }
+            .ignoresSafeArea()
+
+            // Bottom gradient fade at screen edge (behind controls, in front of cards)
+            VStack(spacing: 0) {
+                Spacer()
+
+                LinearGradient(
+                    stops: [
+                        .init(
+                            color: Color(platformColor: .platformSystemBackground).opacity(0.0),
+                            location: 0.0),
+                        .init(
+                            color: Color(platformColor: .platformSystemBackground).opacity(1.0),
+                            location: 1.0),
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 .frame(height: 120)
-                .blur(radius: 8)
-                .allowsHitTesting(false)
-                
-                Spacer()
-                
-                // Bottom gradient fade
-                LinearGradient(
-                    colors: [
-                        Color.clear,
-                        Color(platformColor: .platformSystemBackground).opacity(0.4),
-                        Color(platformColor: .platformSystemBackground).opacity(0.8),
-                        Color(platformColor: .platformSystemBackground)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 140)
-                .blur(radius: 8)
                 .allowsHitTesting(false)
             }
+            .ignoresSafeArea()
 
             // Floating top bar
             VStack(spacing: 0) {
@@ -177,7 +184,7 @@ struct MartenIOSDashboardView: View {
             }
         }
         #if os(iOS)
-        .toolbar(.hidden, for: .navigationBar)
+            .toolbar(.hidden, for: .navigationBar)
         #endif
         .toast(controller: toastController)
         .navigationDestination(isPresented: $navigateToSettings) {
@@ -422,7 +429,7 @@ struct MartenIOSDashboardView: View {
                         .padding(.vertical, 10)
                 }
                 .transition(MartenAnimation.fadeScale)
-                
+
                 Spacer()
             } else {
                 // Pinboard selector
@@ -461,9 +468,9 @@ struct MartenIOSDashboardView: View {
                     navigateToSettings = true
                 } label: {
                     Image(systemName: "gearshape.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(width: actionButtonSize, height: actionButtonSize)
-                    .contentShape(Rectangle())
+                        .font(.system(size: 18, weight: .semibold))
+                        .frame(width: actionButtonSize, height: actionButtonSize)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .glassCircleBackground(isHighlighted: false)
@@ -473,9 +480,9 @@ struct MartenIOSDashboardView: View {
             }
         }
     }
-    
+
     // MARK: - Pinboard Selector
-    
+
     private var swipablePinboardSelector: some View {
         Button {
             isShowingPinboardPicker = true
@@ -505,11 +512,11 @@ struct MartenIOSDashboardView: View {
                             .foregroundStyle(.primary)
                     }
                 }
-                
+
                 Text(selectedPinboardTitle)
                     .font(.headline.weight(.semibold))
                     .lineLimit(1)
-                
+
                 Image(systemName: "chevron.down")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -524,9 +531,9 @@ struct MartenIOSDashboardView: View {
         .accessibilityLabel("Select Pinboard")
         .accessibilityIdentifier("ios.dashboard.pinboardDropdown")
     }
-    
+
     // MARK: - Pinboard Options Menu
-    
+
     private func pinboardOptionsMenu(for pinboard: Pinboard) -> some View {
         Menu {
             pinboardContextMenuContent(for: pinboard)
@@ -976,7 +983,9 @@ struct MartenIOSDashboardView: View {
         #endif
 
         // Show toast notification
-        let message = objectIDs.count == 1 ? "Copied as plain text" : "Copied \(objectIDs.count) items as plain text"
+        let message =
+            objectIDs.count == 1
+            ? "Copied as plain text" : "Copied \(objectIDs.count) items as plain text"
         toastController.show(message, systemImage: "textformat")
 
         Task {
@@ -1341,6 +1350,14 @@ struct PinboardPickerSheet: View {
 
     private let rowCornerRadius: CGFloat = 999
 
+    private var estimatedSheetHeight: CGFloat {
+        let baseHeight: CGFloat = 140
+        let estimatedRowHeight: CGFloat = 62
+        let rowCount = CGFloat(orderedPinboards.count + 1)
+        let estimated = baseHeight + (rowCount * estimatedRowHeight)
+        return min(max(estimated, 260), 560)
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -1349,35 +1366,13 @@ struct PinboardPickerSheet: View {
                     onSelect(nil)
                     dismiss()
                 } label: {
-                    MartenGlassSurface(
-                        cornerRadius: rowCornerRadius, padding: 0, isInteractive: false
-                    ) {
-                        HStack(spacing: 12) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.secondary.opacity(0.15))
-                                    .frame(width: 32, height: 32)
-                                Image(systemName: "tray.2.fill")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(.primary)
-                            }
-
-                            Text("All")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(.primary)
-
-                            Spacer()
-
-                            if selectedPinboardID == nil {
-                                Image(systemName: "checkmark")
-                                    .font(.subheadline.weight(.heavy))
-                                    .foregroundStyle(Color.accentColor)
-                            }
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .contentShape(Rectangle())
-                    }
+                    PinboardSelectionRow(
+                        leading: .all,
+                        title: "All",
+                        showsSelectionCheckmark: true,
+                        isSelected: selectedPinboardID == nil,
+                        cornerRadius: rowCornerRadius
+                    )
                 }
                 .buttonStyle(.plain)
                 .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
@@ -1395,42 +1390,51 @@ struct PinboardPickerSheet: View {
                             Button(role: .destructive) {
                                 onDelete(pinboard)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                MartenSwipeActionIcon(systemName: "trash", backgroundColor: .red)
                             }
+                            .tint(.red )
+                            .accessibilityLabel("Delete")
                         }
                         .swipeActions(edge: .leading, allowsFullSwipe: false) {
                             // Edit action
                             Button {
                                 onEdit(pinboard)
                             } label: {
-                                Label("Edit", systemImage: "pencil")
+                                MartenSwipeActionIcon(systemName: "pencil", backgroundColor: .blue)
                             }
                             .tint(.blue)
-                            
+                            .accessibilityLabel("Edit")
+
                             // Share action
                             if container.sharingRepository != nil {
                                 Button {
                                     onShare(pinboard)
                                 } label: {
-                                    Label("Share", systemImage: "square.and.arrow.up")
+                                    MartenSwipeActionIcon(
+                                        systemName: "square.and.arrow.up",
+                                        backgroundColor: .green
+                                    )
                                 }
                                 .tint(.green)
+                                .accessibilityLabel("Share")
                             }
-                            
+
                             // Lock/Unlock actions
                             let isLocked = lockStateStore.isLocked(pinboard.id)
                             let canAccess = lockStateStore.canAccess(pinboard.id)
-                            
+
                             if isLocked {
                                 if canAccess {
                                     Button {
                                         lockStateStore.lockNow(pinboardID: pinboard.id)
                                     } label: {
-                                        Label("Lock", systemImage: "lock.fill")
+                                        MartenSwipeActionIcon(
+                                            systemName: "lock.fill", backgroundColor: .orange)
                                     }
                                     .tint(.orange)
+                                    .accessibilityLabel("Lock")
                                 }
-                                
+
                                 Button {
                                     Task { @MainActor in
                                         _ = await lockStateStore.unlock(
@@ -1439,16 +1443,20 @@ struct PinboardPickerSheet: View {
                                         )
                                     }
                                 } label: {
-                                    Label("Unlock", systemImage: "lock.open")
+                                    MartenSwipeActionIcon(
+                                        systemName: "lock.open", backgroundColor: .orange)
                                 }
                                 .tint(.orange)
+                                .accessibilityLabel("Unlock")
                             } else {
                                 Button {
                                     lockStateStore.setLock(true, for: pinboard.id)
                                 } label: {
-                                    Label("Lock", systemImage: "lock")
+                                    MartenSwipeActionIcon(
+                                        systemName: "lock", backgroundColor: .orange)
                                 }
                                 .tint(.orange)
+                                .accessibilityLabel("Lock")
                             }
                         }
                 }
@@ -1462,7 +1470,7 @@ struct PinboardPickerSheet: View {
             .background(Color(platformColor: .platformSystemGroupedBackground))
             .navigationTitle("Pinboards")
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1476,7 +1484,7 @@ struct PinboardPickerSheet: View {
                             .font(.title3)
                     }
                 }
-                
+
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
@@ -1485,6 +1493,8 @@ struct PinboardPickerSheet: View {
                 orderedPinboards = pinboards
             }
         }
+        .presentationDetents([.height(estimatedSheetHeight)])
+        .presentationDragIndicator(.visible)
     }
 
     private func pinboardRow(_ pinboard: Pinboard) -> some View {
@@ -1507,50 +1517,15 @@ struct PinboardPickerSheet: View {
                 dismiss()
             }
         } label: {
-            MartenGlassSurface(cornerRadius: rowCornerRadius, padding: 0, isInteractive: false) {
-                HStack(spacing: 12) {
-                    // Color + sign indicator
-                    PinboardIndicator(
-                        colorHex: pinboard.colorHex,
-                        sign: pinboard.iconName,
-                        size: 32
-                    )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(pinboard.name)
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-
-                        if pinboard.isShared {
-                            HStack(spacing: 4) {
-                                Image(systemName: "person.2.fill")
-                                    .font(.caption2)
-                                Text("Shared")
-                                    .font(.caption2.weight(.medium))
-                            }
-                            .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Spacer()
-
-                    if selectedPinboardID == pinboard.id {
-                        Image(systemName: "checkmark")
-                            .font(.subheadline.weight(.heavy))
-                            .foregroundStyle(Color.accentColor)
-                    }
-
-                    if isLocked {
-                        Image(systemName: canAccess ? "lock.open.fill" : "lock.fill")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
-            }
+            PinboardSelectionRow(
+                leading: .pinboard(colorHex: pinboard.colorHex, sign: pinboard.iconName),
+                title: pinboard.name,
+                showsSharedBadge: pinboard.isShared,
+                showsSelectionCheckmark: true,
+                isSelected: selectedPinboardID == pinboard.id,
+                lockState: .init(isLocked: isLocked, canAccess: canAccess),
+                cornerRadius: rowCornerRadius
+            )
         }
         .buttonStyle(.plain)
     }

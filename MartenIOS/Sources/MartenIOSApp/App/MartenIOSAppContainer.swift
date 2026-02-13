@@ -568,15 +568,7 @@ public final class MartenIOSAppContainer {
     }
 
     private func sourceAppInfo() -> SourceAppInfo {
-        let bundle = Bundle.main
-        let name =
-            (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-                ?? bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
-
-        return SourceAppInfo(
-            bundleID: bundle.bundleIdentifier,
-            name: name
-        )
+        MartenSourceIdentity.sourceAppInfo()
     }
 
     private static func makeSyncCoordinator(

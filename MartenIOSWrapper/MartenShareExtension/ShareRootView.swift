@@ -30,7 +30,7 @@ struct ShareRootView: View {
 
                 Section("Destination") {
                     Picker("Save To", selection: $selectedPinboardID) {
-                        Text("Clipboard History")
+                        Text("All")
                             .tag(Optional<UUID>.none)
                         ForEach(pinboards.filter { !$0.isSystemMarten }) { pinboard in
                             Text(pinboard.name)

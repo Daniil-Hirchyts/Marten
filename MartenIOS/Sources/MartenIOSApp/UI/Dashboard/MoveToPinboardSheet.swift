@@ -14,6 +14,8 @@ struct MoveToPinboardSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
 
+    private let rowCornerRadius: CGFloat = 999
+
     private var filteredPinboards: [Pinboard] {
         if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return pinboards
@@ -25,90 +27,57 @@ struct MoveToPinboardSheet: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                // Background
-                if #available(iOS 26, *) {
-                    Color.clear.ignoresSafeArea()
-                } else {
-                Color(platformColor: .platformSystemGroupedBackground)
-                        .ignoresSafeArea()
-                }
+            List {
+                allDestinationRow
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
 
-                ScrollView {
-                    VStack(spacing: 8) {
-                        allDestinationRow
+                ForEach(filteredPinboards, id: \.objectID) { pinboard in
+                    let isLocked = lockStateStore.isLocked(pinboard.id)
+                    let canAccess = lockStateStore.canAccess(pinboard.id)
 
-                        ForEach(filteredPinboards, id: \.objectID) { pinboard in
-                            let isLocked = lockStateStore.isLocked(pinboard.id)
-                            let canAccess = lockStateStore.canAccess(pinboard.id)
-                            Button {
-                                if isLocked && !canAccess {
-                                    Task { @MainActor in
-                                        let unlocked = await lockStateStore.unlock(
-                                            pinboardID: pinboard.id,
-                                            pinboardName: pinboard.name
-                                        )
-                                        guard unlocked else { return }
-                                        onSelect(.pinboard(pinboard))
-                                        dismiss()
-                                    }
-                                } else {
-                                    onSelect(.pinboard(pinboard))
-                                    dismiss()
-                                }
-                            } label: {
-                                MartenGlassSurface(cornerRadius: 14, padding: 0, isInteractive: true) {
-                                    HStack(spacing: 12) {
-                                        // Color + sign indicator
-                                        ZStack {
-                                            Circle()
-                                                .fill(Color(hex: pinboard.colorHex, fallback: .gray))
-                                                .frame(width: 32, height: 32)
-                                                .shadow(color: Color(hex: pinboard.colorHex, fallback: .gray).opacity(0.4), radius: 3, x: 0, y: 1)
-
-                                            if let iconName = pinboard.iconName, !iconName.isEmpty {
-                                                if PinboardSignCatalogIOS.isSystemSymbol(iconName) {
-                                                    Image(systemName: iconName)
-                                                        .font(.system(size: 13, weight: .bold))
-                                                        .foregroundStyle(.white)
-                                                } else {
-                                                    Text(iconName)
-                                                        .font(.system(size: 16))
-                                                }
-                                            }
-                                        }
-
-                                        Text(pinboard.name)
-                                            .font(.body.weight(.medium))
-                                            .foregroundStyle(.primary)
-
-                                        Spacer()
-
-                                        if isLocked {
-                                            Image(systemName: canAccess ? "lock.open.fill" : "lock.fill")
-                                                .font(.caption)
-                                                .foregroundStyle(.tertiary)
-                                        }
-                                    }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                    .contentShape(Rectangle())
-                                }
+                    Button {
+                        if isLocked && !canAccess {
+                            Task { @MainActor in
+                                let unlocked = await lockStateStore.unlock(
+                                    pinboardID: pinboard.id,
+                                    pinboardName: pinboard.name
+                                )
+                                guard unlocked else { return }
+                                onSelect(.pinboard(pinboard))
+                                dismiss()
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(
-                                isLocked && !canAccess ? "\(pinboard.name), locked" : pinboard.name
-                            )
+                        } else {
+                            onSelect(.pinboard(pinboard))
+                            dismiss()
                         }
+                    } label: {
+                        PinboardSelectionRow(
+                            leading: .pinboard(
+                                colorHex: pinboard.colorHex, sign: pinboard.iconName),
+                            title: pinboard.name,
+                            showsSharedBadge: pinboard.isShared,
+                            lockState: .init(isLocked: isLocked, canAccess: canAccess),
+                            cornerRadius: rowCornerRadius
+                        )
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(
+                        isLocked && !canAccess ? "\(pinboard.name), locked" : pinboard.name
+                    )
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color(platformColor: .platformSystemGroupedBackground))
             .searchable(text: $searchText, prompt: "Find pinboard")
             .navigationTitle("Move To")
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -124,28 +93,7 @@ struct MoveToPinboardSheet: View {
             onSelect(.all)
             dismiss()
         } label: {
-            MartenGlassSurface(cornerRadius: 14, padding: 0, isInteractive: true) {
-                HStack(spacing: 12) {
-                    ZStack {
-                        Circle()
-                            .fill(.quaternary)
-                            .frame(width: 32, height: 32)
-
-                        Image(systemName: "square.stack")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text("All")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(.primary)
-
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .contentShape(Rectangle())
-            }
+            PinboardSelectionRow(leading: .all, title: "All", cornerRadius: rowCornerRadius)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("All")

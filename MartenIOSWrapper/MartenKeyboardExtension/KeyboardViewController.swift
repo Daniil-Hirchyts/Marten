@@ -41,6 +41,9 @@ final class KeyboardViewController: UIInputViewController {
             onInsertText: { [weak self] text in
                 self?.textDocumentProxy.insertText(text)
             },
+            onDeleteBackward: { [weak self] in
+                self?.textDocumentProxy.deleteBackward()
+            },
             onRecordHeartbeat: { [weak self] in
                 self?.recordHeartbeat()
             }
@@ -49,6 +52,7 @@ final class KeyboardViewController: UIInputViewController {
         let hostingController = UIHostingController(rootView: rootView)
         addChild(hostingController)
         hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        hostingController.view.backgroundColor = .clear
         view.addSubview(hostingController.view)
         NSLayoutConstraint.activate([
             hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),

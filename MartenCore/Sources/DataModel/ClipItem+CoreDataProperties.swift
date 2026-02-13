@@ -12,6 +12,7 @@ public extension ClipItem {
     @NSManaged var displayOrder: Int64
     @NSManaged var sourceAppBundleID: String?
     @NSManaged var sourceAppName: String?
+    @NSManaged var sourceAppIconData: Data?
     @NSManaged var itemType: Int16
     @NSManaged var primaryText: String?
     @NSManaged var customTitle: String?

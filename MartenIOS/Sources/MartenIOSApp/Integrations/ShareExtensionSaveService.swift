@@ -33,12 +33,13 @@ public actor ShareExtensionSaveService {
         guard !payloads.isEmpty else { return 0 }
 
         let destinationObjectID = pinboardID.flatMap(resolvePinboardObjectID)
+        let resolvedSourceApp = resolveSourceAppInfo(sourceApp)
         var savedCount = 0
 
         for payload in payloads {
             let item = try store.createItem(
                 payload: payload,
-                sourceApp: sourceApp,
+                sourceApp: resolvedSourceApp,
                 isUserCreated: true
             )
             if let destinationObjectID {
@@ -51,6 +52,50 @@ public actor ShareExtensionSaveService {
         }
 
         return savedCount
+    }
+
+    private func resolveSourceAppInfo(_ sourceApp: SourceAppInfo?) -> SourceAppInfo? {
+        guard let sourceApp else { return nil }
+        guard sourceApp.iconData == nil || sourceApp.iconData?.isEmpty == true else {
+            return sourceApp
+        }
+
+        guard
+            let bundleID = sourceApp.bundleID?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !bundleID.isEmpty,
+            let cachedIconData = cachedSourceAppIconData(forBundleID: bundleID)
+        else {
+            return sourceApp
+        }
+
+        return SourceAppInfo(
+            bundleID: sourceApp.bundleID,
+            name: sourceApp.name,
+            iconData: cachedIconData
+        )
+    }
+
+    private func cachedSourceAppIconData(forBundleID bundleID: String) -> Data? {
+        let context = persistenceController.viewContext
+        var iconData: Data?
+        context.performAndWait {
+            let request = ClipItem.fetchRequest()
+            request.fetchLimit = 20
+            request.predicate = NSPredicate(
+                format: "sourceAppBundleID == %@ AND sourceAppIconData != nil",
+                bundleID
+            )
+            request.sortDescriptors = [
+                NSSortDescriptor(key: "modifiedAt", ascending: false),
+                NSSortDescriptor(key: "createdAt", ascending: false),
+            ]
+            if let results = try? context.fetch(request) {
+                iconData = results.lazy
+                    .compactMap(\.sourceAppIconData)
+                    .first { !$0.isEmpty }
+            }
+        }
+        return iconData
     }
 
     private func resolvePinboardObjectID(_ pinboardID: UUID) -> NSManagedObjectID? {

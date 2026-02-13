@@ -172,21 +172,28 @@ struct PinboardManagementSheet: View {
         }
         .contentShape(Rectangle())
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button("Edit") {
+            Button {
                 editorContext = .edit(
                     objectIDURI: pinboard.objectID.uriRepresentation().absoluteString,
                     name: pinboard.name,
                     colorHex: pinboard.colorHex,
                     iconName: pinboard.iconName
                 )
+            } label: {
+                MartenSwipeActionIcon(systemName: "pencil", backgroundColor: .blue)
             }
-            .tint(.blue)
+            .tint(.blue.opacity(0.25))
+            .accessibilityLabel("Edit")
 
-            Button("Delete", role: .destructive) {
+            Button(role: .destructive) {
                 Task {
                     await container.deletePinboard(pinboard)
                 }
+            } label: {
+                MartenSwipeActionIcon(systemName: "trash", backgroundColor: .red)
             }
+            .tint(.red.opacity(0.25))
+            .accessibilityLabel("Delete")
         }
         .contextMenu {
             Button("Edit") {

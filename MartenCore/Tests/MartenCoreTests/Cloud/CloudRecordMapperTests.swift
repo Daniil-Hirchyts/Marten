@@ -38,6 +38,10 @@ final class CloudRecordMapperTests: XCTestCase {
         XCTAssertEqual(record.date(for: ClipItemField.modifiedAt.rawValue), item.modifiedAt)
         XCTAssertEqual(record.string(for: ClipItemField.sourceAppBundleID.rawValue), "com.test.app")
         XCTAssertEqual(record.string(for: ClipItemField.sourceAppName.rawValue), "Test App")
+        XCTAssertEqual(
+            record.data(for: ClipItemField.sourceAppIconData.rawValue),
+            Data([0xDE, 0xAD, 0xBE, 0xEF])
+        )
         XCTAssertEqual(record.itemType(for: ClipItemField.itemType.rawValue), .text)
         XCTAssertEqual(record.string(for: ClipItemField.primaryText.rawValue), "Test content")
         XCTAssertEqual(record.string(for: ClipItemField.contentHash.rawValue), "testhash123")
@@ -56,6 +60,7 @@ final class CloudRecordMapperTests: XCTestCase {
         XCTAssertEqual(item.id.uuidString, "11111111-1111-1111-1111-111111111111")
         XCTAssertEqual(item.sourceAppBundleID, "com.remote.app")
         XCTAssertEqual(item.sourceAppName, "Remote App")
+        XCTAssertEqual(item.sourceAppIconData, Data([0xAA, 0xBB, 0xCC]))
         XCTAssertEqual(item.itemTypeValue, .url)
         XCTAssertEqual(item.primaryText, "https://example.com")
         XCTAssertEqual(item.contentHash, "remotehash456")
@@ -77,6 +82,7 @@ final class CloudRecordMapperTests: XCTestCase {
         XCTAssertEqual(restored.id, original.id)
         XCTAssertEqual(restored.sourceAppBundleID, original.sourceAppBundleID)
         XCTAssertEqual(restored.sourceAppName, original.sourceAppName)
+        XCTAssertEqual(restored.sourceAppIconData, original.sourceAppIconData)
         XCTAssertEqual(restored.itemTypeValue, original.itemTypeValue)
         XCTAssertEqual(restored.primaryText, original.primaryText)
         XCTAssertEqual(restored.contentHash, original.contentHash)
@@ -405,6 +411,7 @@ final class CloudRecordMapperTests: XCTestCase {
         item.displayOrder = Int64(Date().timeIntervalSince1970 * 1000)
         item.sourceAppBundleID = "com.test.app"
         item.sourceAppName = "Test App"
+        item.sourceAppIconData = Data([0xDE, 0xAD, 0xBE, 0xEF])
         item.itemTypeValue = .text
         item.primaryText = "Test content"
         item.contentHash = "testhash123"
@@ -473,6 +480,7 @@ final class CloudRecordMapperTests: XCTestCase {
         record.setDate(Date(), for: ClipItemField.modifiedAt.rawValue)
         record.setString("com.remote.app", for: ClipItemField.sourceAppBundleID.rawValue)
         record.setString("Remote App", for: ClipItemField.sourceAppName.rawValue)
+        record.setData(Data([0xAA, 0xBB, 0xCC]), for: ClipItemField.sourceAppIconData.rawValue)
         record.setItemType(.url, for: ClipItemField.itemType.rawValue)
         record.setString("https://example.com", for: ClipItemField.primaryText.rawValue)
         record.setString("remotehash456", for: ClipItemField.contentHash.rawValue)

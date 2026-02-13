@@ -57,6 +57,7 @@ public final class CloudRecordMapper {
         record.setDate(item.modifiedAt, for: ClipItemField.modifiedAt.rawValue)
         record.setString(item.sourceAppBundleID, for: ClipItemField.sourceAppBundleID.rawValue)
         record.setString(item.sourceAppName, for: ClipItemField.sourceAppName.rawValue)
+        record.setData(item.sourceAppIconData, for: ClipItemField.sourceAppIconData.rawValue)
         record.setItemType(item.itemTypeValue, for: ClipItemField.itemType.rawValue)
 
         // Truncate primary text to max length
@@ -86,6 +87,7 @@ public final class CloudRecordMapper {
         record.setDate(item.modifiedAt, for: ClipItemField.modifiedAt.rawValue)
         record.setString(item.sourceAppBundleID, for: ClipItemField.sourceAppBundleID.rawValue)
         record.setString(item.sourceAppName, for: ClipItemField.sourceAppName.rawValue)
+        record.setData(item.sourceAppIconData, for: ClipItemField.sourceAppIconData.rawValue)
         record.setItemType(item.itemTypeValue, for: ClipItemField.itemType.rawValue)
 
         if let primaryText = item.primaryText {
@@ -172,6 +174,7 @@ public final class CloudRecordMapper {
 
         item.sourceAppBundleID = record.string(for: ClipItemField.sourceAppBundleID.rawValue)
         item.sourceAppName = record.string(for: ClipItemField.sourceAppName.rawValue)
+        item.sourceAppIconData = record.data(for: ClipItemField.sourceAppIconData.rawValue)
 
         if let itemType = record.itemType(for: ClipItemField.itemType.rawValue) {
             item.itemTypeValue = itemType

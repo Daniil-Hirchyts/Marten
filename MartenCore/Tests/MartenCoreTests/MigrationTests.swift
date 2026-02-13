@@ -122,6 +122,51 @@ final class MigrationTests: XCTestCase {
         XCTAssertEqual(metadata.count, 0)
     }
 
+    func testLightweightMigrationFromV3ToV4PreservesData() throws {
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fileManager.createDirectory(
+            at: tempDir, withIntermediateDirectories: true, attributes: nil)
+        defer { try? fileManager.removeItem(at: tempDir) }
+
+        let storeURL = tempDir.appendingPathComponent("MartenCore.sqlite")
+
+        let v3Model = try loadModelVersion(named: "MartenV3")
+        try seedStore(at: storeURL, model: v3Model)
+
+        let v4Model = try loadModelVersion(named: "MartenV4")
+        let container = NSPersistentContainer(name: "Marten", managedObjectModel: v4Model)
+        let description = NSPersistentStoreDescription(url: storeURL)
+        description.type = NSSQLiteStoreType
+        description.setOption(
+            true as NSNumber, forKey: NSMigratePersistentStoresAutomaticallyOption)
+        description.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)
+        container.persistentStoreDescriptions = [description]
+
+        let loadExpectation = expectation(description: "load v4 store")
+        var loadError: Error?
+        container.loadPersistentStores { _, error in
+            loadError = error
+            loadExpectation.fulfill()
+        }
+        wait(for: [loadExpectation], timeout: 5)
+        if let loadError {
+            throw loadError
+        }
+
+        let context = container.viewContext
+        let request = ClipItem.fetchRequest()
+        let items = try context.fetch(request)
+        XCTAssertEqual(items.count, 1)
+
+        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(item.primaryText, "Hello world")
+        XCTAssertEqual(item.contentHash, "hash-1")
+        XCTAssertEqual(item.sourceAppBundleID, "com.example.app")
+        XCTAssertEqual(item.sourceAppName, "Example")
+        XCTAssertNil(item.sourceAppIconData)
+    }
+
     private func seedStore(at storeURL: URL, model: NSManagedObjectModel) throws {
         let container = NSPersistentContainer(name: "Marten", managedObjectModel: model)
         let description = NSPersistentStoreDescription(url: storeURL)

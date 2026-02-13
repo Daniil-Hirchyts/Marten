@@ -94,10 +94,7 @@ final class CaptureCoordinator {
 
     private func handlePasteboardChange(_ pasteboard: NSPasteboard) {
         let frontmost = NSWorkspace.shared.frontmostApplication
-        let source = SourceAppInfo(
-            bundleID: frontmost?.bundleIdentifier,
-            name: frontmost?.localizedName
-        )
+        let source = Self.sourceInfo(for: frontmost)
         let linkPreviewEnabled = linkPreviewSettings.isLinkPreviewEnabled
 
         guard let payload = pasteboardExtractor.extract(from: pasteboard) else {
@@ -145,6 +142,75 @@ final class CaptureCoordinator {
                 )
             }
         }
+    }
+
+    private static let sourceAppIconPixelSize: CGFloat = 64
+
+    private static func sourceInfo(for application: NSRunningApplication?) -> SourceAppInfo {
+        SourceAppInfo(
+            bundleID: application?.bundleIdentifier,
+            name: application?.localizedName,
+            iconData: appIconData(for: application)
+        )
+    }
+
+    private static func appIconData(for application: NSRunningApplication?) -> Data? {
+        guard let application else { return nil }
+
+        if let icon = application.icon,
+           let data = pngData(from: icon, targetPixelSize: sourceAppIconPixelSize) {
+            return data
+        }
+
+        guard
+            let bundleID = application.bundleIdentifier,
+            let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+        else {
+            return nil
+        }
+
+        let workspaceIcon = NSWorkspace.shared.icon(forFile: appURL.path)
+        return pngData(from: workspaceIcon, targetPixelSize: sourceAppIconPixelSize)
+    }
+
+    private static func pngData(from image: NSImage, targetPixelSize: CGFloat) -> Data? {
+        let pixelSize = max(1, Int(targetPixelSize.rounded()))
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: pixelSize,
+            pixelsHigh: pixelSize,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ) else {
+            return nil
+        }
+
+        bitmap.size = NSSize(width: targetPixelSize, height: targetPixelSize)
+
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+
+        guard let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
+            return nil
+        }
+        NSGraphicsContext.current = context
+        context.imageInterpolation = .high
+
+        image.draw(
+            in: NSRect(x: 0, y: 0, width: targetPixelSize, height: targetPixelSize),
+            from: NSRect(origin: .zero, size: image.size),
+            operation: .sourceOver,
+            fraction: 1.0,
+            respectFlipped: false,
+            hints: nil
+        )
+
+        return bitmap.representation(using: .png, properties: [:])
     }
 
     nonisolated private static func thumbnailData(
