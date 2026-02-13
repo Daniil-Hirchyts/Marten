@@ -6,6 +6,7 @@ struct ItemCardGridView: View {
     let items: [ClipItem]
     let selectionModel: DashboardSelectionModel
     let canReorder: Bool
+    var contentInsets: EdgeInsets = .init()
     let onTapItem: (ClipItem) -> Void
     let onCopyItem: (ClipItem) -> Void
     let onCopyPlainTextItem: (ClipItem) -> Void
@@ -15,12 +16,10 @@ struct ItemCardGridView: View {
     let onDeleteItem: (ClipItem) -> Void
     let onReorderItems: ([NSManagedObjectID]) -> Void
 
+    #if !canImport(UIKit)
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var orderedItems: [ClipItem] = []
     @State private var draggingItemID: NSManagedObjectID?
-    @State private var sweepState = SweepSelectionState()
-
-    private let gridCoordinateSpace = "itemCardGrid"
 
     private var columns: [GridItem] {
         let count = sizeClass == .regular ? 3 : 2
@@ -29,6 +28,7 @@ struct ItemCardGridView: View {
             count: count
         )
     }
+    #endif
 
     var body: some View {
         if items.isEmpty {
@@ -39,6 +39,22 @@ struct ItemCardGridView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
+            #if canImport(UIKit)
+            ItemCardCollectionGridView(
+                items: items,
+                selectionModel: selectionModel,
+                canReorder: canReorder,
+                contentInsets: contentInsets,
+                onTapItem: onTapItem,
+                onCopyItem: onCopyItem,
+                onCopyPlainTextItem: onCopyPlainTextItem,
+                onPreviewItem: onPreviewItem,
+                onShareItem: onShareItem,
+                onMoveItem: onMoveItem,
+                onDeleteItem: onDeleteItem,
+                onReorderItems: onReorderItems
+            )
+            #else
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(displayedItems, id: \.objectID) { item in
@@ -48,16 +64,11 @@ struct ItemCardGridView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
                 .animation(MartenAnimation.smooth, value: displayedItems.map(\.objectID))
-                .onPreferenceChange(CardFramePreferenceKey.self) { frames in
-                    sweepState.updateFrames(frames)
-                }
             }
-            .coordinateSpace(name: gridCoordinateSpace)
             .scrollIndicators(.hidden)
             .onDrop(of: [.text], delegate: GridFallbackDropDelegate(
                 draggingItemID: $draggingItemID
             ))
-            .overlay { sweepGestureOverlay }
             .onAppear {
                 orderedItems = items
             }
@@ -65,11 +76,11 @@ struct ItemCardGridView: View {
                 draggingItemID = nil
                 orderedItems = items
             }
+            #endif
         }
     }
 
-    // MARK: - Card Cell
-
+    #if !canImport(UIKit)
     @ViewBuilder
     private func cardCell(for item: ClipItem) -> some View {
         ItemCardView(
@@ -84,7 +95,6 @@ struct ItemCardGridView: View {
             onMove: { onMoveItem(item) },
             onDelete: { onDeleteItem(item) }
         )
-        .reportCardFrame(objectID: item.objectID, coordinateSpace: gridCoordinateSpace)
         .onDrag {
             if canReorder && !selectionModel.isSelectionMode {
                 draggingItemID = item.objectID
@@ -105,10 +115,7 @@ struct ItemCardGridView: View {
         .transition(MartenAnimation.fadeScale)
     }
 
-    // MARK: - Tap Handling
-
     private func handleTap(_ item: ClipItem) {
-        // Clear stale drag state if a drag ended without a proper drop
         if draggingItemID != nil {
             draggingItemID = nil
             return
@@ -116,75 +123,13 @@ struct ItemCardGridView: View {
         onTapItem(item)
     }
 
-    // MARK: - Sweep Selection Overlay
-
-    @ViewBuilder
-    private var sweepGestureOverlay: some View {
-        if selectionModel.isSelectionMode {
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture(coordinateSpace: .named(gridCoordinateSpace)) { location in
-                    if let hitID = sweepState.objectID(at: location),
-                       let hitItem = displayedItems.first(where: { $0.objectID == hitID }) {
-                        selectionModel.toggleSelection(for: hitItem)
-                    }
-                }
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 10, coordinateSpace: .named(gridCoordinateSpace))
-                        .onChanged { value in
-                            let dx = abs(value.translation.width)
-                            let dy = abs(value.translation.height)
-
-                            // If drag is primarily vertical, don't activate sweep (let ScrollView scroll)
-                            if !sweepState.isActive && dy > dx * 1.5 {
-                                return
-                            }
-
-                            // Activate on first horizontal-enough movement
-                            if !sweepState.isActive {
-                                sweepState.isActive = true
-                                // Determine add/remove mode from first touched card
-                                if let firstID = sweepState.objectID(at: value.startLocation) {
-                                    sweepState.addsToSelection = !selectionModel.selectedObjectIDs.contains(firstID)
-                                    // Toggle the first card
-                                    if let firstItem = displayedItems.first(where: { $0.objectID == firstID }) {
-                                        selectionModel.toggleSelection(for: firstItem)
-                                        sweepState.sweptObjectIDs.insert(firstID)
-                                    }
-                                }
-                            }
-
-                            // Hit-test current location
-                            if let hitID = sweepState.objectID(at: value.location),
-                               !sweepState.sweptObjectIDs.contains(hitID),
-                               let hitItem = displayedItems.first(where: { $0.objectID == hitID }) {
-                                sweepState.sweptObjectIDs.insert(hitID)
-                                let isCurrentlySelected = selectionModel.selectedObjectIDs.contains(hitID)
-                                if sweepState.addsToSelection && !isCurrentlySelected {
-                                    selectionModel.toggleSelection(for: hitItem)
-                                } else if !sweepState.addsToSelection && isCurrentlySelected {
-                                    selectionModel.toggleSelection(for: hitItem)
-                                }
-                            }
-                        }
-                        .onEnded { _ in
-                            sweepState.isActive = false
-                            sweepState.sweptObjectIDs.removeAll()
-                        }
-                )
-                .allowsHitTesting(selectionModel.isSelectionMode)
-        }
-    }
-
-    // MARK: - Helpers
-
     private var displayedItems: [ClipItem] {
         draggingItemID != nil ? orderedItems : items
     }
+    #endif
 }
 
-// MARK: - Drop Delegate
-
+#if !canImport(UIKit)
 private struct ItemCardDropDelegate: DropDelegate {
     let targetItem: ClipItem
     @Binding var orderedItems: [ClipItem]
@@ -229,8 +174,6 @@ private struct ItemCardDropDelegate: DropDelegate {
     func dropExited(info: DropInfo) {}
 }
 
-// MARK: - Fallback Drop Delegate (catches drops in empty grid areas)
-
 private struct GridFallbackDropDelegate: DropDelegate {
     @Binding var draggingItemID: NSManagedObjectID?
 
@@ -243,3 +186,4 @@ private struct GridFallbackDropDelegate: DropDelegate {
         DropProposal(operation: draggingItemID != nil ? .move : .cancel)
     }
 }
+#endif

@@ -66,7 +66,14 @@ final class KeyboardViewController: UIInputViewController {
             },
             allowsNetworkFetch: hasFullAccess,
             onOpenApp: { [weak self] url in
-                self?.extensionContext?.open(url, completionHandler: nil)
+                guard let self else { return false }
+                guard self.hasFullAccess else { return false }
+                
+                return await withCheckedContinuation { continuation in
+                    self.extensionContext?.open(url) { success in
+                        continuation.resume(returning: success)
+                    }
+                }
             }
         )
 

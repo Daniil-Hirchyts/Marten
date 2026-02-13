@@ -21,6 +21,6 @@ struct ItemDragPayload: Codable, Hashable, Transferable {
     }
 }
 
-private extension UTType {
+extension UTType {
     static let martenItemDragPayload = UTType(exportedAs: "com.hirchyts.marten.item-drag-payload")
 }

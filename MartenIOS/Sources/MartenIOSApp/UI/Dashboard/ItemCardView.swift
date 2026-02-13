@@ -5,6 +5,8 @@ struct ItemCardView: View {
     let item: ClipItem
     let isSelectionMode: Bool
     let isSelected: Bool
+    let handlesTapGesture: Bool
+    let handlesPressGesture: Bool
     let onTap: () -> Void
     let onCopy: () -> Void
     let onCopyPlainText: () -> Void
@@ -12,6 +14,34 @@ struct ItemCardView: View {
     let onShare: () -> Void
     let onMove: () -> Void
     let onDelete: () -> Void
+
+    init(
+        item: ClipItem,
+        isSelectionMode: Bool,
+        isSelected: Bool,
+        handlesTapGesture: Bool = true,
+        handlesPressGesture: Bool = true,
+        onTap: @escaping () -> Void,
+        onCopy: @escaping () -> Void,
+        onCopyPlainText: @escaping () -> Void,
+        onPreview: @escaping () -> Void,
+        onShare: @escaping () -> Void,
+        onMove: @escaping () -> Void,
+        onDelete: @escaping () -> Void
+    ) {
+        self.item = item
+        self.isSelectionMode = isSelectionMode
+        self.isSelected = isSelected
+        self.handlesTapGesture = handlesTapGesture
+        self.handlesPressGesture = handlesPressGesture
+        self.onTap = onTap
+        self.onCopy = onCopy
+        self.onCopyPlainText = onCopyPlainText
+        self.onPreview = onPreview
+        self.onShare = onShare
+        self.onMove = onMove
+        self.onDelete = onDelete
+    }
 
     #if canImport(UIKit)
     @State private var thumbnailImage: UIImage?
@@ -37,15 +67,12 @@ struct ItemCardView: View {
     var body: some View {
         let pres = resolvedPresentation
 
-        cardContent(pres)
+        tapWrappedContent(cardContent(pres))
             .contentShape(.rect(cornerRadius: cardCornerRadius))
             .scaleEffect(isPressed ? 0.97 : 1.0)
             .animation(MartenAnimation.quick, value: isPressed)
             .sensoryFeedback(.selection, trigger: isSelected)
-            .onTapGesture { onTap() }
-            .onLongPressGesture(minimumDuration: .infinity, perform: {}, onPressingChanged: { pressing in
-                isPressed = pressing
-            })
+            .modifier(PressGestureModifier(isEnabled: handlesPressGesture, isPressed: $isPressed))
             .contextMenu {
                 Button { onCopy() } label: {
                     Label("Copy", systemImage: "doc.on.doc")
@@ -87,6 +114,15 @@ struct ItemCardView: View {
             .accessibilityLabel(accessibilityLabel(for: pres))
             .accessibilityHint("Double tap to open")
             .accessibilityAddTraits(.isButton)
+    }
+
+    @ViewBuilder
+    private func tapWrappedContent<Content: View>(_ content: Content) -> some View {
+        if handlesTapGesture {
+            content.onTapGesture { onTap() }
+        } else {
+            content
+        }
     }
 
     private func cardContent(_ pres: ItemCardPresentation) -> some View {
@@ -477,6 +513,21 @@ struct ItemCardView: View {
             linkPreviewImage = await LinkPreviewImageLoader.shared.loadImage(for: linkPreview)
         } else {
             linkPreviewImage = nil
+        }
+    }
+}
+
+private struct PressGestureModifier: ViewModifier {
+    let isEnabled: Bool
+    @Binding var isPressed: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.onLongPressGesture(minimumDuration: .infinity, perform: {}, onPressingChanged: { pressing in
+                isPressed = pressing
+            })
+        } else {
+            content
         }
     }
 }

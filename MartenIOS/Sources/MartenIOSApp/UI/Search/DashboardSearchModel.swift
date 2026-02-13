@@ -69,11 +69,7 @@ final class DashboardSearchModel {
     private(set) var suggestedApps: [DashboardSourceAppOption] = []
     private(set) var isSearching = false
 
-    private(set) var isVoiceRecording = false
-    var voiceErrorMessage: String?
-
     private let queryService: any ClipItemQuerying
-    private let voiceService: VoiceDictationService
     private let siriDonor: SiriSuggestionsDonor
     private let debounceNanoseconds: UInt64
     private var searchGeneration = 0
@@ -81,12 +77,10 @@ final class DashboardSearchModel {
 
     init(
         queryService: any ClipItemQuerying,
-        voiceService: VoiceDictationService? = nil,
         siriDonor: SiriSuggestionsDonor? = nil,
         debounceNanoseconds: UInt64 = 250_000_000
     ) {
         self.queryService = queryService
-        self.voiceService = voiceService ?? VoiceDictationService()
         self.siriDonor = siriDonor ?? SiriSuggestionsDonor()
         self.debounceNanoseconds = debounceNanoseconds
     }
@@ -139,34 +133,6 @@ final class DashboardSearchModel {
         } else {
             selectedSourceDevices.insert(device)
         }
-    }
-
-    func toggleVoiceDictation() {
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                if self.voiceService.isRecording {
-                    self.voiceService.stop()
-                    self.isVoiceRecording = false
-                    return
-                }
-
-                try await self.voiceService.start { [weak self] transcript, isFinal in
-                    self?.query = transcript
-                    self?.isVoiceRecording = !(isFinal)
-                }
-                self.isVoiceRecording = self.voiceService.isRecording
-                self.voiceErrorMessage = nil
-            } catch {
-                self.isVoiceRecording = false
-                self.voiceErrorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    func stopVoiceDictation() {
-        voiceService.stop()
-        isVoiceRecording = false
     }
 
     func donateOpenItem(_ item: ClipItem) {

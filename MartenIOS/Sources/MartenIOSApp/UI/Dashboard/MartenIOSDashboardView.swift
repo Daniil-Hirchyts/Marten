@@ -425,9 +425,7 @@ struct MartenIOSDashboardView: View {
                 await performWidgetAction(action)
             }
         }
-        .onDisappear {
-            searchModel?.stopVoiceDictation()
-        }
+
     }
 
     private func performWidgetAction(_ action: MartenIOSAppContainer.WidgetAction) async {
@@ -685,8 +683,6 @@ struct MartenIOSDashboardView: View {
                 ),
                 prompt: "Search clips…",
                 onClear: { searchModel?.clearSearchText() },
-                onVoice: { searchModel?.toggleVoiceDictation() },
-                isVoiceRecording: searchModel?.isVoiceRecording ?? false,
                 focusRequest: $searchFocusRequest
             )
 
@@ -1261,6 +1257,7 @@ private struct DashboardItemsSection: View {
             items: visibleItems,
             selectionModel: selectionModel,
             canReorder: selectedPinboardID != nil,
+            contentInsets: EdgeInsets(top: 80, leading: 0, bottom: 100, trailing: 0),
             onTapItem: onTapItem,
             onCopyItem: onCopyItem,
             onCopyPlainTextItem: onCopyPlainTextItem,
@@ -1270,8 +1267,6 @@ private struct DashboardItemsSection: View {
             onDeleteItem: onDeleteItem,
             onReorderItems: onReorderItems
         )
-        .contentMargins(.bottom, 100, for: .scrollContent)
-        .contentMargins(.top, 80, for: .scrollContent)
         .onAppear {
             onVisibleObjectIDsChanged(Set(visibleItems.map(\.objectID)))
         }
@@ -1474,18 +1469,13 @@ struct PinboardPickerSheet: View {
                                 }
 
                                 Button {
-                                    Task { @MainActor in
-                                        _ = await lockStateStore.unlock(
-                                            pinboardID: pinboard.id,
-                                            pinboardName: pinboard.name
-                                        )
-                                    }
+                                    lockStateStore.setLock(false, for: pinboard.id)
                                 } label: {
                                     MartenSwipeActionIcon(
-                                        systemName: "lock.open", backgroundColor: .orange)
+                                        systemName: "lock.slash", backgroundColor: .gray)
                                 }
-                                .tint(.orange)
-                                .accessibilityLabel("Unlock")
+                                .tint(.gray)
+                                .accessibilityLabel("Disable Lock")
                             } else {
                                 Button {
                                     lockStateStore.setLock(true, for: pinboard.id)

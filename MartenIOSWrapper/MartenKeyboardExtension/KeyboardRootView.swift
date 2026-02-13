@@ -352,7 +352,7 @@ struct KeyboardRootView: View {
     let onRecordHeartbeat: () -> Void
     let onCopySelectionToMarten: () async -> Bool
     let allowsNetworkFetch: Bool
-    let onOpenApp: (URL) -> Void
+    let onOpenApp: (URL) async -> Bool
     @State private var lockStateStore: PinboardLockStateStore
     @State private var copyButtonState: CopyButtonState = .idle
 
@@ -369,7 +369,7 @@ struct KeyboardRootView: View {
         onRecordHeartbeat: @escaping () -> Void,
         onCopySelectionToMarten: @escaping () async -> Bool,
         allowsNetworkFetch: Bool,
-        onOpenApp: @escaping (URL) -> Void
+        onOpenApp: @escaping (URL) async -> Bool
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
         self.onInsertText = onInsertText
@@ -468,7 +468,7 @@ struct KeyboardRootView: View {
                 }
 
                 if viewModel.isPinboardMenuPresented {
-                    Color.black.opacity(0.2)
+                    Color.black.opacity(0.001)
                         .ignoresSafeArea()
                         .onTapGesture {
                             withAnimation(.spring(duration: 0.25)) {
@@ -770,8 +770,22 @@ struct KeyboardRootView: View {
             Spacer(minLength: 0)
 
             Button {
-                if let url = URL(string: "marten://open") {
-                    onOpenApp(url)
+                Task {
+                    if let url = URL(string: "marten://open") {
+                        let success = await onOpenApp(url)
+                        if !success {
+                            withAnimation {
+                                viewModel.errorMessage = "Full Access is required to open Marten."
+                            }
+                            // Clear error after a delay
+                            try? await Task.sleep(nanoseconds: 3_000_000_000)
+                            withAnimation {
+                                if viewModel.errorMessage == "Full Access is required to open Marten." {
+                                    viewModel.errorMessage = nil
+                                }
+                            }
+                        }
+                    }
                 }
             } label: {
                 HStack(spacing: 4) {
@@ -785,6 +799,7 @@ struct KeyboardRootView: View {
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+            .disabled(copyButtonState == .copying)
         }
         .frame(height: 28)
     }

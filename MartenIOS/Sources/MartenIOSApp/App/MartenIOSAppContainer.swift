@@ -34,6 +34,14 @@ public final class MartenIOSAppContainer {
             )
         }
     }
+    public var showDuringScreenSharing: Bool {
+        didSet {
+            userDefaults.set(
+                showDuringScreenSharing,
+                forKey: "settings.toggle.showDuringScreenSharing"
+            )
+        }
+    }
     public var appearance: MartenIOSAppearance {
         didSet {
             userDefaults.set(appearance.rawValue, forKey: MartenIOSDefaults.appearanceKey)
@@ -118,6 +126,8 @@ public final class MartenIOSAppContainer {
         self.shouldShowIntegrationsOnboarding = userDefaults.bool(
             forKey: MartenIOSDefaults.showIntegrationsOnboardingKey
         )
+        // Default to true if not set, to match Mac app default
+        self.showDuringScreenSharing = userDefaults.object(forKey: "settings.toggle.showDuringScreenSharing") as? Bool ?? true
 
         self.syncCoordinator = Self.makeSyncCoordinator(
             persistenceController: persistenceController,

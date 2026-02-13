@@ -4,11 +4,18 @@ struct MartenIOSSettingsView: View {
     @Bindable var container: MartenIOSAppContainer
 
     var body: some View {
-        Form {
-            SyncSettingsSection(container: container)
-            AppearanceSettingsSection(container: container)
+        List {
             IntegrationsSettingsSection()
-            SubscriptionSection()
+
+            PrivacySettingsSection(container: container)
+
+            Section {
+                SubscriptionSection()
+                SyncSettingsSection(container: container)
+                AppearanceSettingsSection(container: container)
+            } header: {
+                Text("General")
+            }
 
             Section {
                 HStack {
@@ -26,6 +33,7 @@ struct MartenIOSSettingsView: View {
                 .listRowBackground(Color.clear)
             }
         }
+        .listStyle(.insetGrouped)
         .navigationTitle("Settings")
         .alert(
             "Sync Error",
