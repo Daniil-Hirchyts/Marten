@@ -123,6 +123,12 @@ struct ItemCardGridView: View {
         if selectionModel.isSelectionMode {
             Color.clear
                 .contentShape(Rectangle())
+                .onTapGesture(coordinateSpace: .named(gridCoordinateSpace)) { location in
+                    if let hitID = sweepState.objectID(at: location),
+                       let hitItem = displayedItems.first(where: { $0.objectID == hitID }) {
+                        selectionModel.toggleSelection(for: hitItem)
+                    }
+                }
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 10, coordinateSpace: .named(gridCoordinateSpace))
                         .onChanged { value in

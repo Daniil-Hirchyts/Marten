@@ -77,7 +77,11 @@ struct ItemCardView: View {
                 refreshImageTaskID()
             }
             .task(id: cachedImageTaskID) {
-                await loadPreviewImages()
+                await loadThumbnailImage()
+            }
+            .task(id: item.linkPreview?.id.uuidString ?? "no-link-preview-\(item.objectID.uriRepresentation().absoluteString)") {
+                // Separate task for link preview images - triggers when linkPreview.id changes
+                await loadLinkPreviewImage()
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(accessibilityLabel(for: pres))
@@ -266,38 +270,42 @@ struct ItemCardView: View {
     }
 
     private var linkPreview: some View {
-        ZStack {
-            if let linkPreviewImage {
-                #if canImport(UIKit)
-                Image(uiImage: linkPreviewImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-                #elseif canImport(AppKit)
-                Image(nsImage: linkPreviewImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-                #endif
-            } else {
-                Rectangle()
-                    .fill(
-                        colorScheme == .dark
-                            ? Color.white.opacity(0.08)
-                            : Color.black.opacity(0.05)
-                    )
+        GeometryReader { geometry in
+            ZStack {
+                if let linkPreviewImage {
+                    #if canImport(UIKit)
+                    Image(uiImage: linkPreviewImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
+                    #elseif canImport(AppKit)
+                    Image(nsImage: linkPreviewImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
+                    #endif
+                } else {
+                    Rectangle()
+                        .fill(
+                            colorScheme == .dark
+                                ? Color.white.opacity(0.08)
+                                : Color.black.opacity(0.05)
+                        )
 
-                Image(systemName: "link")
-                    .font(.system(size: 36, weight: .light))
-                    .foregroundStyle(
-                        colorScheme == .dark
-                            ? Color.white.opacity(0.35)
-                            : Color.black.opacity(0.25)
-                    )
+                    Image(systemName: "link")
+                        .font(.system(size: 36, weight: .light))
+                        .foregroundStyle(
+                            colorScheme == .dark
+                                ? Color.white.opacity(0.35)
+                                : Color.black.opacity(0.25)
+                        )
+                }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
+        .clipped()
     }
 
     private var filePreview: some View {
@@ -449,42 +457,26 @@ struct ItemCardView: View {
     }
 
     private func refreshImageTaskID() {
-        cachedImageTaskID = "\(item.objectID.uriRepresentation().absoluteString)-\(item.modifiedAt.timeIntervalSince1970)"
+        let linkPreviewID = item.linkPreview?.id.uuidString ?? "none"
+        let linkPreviewTimestamp = item.linkPreview?.fetchedAt.timeIntervalSince1970 ?? 0
+        cachedImageTaskID = "\(item.objectID.uriRepresentation().absoluteString)-\(item.modifiedAt.timeIntervalSince1970)-\(linkPreviewID)-\(linkPreviewTimestamp)"
     }
 
-    private func loadPreviewImages() async {
+    private func loadThumbnailImage() async {
         let pres = resolvedPresentation
         if pres.previewKind == .image {
             thumbnailImage = await ImageThumbnailLoader.shared.loadThumbnail(for: item)
         } else {
             thumbnailImage = nil
         }
-
-        if pres.previewKind == .link,
-            let path = item.linkPreview?.imagePath,
-            !path.isEmpty
-        {
-            linkPreviewImage = await loadImageFromDisk(path: path)
+    }
+    
+    private func loadLinkPreviewImage() async {
+        let pres = resolvedPresentation
+        if pres.previewKind == .link, let linkPreview = item.linkPreview {
+            linkPreviewImage = await LinkPreviewImageLoader.shared.loadImage(for: linkPreview)
         } else {
             linkPreviewImage = nil
         }
     }
-
-    #if canImport(UIKit)
-    private func loadImageFromDisk(path: String) async -> UIImage? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                continuation.resume(returning: UIImage(contentsOfFile: path))
-            }
-        }
-    }
-    #elseif canImport(AppKit)
-    private func loadImageFromDisk(path: String) async -> NSImage? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                continuation.resume(returning: NSImage(contentsOfFile: path))
-            }
-        }
-    }
-    #endif
 }

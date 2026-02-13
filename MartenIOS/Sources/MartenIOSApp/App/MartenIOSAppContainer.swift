@@ -19,6 +19,7 @@ public final class MartenIOSAppContainer {
     public var selectedTab: MartenIOSTab = .dashboard
     public var selectedPinboardID: UUID?
     public var pendingWidgetAction: WidgetAction?
+    public var dashboardRefreshRevision: UInt64 = 0
 
     public enum WidgetAction: Equatable {
         case search
@@ -52,6 +53,7 @@ public final class MartenIOSAppContainer {
     private let syncConfigurationProvider: any MartenIOSSyncConfigurationProviding
 
     private var hasStarted = false
+    private var lastSeenShareExtensionSuccessAt: Double
 
     public convenience init(
         persistenceController: PersistenceController = .shared,
@@ -90,6 +92,9 @@ public final class MartenIOSAppContainer {
         self.appleIntelligence = appleIntelligence
 
         MartenIOSDefaults.registerDefaults(userDefaults)
+        self.lastSeenShareExtensionSuccessAt = userDefaults.double(
+            forKey: MartenIOSDefaults.shareExtensionLastSuccessAtKey
+        )
 
         let resolvedStore = clipItemStore ?? ClipItemStore(persistence: persistenceController)
         self.clipItemStore = resolvedStore
@@ -184,6 +189,7 @@ public final class MartenIOSAppContainer {
             await maybeStartSyncIfEnabled()
             ensureSystemPinboardExists()
             await refreshPendingLinkPreviews()
+            refreshDashboardStateFromShareExtensionIfNeeded()
         case .background:
             if let syncCoordinator, syncCoordinator.syncEnabled {
                 syncCoordinator.stopSync()
@@ -390,6 +396,7 @@ public final class MartenIOSAppContainer {
                 objectIDs: objectIDs,
                 toPinboardID: pinboardID
             )
+            invalidateDashboardItems()
         } catch {
             lastOperationErrorMessage = error.localizedDescription
         }
@@ -427,6 +434,8 @@ public final class MartenIOSAppContainer {
                     fromPinboardID: pinboardID
                 )
             }
+
+            invalidateDashboardItems()
         } catch {
             lastOperationErrorMessage = error.localizedDescription
         }
@@ -454,6 +463,7 @@ public final class MartenIOSAppContainer {
                 objectIDs: objectIDs,
                 fromPinboardID: pinboardID
             )
+            invalidateDashboardItems()
         } catch {
             lastOperationErrorMessage = error.localizedDescription
         }
@@ -505,6 +515,8 @@ public final class MartenIOSAppContainer {
         case "create":
             selectedTab = .dashboard
             pendingWidgetAction = .create
+        case "open":
+            selectedTab = .dashboard
         default:
             break
         }
@@ -565,6 +577,26 @@ public final class MartenIOSAppContainer {
         } catch {
             syncErrorMessage = error.localizedDescription
         }
+    }
+
+    private func refreshDashboardStateFromShareExtensionIfNeeded() {
+        let latestShareExtensionSuccessAt = userDefaults.double(
+            forKey: MartenIOSDefaults.shareExtensionLastSuccessAtKey
+        )
+        guard latestShareExtensionSuccessAt > lastSeenShareExtensionSuccessAt else { return }
+
+        lastSeenShareExtensionSuccessAt = latestShareExtensionSuccessAt
+        invalidateDashboardItems()
+
+        let viewContext = persistenceController.viewContext
+        viewContext.performAndWait {
+            viewContext.refreshAllObjects()
+            viewContext.processPendingChanges()
+        }
+    }
+
+    private func invalidateDashboardItems() {
+        dashboardRefreshRevision &+= 1
     }
 
     private func sourceAppInfo() -> SourceAppInfo {

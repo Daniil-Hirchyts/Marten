@@ -98,7 +98,7 @@ struct OverlayShellView: View {
 
     @FetchRequest(
         sortDescriptors: [
-            NSSortDescriptor(key: "displayOrder", ascending: false),
+            NSSortDescriptor(key: "modifiedAt", ascending: false),
             NSSortDescriptor(key: "createdAt", ascending: false),
         ],
         predicate: NSPredicate(format: "isTransient == NO"),

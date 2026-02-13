@@ -1,6 +1,9 @@
 import CoreData
 import Foundation
 import MartenCore
+import os.log
+
+private let logger = Logger(subsystem: "com.hirchyts.marten", category: "LinkPreviewCoordinator")
 
 protocol LinkPreviewFetching: Sendable {
     func fetchPreview(for url: URL) async throws -> LinkPreviewPayload
@@ -21,6 +24,9 @@ public actor LinkPreviewCoordinator {
     private let fetcher: any LinkPreviewFetching
     private let clock: any ClockProviding
     private let maxConcurrentFetches: Int
+
+    /// Prevents overlapping fetch cycles from the multiple trigger points.
+    private var isFetching = false
 
     public init(
         store: ClipItemStore,
@@ -47,7 +53,25 @@ public actor LinkPreviewCoordinator {
     }
 
     public func fetchPending(limit: Int = 25) async {
-        let targets = (try? store.fetchPendingLinkPreviewTargets(limit: limit)) ?? []
+        guard !isFetching else {
+            logger.debug("Skipping fetchPending — already in progress")
+            return
+        }
+
+        isFetching = true
+        defer { isFetching = false }
+
+        let targets: [(objectID: NSManagedObjectID, url: URL)]
+        do {
+            targets = try store.fetchPendingLinkPreviewTargets(limit: limit)
+        } catch {
+            logger.error("Failed to fetch pending targets: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+
+        guard !targets.isEmpty else { return }
+
+        logger.info("Processing \(targets.count) pending link preview targets")
         let mapped = targets.map { PreviewTarget(objectID: $0.objectID, url: $0.url) }
         await processTargets(mapped)
     }
@@ -70,14 +94,20 @@ public actor LinkPreviewCoordinator {
                         do {
                             let preview = try await fetcher.fetchPreview(for: target.url)
                             try store.updateLinkPreview(objectID: target.objectID, payload: preview)
+                            logger.info("Saved preview for \(target.url.absoluteString, privacy: .public)")
                         } catch LinkPreviewError.disabled {
                             return
                         } catch {
-                            try? store.markLinkPreviewFetchFailed(
-                                objectID: target.objectID,
-                                url: target.url,
-                                fetchedAt: clock.now
-                            )
+                            logger.warning("Failed preview for \(target.url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                            do {
+                                try store.markLinkPreviewFetchFailed(
+                                    objectID: target.objectID,
+                                    url: target.url,
+                                    fetchedAt: clock.now
+                                )
+                            } catch {
+                                logger.error("Failed to mark fetch failed: \(error.localizedDescription, privacy: .public)")
+                            }
                         }
                     }
                 }

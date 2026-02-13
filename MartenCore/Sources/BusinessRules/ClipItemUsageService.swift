@@ -16,17 +16,14 @@ final class ClipItemUsageService {
         guard !objectIDs.isEmpty else { return }
 
         let context = persistence.newBackgroundContext()
-        let baseOrder = currentDisplayOrder(reference: now) + Int64(objectIDs.count)
 
         try context.performAndWaitThrowing {
-            for (index, objectID) in objectIDs.enumerated() {
+            for objectID in objectIDs {
                 guard let item = try context.existingObject(with: objectID) as? ClipItem else {
                     continue
                 }
 
-                item.createdAt = now
                 item.modifiedAt = now
-                item.displayOrder = baseOrder - Int64(index)
             }
 
             if context.hasChanges {

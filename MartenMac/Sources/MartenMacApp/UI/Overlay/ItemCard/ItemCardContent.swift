@@ -277,11 +277,13 @@ extension ItemCard {
                     sign: primarySign,
                     size: 30
                 )
-            } else if cached.primaryPinboardColor == nil,
-                let bundleID = item.sourceAppBundleID,
-                !bundleID.isEmpty
-            {
-                AppIconView(bundleID: bundleID, size: 30)
+            } else if cached.primaryPinboardColor == nil {
+                AppIconView(
+                    bundleID: item.sourceAppBundleID,
+                    appName: item.sourceAppName,
+                    iconData: item.sourceAppIconData,
+                    size: 30
+                )
             }
 
             if showPinIndicator, item.isPinned {
@@ -365,7 +367,7 @@ extension ItemCard {
                 .clipped()
                 .layoutPriority(1)
                 .task(id: urlBannerTaskID) {
-                    await fetchURLBannerIfNeeded()
+                    refreshURLBannerImage()
                 }
             } else if item.itemTypeValue == .file {
                 VStack(spacing: isCompactSize ? 2 : 4) {

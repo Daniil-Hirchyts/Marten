@@ -69,6 +69,9 @@ final class AssetManagementService {
             preview.summary = payload.summary
             preview.fetchedAt = payload.fetchedAt
             preview.fetchFailed = false
+            
+            // Save the image URL for future downloads if disk cache is lost
+            preview.imageURL = payload.imageURL
 
             if let imageData = payload.imageData {
                 let assetRef = try assetStore.store(data: imageData, fileExtension: "png")
@@ -155,12 +158,18 @@ final class AssetManagementService {
             preview.url = url.absoluteString
             preview.fetchedAt = fetchedAt
             preview.fetchFailed = true
+            // Clear image fields so a retry can repopulate them
+            preview.imagePath = nil
+            preview.imageURL = nil
             item.needsLinkPreview = false
             try context.save()
         }
 
         try refreshItemInViewContext(objectID)
     }
+
+    /// Retry cooldown: 4 hours. With the OG fallback, most transient failures resolve quickly.
+    private static let retryCooldownSeconds: TimeInterval = 4 * 3600
 
     func fetchPendingLinkPreviewTargets(limit: Int = 25) throws -> [(
         objectID: NSManagedObjectID,
@@ -171,8 +180,18 @@ final class AssetManagementService {
 
         try context.performAndWaitThrowing {
             let request = ClipItem.fetchRequest()
+
+            let cooldownDate = Date(timeIntervalSinceNow: -Self.retryCooldownSeconds)
+
             request.predicate = NSPredicate(
-                format: "needsLinkPreview == YES AND linkPreview == nil"
+                format: """
+                    itemType == %d AND (
+                        linkPreview == nil OR 
+                        (linkPreview.fetchFailed == YES AND linkPreview.fetchedAt < %@)
+                    )
+                    """,
+                ItemType.url.rawValue,
+                cooldownDate as NSDate
             )
             request.sortDescriptors = [
                 NSSortDescriptor(key: "createdAt", ascending: false)
@@ -180,9 +199,9 @@ final class AssetManagementService {
             request.fetchLimit = limit
 
             let items = try context.fetch(request)
+
             for item in items {
                 guard
-                    item.itemTypeValue == .url,
                     let text = item.primaryText,
                     let url = URL(string: text)
                 else {

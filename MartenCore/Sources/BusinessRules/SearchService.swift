@@ -57,7 +57,7 @@ final class SearchService {
 
             fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
             fetchRequest.sortDescriptors = [
-                NSSortDescriptor(key: "displayOrder", ascending: false),
+                NSSortDescriptor(key: "modifiedAt", ascending: false),
                 NSSortDescriptor(key: "createdAt", ascending: false),
             ]
             fetchRequest.fetchLimit = fetchLimit

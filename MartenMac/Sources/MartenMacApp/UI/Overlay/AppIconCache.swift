@@ -64,33 +64,96 @@ final class AppIconCache {
     }
 }
 
+enum SourceAppIdentityResolver {
+    static let martenBundleID = "com.hirchyts.marten"
+
+    static func normalized(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value.lowercased()
+    }
+
+    static func isMartenAppName(_ appName: String?) -> Bool {
+        guard let normalized = normalized(appName) else { return false }
+        return normalized == "marten" || normalized.contains("marten")
+    }
+
+    static func resolvedBundleID(bundleID: String?, appName: String?) -> String? {
+        if let normalizedBundleID = normalized(bundleID) {
+            return normalizedBundleID
+        }
+        if isMartenAppName(appName) {
+            return martenBundleID
+        }
+        return nil
+    }
+
+    static func isMartenSource(bundleID: String?, appName: String?) -> Bool {
+        if let resolvedBundleID = resolvedBundleID(bundleID: bundleID, appName: appName) {
+            return resolvedBundleID.isMartenBundleIdentifier
+        }
+        return isMartenAppName(appName)
+    }
+}
+
 final class AppIconLoader: ObservableObject {
     @Published private(set) var icon: NSImage?
 
     private var loadTask: Task<Void, Never>?
 
-    func load(bundleID: String?) {
+    func load(bundleID: String?, appName: String? = nil, iconData: Data? = nil) {
         loadTask?.cancel()
         icon = nil
 
-        guard let bundleID, !bundleID.isEmpty else { return }
-        if let cached = AppIconCache.shared.cachedIcon(bundleID: bundleID) {
+        if let iconData,
+           !iconData.isEmpty,
+           let embeddedIcon = NSImage(data: iconData) {
+            if let resolvedBundleID = SourceAppIdentityResolver.resolvedBundleID(
+                bundleID: bundleID,
+                appName: appName
+            ) {
+                AppIconCache.shared.setIcon(embeddedIcon, bundleID: resolvedBundleID)
+            }
+            icon = embeddedIcon
+            return
+        }
+
+        guard let resolvedBundleID = SourceAppIdentityResolver.resolvedBundleID(
+            bundleID: bundleID,
+            appName: appName
+        ) else {
+            return
+        }
+
+        if resolvedBundleID.isMartenBundleIdentifier {
+            let martenIcon = NSApplication.shared.applicationIconImage
+                ?? NSImage(named: NSImage.applicationIconName)
+            if let martenIcon {
+                AppIconCache.shared.setIcon(martenIcon, bundleID: resolvedBundleID)
+                icon = martenIcon
+                return
+            }
+        }
+
+        if let cached = AppIconCache.shared.cachedIcon(bundleID: resolvedBundleID) {
             icon = cached
             return
         }
-        if AppIconCache.shared.hasMissing(bundleID: bundleID) {
+        if AppIconCache.shared.hasMissing(bundleID: resolvedBundleID) {
             return
         }
 
         loadTask = Task.detached { [weak self] in
             guard let self else { return }
-            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: resolvedBundleID)
             else {
-                AppIconCache.shared.setMissing(bundleID: bundleID)
+                AppIconCache.shared.setMissing(bundleID: resolvedBundleID)
                 return
             }
             let loaded = NSWorkspace.shared.icon(forFile: url.path)
-            AppIconCache.shared.setIcon(loaded, bundleID: bundleID)
+            AppIconCache.shared.setIcon(loaded, bundleID: resolvedBundleID)
             await MainActor.run {
                 self.icon = loaded
             }
@@ -103,46 +166,52 @@ final class AppIconColorLoader: ObservableObject {
 
     private var loadTask: Task<Void, Never>?
 
-    func load(bundleID: String?) {
+    func load(bundleID: String?, appName: String? = nil) {
         loadTask?.cancel()
         color = nil
 
-        guard let bundleID, !bundleID.isEmpty else { return }
-        if let preferredColor = AppIconCache.preferredColor(for: bundleID) {
-            AppIconCache.shared.setColor(preferredColor, bundleID: bundleID)
+        guard let resolvedBundleID = SourceAppIdentityResolver.resolvedBundleID(
+            bundleID: bundleID,
+            appName: appName
+        ) else {
+            return
+        }
+
+        if let preferredColor = AppIconCache.preferredColor(for: resolvedBundleID) {
+            AppIconCache.shared.setColor(preferredColor, bundleID: resolvedBundleID)
             color = preferredColor
             return
         }
-        if let cached = AppIconCache.shared.cachedColor(bundleID: bundleID) {
+        if let cached = AppIconCache.shared.cachedColor(bundleID: resolvedBundleID) {
             color = cached
             return
         }
-        if AppIconCache.shared.hasMissingColor(bundleID: bundleID) {
+        if AppIconCache.shared.hasMissingColor(bundleID: resolvedBundleID) {
             return
         }
 
         loadTask = Task.detached { [weak self] in
             guard let self else { return }
             let icon: NSImage
-            if let cachedIcon = AppIconCache.shared.cachedIcon(bundleID: bundleID) {
+            if let cachedIcon = AppIconCache.shared.cachedIcon(bundleID: resolvedBundleID) {
                 icon = cachedIcon
             } else {
-                guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+                guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: resolvedBundleID)
                 else {
-                    AppIconCache.shared.setMissingColor(bundleID: bundleID)
+                    AppIconCache.shared.setMissingColor(bundleID: resolvedBundleID)
                     return
                 }
                 let loaded = NSWorkspace.shared.icon(forFile: url.path)
-                AppIconCache.shared.setIcon(loaded, bundleID: bundleID)
+                AppIconCache.shared.setIcon(loaded, bundleID: resolvedBundleID)
                 icon = loaded
             }
 
             guard let average = icon.averageColor() else {
-                AppIconCache.shared.setMissingColor(bundleID: bundleID)
+                AppIconCache.shared.setMissingColor(bundleID: resolvedBundleID)
                 return
             }
             let boosted = average.boostedForHeader() ?? average
-            AppIconCache.shared.setColor(boosted, bundleID: bundleID)
+            AppIconCache.shared.setColor(boosted, bundleID: resolvedBundleID)
             await MainActor.run {
                 self.color = boosted
             }
@@ -152,12 +221,16 @@ final class AppIconColorLoader: ObservableObject {
 
 struct AppIconView: View {
     let bundleID: String?
+    let appName: String?
+    let iconData: Data?
     let size: CGFloat
 
     @StateObject private var loader = AppIconLoader()
 
-    init(bundleID: String?, size: CGFloat = 16) {
+    init(bundleID: String?, appName: String? = nil, iconData: Data? = nil, size: CGFloat = 16) {
         self.bundleID = bundleID
+        self.appName = appName
+        self.iconData = iconData
         self.size = size
     }
 
@@ -167,6 +240,15 @@ struct AppIconView: View {
                 Image(nsImage: icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
+            } else if SourceAppIdentityResolver.isMartenSource(bundleID: bundleID, appName: appName) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                        .fill(Color(hex: AppIconCache.martenCardAccentHex, fallback: .red))
+
+                    Image(systemName: "sparkles")
+                        .font(.system(size: max(10, size - 5), weight: .semibold))
+                        .foregroundStyle(.white)
+                }
             } else {
                 Image(systemName: "app")
                     .font(.system(size: max(10, size - 4), weight: .semibold))
@@ -175,11 +257,25 @@ struct AppIconView: View {
         }
         .frame(width: size, height: size)
         .onAppear {
-            loader.load(bundleID: bundleID)
+            loader.load(bundleID: bundleID, appName: appName, iconData: iconData)
         }
-        .onChange(of: bundleID) { newValue, _ in
-            loader.load(bundleID: newValue)
+        .onChange(of: sourceIdentitySignature) { _, _ in
+            loader.load(bundleID: bundleID, appName: appName, iconData: iconData)
         }
+    }
+
+    private var sourceIdentitySignature: SourceIdentitySignature {
+        SourceIdentitySignature(
+            bundleID: bundleID ?? "",
+            appName: appName ?? "",
+            iconByteCount: iconData?.count ?? 0
+        )
+    }
+
+    private struct SourceIdentitySignature: Equatable {
+        let bundleID: String
+        let appName: String
+        let iconByteCount: Int
     }
 }
 
@@ -266,7 +362,7 @@ extension NSColor {
     }
 }
 
-private extension String {
+extension String {
     var isMartenBundleIdentifier: Bool {
         let normalized = lowercased()
         return normalized == "com.hirchyts.marten" || normalized.hasPrefix("com.hirchyts.marten.")

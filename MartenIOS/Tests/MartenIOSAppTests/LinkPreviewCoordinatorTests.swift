@@ -34,7 +34,7 @@ final class LinkPreviewCoordinatorTests: XCTestCase {
                     siteName: "example.com",
                     summary: nil,
                     imageData: nil,
-                    iconData: nil,
+                    imageURL: nil,
                     fetchedAt: Date()
                 )
             )

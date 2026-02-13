@@ -9,12 +9,12 @@ struct IntegrationsSettingsSection: View {
     var body: some View {
         Section {
             integrationRow(
-                title: "Share Extension",
+                title: "Share & Action Extensions",
                 icon: "square.and.arrow.up",
                 isEnabled: statusModel.shareExtensionRecentlyUsed,
                 help: statusModel.shareExtensionRecentlyUsed
                     ? "Used recently"
-                    : "Enable in the iOS Share Sheet"
+                    : "Enable in the iOS Share Sheet > More > Actions"
             )
 
             integrationRow(

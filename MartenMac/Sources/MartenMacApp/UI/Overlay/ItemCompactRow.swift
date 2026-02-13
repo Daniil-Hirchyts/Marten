@@ -91,10 +91,10 @@ struct ItemCompactRow: View {
             handleTap()
         }
         .onAppear {
-            appColorLoader.load(bundleID: item.sourceAppBundleID)
+            appColorLoader.load(bundleID: item.sourceAppBundleID, appName: item.sourceAppName)
         }
-        .onChange(of: item.sourceAppBundleID) { newValue, _ in
-            appColorLoader.load(bundleID: newValue)
+        .onChange(of: sourceIdentitySignature) { _, _ in
+            appColorLoader.load(bundleID: item.sourceAppBundleID, appName: item.sourceAppName)
         }
         .popover(isPresented: isPreviewPresented, arrowEdge: .trailing) {
             OverlayItemPreview(
@@ -219,7 +219,12 @@ struct ItemCompactRow: View {
                     pinboardSignView(signKind)
                 }
             } else {
-                AppIconView(bundleID: item.sourceAppBundleID, size: 19)
+                AppIconView(
+                    bundleID: item.sourceAppBundleID,
+                    appName: item.sourceAppName,
+                    iconData: item.sourceAppIconData,
+                    size: 19
+                )
             }
         }
         .frame(width: sideBarWidth, alignment: .center)
@@ -372,6 +377,18 @@ struct ItemCompactRow: View {
             return bundleID
         }
         return nil
+    }
+
+    private var sourceIdentitySignature: SourceIdentitySignature {
+        SourceIdentitySignature(
+            bundleID: item.sourceAppBundleID ?? "",
+            appName: item.sourceAppName ?? ""
+        )
+    }
+
+    private struct SourceIdentitySignature: Equatable {
+        let bundleID: String
+        let appName: String
     }
 
     private var timeAgoShort: String {

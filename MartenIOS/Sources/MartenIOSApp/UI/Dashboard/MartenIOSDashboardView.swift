@@ -20,6 +20,8 @@ struct MartenIOSDashboardView: View {
     @State private var searchModel: DashboardSearchModel?
     @State private var toastController = ToastController()
 
+    @State private var searchFocusRequest = false
+
     @State private var isShowingPinboardManagement = false
     @State private var isShowingPinboardCreation = false
     @State private var isShowingPinboardPicker = false
@@ -85,6 +87,7 @@ struct MartenIOSDashboardView: View {
                             }
                         }
                     )
+                    .id(dashboardItemsSectionID)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -409,8 +412,37 @@ struct MartenIOSDashboardView: View {
         .onChange(of: allItemsSignature) {
             searchModel?.updateOptions(from: visibleAllItemsForSearchOptions)
         }
+        .onAppear {
+            if let action = container.pendingWidgetAction {
+                Task { @MainActor in
+                    await performWidgetAction(action)
+                }
+            }
+        }
+        .onChange(of: container.pendingWidgetAction) { _, newValue in
+            guard let action = newValue else { return }
+            Task { @MainActor in
+                await performWidgetAction(action)
+            }
+        }
         .onDisappear {
             searchModel?.stopVoiceDictation()
+        }
+    }
+
+    private func performWidgetAction(_ action: MartenIOSAppContainer.WidgetAction) async {
+        container.pendingWidgetAction = nil
+
+        switch action {
+        case .search:
+            searchFocusRequest = true
+        case .paste:
+            await container.createItemFromClipboard()
+            if container.lastOperationErrorMessage == nil {
+                toastController.show("Saved from clipboard", systemImage: "doc.on.clipboard")
+            }
+        case .create:
+            isShowingQuickAdd = true
         }
     }
 
@@ -654,7 +686,8 @@ struct MartenIOSDashboardView: View {
                 prompt: "Search clips…",
                 onClear: { searchModel?.clearSearchText() },
                 onVoice: { searchModel?.toggleVoiceDictation() },
-                isVoiceRecording: searchModel?.isVoiceRecording ?? false
+                isVoiceRecording: searchModel?.isVoiceRecording ?? false,
+                focusRequest: $searchFocusRequest
             )
 
             // New Element button
@@ -786,6 +819,11 @@ struct MartenIOSDashboardView: View {
     }
 
     // MARK: - Helpers
+
+    private var dashboardItemsSectionID: String {
+        let selectedPinboardComponent = container.selectedPinboardID?.uuidString ?? "all"
+        return "items-\(selectedPinboardComponent)-\(container.dashboardRefreshRevision)"
+    }
 
     private var pinboardSignature: String {
         customPinboards
@@ -1392,7 +1430,7 @@ struct PinboardPickerSheet: View {
                             } label: {
                                 MartenSwipeActionIcon(systemName: "trash", backgroundColor: .red)
                             }
-                            .tint(.red )
+                            .tint(.red)
                             .accessibilityLabel("Delete")
                         }
                         .swipeActions(edge: .leading, allowsFullSwipe: false) {

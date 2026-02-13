@@ -22,7 +22,7 @@ public enum MartenIOSDefaults {
             lockHookPinboardIDsKey: [String](),
             selectedPinboardIDKey: "",
             showClipboardHistoryLabelKey: true,
-            generateLinkPreviewsKey: false,
+            generateLinkPreviewsKey: true, // Changed to true by default
             ignoreConfidentialContentKey: true,
             ignoreTransientContentKey: true,
             keyboardLastSeenAtKey: 0.0,

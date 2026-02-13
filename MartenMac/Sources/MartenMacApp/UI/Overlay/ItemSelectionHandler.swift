@@ -35,6 +35,17 @@ struct ItemSelectionHandler {
             return nextSelection
         }
 
+        // Multi-select mode: toggle tapped item in/out of selection
+        if currentSelection.count > 1 {
+            var next = currentSelection
+            if next.contains(tappedItem.objectID) {
+                next.remove(tappedItem.objectID)
+            } else {
+                next.insert(tappedItem.objectID)
+            }
+            return next
+        }
+
         if currentSelection.count == 1 && currentSelection.contains(tappedItem.objectID) {
             return []
         }

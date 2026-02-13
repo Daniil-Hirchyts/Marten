@@ -96,7 +96,7 @@ struct ItemCard: View {
                 }
                 .onAppear {
                     cachedProps = CachedItemProperties(item: item)
-                    appColorLoader.load(bundleID: item.sourceAppBundleID)
+                    appColorLoader.load(bundleID: item.sourceAppBundleID, appName: item.sourceAppName)
                     lastKnownModifiedAt = item.modifiedAt
                     refreshPreviewAssets()
                     refreshStyledPreviewText()
@@ -112,8 +112,12 @@ struct ItemCard: View {
                     cachedProps = CachedItemProperties(item: item)
                     lastKnownModifiedAt = newValue.modifiedAt
 
-                    if oldValue.sourceAppBundleID != newValue.sourceAppBundleID {
-                        appColorLoader.load(bundleID: newValue.sourceAppBundleID)
+                    if oldValue.sourceAppBundleID != newValue.sourceAppBundleID
+                        || oldValue.sourceAppName != newValue.sourceAppName {
+                        appColorLoader.load(
+                            bundleID: newValue.sourceAppBundleID,
+                            appName: newValue.sourceAppName
+                        )
                     }
 
                     if oldValue.primaryText != newValue.primaryText {
@@ -191,6 +195,7 @@ private struct ContentSignature: Equatable {
     let customTitle: String?
     let linkPreviewImagePath: String?
     let sourceAppBundleID: String?
+    let sourceAppName: String?
     let modifiedAt: Date
     let itemType: ItemType
     let pinboardAssignmentSignature: Int
@@ -201,6 +206,7 @@ private struct ContentSignature: Equatable {
         customTitle = item.customTitle
         linkPreviewImagePath = item.linkPreview?.imagePath
         sourceAppBundleID = item.sourceAppBundleID
+        sourceAppName = item.sourceAppName
         modifiedAt = item.modifiedAt
         itemType = item.itemTypeValue
 

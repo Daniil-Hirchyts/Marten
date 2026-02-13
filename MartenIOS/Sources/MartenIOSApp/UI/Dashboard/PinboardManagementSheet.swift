@@ -147,12 +147,6 @@ struct PinboardManagementSheet: View {
                 Text(pinboard.name)
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
-
-                if pinboard.isShared {
-                    Label("Shared", systemImage: "person.2")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
             }
 
             Spacer()
@@ -161,6 +155,12 @@ struct PinboardManagementSheet: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.tertiary)
                 .monospacedDigit()
+
+            if pinboard.isShared {
+                Image(systemName: "person.2.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             if isLocked {
                 Image(systemName: canAccess ? "lock.open.fill" : "lock.fill")

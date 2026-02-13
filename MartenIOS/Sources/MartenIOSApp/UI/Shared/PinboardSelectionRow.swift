@@ -34,6 +34,12 @@ struct PinboardSelectionRow: View {
                         .foregroundStyle(Color.accentColor)
                 }
 
+                if showsSharedBadge {
+                    Image(systemName: "person.2.fill")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+
                 if let lockState, lockState.isLocked {
                     Image(systemName: lockState.canAccess ? "lock.open.fill" : "lock.fill")
                         .font(.caption)
@@ -77,16 +83,6 @@ struct PinboardSelectionRow: View {
                     .font(.body.weight(.medium))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-
-                if showsSharedBadge {
-                    HStack(spacing: 4) {
-                        Image(systemName: "person.2.fill")
-                            .font(.caption2)
-                        Text("Shared")
-                            .font(.caption2.weight(.medium))
-                    }
-                    .foregroundStyle(.secondary)
-                }
             }
         }
     }

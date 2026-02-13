@@ -178,12 +178,9 @@ struct OverlayActionHandlers {
 
     func sortItems(_ items: [ClipItem], selectedPinboardID: UUID?, allowPinning: Bool) -> [ClipItem] {
         guard selectedPinboardID != nil else {
-            // In "All" view, sort by displayOrder (most recently used first)
+            // In "All" view, sort by modifiedAt (most recently used first)
             return items.sorted { lhs, rhs in
-                if lhs.displayOrder != rhs.displayOrder {
-                    return lhs.displayOrder > rhs.displayOrder
-                }
-                return lhs.createdAt > rhs.createdAt
+                return lhs.modifiedAt > rhs.modifiedAt
             }
         }
 

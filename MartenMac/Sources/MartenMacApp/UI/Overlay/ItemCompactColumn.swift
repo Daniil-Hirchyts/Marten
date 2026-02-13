@@ -110,7 +110,37 @@ struct ItemCompactColumn: View {
                             onEdit: onEdit,
                             onRename: onRename,
                             onCommitRename: onCommitRename,
-                            onTap: onTap,
+                            onTap: { tappedItem in
+                                // During drag, toggle tapped item in/out of the drag group
+                                if let state = dragState {
+                                    let tappedID = tappedItem.objectID
+                                    if tappedID != state.primaryItemID {
+                                        if let idx = state.itemIDs.firstIndex(of: tappedID) {
+                                            var ids = state.itemIDs
+                                            ids.remove(at: idx)
+                                            dragState = DragState(
+                                                itemIDs: ids,
+                                                primaryItemID: state.primaryItemID,
+                                                pointerLocation: state.pointerLocation,
+                                                baseCenter: state.baseCenter,
+                                                translation: state.translation
+                                            )
+                                        } else {
+                                            var ids = state.itemIDs
+                                            ids.append(tappedID)
+                                            dragState = DragState(
+                                                itemIDs: ids,
+                                                primaryItemID: state.primaryItemID,
+                                                pointerLocation: state.pointerLocation,
+                                                baseCenter: state.baseCenter,
+                                                translation: state.translation
+                                            )
+                                        }
+                                        updateDragPreview(useCallback: true)
+                                    }
+                                }
+                                onTap(tappedItem)
+                            },
                             onDoubleTap: onDoubleTap,
                             previewItemID: $previewItemID,
                             isPreviewPopoverPresented: $isPreviewPopoverPresented

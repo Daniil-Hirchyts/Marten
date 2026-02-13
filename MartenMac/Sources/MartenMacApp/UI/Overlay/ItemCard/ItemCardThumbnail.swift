@@ -1,7 +1,6 @@
 import AppKit
 import MartenCore
 import ImageIO
-import LinkPresentation
 import SwiftUI
 
 extension ItemCard {
@@ -120,27 +119,67 @@ extension ItemCard {
             return
         }
 
-        guard
-            let path = item.linkPreview?.imagePath?.trimmingCharacters(in: .whitespacesAndNewlines),
-            !path.isEmpty
-        else {
+        guard let linkPreview = item.linkPreview else {
             lastLoadedURLBannerPath = nil
             return
         }
 
-        if lastLoadedURLBannerPath == path {
+        let currentPath = linkPreview.imagePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let currentURL = linkPreview.imageURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Check if we've already loaded this exact preview
+        let cacheKey = "\(currentPath ?? "")|\(currentURL ?? "")"
+        if lastLoadedURLBannerPath == cacheKey {
             return
         }
-        lastLoadedURLBannerPath = path
+        lastLoadedURLBannerPath = cacheKey
 
-        DispatchQueue.global(qos: .userInitiated).async {
-            let image = NSImage(contentsOfFile: path)
-            DispatchQueue.main.async {
-                if let image {
-                    urlBannerImage = image
+        Task {
+            // Try loading from disk first
+            if let path = currentPath, !path.isEmpty {
+                let image = await loadURLBannerFromDisk(path: path)
+                await MainActor.run {
+                    if let image {
+                        urlBannerImage = image
+                    }
+                }
+                if urlBannerImage != nil {
+                    return
+                }
+            }
+            
+            // Fall back to downloading from URL
+            if let urlString = currentURL, !urlString.isEmpty, let url = URL(string: urlString) {
+                let image = await downloadURLBanner(from: url)
+                await MainActor.run {
+                    if let image {
+                        urlBannerImage = image
+                    }
                 }
             }
         }
+    }
+    
+    private func loadURLBannerFromDisk(path: String) async -> NSImage? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                continuation.resume(returning: NSImage(contentsOfFile: path))
+            }
+        }
+    }
+    
+    private func downloadURLBanner(from url: URL) async -> NSImage? {
+        var request = URLRequest(url: url)
+        request.cachePolicy = .returnCacheDataElseLoad
+        request.timeoutInterval = 10
+        
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            return nil
+        }
+        
+        return NSImage(data: data)
     }
 
     func resetURLBannerState() {
@@ -155,68 +194,9 @@ extension ItemCard {
             ?? (item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
         let bannerPath =
             item.linkPreview?.imagePath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return "\(url)|\(bannerPath)"
-    }
-
-    func fetchURLBannerIfNeeded() async {
-        guard item.itemTypeValue == .url else { return }
-
-        guard let url = normalizedPrimaryURL, let scheme = url.scheme?.lowercased(),
-            scheme == "http" || scheme == "https"
-        else {
-            return
-        }
-        let urlString = url.absoluteString
-
-        if urlBannerImage != nil {
-            lastFetchedURLBannerURLString = urlString
-            return
-        }
-
-        if lastFetchedURLBannerURLString == urlString {
-            return
-        }
-
-        let provider = LPMetadataProvider()
-        let metadata: LPLinkMetadata
-        do {
-            metadata = try await provider.startFetchingMetadata(for: url)
-        } catch {
-            return
-        }
-
-        let itemProvider = metadata.imageProvider ?? metadata.iconProvider
-        guard let itemProvider else { return }
-
-        let image: NSImage?
-        do {
-            image = try await loadNSImage(from: itemProvider)
-        } catch {
-            return
-        }
-
-        guard let image else { return }
-        await MainActor.run {
-            if urlBannerImage == nil {
-                urlBannerImage = image
-            }
-        }
-    }
-
-    func loadNSImage(from provider: NSItemProvider) async throws -> NSImage {
-        try await withCheckedThrowingContinuation { continuation in
-            provider.loadObject(ofClass: NSImage.self) { object, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
-                guard let image = object as? NSImage else {
-                    continuation.resume(throwing: NSError(domain: "URLBannerPreview", code: 1))
-                    return
-                }
-                continuation.resume(returning: image)
-            }
-        }
+        let bannerURL =
+            item.linkPreview?.imageURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return "\(url)|\(bannerPath)|\(bannerURL)"
     }
 
     func refreshImageResolution() {

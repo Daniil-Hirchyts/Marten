@@ -28,7 +28,7 @@ final class LinkPreviewStoreTests: XCTestCase {
             siteName: "example.com",
             summary: nil,
             imageData: Data([0x00, 0x01, 0x02]),
-            iconData: nil,
+            imageURL: nil,
             fetchedAt: Date(timeIntervalSince1970: 123)
         )
 
@@ -133,7 +133,7 @@ final class LinkPreviewStoreTests: XCTestCase {
             siteName: "example.com",
             summary: nil,
             imageData: Data([0x10, 0x11]),
-            iconData: nil,
+            imageURL: nil,
             fetchedAt: Date()
         )
         try store.updateLinkPreview(objectID: item.objectID, payload: preview)

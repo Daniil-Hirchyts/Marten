@@ -176,6 +176,89 @@ final class MartenIOSAppContainerTests: XCTestCase {
         XCTAssertNil(container.syncErrorMessage)
     }
 
+    func testHandleScenePhaseActive_incrementsDashboardRevision_whenShareExtensionTimestampChanges()
+        async
+    {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+
+        let container = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider()
+        )
+
+        let baselineRevision = container.dashboardRefreshRevision
+        userDefaults.set(100, forKey: MartenIOSDefaults.shareExtensionLastSuccessAtKey)
+
+        await container.handleScenePhase(.active)
+
+        XCTAssertEqual(container.dashboardRefreshRevision, baselineRevision + 1)
+    }
+
+    func testHandleScenePhaseActive_doesNotIncrementDashboardRevision_whenTimestampUnchanged()
+        async
+    {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+
+        userDefaults.set(100, forKey: MartenIOSDefaults.shareExtensionLastSuccessAtKey)
+        let container = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider()
+        )
+
+        let baselineRevision = container.dashboardRefreshRevision
+
+        await container.handleScenePhase(.active)
+
+        XCTAssertEqual(container.dashboardRefreshRevision, baselineRevision)
+    }
+
+    func testMoveItems_incrementsDashboardRevision_onSuccess() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let targetPinboard = try store.createPinboard(name: "Target", colorHex: "#0055FF")
+        let item = try store.createTextItem(text: "Move me")
+
+        let container = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider()
+        )
+
+        let baselineRevision = container.dashboardRefreshRevision
+
+        await container.moveItems([item.objectID], toPinboardID: targetPinboard.objectID)
+
+        XCTAssertEqual(container.dashboardRefreshRevision, baselineRevision + 1)
+    }
+
+    func testRemoveItems_incrementsDashboardRevision_onSuccess() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let pinboard = try store.createPinboard(name: "Work", colorHex: "#112233")
+        let item = try store.createTextItem(text: "Remove me")
+        try store.addItem(objectID: item.objectID, toPinboard: pinboard.objectID)
+
+        let container = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider()
+        )
+
+        let baselineRevision = container.dashboardRefreshRevision
+
+        await container.removeItems([item.objectID], fromPinboardID: pinboard.objectID)
+
+        XCTAssertEqual(container.dashboardRefreshRevision, baselineRevision + 1)
+    }
+
     func testStartDeduplicatesSystemPinboards() async throws {
         let persistence = PersistenceController(inMemory: true)
         let store = ClipItemStore(persistence: persistence)

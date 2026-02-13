@@ -59,15 +59,19 @@ extension OverlayShellView {
 
     func handleCardTap(_ item: ClipItem) {
         closeSearchIfEmpty()
+        // During an active drag, force toggle behavior so clicking adds/removes from the drag group
+        let forceToggle = dragCoordinator.dragPreviewData != nil
         viewModel.selectItem(
             item,
             in: filteredItems,
             isShiftPressed: modifierMonitor.isShiftPressed,
-            isCommandPressed: modifierMonitor.isCommandPressed
+            isCommandPressed: forceToggle || modifierMonitor.isCommandPressed
         )
     }
 
     func handleCardDoubleTap(_ item: ClipItem) {
+        // Prevent paste during an active drag
+        guard dragCoordinator.dragPreviewData == nil else { return }
         closeSearchIfEmpty()
         viewModel.paste(item: item, plainText: modifierMonitor.isShiftPressed)
     }

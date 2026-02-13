@@ -254,6 +254,10 @@ struct MartenGlassSearchBar: View {
     var onFilters: (() -> Void)?
     var hasActiveFilters: Bool = false
 
+    var focusRequest: Binding<Bool>?
+
+    @FocusState private var isTextFieldFocused: Bool
+
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
@@ -264,8 +268,10 @@ struct MartenGlassSearchBar: View {
                 TextField(prompt, text: $text)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
+                    .focused($isTextFieldFocused)
             #else
                 TextField(prompt, text: $text)
+                    .focused($isTextFieldFocused)
             #endif
 
             // Clear button - only shown when there's text
@@ -311,6 +317,13 @@ struct MartenGlassSearchBar: View {
                 .contentShape(RoundedRectangle(cornerRadius: 100))
         )
         .glassSearchBackground()
+        .onChange(of: focusRequest?.wrappedValue ?? false) { _, newValue in
+            guard newValue else { return }
+            isTextFieldFocused = true
+            DispatchQueue.main.async {
+                focusRequest?.wrappedValue = false
+            }
+        }
     }
 }
 

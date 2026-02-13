@@ -386,7 +386,12 @@ struct ItemCompactRowDragPreview: View {
                     }
                 }
             } else {
-                AppIconView(bundleID: item.sourceAppBundleID, size: 19)
+                AppIconView(
+                    bundleID: item.sourceAppBundleID,
+                    appName: item.sourceAppName,
+                    iconData: item.sourceAppIconData,
+                    size: 19
+                )
             }
         }
         .frame(width: sideBarWidth, alignment: .center)
@@ -443,7 +448,10 @@ struct ItemCompactRowDragPreview: View {
         if let pinboard = primaryAssignedPinboard {
             return Color(hex: pinboard.colorHex, fallback: .gray)
         }
-        if let bundleID = item.sourceAppBundleID,
+        if let bundleID = SourceAppIdentityResolver.resolvedBundleID(
+            bundleID: item.sourceAppBundleID,
+            appName: item.sourceAppName
+        ),
            let appColor = AppIconCache.shared.cachedColor(bundleID: bundleID) {
             return Color(nsColor: appColor).opacity(0.96)
         }
@@ -472,7 +480,10 @@ struct ItemCompactRowDragPreview: View {
         if let pinboard = primaryAssignedPinboard {
             return NSColor(hex: pinboard.colorHex)
         }
-        if let bundleID = item.sourceAppBundleID,
+        if let bundleID = SourceAppIdentityResolver.resolvedBundleID(
+            bundleID: item.sourceAppBundleID,
+            appName: item.sourceAppName
+        ),
            let appColor = AppIconCache.shared.cachedColor(bundleID: bundleID) {
             return appColor
         }
