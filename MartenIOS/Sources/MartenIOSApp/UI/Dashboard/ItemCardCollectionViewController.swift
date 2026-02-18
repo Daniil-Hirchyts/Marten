@@ -12,6 +12,11 @@ final class ItemCardCollectionViewController: UIViewController {
         case main
     }
 
+    private enum PanSelectionAction {
+        case select
+        case deselect
+    }
+
     private let selectionModel: DashboardSelectionModel
     private let onTapItem: (ClipItem) -> Void
     private let onCopyItem: (ClipItem) -> Void
@@ -30,6 +35,19 @@ final class ItemCardCollectionViewController: UIViewController {
     private var lastLayoutColumnCount: Int = 0
     private var isReorderingInProgress = false
     private var lastSnapshotIDs: [NSManagedObjectID] = []
+
+    private lazy var selectionPanGesture: UIPanGestureRecognizer = {
+        let recognizer = UIPanGestureRecognizer(target: self, action: #selector(handleSelectionPan(_:)))
+        recognizer.minimumNumberOfTouches = 1
+        recognizer.maximumNumberOfTouches = 1
+        recognizer.cancelsTouchesInView = true
+        recognizer.delegate = self
+        return recognizer
+    }()
+
+    private var panSelectionAction: PanSelectionAction?
+    private var panVisitedObjectIDs: Set<NSManagedObjectID> = []
+    private var wasScrollEnabledBeforePan = true
 
     private lazy var flowLayout: UICollectionViewFlowLayout = {
         let layout = UICollectionViewFlowLayout()
@@ -69,6 +87,8 @@ final class ItemCardCollectionViewController: UIViewController {
                     isSelected: self.selectedObjectIDs.contains(item.objectID),
                     handlesTapGesture: false,
                     handlesPressGesture: false,
+                    showsContextMenu: false,
+                    showsSelectionFeedback: false,
                     onTap: {},
                     onCopy: { self.onCopyItem(item) },
                     onCopyPlainText: { self.onCopyPlainTextItem(item) },
@@ -77,7 +97,7 @@ final class ItemCardCollectionViewController: UIViewController {
                     onMove: { self.onMoveItem(item) },
                     onDelete: { self.onDeleteItem(item) }
                 )
-                .allowsHitTesting(!self.isSelectionMode)
+                .allowsHitTesting(false)
             }
             .margins(.all, 0)
         }
@@ -118,6 +138,12 @@ final class ItemCardCollectionViewController: UIViewController {
 
     override func loadView() {
         view = collectionView
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        collectionView.addGestureRecognizer(selectionPanGesture)
+        collectionView.panGestureRecognizer.require(toFail: selectionPanGesture)
     }
 
     override func viewDidLayoutSubviews() {
@@ -170,6 +196,8 @@ final class ItemCardCollectionViewController: UIViewController {
 
         synchronizeSelectionToCollectionView()
         updateLayoutIfNeeded()
+
+        selectionPanGesture.isEnabled = isSelectionMode
     }
 
     private func applySnapshot(animated: Bool) {
@@ -234,11 +262,83 @@ final class ItemCardCollectionViewController: UIViewController {
         flowLayout.itemSize = CGSize(width: itemWidth, height: itemWidth)
         flowLayout.invalidateLayout()
     }
+
+    @objc
+    private func handleSelectionPan(_ recognizer: UIPanGestureRecognizer) {
+        guard isSelectionMode else { return }
+        guard !collectionView.hasActiveDrag else { return }
+
+        let location = recognizer.location(in: collectionView)
+
+        switch recognizer.state {
+        case .began:
+            guard let indexPath = collectionView.indexPathForItem(at: location),
+                  let objectID = dataSource.itemIdentifier(for: indexPath) else {
+                panSelectionAction = nil
+                return
+            }
+
+            wasScrollEnabledBeforePan = collectionView.isScrollEnabled
+            collectionView.isScrollEnabled = false
+
+            panVisitedObjectIDs.removeAll(keepingCapacity: true)
+            panSelectionAction = selectedObjectIDs.contains(objectID) ? .deselect : .select
+            applyPanSelection(to: objectID, at: indexPath)
+
+        case .changed:
+            guard let indexPath = collectionView.indexPathForItem(at: location),
+                  let objectID = dataSource.itemIdentifier(for: indexPath) else {
+                return
+            }
+
+            applyPanSelection(to: objectID, at: indexPath)
+
+        case .ended, .cancelled, .failed:
+            collectionView.isScrollEnabled = wasScrollEnabledBeforePan
+            wasScrollEnabledBeforePan = true
+
+            panSelectionAction = nil
+            panVisitedObjectIDs.removeAll(keepingCapacity: true)
+
+            selectionModel.selectedObjectIDs = selectedObjectIDs
+
+        default:
+            break
+        }
+    }
+
+    private func applyPanSelection(to objectID: NSManagedObjectID, at indexPath: IndexPath) {
+        guard let action = panSelectionAction else { return }
+        guard !panVisitedObjectIDs.contains(objectID) else { return }
+
+        panVisitedObjectIDs.insert(objectID)
+
+        switch action {
+        case .select:
+            guard !selectedObjectIDs.contains(objectID) else { return }
+            selectedObjectIDs.insert(objectID)
+            collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
+            reconfigureItems([objectID])
+
+        case .deselect:
+            guard selectedObjectIDs.contains(objectID) else { return }
+            selectedObjectIDs.remove(objectID)
+            collectionView.deselectItem(at: indexPath, animated: false)
+            reconfigureItems([objectID])
+        }
+    }
 }
 
 #endif
 
 extension ItemCardCollectionViewController: UICollectionViewDelegate {
+    func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
+        if collectionView.hasActiveDrag {
+            return false
+        }
+        return true
+    }
+
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         guard let objectID = dataSource.itemIdentifier(for: indexPath),
               let item = itemsByID[objectID] else {
@@ -275,6 +375,50 @@ extension ItemCardCollectionViewController: UICollectionViewDelegate {
     func collectionViewDidEndMultipleSelectionInteraction(_ collectionView: UICollectionView) {
         selectionModel.selectedObjectIDs = selectedObjectIDs
     }
+
+    func collectionView(
+        _ collectionView: UICollectionView,
+        contextMenuConfigurationForItemAt indexPath: IndexPath,
+        point: CGPoint
+    ) -> UIContextMenuConfiguration? {
+        guard !isSelectionMode else { return nil }
+        guard let objectID = dataSource.itemIdentifier(for: indexPath),
+              let item = itemsByID[objectID] else {
+            return nil
+        }
+
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+            guard let self else { return nil }
+
+            let copy = UIAction(title: "Copy", image: UIImage(systemName: "doc.on.doc")) { _ in
+                self.onCopyItem(item)
+            }
+            let copyPlain = UIAction(title: "Copy as Plain Text", image: UIImage(systemName: "textformat")) { _ in
+                self.onCopyPlainTextItem(item)
+            }
+            let preview = UIAction(title: "Preview", image: UIImage(systemName: "eye")) { _ in
+                self.onPreviewItem(item)
+            }
+            let share = UIAction(title: "Share", image: UIImage(systemName: "square.and.arrow.up")) { _ in
+                self.onShareItem(item)
+            }
+            let move = UIAction(title: "Move to Pinboard", image: UIImage(systemName: "circle.dashed")) { _ in
+                self.onMoveItem(item)
+            }
+            let delete = UIAction(title: "Delete", image: UIImage(systemName: "trash"), attributes: [.destructive]) { _ in
+                self.onDeleteItem(item)
+            }
+
+            return UIMenu(children: [
+                copy,
+                copyPlain,
+                preview,
+                share,
+                move,
+                delete
+            ])
+        }
+    }
 }
 
 extension ItemCardCollectionViewController: UICollectionViewDragDelegate {
@@ -296,36 +440,65 @@ extension ItemCardCollectionViewController: UICollectionViewDragDelegate {
         session.localContext = dragSet
 
         let objectIDsToDrag: [NSManagedObjectID]
-        if isSelectionMode, selectedObjectIDs.contains(objectID), !selectedObjectIDs.isEmpty {
-            objectIDsToDrag = Array(selectedObjectIDs)
+        if isSelectionMode {
+            let uiSelectedIDs = Set((collectionView.indexPathsForSelectedItems ?? []).compactMap { selectedIndexPath in
+                dataSource.itemIdentifier(for: selectedIndexPath)
+            })
+
+            if uiSelectedIDs.contains(objectID), !uiSelectedIDs.isEmpty {
+                objectIDsToDrag = orderedIDs.filter(uiSelectedIDs.contains)
+            } else {
+                objectIDsToDrag = [objectID]
+            }
         } else {
             objectIDsToDrag = [objectID]
         }
 
-        objectIDsToDrag.forEach { dragSet.add($0) }
-        return objectIDsToDrag.map { makeDragItem(for: $0) }
+        var seenURIStrings = Set<String>()
+        let uniqueObjectIDsToDrag = objectIDsToDrag.filter { id in
+            seenURIStrings.insert(id.uriRepresentation().absoluteString).inserted
+        }
+
+        uniqueObjectIDsToDrag.forEach { id in
+            dragSet.add(id.uriRepresentation().absoluteString as NSString)
+        }
+        return uniqueObjectIDsToDrag.compactMap { id in
+            guard let item = itemsByID[id] else { return nil }
+            return makeDragItem(for: id, item: item)
+        }
     }
 
     func collectionView(_ collectionView: UICollectionView, itemsForAddingTo session: UIDragSession, at indexPath: IndexPath, point: CGPoint) -> [UIDragItem] {
         guard isSelectionMode || !canReorder else { return [] }
         guard let dragSet = session.localContext as? NSMutableSet else { return [] }
         guard let objectID = dataSource.itemIdentifier(for: indexPath),
-              itemsByID[objectID] != nil else {
+              let item = itemsByID[objectID] else {
             return []
         }
 
-        if dragSet.contains(objectID) {
+        let objectIDKey = objectID.uriRepresentation().absoluteString as NSString
+
+        if dragSet.contains(objectIDKey) {
             return []
         }
 
-        dragSet.add(objectID)
-        return [makeDragItem(for: objectID)]
+        let existingURIStrings = Set(session.items.compactMap { dragItem in
+            (dragItem.localObject as? NSManagedObjectID)?.uriRepresentation().absoluteString
+        })
+        if existingURIStrings.contains(objectIDKey as String) {
+            dragSet.add(objectIDKey)
+            return []
+        }
+
+        dragSet.add(objectIDKey)
+        return [makeDragItem(for: objectID, item: item)]
     }
 
-    private func makeDragItem(for objectID: NSManagedObjectID) -> UIDragItem {
+    private func makeDragItem(for objectID: NSManagedObjectID, item: ClipItem) -> UIDragItem {
         let payload = ItemDragPayload(objectIDs: [objectID])
         let provider = NSItemProvider()
-        provider.registerDataRepresentation(forTypeIdentifier: UTType.martenItemDragPayload.identifier, visibility: .all) { completion in
+
+        provider.registerDataRepresentation(forTypeIdentifier: UTType.json.identifier, visibility: .ownProcess) { completion in
             do {
                 let data = try JSONEncoder().encode(payload)
                 completion(data, nil)
@@ -333,6 +506,14 @@ extension ItemCardCollectionViewController: UICollectionViewDragDelegate {
                 completion(nil, error)
             }
             return nil
+        }
+
+        if let urlString = item.primaryText,
+           item.itemTypeValue == .url,
+           let url = URL(string: urlString) {
+            provider.registerObject(url as NSURL, visibility: .all)
+        } else if let text = item.plainTextContent, !text.isEmpty {
+            provider.registerObject(text as NSString, visibility: .all)
         }
 
         let dragItem = UIDragItem(itemProvider: provider)
@@ -378,5 +559,20 @@ extension ItemCardCollectionViewController: UICollectionViewDropDelegate {
 
         applySnapshot(animated: true)
         onReorderItems(orderedIDs)
+    }
+}
+
+extension ItemCardCollectionViewController: UIGestureRecognizerDelegate {
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard gestureRecognizer === selectionPanGesture else { return true }
+        guard isSelectionMode else { return false }
+        guard !collectionView.hasActiveDrag else { return false }
+
+        let location = gestureRecognizer.location(in: collectionView)
+        return collectionView.indexPathForItem(at: location) != nil
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        false
     }
 }

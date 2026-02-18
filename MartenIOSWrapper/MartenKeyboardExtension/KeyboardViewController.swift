@@ -8,11 +8,24 @@ final class KeyboardViewController: UIInputViewController {
     private var heightConstraint: NSLayoutConstraint?
     private let payloadLoader = ShareExtensionPayloadLoader()
     private var saveService: ShareExtensionSaveService?
+    private var pasteboardMonitorTimer: Timer?
+    private var lastObservedChangeCount: Int = 0
+    private var viewModel: KeyboardExtensionViewModel?
 
     override func viewDidLoad() {
         super.viewDidLoad()
         installRootView()
         setupKeyboardHeight()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        startPasteboardMonitoring()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        stopPasteboardMonitoring()
     }
     
     private func setupKeyboardHeight() {
@@ -49,6 +62,7 @@ final class KeyboardViewController: UIInputViewController {
         }
 
         let viewModel = KeyboardExtensionViewModel(queryService: queryService)
+        self.viewModel = viewModel
         let rootView = KeyboardRootView(
             viewModel: viewModel,
             onInsertText: { [weak self] text in
@@ -64,17 +78,11 @@ final class KeyboardViewController: UIInputViewController {
                 guard let self else { return false }
                 return await self.copySelectedTextToMarten()
             },
-            allowsNetworkFetch: hasFullAccess,
-            onOpenApp: { [weak self] url in
+            onCopyClipboardToMarten: { [weak self] in
                 guard let self else { return false }
-                guard self.hasFullAccess else { return false }
-                
-                return await withCheckedContinuation { continuation in
-                    self.extensionContext?.open(url) { success in
-                        continuation.resume(returning: success)
-                    }
-                }
-            }
+                return await self.copyClipboardToMarten()
+            },
+            allowsNetworkFetch: hasFullAccess
         )
 
         let hostingController = UIHostingController(rootView: rootView)
@@ -131,6 +139,42 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
+    private func copyClipboardToMarten() async -> Bool {
+        guard hasFullAccess else { return false }
+        guard let saveService else { return false }
+
+        let clipboardString = UIPasteboard.general.string ?? ""
+        guard !clipboardString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+
+        guard let payload = payloadLoader.payload(
+            from: ShareExtensionPayloadCandidate(plainText: clipboardString)
+        ) else {
+            return false
+        }
+
+        do {
+            let sourceAppInfo = MartenSourceIdentity.sourceAppInfo(
+                iconData: MartenSourceIdentity.iconData(for: sourceAppIconCandidateBundles())
+            )
+            _ = try await saveService.save(
+                payloads: [payload],
+                toPinboardID: nil,
+                sourceApp: sourceAppInfo
+            )
+            recordHeartbeat()
+            let timestamp = Date().timeIntervalSince1970
+            let groupDefaults = UserDefaults(suiteName: MartenIOSStorageConfiguration.defaultAppGroupIdentifier)
+
+            groupDefaults?.set(timestamp, forKey: MartenIOSDefaults.shareExtensionLastSuccessAtKey)
+            await viewModel?.refreshSilently()
+            return true
+        } catch {
+            return false
+        }
+    }
+
     private func sourceAppIconCandidateBundles() -> [Bundle] {
         if let containingAppBundle = containingAppBundle() {
             return [containingAppBundle]
@@ -146,5 +190,34 @@ final class KeyboardViewController: UIInputViewController {
             return nil
         }
         return Bundle(url: appBundleURL)
+    }
+    private func startPasteboardMonitoring() {
+        stopPasteboardMonitoring()
+        guard hasFullAccess else { return }
+        
+        lastObservedChangeCount = UIPasteboard.general.changeCount
+        
+        let timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.checkForPasteboardChanges()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.pasteboardMonitorTimer = timer
+    }
+
+    private func stopPasteboardMonitoring() {
+        pasteboardMonitorTimer?.invalidate()
+        pasteboardMonitorTimer = nil
+    }
+
+    private func checkForPasteboardChanges() {
+        guard hasFullAccess else { return }
+        let currentCount = UIPasteboard.general.changeCount
+        guard currentCount != lastObservedChangeCount else { return }
+        
+        lastObservedChangeCount = currentCount
+        
+        Task {
+            _ = await copyClipboardToMarten()
+        }
     }
 }

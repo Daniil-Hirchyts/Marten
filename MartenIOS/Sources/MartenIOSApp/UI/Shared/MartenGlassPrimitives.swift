@@ -320,6 +320,7 @@ struct MartenUISearchTextField: UIViewRepresentable {
     @Binding var text: String
     var placeholder: String
     var onFocus: () -> Void
+    var focusRequest: Binding<Bool>?
 
     func makeUIView(context: Context) -> UISearchTextField {
         let searchTextField = UISearchTextField()
@@ -330,24 +331,22 @@ struct MartenUISearchTextField: UIViewRepresentable {
             action: #selector(Coordinator.textChanged(_:)),
             for: .editingChanged
         )
-        
-        // Remove standard background to fit custom glass design if desired,
-        // or keep it for maximum native feel.
-        // User wants "native", so keeping standard look might be safest,
-        // but it is inside a glass container.
-        // Let's make it clear so it sits on the glass.
+
         searchTextField.borderStyle = .none
         searchTextField.backgroundColor = .clear
-        
-        // Ensure dictation is enabled
-        // UISearchTextField has a dictation button by default in the right view.
-        
+
         return searchTextField
     }
 
     func updateUIView(_ uiView: UISearchTextField, context: Context) {
         if uiView.text != text {
             uiView.text = text
+        }
+        if focusRequest?.wrappedValue == true {
+            DispatchQueue.main.async {
+                uiView.becomeFirstResponder()
+                focusRequest?.wrappedValue = false
+            }
         }
     }
 

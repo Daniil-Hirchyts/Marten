@@ -38,6 +38,7 @@ struct MartenIOSDashboardView: View {
     @State private var pinboardEditorContext: PinboardEditorContext?
     @State private var pinboardShareContext: PinboardShareContext?
     @State private var pendingDeletePinboard: Pinboard?
+    @State private var isSearchExpanded = false
 
     @ScaledMetric(relativeTo: .headline) private var actionButtonSize: CGFloat = 44
 
@@ -91,23 +92,25 @@ struct MartenIOSDashboardView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea()
 
-            // Top gradient fade at screen edge (behind controls, in front of cards)
+            // Top blur fade at screen edge (behind controls, in front of cards)
             VStack(spacing: 0) {
-                LinearGradient(
-                    stops: [
-                        .init(
-                            color: Color(platformColor: .platformSystemBackground).opacity(1.0),
-                            location: 0.0),
-                        .init(
-                            color: Color(platformColor: .platformSystemBackground).opacity(0.0),
-                            location: 1.0),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 100)
-                .allowsHitTesting(false)
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .frame(height: 140)
+                    .mask(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .white, location: 0.0),
+                                .init(color: .white, location: 0.5),
+                                .init(color: .white.opacity(0.0), location: 1.0),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .allowsHitTesting(false)
 
                 Spacer()
             }
@@ -123,13 +126,22 @@ struct MartenIOSDashboardView: View {
                             color: Color(platformColor: .platformSystemBackground).opacity(0.0),
                             location: 0.0),
                         .init(
+                            color: Color(platformColor: .platformSystemBackground).opacity(0.1),
+                            location: 0.2),
+                        .init(
+                            color: Color(platformColor: .platformSystemBackground).opacity(0.5),
+                            location: 0.5),
+                        .init(
+                            color: Color(platformColor: .platformSystemBackground).opacity(0.9),
+                            location: 0.8),
+                        .init(
                             color: Color(platformColor: .platformSystemBackground).opacity(1.0),
                             location: 1.0),
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 120)
+                .frame(height: 140)
                 .allowsHitTesting(false)
             }
             .ignoresSafeArea()
@@ -433,6 +445,9 @@ struct MartenIOSDashboardView: View {
 
         switch action {
         case .search:
+            withAnimation(MartenAnimation.smooth) {
+                isSearchExpanded = true
+            }
             searchFocusRequest = true
         case .paste:
             await container.createItemFromClipboard()
@@ -462,9 +477,19 @@ struct MartenIOSDashboardView: View {
 
                 Spacer()
             } else {
-                // Pinboard selector
-                swipablePinboardSelector
-                    .transition(MartenAnimation.fadeScale)
+                // Pinboard name + item count (plain text label)
+                HStack(spacing: 5) {
+                    Text(selectedPinboardTitle)
+                        .font(.title3.weight(.bold))
+                        .lineLimit(1)
+
+                    Text("\(currentPinboardItemCount)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                }
+                .padding(.leading, 4)
+                .transition(MartenAnimation.fadeScale)
 
                 Spacer()
 
@@ -517,47 +542,24 @@ struct MartenIOSDashboardView: View {
         Button {
             isShowingPinboardPicker = true
         } label: {
-            HStack(spacing: 6) {
+            Group {
                 if let pinboard = selectedPinboard {
                     PinboardIndicator(
                         colorHex: pinboard.colorHex,
                         sign: pinboard.iconName,
-                        size: 20
+                        size: 22
                     )
-                    if container.lockStateStore.isLocked(pinboard.id) {
-                        Image(
-                            systemName: container.lockStateStore.canAccess(pinboard.id)
-                                ? "lock.open.fill" : "lock.fill"
-                        )
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    }
                 } else {
-                    ZStack {
-                        Circle()
-                            .fill(Color.secondary.opacity(0.15))
-                            .frame(width: 20, height: 20)
-                        Image(systemName: "tray.2.fill")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.primary)
-                    }
+                    Image(systemName: "tray.2.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.primary)
                 }
-
-                Text(selectedPinboardTitle)
-                    .font(.headline.weight(.semibold))
-                    .lineLimit(1)
-
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
             }
-            .frame(minHeight: 24)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .frame(width: actionButtonSize, height: actionButtonSize)
             .contentShape(Rectangle())
-            .glassChipBackground(isHighlighted: false)
         }
         .buttonStyle(.plain)
+        .glassCircleBackground(isHighlighted: false)
         .accessibilityLabel("Select Pinboard")
         .accessibilityIdentifier("ios.dashboard.pinboardDropdown")
     }
@@ -658,47 +660,115 @@ struct MartenIOSDashboardView: View {
 
     private var bottomBar: some View {
         HStack(spacing: 10) {
-            // Filter button
-            Button {
-                isShowingFilters = true
-            } label: {
-                Image(systemName: "line.3.horizontal.decrease.circle")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(
-                        searchModel?.hasActiveFilters ?? false ? Color.accentColor : .primary
-                    )
-                    .frame(width: actionButtonSize, height: actionButtonSize)
-                    .contentShape(Rectangle())
+            // Pinboard dropdown — scales out when search expands
+            if !isSearchExpanded {
+                swipablePinboardSelector
+                    .transition(.scale.combined(with: .opacity))
+
+                Spacer()
             }
-            .buttonStyle(.plain)
-            .glassCircleBackground(isHighlighted: searchModel?.hasActiveFilters ?? false)
-            .accessibilityLabel("Filters")
-            .accessibilityIdentifier("ios.dashboard.filters")
 
-            // Search bar with voice inline
-            MartenGlassSearchBar(
-                text: Binding(
-                    get: { searchModel?.query ?? "" },
-                    set: { searchModel?.query = $0 }
-                ),
-                prompt: "Search clips…",
-                onClear: { searchModel?.clearSearchText() },
-                focusRequest: $searchFocusRequest
-            )
+            // Search + Filter group (single glass surface)
+            HStack(spacing: 0) {
+                // Text field — always mounted, animates width
+                HStack(spacing: 8) {
+                    #if os(iOS)
+                        MartenUISearchTextField(
+                            text: Binding(
+                                get: { searchModel?.query ?? "" },
+                                set: { searchModel?.query = $0 }
+                            ),
+                            placeholder: "Search clips\u{2026}",
+                            onFocus: {},
+                            focusRequest: $searchFocusRequest
+                        )
+                        .frame(height: 36)
+                    #else
+                        Image(systemName: "magnifyingglass")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
 
-            // New Element button
+                        TextField("Search clips\u{2026}", text: Binding(
+                            get: { searchModel?.query ?? "" },
+                            set: { searchModel?.query = $0 }
+                        ))
+                    #endif
+                }
+                .frame(maxWidth: isSearchExpanded ? .infinity : 0)
+                .frame(height: actionButtonSize)
+                .padding(.horizontal, isSearchExpanded ? 10 : 0)
+                .opacity(isSearchExpanded ? 1 : 0)
+                .clipped()
+                .allowsHitTesting(isSearchExpanded)
+
+                // Search icon — visible when collapsed, tapping expands
+                if !isSearchExpanded {
+                    Button {
+                        withAnimation(MartenAnimation.smooth) {
+                            isSearchExpanded = true
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            searchFocusRequest = true
+                        }
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 18, weight: .semibold))
+                            .frame(width: actionButtonSize, height: actionButtonSize)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.opacity)
+                    .accessibilityLabel("Search")
+                    .accessibilityIdentifier("ios.dashboard.search")
+                }
+
+                // Separator
+                RoundedRectangle(cornerRadius: 0.5)
+                    .fill(.primary.opacity(0.15))
+                    .frame(width: 1, height: 24)
+
+                // Filter button (always present)
+                Button {
+                    isShowingFilters = true
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(
+                            searchModel?.hasActiveFilters ?? false
+                                ? Color.accentColor : .primary
+                        )
+                        .frame(width: actionButtonSize, height: actionButtonSize)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Filters")
+                .accessibilityIdentifier("ios.dashboard.filters")
+            }
+            .glassChipBackground(isHighlighted: searchModel?.hasActiveFilters ?? false)
+
+            // Add / Close button — same position, icon morphs
             Button {
-                isShowingQuickAdd = true
+                if isSearchExpanded {
+                    withAnimation(MartenAnimation.smooth) {
+                        searchModel?.clearSearchText()
+                        isSearchExpanded = false
+                    }
+                } else {
+                    isShowingQuickAdd = true
+                }
             } label: {
-                Image(systemName: "plus")
+                Image(systemName: isSearchExpanded ? "xmark" : "plus")
+                    .contentTransition(.symbolEffect(.replace))
                     .font(.system(size: 18, weight: .semibold))
                     .frame(width: actionButtonSize, height: actionButtonSize)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .glassCircleBackground(isHighlighted: false)
-            .accessibilityLabel("Quick Add")
-            .accessibilityIdentifier("ios.dashboard.quickAdd")
+            .accessibilityLabel(isSearchExpanded ? "Close Search" : "Quick Add")
+            .accessibilityIdentifier(
+                isSearchExpanded ? "ios.dashboard.closeSearch" : "ios.dashboard.quickAdd"
+            )
         }
     }
 
@@ -712,6 +782,16 @@ struct MartenIOSDashboardView: View {
     private var selectedPinboardTitle: String {
         guard let pinboard = selectedPinboard else { return "All" }
         return pinboardDisplayName(pinboard)
+    }
+
+    private var currentPinboardItemCount: Int {
+        if let selectedID = container.selectedPinboardID {
+            return allItems.filter { item in
+                (item.pinboards?.contains(where: { $0.id == selectedID }) ?? false)
+                    && isItemVisible(item, selectedPinboardID: selectedID)
+            }.count
+        }
+        return allItems.filter { isItemVisible($0, selectedPinboardID: nil) }.count
     }
 
     // MARK: - Filter Chips

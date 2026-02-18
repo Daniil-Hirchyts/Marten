@@ -17,10 +17,6 @@ struct ItemDragPayload: Codable, Hashable, Transferable {
     }
 
     static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .martenItemDragPayload)
+        CodableRepresentation(contentType: .json)
     }
-}
-
-extension UTType {
-    static let martenItemDragPayload = UTType(exportedAs: "com.hirchyts.marten.item-drag-payload")
 }

@@ -351,8 +351,9 @@ struct KeyboardRootView: View {
     let onDeleteBackward: () -> Void
     let onRecordHeartbeat: () -> Void
     let onCopySelectionToMarten: () async -> Bool
+    let onCopyClipboardToMarten: () async -> Bool
     let allowsNetworkFetch: Bool
-    let onOpenApp: (URL) async -> Bool
+
     @State private var lockStateStore: PinboardLockStateStore
     @State private var copyButtonState: CopyButtonState = .idle
 
@@ -368,16 +369,16 @@ struct KeyboardRootView: View {
         onDeleteBackward: @escaping () -> Void,
         onRecordHeartbeat: @escaping () -> Void,
         onCopySelectionToMarten: @escaping () async -> Bool,
-        allowsNetworkFetch: Bool,
-        onOpenApp: @escaping (URL) async -> Bool
+        onCopyClipboardToMarten: @escaping () async -> Bool,
+        allowsNetworkFetch: Bool
     ) {
         _viewModel = StateObject(wrappedValue: viewModel)
         self.onInsertText = onInsertText
         self.onDeleteBackward = onDeleteBackward
         self.onRecordHeartbeat = onRecordHeartbeat
         self.onCopySelectionToMarten = onCopySelectionToMarten
+        self.onCopyClipboardToMarten = onCopyClipboardToMarten
         self.allowsNetworkFetch = allowsNetworkFetch
-        self.onOpenApp = onOpenApp
 
         let sharedDefaults = UserDefaults(suiteName: "group.com.hirchyts.marten") ?? .standard
         _lockStateStore = State(initialValue: PinboardLockStateStore(userDefaults: sharedDefaults))
@@ -628,7 +629,12 @@ struct KeyboardRootView: View {
         copyButtonState = .copying
 
         Task { @MainActor in
-            let didCopy = await onCopySelectionToMarten()
+            // Try copying selected text first; if nothing is selected,
+            // fall back to reading the system clipboard.
+            var didCopy = await onCopySelectionToMarten()
+            if !didCopy {
+                didCopy = await onCopyClipboardToMarten()
+            }
             let feedback = UINotificationFeedbackGenerator()
 
             if didCopy {
@@ -769,25 +775,7 @@ struct KeyboardRootView: View {
 
             Spacer(minLength: 0)
 
-            Button {
-                Task {
-                    if let url = URL(string: "marten://open") {
-                        let success = await onOpenApp(url)
-                        if !success {
-                            withAnimation {
-                                viewModel.errorMessage = "Full Access is required to open Marten."
-                            }
-                            // Clear error after a delay
-                            try? await Task.sleep(nanoseconds: 3_000_000_000)
-                            withAnimation {
-                                if viewModel.errorMessage == "Full Access is required to open Marten." {
-                                    viewModel.errorMessage = nil
-                                }
-                            }
-                        }
-                    }
-                }
-            } label: {
+            Link(destination: URL(string: "marten://open")!) {
                 HStack(spacing: 4) {
                     Text("Open Marten")
                         .font(.system(size: 11, weight: .semibold))

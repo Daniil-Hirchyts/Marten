@@ -7,6 +7,8 @@ struct ItemCardView: View {
     let isSelected: Bool
     let handlesTapGesture: Bool
     let handlesPressGesture: Bool
+    let showsContextMenu: Bool
+    let showsSelectionFeedback: Bool
     let onTap: () -> Void
     let onCopy: () -> Void
     let onCopyPlainText: () -> Void
@@ -21,6 +23,8 @@ struct ItemCardView: View {
         isSelected: Bool,
         handlesTapGesture: Bool = true,
         handlesPressGesture: Bool = true,
+        showsContextMenu: Bool = true,
+        showsSelectionFeedback: Bool = true,
         onTap: @escaping () -> Void,
         onCopy: @escaping () -> Void,
         onCopyPlainText: @escaping () -> Void,
@@ -34,6 +38,8 @@ struct ItemCardView: View {
         self.isSelected = isSelected
         self.handlesTapGesture = handlesTapGesture
         self.handlesPressGesture = handlesPressGesture
+        self.showsContextMenu = showsContextMenu
+        self.showsSelectionFeedback = showsSelectionFeedback
         self.onTap = onTap
         self.onCopy = onCopy
         self.onCopyPlainText = onCopyPlainText
@@ -71,30 +77,17 @@ struct ItemCardView: View {
             .contentShape(.rect(cornerRadius: cardCornerRadius))
             .scaleEffect(isPressed ? 0.97 : 1.0)
             .animation(MartenAnimation.quick, value: isPressed)
-            .sensoryFeedback(.selection, trigger: isSelected)
             .modifier(PressGestureModifier(isEnabled: handlesPressGesture, isPressed: $isPressed))
-            .contextMenu {
-                Button { onCopy() } label: {
-                    Label("Copy", systemImage: "doc.on.doc")
-                }
-                Button { onCopyPlainText() } label: {
-                    Label("Copy as Plain Text", systemImage: "textformat")
-                }
-                Divider()
-                Button { onPreview() } label: {
-                    Label("Preview", systemImage: "eye")
-                }
-                Button { onShare() } label: {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                }
-                Button { onMove() } label: {
-                    Label("Move to Pinboard", systemImage: "circle.dashed")
-                }
-                Divider()
-                Button(role: .destructive) { onDelete() } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
+            .modifier(SelectionFeedbackModifier(isEnabled: showsSelectionFeedback, isSelected: isSelected))
+            .modifier(ContextMenuModifier(
+                isEnabled: showsContextMenu,
+                onCopy: onCopy,
+                onCopyPlainText: onCopyPlainText,
+                onPreview: onPreview,
+                onShare: onShare,
+                onMove: onMove,
+                onDelete: onDelete
+            ))
             .onAppear {
                 refreshPresentation()
                 refreshImageTaskID()
@@ -526,6 +519,58 @@ private struct PressGestureModifier: ViewModifier {
             content.onLongPressGesture(minimumDuration: .infinity, perform: {}, onPressingChanged: { pressing in
                 isPressed = pressing
             })
+        } else {
+            content
+        }
+    }
+}
+
+private struct SelectionFeedbackModifier: ViewModifier {
+    let isEnabled: Bool
+    let isSelected: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.sensoryFeedback(.selection, trigger: isSelected)
+        } else {
+            content
+        }
+    }
+}
+
+private struct ContextMenuModifier: ViewModifier {
+    let isEnabled: Bool
+    let onCopy: () -> Void
+    let onCopyPlainText: () -> Void
+    let onPreview: () -> Void
+    let onShare: () -> Void
+    let onMove: () -> Void
+    let onDelete: () -> Void
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.contextMenu {
+                Button { onCopy() } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+                Button { onCopyPlainText() } label: {
+                    Label("Copy as Plain Text", systemImage: "textformat")
+                }
+                Divider()
+                Button { onPreview() } label: {
+                    Label("Preview", systemImage: "eye")
+                }
+                Button { onShare() } label: {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                Button { onMove() } label: {
+                    Label("Move to Pinboard", systemImage: "circle.dashed")
+                }
+                Divider()
+                Button(role: .destructive) { onDelete() } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
         } else {
             content
         }
