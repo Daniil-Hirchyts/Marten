@@ -52,7 +52,7 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
         let tokenStore = SyncTokenZoneStore(tokenManager: tokenManager, zoneID: zoneID)
         let previousTokenData = try tokenStore.load()
         let context = persistenceController.newBackgroundContext()
-        context.transactionAuthor = "shared-inbound-sync"
+        context.transactionAuthor = SyncTransactionAuthor.sharedInbound
 
         var fetchedCount = 0
         var deletedCount = 0

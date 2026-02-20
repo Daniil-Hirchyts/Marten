@@ -9,6 +9,7 @@ struct DashboardSelectionActionBar: View {
     let onCancel: () -> Void
 
     @State private var pressedButton: String?
+    @State private var hoveredButton: String?
     
     var body: some View {
         HStack(spacing: 0) {
@@ -47,6 +48,7 @@ struct DashboardSelectionActionBar: View {
                         action: onShare
                     )
                 }
+                .clipShape(Capsule())
             }
             .fixedSize()
             
@@ -58,7 +60,7 @@ struct DashboardSelectionActionBar: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
-        .transition(MartenAnimation.slideUp)
+        .transition(.opacity)
     }
     
     private func actionButtonInGroup(
@@ -82,6 +84,19 @@ struct DashboardSelectionActionBar: View {
                 .opacity(pressedButton == id ? 0.5 : 1.0)
         }
         .buttonStyle(.plain)
+        .background(
+            Rectangle()
+                .fill(hoveredButton == id ? Color.primary.opacity(0.12) : Color.clear)
+        )
+        .onHover { isHovered in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                if isHovered {
+                    hoveredButton = id
+                } else if hoveredButton == id {
+                    hoveredButton = nil
+                }
+            }
+        }
         .accessibilityLabel(label)
     }
 

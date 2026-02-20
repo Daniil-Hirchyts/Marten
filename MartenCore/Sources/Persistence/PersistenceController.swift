@@ -51,10 +51,33 @@ public final class PersistenceController {
         }
 
         container.persistentStoreDescriptions = [description]
+
+        var loadError: Error?
         container.loadPersistentStores { _, error in
-            if let error = error {
-                fatalError("Failed to load persistent stores: \(error)")
+            loadError = error
+        }
+
+        if let loadError, !inMemory, let storeURL = description.url {
+            // Attempt recovery by removing the corrupt store and retrying
+            try? FileManager.default.removeItem(at: storeURL)
+            // Also remove write-ahead log and shared-memory files
+            let walURL = storeURL.appendingPathExtension("wal")
+            let shmURL = storeURL.appendingPathExtension("shm")
+            try? FileManager.default.removeItem(at: walURL)
+            try? FileManager.default.removeItem(at: shmURL)
+
+            var retryError: Error?
+            container.loadPersistentStores { _, error in
+                retryError = error
             }
+            if let retryError {
+                fatalError(
+                    "Failed to load persistent stores after recovery attempt. "
+                    + "Original: \(loadError). Retry: \(retryError)"
+                )
+            }
+        } else if let loadError {
+            fatalError("Failed to load persistent stores: \(loadError)")
         }
 
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy

@@ -138,6 +138,14 @@ public final class ClipItemStore {
         try repository.toggleFavorite(objectID: item.objectID)
     }
 
+    public func togglePin(_ item: ClipItem) throws {
+        try repository.togglePin(objectID: item.objectID)
+    }
+
+    public func togglePin(objectID: NSManagedObjectID) throws {
+        try repository.togglePin(objectID: objectID)
+    }
+
     public func moveItemsToPinboard(_ items: [ClipItem], pinboard: Pinboard) throws {
         try pinboardRepository.moveItems(
             objectIDs: items.map { $0.objectID },

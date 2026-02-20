@@ -42,7 +42,7 @@ extension OverlayShellView {
     }
 
     func handleTogglePin(_ item: ClipItem) {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+        withAnimation(OverlayAnimation.cardSpring) {
             actionHandlers.togglePin(item, allowPinning: allowPinning)
             cachedFilteredItems = computeFilteredItems()
         }

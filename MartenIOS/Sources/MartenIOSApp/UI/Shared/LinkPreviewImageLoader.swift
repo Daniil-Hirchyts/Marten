@@ -4,25 +4,35 @@ import MartenCore
 import UIKit
 import os.log
 
+enum LinkPreviewImageResult {
+    case banner(UIImage)
+    case favicon(UIImage)
+}
+
 private let logger = Logger(subsystem: "com.hirchyts.marten", category: "LinkPreviewImageLoader")
 
 @MainActor
 final class LinkPreviewImageLoader {
     static let shared = LinkPreviewImageLoader()
 
-    private let memoryCache = NSCache<NSString, UIImage>()
-    private var inFlight: [String: Task<UIImage?, Never>] = [:]
+    private final class CachedResult: NSObject {
+        let result: LinkPreviewImageResult
+        init(_ result: LinkPreviewImageResult) { self.result = result }
+    }
+
+    private let memoryCache = NSCache<NSString, CachedResult>()
+    private var inFlight: [String: Task<LinkPreviewImageResult?, Never>] = [:]
 
     private init() {
         memoryCache.countLimit = 200
     }
 
-    func loadImage(for linkPreview: LinkPreview) async -> UIImage? {
+    func loadImage(for linkPreview: LinkPreview) async -> LinkPreviewImageResult? {
         let cacheKey = cacheKey(for: linkPreview)
 
         // 1. Memory cache
         if let cached = memoryCache.object(forKey: cacheKey as NSString) {
-            return cached
+            return cached.result
         }
 
         // 2. Deduplicate in-flight requests
@@ -34,12 +44,13 @@ final class LinkPreviewImageLoader {
         let imagePath = linkPreview.imagePath?.trimmingCharacters(in: .whitespacesAndNewlines)
         let imageURL = linkPreview.imageURL?.trimmingCharacters(in: .whitespacesAndNewlines)
         let previewObjectID = linkPreview.managedObjectContext != nil ? linkPreview.objectID : nil
+        let linkURLString = linkPreview.url.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let task = Task<UIImage?, Never> {
+        let task = Task<LinkPreviewImageResult?, Never> {
             // 3. Try loading from disk
             if let path = imagePath, !path.isEmpty,
                let diskImage = await Self.loadImageFromDisk(path: path) {
-                return diskImage
+                return .banner(diskImage)
             }
 
             // 4. Fall back to downloading from imageURL
@@ -47,22 +58,27 @@ final class LinkPreviewImageLoader {
                 if let (image, data) = await Self.downloadImage(from: url) {
                     // Persist to disk so we don't re-download next time
                     await Self.persistDownloadedImage(data: data, previewObjectID: previewObjectID)
-                    return image
+                    return .banner(image)
                 }
+            }
+
+            // 5. Try favicon as fallback
+            if let faviconImage = await Self.loadFavicon(from: linkURLString) {
+                return .favicon(faviconImage)
             }
 
             return nil
         }
 
         inFlight[cacheKey] = task
-        let image = await task.value
+        let result = await task.value
         inFlight[cacheKey] = nil
 
-        if let image {
-            memoryCache.setObject(image, forKey: cacheKey as NSString)
+        if let result {
+            memoryCache.setObject(CachedResult(result), forKey: cacheKey as NSString)
         }
 
-        return image
+        return result
     }
 
     // MARK: - Private helpers
@@ -94,6 +110,31 @@ final class LinkPreviewImageLoader {
         }
 
         return (image, data)
+    }
+
+    /// Attempts to load a favicon from the website's root domain.
+    private static func loadFavicon(from urlString: String?) async -> UIImage? {
+        guard let urlString, !urlString.isEmpty,
+              let url = URL(string: urlString),
+              let host = url.host else {
+            return nil
+        }
+
+        let scheme = url.scheme ?? "https"
+
+        // Try apple-touch-icon first (higher resolution, ~180x180)
+        if let touchIconURL = URL(string: "\(scheme)://\(host)/apple-touch-icon.png"),
+           let (image, _) = await downloadImage(from: touchIconURL) {
+            return image
+        }
+
+        // Fall back to favicon.ico
+        if let faviconURL = URL(string: "\(scheme)://\(host)/favicon.ico"),
+           let (image, _) = await downloadImage(from: faviconURL) {
+            return image
+        }
+
+        return nil
     }
 
     /// Saves the downloaded image to the AssetStore and updates the LinkPreview's imagePath.

@@ -4,6 +4,21 @@ import CoreData
 import Foundation
 import os.log
 
+// MARK: - Sync Transaction Authors
+
+/// Constants for Core Data transaction authors used to prevent sync feedback loops.
+public enum SyncTransactionAuthor {
+    public static let privateInbound = "private-inbound-sync"
+    public static let sharedInbound = "shared-inbound-sync"
+
+    /// Returns `true` when the given author identifies an inbound sync save
+    /// that outbound engines should ignore.
+    public static func isInboundSync(_ author: String?) -> Bool {
+        guard let author else { return false }
+        return author == privateInbound || author == sharedInbound
+    }
+}
+
 // MARK: - Sync Status
 
 /// Represents the current synchronization status.

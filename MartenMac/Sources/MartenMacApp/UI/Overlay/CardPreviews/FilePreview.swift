@@ -66,7 +66,7 @@ struct FilePreview: View {
             }
         }
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(OverlayAnimation.standardTransition) {
                 isHovering = hovering
             }
         }

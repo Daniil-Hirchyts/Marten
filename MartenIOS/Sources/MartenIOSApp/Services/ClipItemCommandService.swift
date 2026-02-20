@@ -59,6 +59,10 @@ public actor ClipItemCommandService {
         try store.deleteItem(objectID: objectID)
     }
 
+    public func togglePin(objectID: NSManagedObjectID) throws {
+        try store.togglePin(objectID: objectID)
+    }
+
     public func markItemUsed(objectID: NSManagedObjectID) throws {
         try store.markItemUsed(objectID: objectID)
     }

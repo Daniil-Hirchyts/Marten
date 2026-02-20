@@ -5,13 +5,13 @@ extension OverlayShellView {
     func handleSearchButtonTap() {
         if isSearchExpanded {
             // Collapse search if already expanded
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            withAnimation(OverlayAnimation.searchSpring) {
                 isSearchExpanded = false
                 searchFocused = false
             }
         } else {
             // If collapsed: Expand and Focus
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            withAnimation(OverlayAnimation.searchSpring) {
                 isSearchExpanded = true
             }
 
@@ -23,7 +23,7 @@ extension OverlayShellView {
 
     func handleSearchClear() {
         isFilterPopoverPresented = false
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(OverlayAnimation.searchSpring) {
             isSearchExpanded = false
             searchModel.searchText = ""
             searchFocused = false

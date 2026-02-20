@@ -76,7 +76,7 @@ final class DragCoordinator: ObservableObject {
         if let data {
             // Create a fresh preview window each time the drag starts (window not yet visible)
             // to avoid a flash of stale content from a previous drag.
-            if dragPreviewWindow == nil || !dragPreviewWindow!.isVisible {
+            if dragPreviewWindow == nil || dragPreviewWindow.map({ !$0.isVisible }) == true {
                 dragPreviewWindow?.close()
                 dragPreviewWindow = DragPreviewWindow()
             }
@@ -89,8 +89,8 @@ final class DragCoordinator: ObservableObject {
                 height: 600
             )
 
-            dragPreviewWindow!.setFrame(previewFrame, display: false)
-            dragPreviewWindow!.updatePreview(data)
+            dragPreviewWindow?.setFrame(previewFrame, display: false)
+            dragPreviewWindow?.updatePreview(data)
         } else {
             dragPreviewWindow?.updatePreview(nil)
         }

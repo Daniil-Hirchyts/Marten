@@ -39,7 +39,7 @@ extension PinboardTabBar {
                     y: dragState.pointerLocation.y - dragState.cursorOffset.height
                 )
                 .opacity(dragOpacity)
-                .animation(Animation.easeOut(duration: 0.1), value: dragOpacity)
+                .animation(OverlayAnimation.dragFade, value: dragOpacity)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }

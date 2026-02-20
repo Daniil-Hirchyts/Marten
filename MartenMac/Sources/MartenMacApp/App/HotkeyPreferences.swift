@@ -54,15 +54,9 @@ enum HotkeyPreferenceKey: Hashable {
 final class HotkeyPreferencesStore: ObservableObject {
     @Published var showMarten: HotkeyPreference
     @Published var ocrCapture: HotkeyPreference
-    @Published var quickPaste1: HotkeyPreference
-    @Published var quickPaste2: HotkeyPreference
-    @Published var quickPaste3: HotkeyPreference
-    @Published var quickPaste4: HotkeyPreference
-    @Published var quickPaste5: HotkeyPreference
-    @Published var quickPaste6: HotkeyPreference
-    @Published var quickPaste7: HotkeyPreference
-    @Published var quickPaste8: HotkeyPreference
-    @Published var quickPaste9: HotkeyPreference
+    /// 9-element array (0-indexed internally). Use `quickPaste(_:)` and
+    /// `setQuickPaste(_:_:)` with 1-based indices for public access.
+    @Published var quickPastes: [HotkeyPreference]
 
     private let userDefaults: UserDefaults
 
@@ -85,6 +79,10 @@ final class HotkeyPreferencesStore: ObservableObject {
         return HotkeyPreference(keyCode: keyCodes[idx], modifiers: [.command])
     }
 
+    private static var defaultQuickPastes: [HotkeyPreference] {
+        (1...9).map { defaultQuickPaste($0) }
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         self.showMarten = Self.load(
@@ -97,45 +95,23 @@ final class HotkeyPreferencesStore: ObservableObject {
             userDefaults: userDefaults,
             defaultValue: Self.defaultOCRCapture
         )
-        self.quickPaste1 = Self.load(key: .quickPaste(1), userDefaults: userDefaults, defaultValue: Self.defaultQuickPaste(1))
-        self.quickPaste2 = Self.load(key: .quickPaste(2), userDefaults: userDefaults, defaultValue: Self.defaultQuickPaste(2))
-        self.quickPaste3 = Self.load(key: .quickPaste(3), userDefaults: userDefaults, defaultValue: Self.defaultQuickPaste(3))
-        self.quickPaste4 = Self.load(key: .quickPaste(4), userDefaults: userDefaults, defaultValue: Self.defaultQuickPaste(4))
-        self.quickPaste5 = Self.load(key: .quickPaste(5), userDefaults: userDefaults, defaultValue: Self.defaultQuickPaste(5))
-        self.quickPaste6 = Self.load(key: .quickPaste(6), userDefaults: userDefaults, defaultValue: Self.defaultQuickPaste(6))
-        self.quickPaste7 = Self.load(key: .quickPaste(7), userDefaults: userDefaults, defaultValue: Self.defaultQuickPaste(7))
-        self.quickPaste8 = Self.load(key: .quickPaste(8), userDefaults: userDefaults, defaultValue: Self.defaultQuickPaste(8))
-        self.quickPaste9 = Self.load(key: .quickPaste(9), userDefaults: userDefaults, defaultValue: Self.defaultQuickPaste(9))
+        self.quickPastes = (1...9).map { i in
+            Self.load(
+                key: .quickPaste(i),
+                userDefaults: userDefaults,
+                defaultValue: Self.defaultQuickPaste(i)
+            )
+        }
     }
 
     func quickPaste(_ index: Int) -> HotkeyPreference {
-        switch index {
-        case 1: return quickPaste1
-        case 2: return quickPaste2
-        case 3: return quickPaste3
-        case 4: return quickPaste4
-        case 5: return quickPaste5
-        case 6: return quickPaste6
-        case 7: return quickPaste7
-        case 8: return quickPaste8
-        case 9: return quickPaste9
-        default: return Self.defaultQuickPaste(index)
-        }
+        guard (1...9).contains(index) else { return Self.defaultQuickPaste(index) }
+        return quickPastes[index - 1]
     }
 
     func setQuickPaste(_ index: Int, _ value: HotkeyPreference) {
-        switch index {
-        case 1: quickPaste1 = value
-        case 2: quickPaste2 = value
-        case 3: quickPaste3 = value
-        case 4: quickPaste4 = value
-        case 5: quickPaste5 = value
-        case 6: quickPaste6 = value
-        case 7: quickPaste7 = value
-        case 8: quickPaste8 = value
-        case 9: quickPaste9 = value
-        default: break
-        }
+        guard (1...9).contains(index) else { return }
+        quickPastes[index - 1] = value
     }
 
     func save() {
@@ -163,22 +139,12 @@ final class HotkeyPreferencesStore: ObservableObject {
     }
 
     func resetToDefaults() {
-        userDefaults.removeObject(forKey: HotkeyPreferenceKey.showMarten.rawValue)
-        userDefaults.removeObject(forKey: HotkeyPreferenceKey.ocrCapture.rawValue)
-        for i in 1...9 {
-            userDefaults.removeObject(forKey: HotkeyPreferenceKey.quickPaste(i).rawValue)
+        for key in HotkeyPreferenceKey.allCases {
+            userDefaults.removeObject(forKey: key.rawValue)
         }
         showMarten = Self.defaultShowMarten
         ocrCapture = Self.defaultOCRCapture
-        quickPaste1 = Self.defaultQuickPaste(1)
-        quickPaste2 = Self.defaultQuickPaste(2)
-        quickPaste3 = Self.defaultQuickPaste(3)
-        quickPaste4 = Self.defaultQuickPaste(4)
-        quickPaste5 = Self.defaultQuickPaste(5)
-        quickPaste6 = Self.defaultQuickPaste(6)
-        quickPaste7 = Self.defaultQuickPaste(7)
-        quickPaste8 = Self.defaultQuickPaste(8)
-        quickPaste9 = Self.defaultQuickPaste(9)
+        quickPastes = Self.defaultQuickPastes
     }
 
     static func effectiveHotkey(

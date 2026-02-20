@@ -272,6 +272,16 @@ extension UIColor {
     }
 }
 
+private struct KeyboardActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
 @MainActor
 final class KeyboardExtensionViewModel: ObservableObject {
     @Published var selectedPinboardID: UUID?
@@ -282,8 +292,14 @@ final class KeyboardExtensionViewModel: ObservableObject {
     @Published var isPinboardMenuPresented = false
 
     private let queryService: SharedClipQueryService
-    init(queryService: SharedClipQueryService) {
+    private let commandService: SharedClipCommandService
+
+    init(
+        queryService: SharedClipQueryService,
+        commandService: SharedClipCommandService
+    ) {
         self.queryService = queryService
+        self.commandService = commandService
     }
 
     func load() {
@@ -310,6 +326,32 @@ final class KeyboardExtensionViewModel: ObservableObject {
         isPinboardMenuPresented = false
     }
 
+    func moveItem(_ item: SharedClipItemSummary, to pinboardID: UUID?) async -> Bool {
+        do {
+            try await commandService.moveItem(itemID: item.id, toPinboardID: pinboardID)
+            await refreshItems(showLoading: false)
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func deleteItem(_ item: SharedClipItemSummary) async -> Bool {
+        do {
+            try await commandService.deleteItem(itemID: item.id)
+            await refreshItems(showLoading: false)
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func markItemUsed(_ item: SharedClipItemSummary) async {
+        try? await commandService.markItemUsed(itemID: item.id)
+    }
+
     private func refreshPinboards() async {
         do {
             pinboards = try await queryService.pinboards()
@@ -330,7 +372,7 @@ final class KeyboardExtensionViewModel: ObservableObject {
         do {
             let fetched = try await queryService.recentItems(
                 pinboardID: selectedPinboardID,
-                limit: 50
+                limit: 5000
             )
             withAnimation(.spring(duration: 0.26, bounce: 0)) {
                 items = fetched
@@ -356,6 +398,11 @@ struct KeyboardRootView: View {
 
     @State private var lockStateStore: PinboardLockStateStore
     @State private var copyButtonState: CopyButtonState = .idle
+    @State private var previewItem: SharedClipItemSummary?
+    @State private var moveDestinationItem: SharedClipItemSummary?
+    @State private var pendingDeleteItem: SharedClipItemSummary?
+    @State private var shareActivityItems: [Any] = []
+    @State private var isShareSheetPresented = false
 
     private enum CopyButtonState {
         case idle
@@ -486,6 +533,63 @@ struct KeyboardRootView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(100)
                 }
+
+                if let moveDestinationItem {
+                    Color.black.opacity(0.001)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.spring(duration: 0.25)) {
+                                self.moveDestinationItem = nil
+                            }
+                        }
+
+                    VStack {
+                        Spacer()
+                        moveDestinationOverlay(for: moveDestinationItem)
+                            .padding(.bottom, 16)
+                            .padding(.horizontal, 12)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(120)
+                }
+
+                if let previewItem {
+                    Color.black.opacity(0.001)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.spring(duration: 0.25)) {
+                                self.previewItem = nil
+                            }
+                        }
+
+                    previewOverlay(for: previewItem, cardSide: cardSide)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                        .zIndex(140)
+                }
+
+                if let pendingDeleteItem {
+                    Color.black.opacity(0.001)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.spring(duration: 0.25)) {
+                                self.pendingDeleteItem = nil
+                            }
+                        }
+
+                    VStack {
+                        Spacer()
+                        deleteConfirmationOverlay(for: pendingDeleteItem)
+                            .padding(.bottom, 16)
+                            .padding(.horizontal, 12)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(130)
+                }
+            }
+            .sheet(isPresented: $isShareSheetPresented) {
+                KeyboardActivityView(activityItems: shareActivityItems)
             }
         }
     }
@@ -494,6 +598,9 @@ struct KeyboardRootView: View {
         HStack(spacing: 8) {
             Button {
                 withAnimation(.spring(duration: 0.25)) {
+                    previewItem = nil
+                    moveDestinationItem = nil
+                    pendingDeleteItem = nil
                     viewModel.isPinboardMenuPresented.toggle()
                 }
             } label: {
@@ -685,7 +792,7 @@ struct KeyboardRootView: View {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(viewModel.pinboards.filter { !$0.isSystemMarten }) { pinboard in
+                    ForEach(customPinboards) { pinboard in
                         let isLocked = lockStateStore.isLocked(pinboard.id)
                         let canAccess = lockStateStore.canAccess(pinboard.id)
                         Button {
@@ -739,7 +846,7 @@ struct KeyboardRootView: View {
                         }
                         .buttonStyle(.plain)
 
-                        if pinboard.id != viewModel.pinboards.last?.id {
+                        if pinboard.id != customPinboards.last?.id {
                             Divider()
                                 .padding(.leading, 52)
                         }
@@ -762,8 +869,20 @@ struct KeyboardRootView: View {
         return viewModel.pinboards.first(where: { $0.id == id })
     }
 
+    private var customPinboards: [SharedPinboardSummary] {
+        viewModel.pinboards.filter { !$0.isSystemMarten }
+    }
+
     private var selectedPinboardTitle: String {
         selectedPinboard?.name ?? "All"
+    }
+
+    private var itemCountTitle: String {
+        let count = viewModel.items.count
+        if count == 1 {
+            return "1 item"
+        }
+        return "\(count) items"
     }
 
     private var pinboardHeaderBar: some View {
@@ -775,19 +894,13 @@ struct KeyboardRootView: View {
 
             Spacer(minLength: 0)
 
-            Link(destination: URL(string: "marten://open")!) {
-                HStack(spacing: 4) {
-                    Text("Open Marten")
-                        .font(.system(size: 11, weight: .semibold))
-                }
+            Text(itemCountTitle)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 .background(Color.primary.opacity(0.06))
-                .foregroundStyle(.primary)
                 .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .disabled(copyButtonState == .copying)
         }
         .frame(height: 28)
     }
@@ -797,14 +910,14 @@ struct KeyboardRootView: View {
         let button = Button {
             handleItemTap(item)
         } label: {
-            KeyboardItemCardView(
-                item: item,
-                pinboards: viewModel.pinboards,
-                allowsNetworkFetch: allowsNetworkFetch
-            )
-            .frame(width: cardSide)
+            cardLabel(for: item, cardSide: cardSide)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            contextMenuContent(for: item)
+        } preview: {
+            contextMenuPreview(for: item)
+        }
 
         if let dragText = dragText(for: item) {
             button.onDrag {
@@ -814,6 +927,17 @@ struct KeyboardRootView: View {
         } else {
             button
         }
+    }
+
+    @ViewBuilder
+    private func cardLabel(for item: SharedClipItemSummary, cardSide: CGFloat) -> some View {
+        KeyboardItemCardView(
+            item: item,
+            pinboards: viewModel.pinboards,
+            allowsNetworkFetch: allowsNetworkFetch
+        )
+        .frame(width: cardSide)
+        .contentShape(Rectangle())
     }
 
     private func dragText(for item: SharedClipItemSummary) -> String? {
@@ -831,6 +955,457 @@ struct KeyboardRootView: View {
 
         onInsertText(text)
         onRecordHeartbeat()
+        Task {
+            await viewModel.markItemUsed(item)
+        }
+    }
+
+    private func contextActionMenuButton(
+        for action: ItemCardContextAction,
+        item: SharedClipItemSummary,
+        compactTitle: Bool = false
+    ) -> some View {
+        Button(role: action == .delete ? .destructive : nil) {
+            DispatchQueue.main.async {
+                self.handleContextAction(action, item: item)
+            }
+        } label: {
+            Label(contextActionTitle(for: action, compact: compactTitle), systemImage: action.systemImage)
+                .font(.system(size: 12, weight: .medium))
+                .imageScale(.small)
+        }
+        .controlSize(.small)
+    }
+
+    private func contextActionTitle(for action: ItemCardContextAction, compact: Bool) -> String {
+        if action == .copyPlainText {
+            return compact ? "Plain" : "Copy Plain Text"
+        }
+        return action.title
+    }
+
+    @ViewBuilder
+    private func contextMenuContent(for item: SharedClipItemSummary) -> some View {
+        let orderedActions = ItemCardContextAction.ordered
+        let keyboardActions = orderedActions.filter { $0 != .preview && $0 != .share }
+        let nonDeleteActions = keyboardActions.filter { $0 != .delete }
+
+        ForEach(nonDeleteActions, id: \.self) { action in
+            contextActionMenuButton(
+                for: action,
+                item: item,
+                compactTitle: action == .copyPlainText
+            )
+        }
+
+        if keyboardActions.contains(.delete) {
+            Divider()
+            contextActionMenuButton(for: .delete, item: item)
+        }
+    }
+
+    private func contextMenuPreview(for item: SharedClipItemSummary) -> some View {
+        KeyboardContextPreviewCard(
+            item: item,
+            pinboards: viewModel.pinboards
+        )
+    }
+
+    private func handleContextAction(_ action: ItemCardContextAction, item: SharedClipItemSummary) {
+        switch action {
+        case .copy:
+            copyItemToPasteboard(item)
+        case .copyPlainText:
+            copyItemToPasteboard(item, asPlainText: true)
+        case .preview:
+            handlePreviewAction(for: item)
+        case .togglePin:
+            let feedback = UINotificationFeedbackGenerator()
+            feedback.notificationOccurred(.warning)
+        case .share:
+            handleShareAction(for: item)
+        case .moveToPinboard:
+            withAnimation(.spring(duration: 0.25)) {
+                viewModel.isPinboardMenuPresented = false
+                previewItem = nil
+                moveDestinationItem = item
+                pendingDeleteItem = nil
+            }
+        case .delete:
+            withAnimation(.spring(duration: 0.25)) {
+                viewModel.isPinboardMenuPresented = false
+                moveDestinationItem = nil
+                previewItem = nil
+                pendingDeleteItem = item
+            }
+        }
+    }
+
+    private func copyItemToPasteboard(
+        _ item: SharedClipItemSummary,
+        asPlainText: Bool = false
+    ) {
+        guard let text = copyText(for: item, asPlainText: asPlainText) else {
+            let feedback = UINotificationFeedbackGenerator()
+            feedback.notificationOccurred(.error)
+            return
+        }
+
+        UIPasteboard.general.string = text
+        onRecordHeartbeat()
+        Task {
+            await viewModel.markItemUsed(item)
+        }
+
+        let feedback = UINotificationFeedbackGenerator()
+        feedback.notificationOccurred(.success)
+    }
+
+    private func copyText(for item: SharedClipItemSummary, asPlainText _: Bool) -> String? {
+        let plainText = item.plainText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let plainText, !plainText.isEmpty {
+            return plainText
+        }
+
+        let fallbackText = item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let fallbackText, !fallbackText.isEmpty {
+            return fallbackText
+        }
+
+        return nil
+    }
+
+    private func handlePreviewAction(for item: SharedClipItemSummary) {
+        guard supportsPreview(item) else {
+            copyItemToPasteboard(item)
+            return
+        }
+
+        withAnimation(.spring(duration: 0.25)) {
+            viewModel.isPinboardMenuPresented = false
+            moveDestinationItem = nil
+            previewItem = item
+        }
+    }
+
+    private func supportsPreview(_ item: SharedClipItemSummary) -> Bool {
+        switch item.itemType {
+        case .text, .richText, .image, .code, .url:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func handleShareAction(for item: SharedClipItemSummary) {
+        let payloads = bestEffortSharePayloads(for: item)
+        guard !payloads.isEmpty else {
+            let feedback = UINotificationFeedbackGenerator()
+            feedback.notificationOccurred(.error)
+            return
+        }
+
+        viewModel.isPinboardMenuPresented = false
+        moveDestinationItem = nil
+        previewItem = nil
+
+        shareActivityItems = payloads
+        isShareSheetPresented = true
+    }
+
+    private func bestEffortSharePayloads(for item: SharedClipItemSummary) -> [Any] {
+        var payloads: [Any] = []
+
+        if let shareURL = shareURL(for: item) {
+            payloads.append(shareURL)
+        }
+
+        if item.itemType == .image,
+            let imagePath = item.thumbnailPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !imagePath.isEmpty
+        {
+            let url = URL(fileURLWithPath: imagePath)
+            if FileManager.default.fileExists(atPath: imagePath) {
+                payloads.append(url)
+            }
+
+            if let image = UIImage(contentsOfFile: imagePath) {
+                payloads.append(image)
+            }
+        }
+
+        if let text = copyText(for: item, asPlainText: true) {
+            payloads.append(text)
+        }
+
+        return payloads
+    }
+
+    private func shareURL(for item: SharedClipItemSummary) -> URL? {
+        if item.itemType == .file,
+            let path = item.primaryText,
+            !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            let fileURL = URL(fileURLWithPath: path)
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                return fileURL
+            }
+            return nil
+        }
+
+        if item.itemType == .url,
+            let raw = item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !raw.isEmpty
+        {
+            if raw.localizedCaseInsensitiveContains("://") {
+                return URL(string: raw)
+            }
+            return URL(string: "https://\(raw)")
+        }
+
+        return nil
+    }
+
+    private func previewOverlay(for item: SharedClipItemSummary, cardSide: CGFloat) -> some View {
+        VStack {
+            Spacer()
+            VStack(spacing: 12) {
+                HStack {
+                    Text("Preview")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Button("Done") {
+                        withAnimation(.spring(duration: 0.25)) {
+                            previewItem = nil
+                        }
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .buttonStyle(.plain)
+                }
+
+                KeyboardItemCardView(
+                    item: item,
+                    pinboards: viewModel.pinboards,
+                    allowsNetworkFetch: allowsNetworkFetch
+                )
+                .frame(width: min(proxySafePreviewWidth(cardSide), 340))
+            }
+            .padding(12)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
+        }
+    }
+
+    private func proxySafePreviewWidth(_ cardSide: CGFloat) -> CGFloat {
+        max(220, cardSide + 28)
+    }
+
+    private func deleteConfirmationOverlay(for item: SharedClipItemSummary) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Delete Items?")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.primary)
+
+            Text("This action cannot be undone.")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                Button {
+                    withAnimation(.spring(duration: 0.25)) {
+                        pendingDeleteItem = nil
+                    }
+                } label: {
+                    Text("Cancel")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .background(Color.primary.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Button(role: .destructive) {
+                    withAnimation(.spring(duration: 0.25)) {
+                        pendingDeleteItem = nil
+                    }
+                    Task { @MainActor in
+                        let didDelete = await viewModel.deleteItem(item)
+                        let feedback = UINotificationFeedbackGenerator()
+                        feedback.notificationOccurred(didDelete ? .success : .error)
+                    }
+                } label: {
+                    Text("Delete")
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+            }
+        }
+        .padding(14)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
+    }
+
+    private func moveDestinationOverlay(for item: SharedClipItemSummary) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Move to Pinboard")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Spacer()
+                Button {
+                    withAnimation(.spring(duration: 0.25)) {
+                        moveDestinationItem = nil
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, height: 30)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+
+            Divider()
+
+            Button {
+                Task { @MainActor in
+                    await performMove(item, to: nil)
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    KeyboardPinboardIndicator(
+                        colorHex: "#007AFF",
+                        sign: "tray.full",
+                        size: 24
+                    )
+                    Text("All")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.primary)
+                    Spacer()
+
+                    if isInAllPinboard(item) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Divider()
+                .padding(.leading, 52)
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(customPinboards) { pinboard in
+                        let isLocked = lockStateStore.isLocked(pinboard.id)
+                        let canAccess = lockStateStore.canAccess(pinboard.id)
+                        Button {
+                            if isLocked && !canAccess {
+                                Task { @MainActor in
+                                    let unlocked = await lockStateStore.unlock(
+                                        pinboardID: pinboard.id,
+                                        pinboardName: pinboard.name
+                                    )
+                                    guard unlocked else { return }
+                                    await performMove(item, to: pinboard.id)
+                                }
+                            } else {
+                                Task { @MainActor in
+                                    await performMove(item, to: pinboard.id)
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                KeyboardPinboardIndicator(
+                                    colorHex: pinboard.colorHex,
+                                    sign: pinboard.iconName,
+                                    size: 24
+                                )
+
+                                HStack(spacing: 8) {
+                                    Text(pinboard.name)
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+
+                                    if pinboard.isShared {
+                                        KeyboardStatusChip(systemImage: "person.2.fill")
+                                    }
+
+                                    if isLocked {
+                                        KeyboardStatusChip(
+                                            systemImage: canAccess ? "lock.open.fill" : "lock.fill"
+                                        )
+                                    }
+                                }
+
+                                Spacer()
+
+                                if item.pinboardIDs.contains(pinboard.id) {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(Color.accentColor)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        if pinboard.id != customPinboards.last?.id {
+                            Divider()
+                                .padding(.leading, 52)
+                        }
+                    }
+                }
+            }
+            .frame(maxHeight: 260)
+        }
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
+    }
+
+    private func isInAllPinboard(_ item: SharedClipItemSummary) -> Bool {
+        let customPinboardIDs = Set(customPinboards.map(\.id))
+        return Set(item.pinboardIDs).isDisjoint(with: customPinboardIDs)
+    }
+
+    private func performMove(_ item: SharedClipItemSummary, to pinboardID: UUID?) async {
+        let didMove = await viewModel.moveItem(item, to: pinboardID)
+        let feedback = UINotificationFeedbackGenerator()
+        feedback.notificationOccurred(didMove ? .success : .error)
+
+        if didMove {
+            withAnimation(.spring(duration: 0.25)) {
+                moveDestinationItem = nil
+            }
+        }
     }
 }
 
@@ -1012,6 +1587,99 @@ private struct KeyboardItemCardPresentation {
         default:
             return byteCountString(for: item.byteCount) ?? defaultTitle(for: item.itemType)
         }
+    }
+}
+
+private struct KeyboardContextPreviewCard: View {
+    let item: SharedClipItemSummary
+    let pinboards: [SharedPinboardSummary]
+
+    private var pres: KeyboardItemCardPresentation {
+        KeyboardItemCardPresentation(item: item, pinboards: pinboards)
+    }
+
+    private let cardCornerRadius: CGFloat = 7
+    private let cardPadding: CGFloat = 8
+    private let headerMinHeight: CGFloat = 22
+
+    var body: some View {
+        header
+            .frame(width: 170, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                .fill(headerBackgroundColor)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                .strokeBorder(headerBorderColor, lineWidth: 0.5)
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 4) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(pres.title)
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(headerTextColor)
+                    .lineLimit(1)
+
+                if let subtitle = pres.headerSubtitle {
+                    Text(subtitle)
+                        .font(.system(size: 6.5, weight: .medium))
+                        .foregroundStyle(headerTextColor.opacity(0.74))
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 4)
+
+            if let colorHex = pres.primaryPinboardColorHex {
+                KeyboardPinboardIndicator(
+                    colorHex: colorHex,
+                    sign: pres.primaryPinboardSign,
+                    size: 14
+                )
+            } else {
+                KeyboardSourceAppIconBadge(
+                    bundleID: pres.sourceAppBundleID,
+                    appName: pres.sourceAppName,
+                    iconData: pres.sourceAppIconData,
+                    size: 14
+                )
+            }
+        }
+        .padding(.horizontal, cardPadding)
+        .padding(.vertical, 4)
+        .frame(minHeight: headerMinHeight, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var headerBackgroundColor: Color {
+        if let pinboardHex = pres.primaryPinboardColorHex,
+           let normalizedHex = ColorHex.normalizedHex(from: pinboardHex) {
+            return Color(hex: normalizedHex, fallback: .gray).opacity(0.96)
+        }
+        let hex = KeyboardSourceAppIconBadge.backgroundHex(
+            bundleID: pres.sourceAppBundleID,
+            appName: pres.sourceAppName
+        )
+        return Color(hex: hex, fallback: .gray).opacity(0.94)
+    }
+
+    private var headerTextColor: Color {
+        if let pinboardHex = pres.primaryPinboardColorHex,
+           let normalizedHex = ColorHex.normalizedHex(from: pinboardHex) {
+            return ColorHex.foregroundColor(for: normalizedHex)
+        }
+        return KeyboardSourceAppIconBadge.foregroundColor(
+            bundleID: pres.sourceAppBundleID,
+            appName: pres.sourceAppName
+        )
+    }
+
+    private var headerBorderColor: Color {
+        headerTextColor.opacity(0.28)
     }
 }
 

@@ -241,7 +241,7 @@ public final class InboundSyncEngine: @unchecked Sendable {
     private func syncInboundInternal(allowTokenReset: Bool) async throws -> InboundSyncResult {
         let previousTokenData = try tokenStore.load()
         let context = persistenceController.newBackgroundContext()
-        context.transactionAuthor = "private-inbound-sync"
+        context.transactionAuthor = SyncTransactionAuthor.privateInbound
 
         var pendingRecords: [CKRecord] = []
         var pendingDeletions: [(CKRecord.ID, String)] = []
@@ -830,7 +830,9 @@ public final class InboundSyncEngine: @unchecked Sendable {
 
     private func removeMembership(membershipID: UUID, in context: NSManagedObjectContext) {
         let request = ClipItem.fetchRequest()
+        request.predicate = NSPredicate(format: "ANY pinboards.isSystemMarten == NO")
         request.relationshipKeyPathsForPrefetching = ["pinboards"]
+        request.fetchBatchSize = 100
 
         guard let items = try? context.fetch(request) else { return }
 

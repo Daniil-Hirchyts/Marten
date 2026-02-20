@@ -321,6 +321,7 @@ struct MartenUISearchTextField: UIViewRepresentable {
     var placeholder: String
     var onFocus: () -> Void
     var focusRequest: Binding<Bool>?
+    var showsLeadingIcon: Bool = true
 
     func makeUIView(context: Context) -> UISearchTextField {
         let searchTextField = UISearchTextField()
@@ -334,6 +335,10 @@ struct MartenUISearchTextField: UIViewRepresentable {
 
         searchTextField.borderStyle = .none
         searchTextField.backgroundColor = .clear
+
+        if !showsLeadingIcon {
+            searchTextField.leftViewMode = .never
+        }
 
         return searchTextField
     }

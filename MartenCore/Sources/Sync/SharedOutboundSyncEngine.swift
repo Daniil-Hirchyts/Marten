@@ -73,8 +73,7 @@ public final class SharedOutboundSyncEngine: @unchecked Sendable {
               coordinator == persistenceController.container.persistentStoreCoordinator else { return }
 
         // Skip saves from any inbound sync
-        if let author = context.transactionAuthor,
-           author == "private-inbound-sync" || author == "shared-inbound-sync" {
+        if SyncTransactionAuthor.isInboundSync(context.transactionAuthor) {
             return
         }
 
@@ -109,14 +108,12 @@ public final class SharedOutboundSyncEngine: @unchecked Sendable {
             enqueue(record: record, routing: routing)
         } else if let item = object as? ClipItem {
             let routing = shareZoneRegistry.routingInfo(for: item)
-            guard routing.database != .privateDB || routing.zoneID != shareZoneRegistry.routingInfo(for: item).zoneID else {
-                // Only handle shared items; private items are handled by OutboundSyncEngine
+            // Only handle shared items; private items are handled by OutboundSyncEngine
+            guard routing.database == .sharedDB || routing.zoneID.zoneName.hasPrefix("SharedPinboard-") else {
                 return
             }
-            if routing.database == .sharedDB || routing.zoneID.zoneName.hasPrefix("SharedPinboard-") {
-                let record = recordMapper.mapToRecord(item, zoneID: routing.zoneID)
-                enqueue(record: record, routing: routing)
-            }
+            let record = recordMapper.mapToRecord(item, zoneID: routing.zoneID)
+            enqueue(record: record, routing: routing)
         }
     }
 

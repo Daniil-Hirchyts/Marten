@@ -175,7 +175,7 @@ struct ItemGridSection: View {
                 .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: isSelectedPinboardAwaitingUnlock)
+        .animation(OverlayAnimation.standardTransition, value: isSelectedPinboardAwaitingUnlock)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .overlay(alignment: .topLeading) {
             if readOnly {

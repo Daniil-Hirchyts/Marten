@@ -22,14 +22,18 @@ final class ItemCardCollectionViewController: UIViewController {
     private let onCopyItem: (ClipItem) -> Void
     private let onCopyPlainTextItem: (ClipItem) -> Void
     private let onPreviewItem: (ClipItem) -> Void
+    private let onTogglePinItem: (ClipItem) -> Void
     private let onShareItem: (ClipItem) -> Void
     private let onMoveItem: (ClipItem) -> Void
     private let onDeleteItem: (ClipItem) -> Void
     private let onReorderItems: ([NSManagedObjectID]) -> Void
+    private let onSwipeToNextPinboard: () -> Void
+    private let onSwipeToPreviousPinboard: () -> Void
 
     private var itemsByID: [NSManagedObjectID: ClipItem] = [:]
     private var orderedIDs: [NSManagedObjectID] = []
     private var canReorder = false
+    private var allowPinning = false
     private var isSelectionMode = false
     private var selectedObjectIDs: Set<NSManagedObjectID> = []
     private var lastLayoutColumnCount: Int = 0
@@ -41,6 +45,28 @@ final class ItemCardCollectionViewController: UIViewController {
         recognizer.minimumNumberOfTouches = 1
         recognizer.maximumNumberOfTouches = 1
         recognizer.cancelsTouchesInView = true
+        recognizer.delegate = self
+        return recognizer
+    }()
+
+    private lazy var swipeLeftGesture: UISwipeGestureRecognizer = {
+        let recognizer = UISwipeGestureRecognizer(
+            target: self,
+            action: #selector(handleSwipeLeft(_:))
+        )
+        recognizer.direction = .left
+        recognizer.cancelsTouchesInView = false
+        recognizer.delegate = self
+        return recognizer
+    }()
+
+    private lazy var swipeRightGesture: UISwipeGestureRecognizer = {
+        let recognizer = UISwipeGestureRecognizer(
+            target: self,
+            action: #selector(handleSwipeRight(_:))
+        )
+        recognizer.direction = .right
+        recognizer.cancelsTouchesInView = false
         recognizer.delegate = self
         return recognizer
     }()
@@ -89,6 +115,7 @@ final class ItemCardCollectionViewController: UIViewController {
                     handlesPressGesture: false,
                     showsContextMenu: false,
                     showsSelectionFeedback: false,
+                    allowPinning: self.allowPinning,
                     onTap: {},
                     onCopy: { self.onCopyItem(item) },
                     onCopyPlainText: { self.onCopyPlainTextItem(item) },
@@ -114,20 +141,26 @@ final class ItemCardCollectionViewController: UIViewController {
         onCopyItem: @escaping (ClipItem) -> Void,
         onCopyPlainTextItem: @escaping (ClipItem) -> Void,
         onPreviewItem: @escaping (ClipItem) -> Void,
+        onTogglePinItem: @escaping (ClipItem) -> Void,
         onShareItem: @escaping (ClipItem) -> Void,
         onMoveItem: @escaping (ClipItem) -> Void,
         onDeleteItem: @escaping (ClipItem) -> Void,
-        onReorderItems: @escaping ([NSManagedObjectID]) -> Void
+        onReorderItems: @escaping ([NSManagedObjectID]) -> Void,
+        onSwipeToNextPinboard: @escaping () -> Void,
+        onSwipeToPreviousPinboard: @escaping () -> Void
     ) {
         self.selectionModel = selectionModel
         self.onTapItem = onTapItem
         self.onCopyItem = onCopyItem
         self.onCopyPlainTextItem = onCopyPlainTextItem
         self.onPreviewItem = onPreviewItem
+        self.onTogglePinItem = onTogglePinItem
         self.onShareItem = onShareItem
         self.onMoveItem = onMoveItem
         self.onDeleteItem = onDeleteItem
         self.onReorderItems = onReorderItems
+        self.onSwipeToNextPinboard = onSwipeToNextPinboard
+        self.onSwipeToPreviousPinboard = onSwipeToPreviousPinboard
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -143,6 +176,8 @@ final class ItemCardCollectionViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         collectionView.addGestureRecognizer(selectionPanGesture)
+        collectionView.addGestureRecognizer(swipeLeftGesture)
+        collectionView.addGestureRecognizer(swipeRightGesture)
         collectionView.panGestureRecognizer.require(toFail: selectionPanGesture)
     }
 
@@ -154,6 +189,7 @@ final class ItemCardCollectionViewController: UIViewController {
     func update(
         items: [ClipItem],
         canReorder: Bool,
+        allowPinning: Bool,
         isSelectionMode: Bool,
         selectedObjectIDs: Set<NSManagedObjectID>,
         contentInsets: UIEdgeInsets
@@ -162,6 +198,7 @@ final class ItemCardCollectionViewController: UIViewController {
         let previousSelectedIDs = self.selectedObjectIDs
 
         self.canReorder = canReorder
+        self.allowPinning = allowPinning
         self.isSelectionMode = isSelectionMode
         self.selectedObjectIDs = selectedObjectIDs
         self.collectionView.contentInset = contentInsets
@@ -198,6 +235,9 @@ final class ItemCardCollectionViewController: UIViewController {
         updateLayoutIfNeeded()
 
         selectionPanGesture.isEnabled = isSelectionMode
+        let isPinboardSwipeEnabled = !isSelectionMode
+        swipeLeftGesture.isEnabled = isPinboardSwipeEnabled
+        swipeRightGesture.isEnabled = isPinboardSwipeEnabled
     }
 
     private func applySnapshot(animated: Bool) {
@@ -307,6 +347,22 @@ final class ItemCardCollectionViewController: UIViewController {
         }
     }
 
+    @objc
+    private func handleSwipeLeft(_ recognizer: UISwipeGestureRecognizer) {
+        guard recognizer.state == .ended else { return }
+        guard !isSelectionMode else { return }
+        guard !collectionView.hasActiveDrag else { return }
+        onSwipeToNextPinboard()
+    }
+
+    @objc
+    private func handleSwipeRight(_ recognizer: UISwipeGestureRecognizer) {
+        guard recognizer.state == .ended else { return }
+        guard !isSelectionMode else { return }
+        guard !collectionView.hasActiveDrag else { return }
+        onSwipeToPreviousPinboard()
+    }
+
     private func applyPanSelection(to objectID: NSManagedObjectID, at indexPath: IndexPath) {
         guard let action = panSelectionAction else { return }
         guard !panVisitedObjectIDs.contains(objectID) else { return }
@@ -389,34 +445,48 @@ extension ItemCardCollectionViewController: UICollectionViewDelegate {
 
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
             guard let self else { return nil }
+            let actions = ItemCardContextAction.ordered(allowPinning: self.allowPinning).map {
+                self.menuAction(for: $0, item: item)
+            }
+            return UIMenu(children: actions)
+        }
+    }
 
-            let copy = UIAction(title: "Copy", image: UIImage(systemName: "doc.on.doc")) { _ in
+    private func menuAction(for action: ItemCardContextAction, item: ClipItem) -> UIAction {
+        let attributes: UIMenuElement.Attributes = action.isDestructive ? [.destructive] : []
+
+        if action == .togglePin {
+            return UIAction(
+                title: item.isPinned ? "Unpin" : "Pin",
+                image: UIImage(systemName: item.isPinned ? "pin.slash" : "pin")
+            ) { [weak self] _ in
+                guard let self else { return }
+                self.onTogglePinItem(item)
+            }
+        }
+
+        return UIAction(
+            title: action.title,
+            image: UIImage(systemName: action.systemImage),
+            attributes: attributes
+        ) { [weak self] _ in
+            guard let self else { return }
+            switch action {
+            case .copy:
                 self.onCopyItem(item)
-            }
-            let copyPlain = UIAction(title: "Copy as Plain Text", image: UIImage(systemName: "textformat")) { _ in
+            case .copyPlainText:
                 self.onCopyPlainTextItem(item)
-            }
-            let preview = UIAction(title: "Preview", image: UIImage(systemName: "eye")) { _ in
+            case .preview:
                 self.onPreviewItem(item)
-            }
-            let share = UIAction(title: "Share", image: UIImage(systemName: "square.and.arrow.up")) { _ in
+            case .togglePin:
+                self.onTogglePinItem(item)
+            case .share:
                 self.onShareItem(item)
-            }
-            let move = UIAction(title: "Move to Pinboard", image: UIImage(systemName: "circle.dashed")) { _ in
+            case .moveToPinboard:
                 self.onMoveItem(item)
-            }
-            let delete = UIAction(title: "Delete", image: UIImage(systemName: "trash"), attributes: [.destructive]) { _ in
+            case .delete:
                 self.onDeleteItem(item)
             }
-
-            return UIMenu(children: [
-                copy,
-                copyPlain,
-                preview,
-                share,
-                move,
-                delete
-            ])
         }
     }
 }
@@ -432,40 +502,19 @@ extension ItemCardCollectionViewController: UICollectionViewDragDelegate {
 
     func collectionView(_ collectionView: UICollectionView, itemsForBeginning session: UIDragSession, at indexPath: IndexPath) -> [UIDragItem] {
         guard let objectID = dataSource.itemIdentifier(for: indexPath),
-              itemsByID[objectID] != nil else {
+              let item = itemsByID[objectID] else {
             return []
         }
 
         let dragSet = NSMutableSet()
         session.localContext = dragSet
 
-        let objectIDsToDrag: [NSManagedObjectID]
-        if isSelectionMode {
-            let uiSelectedIDs = Set((collectionView.indexPathsForSelectedItems ?? []).compactMap { selectedIndexPath in
-                dataSource.itemIdentifier(for: selectedIndexPath)
-            })
-
-            if uiSelectedIDs.contains(objectID), !uiSelectedIDs.isEmpty {
-                objectIDsToDrag = orderedIDs.filter(uiSelectedIDs.contains)
-            } else {
-                objectIDsToDrag = [objectID]
-            }
-        } else {
-            objectIDsToDrag = [objectID]
-        }
-
-        var seenURIStrings = Set<String>()
-        let uniqueObjectIDsToDrag = objectIDsToDrag.filter { id in
-            seenURIStrings.insert(id.uriRepresentation().absoluteString).inserted
-        }
-
-        uniqueObjectIDsToDrag.forEach { id in
-            dragSet.add(id.uriRepresentation().absoluteString as NSString)
-        }
-        return uniqueObjectIDsToDrag.compactMap { id in
-            guard let item = itemsByID[id] else { return nil }
-            return makeDragItem(for: id, item: item)
-        }
+        // Only return the single touched item here. UICollectionView auto-lifts
+        // other selected cells and calls itemsForAddingTo for each, so returning
+        // all selected items here would double-count them.
+        let objectIDKey = objectID.uriRepresentation().absoluteString as NSString
+        dragSet.add(objectIDKey)
+        return [makeDragItem(for: objectID, item: item)]
     }
 
     func collectionView(_ collectionView: UICollectionView, itemsForAddingTo session: UIDragSession, at indexPath: IndexPath, point: CGPoint) -> [UIDragItem] {
@@ -477,18 +526,7 @@ extension ItemCardCollectionViewController: UICollectionViewDragDelegate {
         }
 
         let objectIDKey = objectID.uriRepresentation().absoluteString as NSString
-
-        if dragSet.contains(objectIDKey) {
-            return []
-        }
-
-        let existingURIStrings = Set(session.items.compactMap { dragItem in
-            (dragItem.localObject as? NSManagedObjectID)?.uriRepresentation().absoluteString
-        })
-        if existingURIStrings.contains(objectIDKey as String) {
-            dragSet.add(objectIDKey)
-            return []
-        }
+        guard !dragSet.contains(objectIDKey) else { return [] }
 
         dragSet.add(objectIDKey)
         return [makeDragItem(for: objectID, item: item)]
@@ -564,15 +602,30 @@ extension ItemCardCollectionViewController: UICollectionViewDropDelegate {
 
 extension ItemCardCollectionViewController: UIGestureRecognizerDelegate {
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-        guard gestureRecognizer === selectionPanGesture else { return true }
-        guard isSelectionMode else { return false }
-        guard !collectionView.hasActiveDrag else { return false }
+        if gestureRecognizer === selectionPanGesture {
+            guard isSelectionMode else { return false }
+            guard !collectionView.hasActiveDrag else { return false }
 
-        let location = gestureRecognizer.location(in: collectionView)
-        return collectionView.indexPathForItem(at: location) != nil
+            let location = gestureRecognizer.location(in: collectionView)
+            return collectionView.indexPathForItem(at: location) != nil
+        }
+
+        if gestureRecognizer === swipeLeftGesture || gestureRecognizer === swipeRightGesture {
+            return !isSelectionMode && !collectionView.hasActiveDrag
+        }
+
+        return true
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        false
+        if gestureRecognizer === swipeLeftGesture
+            || gestureRecognizer === swipeRightGesture
+            || otherGestureRecognizer === swipeLeftGesture
+            || otherGestureRecognizer === swipeRightGesture
+        {
+            return true
+        }
+
+        return false
     }
 }

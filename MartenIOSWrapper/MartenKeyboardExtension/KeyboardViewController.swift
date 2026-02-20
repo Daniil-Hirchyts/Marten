@@ -41,13 +41,18 @@ final class KeyboardViewController: UIInputViewController {
         let storage = MartenIOSStorageConfiguration()
         let persistence: PersistenceController
         let queryService: SharedClipQueryService
+        let commandService: SharedClipCommandService
 
         if let configuredPersistence = try? storage.makePersistenceController() {
             persistence = configuredPersistence
             queryService = SharedClipQueryService(persistenceController: persistence)
+            commandService = SharedClipCommandService(persistenceController: persistence)
         } else {
             persistence = PersistenceController()
             queryService = SharedClipQueryService(
+                persistenceController: persistence
+            )
+            commandService = SharedClipCommandService(
                 persistenceController: persistence
             )
         }
@@ -61,7 +66,10 @@ final class KeyboardViewController: UIInputViewController {
             saveService = ShareExtensionSaveService(persistenceController: persistence)
         }
 
-        let viewModel = KeyboardExtensionViewModel(queryService: queryService)
+        let viewModel = KeyboardExtensionViewModel(
+            queryService: queryService,
+            commandService: commandService
+        )
         self.viewModel = viewModel
         let rootView = KeyboardRootView(
             viewModel: viewModel,

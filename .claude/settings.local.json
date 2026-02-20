@@ -25,7 +25,10 @@
       "Bash(git stash pop:*)",
       "Bash(log show:*)",
       "Bash(sort:*)",
-      "Bash(xcrun momc:*)"
+      "Bash(xcrun momc:*)",
+      "WebFetch(domain:keyboardkit.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

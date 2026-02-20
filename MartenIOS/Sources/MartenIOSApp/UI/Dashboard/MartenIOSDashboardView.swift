@@ -39,6 +39,7 @@ struct MartenIOSDashboardView: View {
     @State private var pinboardShareContext: PinboardShareContext?
     @State private var pendingDeletePinboard: Pinboard?
     @State private var isSearchExpanded = false
+    @State private var swipeDirection: Int = 1
 
     @ScaledMetric(relativeTo: .headline) private var actionButtonSize: CGFloat = 44
 
@@ -69,6 +70,14 @@ struct MartenIOSDashboardView: View {
                         onPreviewItem: { item in
                             handleItemPreview(item)
                         },
+                        onTogglePinItem: { item in
+                            guard container.selectedPinboardID != nil else { return }
+                            let message = item.isPinned ? "Unpinned" : "Pinned"
+                            toastController.show(message, systemImage: "pin.fill")
+                            Task {
+                                await container.togglePin(objectID: item.objectID)
+                            }
+                        },
                         onShareItem: { item in
                             shareItems([item.objectID])
                         },
@@ -81,6 +90,12 @@ struct MartenIOSDashboardView: View {
                         onReorderItems: { objectIDs in
                             reorderItems(objectIDs)
                         },
+                        onSwipeToNextPinboard: {
+                            advancePinboardSelection(by: 1)
+                        },
+                        onSwipeToPreviousPinboard: {
+                            advancePinboardSelection(by: -1)
+                        },
                         onVisibleObjectIDsChanged: { visibleIDs in
                             if selectionModel.isSelectionMode {
                                 selectionModel.selectedObjectIDs =
@@ -89,28 +104,37 @@ struct MartenIOSDashboardView: View {
                         }
                     )
                     .id(dashboardItemsSectionID)
+                    .transition(.displaceDistortion(direction: swipeDirection))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea()
 
-            // Top blur fade at screen edge (behind controls, in front of cards)
+            // Top gradient fade at screen edge (behind controls, in front of cards)
             VStack(spacing: 0) {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .frame(height: 140)
-                    .mask(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .white, location: 0.0),
-                                .init(color: .white, location: 0.5),
-                                .init(color: .white.opacity(0.0), location: 1.0),
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .allowsHitTesting(false)
+                LinearGradient(
+                    stops: [
+                        .init(
+                            color: Color(platformColor: .platformSystemBackground).opacity(1.0),
+                            location: 0.0),
+                        .init(
+                            color: Color(platformColor: .platformSystemBackground).opacity(0.9),
+                            location: 0.2),
+                        .init(
+                            color: Color(platformColor: .platformSystemBackground).opacity(0.5),
+                            location: 0.5),
+                        .init(
+                            color: Color(platformColor: .platformSystemBackground).opacity(0.1),
+                            location: 0.8),
+                        .init(
+                            color: Color(platformColor: .platformSystemBackground).opacity(0.0),
+                            location: 1.0),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 140)
+                .allowsHitTesting(false)
 
                 Spacer()
             }
@@ -195,8 +219,10 @@ struct MartenIOSDashboardView: View {
                     bottomBar
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
+                        .transition(.opacity)
                 }
             }
+            .animation(MartenAnimation.smooth, value: selectionModel.isSelectionMode && selectionModel.hasSelection)
         }
         #if os(iOS)
             .toolbar(.hidden, for: .navigationBar)
@@ -478,13 +504,13 @@ struct MartenIOSDashboardView: View {
                 Spacer()
             } else {
                 // Pinboard name + item count (plain text label)
-                HStack(spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(selectedPinboardTitle)
-                        .font(.title3.weight(.bold))
+                        .font(.title2.weight(.bold))
                         .lineLimit(1)
 
                     Text("\(currentPinboardItemCount)")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.headline.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .contentTransition(.numericText())
                 }
@@ -659,120 +685,144 @@ struct MartenIOSDashboardView: View {
     // MARK: - Bottom Bar
 
     private var bottomBar: some View {
-        HStack(spacing: 10) {
-            // Pinboard dropdown — scales out when search expands
-            if !isSearchExpanded {
-                swipablePinboardSelector
-                    .transition(.scale.combined(with: .opacity))
+        let interItemSpacing: CGFloat = 10
 
-                Spacer()
+        return HStack(spacing: interItemSpacing) {
+            swipablePinboardSelector
+                .frame(width: isSearchExpanded ? 0 : actionButtonSize, height: actionButtonSize)
+                .scaleEffect(isSearchExpanded ? 0.96 : 1)
+                .opacity(isSearchExpanded ? 0 : 1)
+                .allowsHitTesting(!isSearchExpanded)
+                .accessibilityHidden(isSearchExpanded)
+                .clipped()
+
+            if !isSearchExpanded {
+                Spacer(minLength: 0)
             }
 
-            // Search + Filter group (single glass surface)
-            HStack(spacing: 0) {
-                // Text field — always mounted, animates width
+            if isSearchExpanded {
                 HStack(spacing: 8) {
+                    searchToggleButton
+
                     #if os(iOS)
-                        MartenUISearchTextField(
+                        DashboardSearchTextField(
                             text: Binding(
                                 get: { searchModel?.query ?? "" },
                                 set: { searchModel?.query = $0 }
                             ),
                             placeholder: "Search clips\u{2026}",
-                            onFocus: {},
                             focusRequest: $searchFocusRequest
                         )
                         .frame(height: 36)
+                        .frame(maxWidth: .infinity)
                     #else
-                        Image(systemName: "magnifyingglass")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-
                         TextField("Search clips\u{2026}", text: Binding(
                             get: { searchModel?.query ?? "" },
                             set: { searchModel?.query = $0 }
                         ))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: .infinity)
                     #endif
                 }
-                .frame(maxWidth: isSearchExpanded ? .infinity : 0)
-                .frame(height: actionButtonSize)
-                .padding(.horizontal, isSearchExpanded ? 10 : 0)
-                .opacity(isSearchExpanded ? 1 : 0)
-                .clipped()
-                .allowsHitTesting(isSearchExpanded)
-
-                // Search icon — visible when collapsed, tapping expands
-                if !isSearchExpanded {
-                    Button {
-                        withAnimation(MartenAnimation.smooth) {
-                            isSearchExpanded = true
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            searchFocusRequest = true
-                        }
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 18, weight: .semibold))
-                            .frame(width: actionButtonSize, height: actionButtonSize)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.opacity)
-                    .accessibilityLabel("Search")
-                    .accessibilityIdentifier("ios.dashboard.search")
-                }
-
-                // Separator
-                RoundedRectangle(cornerRadius: 0.5)
-                    .fill(.primary.opacity(0.15))
-                    .frame(width: 1, height: 24)
-
-                // Filter button (always present)
-                Button {
-                    isShowingFilters = true
-                } label: {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(
-                            searchModel?.hasActiveFilters ?? false
-                                ? Color.accentColor : .primary
-                        )
-                        .frame(width: actionButtonSize, height: actionButtonSize)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Filters")
-                .accessibilityIdentifier("ios.dashboard.filters")
+                .frame(maxWidth: .infinity)
+            } else {
+                searchToggleButton
             }
-            .glassChipBackground(isHighlighted: searchModel?.hasActiveFilters ?? false)
 
-            // Add / Close button — same position, icon morphs
+            filtersButton
+
             Button {
-                if isSearchExpanded {
-                    withAnimation(MartenAnimation.smooth) {
-                        searchModel?.clearSearchText()
-                        isSearchExpanded = false
-                    }
-                } else {
-                    isShowingQuickAdd = true
-                }
+                isShowingQuickAdd = true
             } label: {
-                Image(systemName: isSearchExpanded ? "xmark" : "plus")
-                    .contentTransition(.symbolEffect(.replace))
+                Image(systemName: "plus")
                     .font(.system(size: 18, weight: .semibold))
                     .frame(width: actionButtonSize, height: actionButtonSize)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .glassCircleBackground(isHighlighted: false)
-            .accessibilityLabel(isSearchExpanded ? "Close Search" : "Quick Add")
-            .accessibilityIdentifier(
-                isSearchExpanded ? "ios.dashboard.closeSearch" : "ios.dashboard.quickAdd"
-            )
+            .accessibilityLabel("Quick Add")
+            .accessibilityIdentifier("ios.dashboard.quickAdd")
         }
+        .frame(height: actionButtonSize)
+    }
+
+    private var filtersButton: some View {
+        Button {
+            isShowingFilters = true
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(
+                    searchModel?.hasActiveFilters ?? false
+                        ? Color.accentColor : .primary
+                )
+                .frame(width: actionButtonSize, height: actionButtonSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .glassCircleBackground(isHighlighted: searchModel?.hasActiveFilters ?? false)
+        .accessibilityLabel("Filters")
+        .accessibilityIdentifier("ios.dashboard.filters")
+    }
+
+    private var searchToggleButton: some View {
+        Button {
+            if isSearchExpanded {
+                searchFocusRequest = false
+                #if os(iOS)
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                #endif
+                withAnimation(MartenAnimation.smooth) {
+                    searchModel?.clearSearchText()
+                    isSearchExpanded = false
+                }
+            } else {
+                searchFocusRequest = false
+                withAnimation(MartenAnimation.smooth) {
+                    isSearchExpanded = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                    guard isSearchExpanded else { return }
+                    searchFocusRequest = true
+                }
+            }
+        } label: {
+            Image(systemName: isSearchExpanded ? "xmark" : "magnifyingglass")
+                .contentTransition(.symbolEffect(.replace))
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: actionButtonSize, height: actionButtonSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .glassCircleBackground(isHighlighted: isSearchExpanded)
+        .accessibilityLabel(isSearchExpanded ? "Close Search" : "Search")
+        .accessibilityIdentifier(isSearchExpanded ? "ios.dashboard.closeSearch" : "ios.dashboard.search")
     }
 
     // MARK: - Selected Pinboard
+
+    private func advancePinboardSelection(by offset: Int) {
+        guard offset != 0 else { return }
+
+        let pinboardIDs = swipeablePinboardIDs
+        guard pinboardIDs.count > 1 else { return }
+
+        let currentPinboardID = container.selectedPinboardID
+        let currentIndex = pinboardIDs.firstIndex(where: { $0 == currentPinboardID }) ?? 0
+        let targetIndex = min(max(currentIndex + offset, 0), pinboardIDs.count - 1)
+        guard targetIndex != currentIndex else { return }
+
+        swipeDirection = offset
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) {
+            container.setSelectedPinboardID(pinboardIDs[targetIndex])
+        }
+    }
+
+    private var swipeablePinboardIDs: [UUID?] {
+        [nil] + customPinboards.map(\.id)
+    }
 
     private var selectedPinboard: Pinboard? {
         guard let selectedID = container.selectedPinboardID else { return nil }
@@ -867,14 +917,25 @@ struct MartenIOSDashboardView: View {
                         items: visibleResults,
                         selectionModel: DashboardSelectionModel(),
                         canReorder: false,
+                        allowPinning: container.selectedPinboardID != nil,
                         onTapItem: { item in handleItemTap(item) },
                         onCopyItem: { item in copyItems([item.objectID]) },
                         onCopyPlainTextItem: { item in copyItemsPlainText([item.objectID]) },
                         onPreviewItem: { item in handleItemPreview(item) },
+                        onTogglePinItem: { item in
+                            guard container.selectedPinboardID != nil else { return }
+                            let message = item.isPinned ? "Unpinned" : "Pinned"
+                            toastController.show(message, systemImage: "pin.fill")
+                            Task {
+                                await container.togglePin(objectID: item.objectID)
+                            }
+                        },
                         onShareItem: { item in shareItems([item.objectID]) },
                         onMoveItem: { item in prepareMove([item.objectID]) },
                         onDeleteItem: { item in prepareDelete([item.objectID]) },
-                        onReorderItems: { _ in }
+                        onReorderItems: { _ in },
+                        onSwipeToNextPinboard: { advancePinboardSelection(by: 1) },
+                        onSwipeToPreviousPinboard: { advancePinboardSelection(by: -1) }
                     )
                 }
             }
@@ -1294,10 +1355,13 @@ private struct DashboardItemsSection: View {
     let onCopyItem: (ClipItem) -> Void
     let onCopyPlainTextItem: (ClipItem) -> Void
     let onPreviewItem: (ClipItem) -> Void
+    let onTogglePinItem: (ClipItem) -> Void
     let onShareItem: (ClipItem) -> Void
     let onMoveItem: (ClipItem) -> Void
     let onDeleteItem: (ClipItem) -> Void
     let onReorderItems: ([NSManagedObjectID]) -> Void
+    let onSwipeToNextPinboard: () -> Void
+    let onSwipeToPreviousPinboard: () -> Void
     let onVisibleObjectIDsChanged: (Set<NSManagedObjectID>) -> Void
 
     init(
@@ -1308,10 +1372,13 @@ private struct DashboardItemsSection: View {
         onCopyItem: @escaping (ClipItem) -> Void,
         onCopyPlainTextItem: @escaping (ClipItem) -> Void,
         onPreviewItem: @escaping (ClipItem) -> Void,
+        onTogglePinItem: @escaping (ClipItem) -> Void,
         onShareItem: @escaping (ClipItem) -> Void,
         onMoveItem: @escaping (ClipItem) -> Void,
         onDeleteItem: @escaping (ClipItem) -> Void,
         onReorderItems: @escaping ([NSManagedObjectID]) -> Void,
+        onSwipeToNextPinboard: @escaping () -> Void,
+        onSwipeToPreviousPinboard: @escaping () -> Void,
         onVisibleObjectIDsChanged: @escaping (Set<NSManagedObjectID>) -> Void
     ) {
         _items = FetchRequest(
@@ -1325,10 +1392,13 @@ private struct DashboardItemsSection: View {
         self.onCopyItem = onCopyItem
         self.onCopyPlainTextItem = onCopyPlainTextItem
         self.onPreviewItem = onPreviewItem
+        self.onTogglePinItem = onTogglePinItem
         self.onShareItem = onShareItem
         self.onMoveItem = onMoveItem
         self.onDeleteItem = onDeleteItem
         self.onReorderItems = onReorderItems
+        self.onSwipeToNextPinboard = onSwipeToNextPinboard
+        self.onSwipeToPreviousPinboard = onSwipeToPreviousPinboard
         self.onVisibleObjectIDsChanged = onVisibleObjectIDsChanged
     }
 
@@ -1337,15 +1407,19 @@ private struct DashboardItemsSection: View {
             items: visibleItems,
             selectionModel: selectionModel,
             canReorder: selectedPinboardID != nil,
+            allowPinning: selectedPinboardID != nil,
             contentInsets: EdgeInsets(top: 80, leading: 0, bottom: 100, trailing: 0),
             onTapItem: onTapItem,
             onCopyItem: onCopyItem,
             onCopyPlainTextItem: onCopyPlainTextItem,
             onPreviewItem: onPreviewItem,
+            onTogglePinItem: onTogglePinItem,
             onShareItem: onShareItem,
             onMoveItem: onMoveItem,
             onDeleteItem: onDeleteItem,
-            onReorderItems: onReorderItems
+            onReorderItems: onReorderItems,
+            onSwipeToNextPinboard: onSwipeToNextPinboard,
+            onSwipeToPreviousPinboard: onSwipeToPreviousPinboard
         )
         .onAppear {
             onVisibleObjectIDsChanged(Set(visibleItems.map(\.objectID)))
@@ -1389,6 +1463,7 @@ private func dashboardItemsFetchRequest(selectedPinboardID: UUID?) -> NSFetchReq
     // In "All": use modifiedAt for chronological sorting (most recent first)
     if selectedPinboardID != nil {
         request.sortDescriptors = [
+            NSSortDescriptor(key: "isPinned", ascending: false),
             NSSortDescriptor(key: "displayOrder", ascending: false),
             NSSortDescriptor(key: "modifiedAt", ascending: false),
         ]
@@ -1689,6 +1764,74 @@ extension ClipItemSourceDevice {
     }
 }
 
+#if os(iOS)
+private struct DashboardSearchTextField: UIViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    var focusRequest: Binding<Bool>?
+
+    func makeUIView(context: Context) -> UISearchTextField {
+        let textField = UISearchTextField()
+        textField.placeholder = placeholder
+        textField.delegate = context.coordinator
+        textField.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.textChanged(_:)),
+            for: .editingChanged
+        )
+        textField.clearButtonMode = .whileEditing
+        textField.textAlignment = .left
+        textField.returnKeyType = .search
+        textField.autocorrectionType = .no
+        textField.autocapitalizationType = .none
+        textField.spellCheckingType = .no
+        textField.backgroundColor = UIColor.secondarySystemBackground
+        textField.layer.cornerRadius = 10
+        textField.clipsToBounds = true
+        textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return textField
+    }
+
+    func updateUIView(_ uiView: UISearchTextField, context: Context) {
+        if uiView.text != text {
+            uiView.text = text
+        }
+
+        if focusRequest?.wrappedValue == true {
+            DispatchQueue.main.async {
+                guard !uiView.isFirstResponder else {
+                    focusRequest?.wrappedValue = false
+                    return
+                }
+                uiView.becomeFirstResponder()
+                focusRequest?.wrappedValue = false
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: DashboardSearchTextField
+
+        init(_ parent: DashboardSearchTextField) {
+            self.parent = parent
+        }
+
+        @objc func textChanged(_ textField: UITextField) {
+            parent.text = textField.text ?? ""
+        }
+
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            textField.resignFirstResponder()
+            return true
+        }
+    }
+}
+#endif
+
 // MARK: - Search Filters Sheet
 
 struct SearchFiltersSheet: View {
@@ -1697,91 +1840,99 @@ struct SearchFiltersSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section("Date") {
-                    ForEach(
-                        [ClipItemDateFilter.any, .today, .yesterday, .last7Days, .last30Days],
-                        id: \.self
-                    ) { filter in
-                        Button {
-                            searchModel.dateFilter = filter
-                        } label: {
-                            HStack {
-                                Text(filter.label)
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                if searchModel.dateFilter == filter {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(Color.accentColor)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    filterSection(title: "Date", icon: "calendar") {
+                        FlowLayout(spacing: 8) {
+                            ForEach([ClipItemDateFilter.any, .today, .yesterday, .last7Days, .last30Days], id: \.self) { filter in
+                                FilterChipButton(
+                                    title: filter.label,
+                                    icon: dateIcon(for: filter),
+                                    badge: nil,
+                                    isSelected: searchModel.dateFilter == filter,
+                                    style: .capsule
+                                ) {
+                                    searchModel.dateFilter = filter
                                 }
                             }
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
                     }
-                }
 
-                Section("Type") {
-                    ForEach(
-                        [ItemType.text, .richText, .image, .file, .url, .code, .color], id: \.self
-                    ) { type in
-                        Button {
-                            searchModel.toggleType(type)
-                        } label: {
-                            HStack {
-                                Text(type.label)
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                if searchModel.selectedTypes.contains(type) {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(Color.accentColor)
+                    filterSection(title: "Content Type", icon: "doc.on.doc") {
+                        FlowLayout(spacing: 8) {
+                            ForEach(ItemType.allCases, id: \.self) { type in
+                                FilterChipButton(
+                                    title: type.label,
+                                    icon: itemTypeIcon(type),
+                                    badge: nil,
+                                    isSelected: searchModel.selectedTypes.contains(type),
+                                    style: .capsule
+                                ) {
+                                    searchModel.toggleType(type)
                                 }
                             }
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
                     }
-                }
 
-                if !searchModel.deviceOptions.isEmpty {
-                    Section("Source Device") {
-                        ForEach(searchModel.deviceOptions) { device in
-                            Button {
-                                searchModel.toggleSourceDevice(device.value)
-                            } label: {
-                                HStack {
-                                    Text(device.title)
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                    Text("\(device.count)")
-                                        .foregroundStyle(.secondary)
-                                        .font(.caption)
-                                    if searchModel.selectedSourceDevices.contains(device.value) {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(Color.accentColor)
+                    filterSection(title: "Application", icon: "app") {
+                        if searchModel.appOptions.isEmpty {
+                            Text("No apps available")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 4)
+                        } else {
+                            FlowLayout(spacing: 8) {
+                                ForEach(searchModel.appOptions) { option in
+                                    AppFilterChipButton(
+                                        option: option,
+                                        isSelected: searchModel.selectedSourceApps.contains(option.id)
+                                    ) {
+                                        searchModel.toggleSourceApp(option.id)
                                     }
                                 }
-                                .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .padding(.vertical, 2)
+                            .padding(.horizontal, 2)
                         }
                     }
-                }
 
-                if searchModel.hasActiveFilters {
-                    Section {
-                        Button("Clear All Filters") {
-                            searchModel.clearAllFilters()
+                    if !searchModel.deviceOptions.isEmpty {
+                        filterSection(title: "Source Device", icon: "laptopcomputer.and.iphone") {
+                            FlowLayout(spacing: 8) {
+                                ForEach(searchModel.deviceOptions) { device in
+                                    FilterChipButton(
+                                        title: device.title,
+                                        icon: nil,
+                                        badge: "\(device.count)",
+                                        isSelected: searchModel.selectedSourceDevices.contains(device.value),
+                                        style: .capsule
+                                    ) {
+                                        searchModel.toggleSourceDevice(device.value)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 2)
+                            .padding(.horizontal, 2)
                         }
-                        .foregroundStyle(.red)
                     }
                 }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .navigationTitle("Filters")
+            .scrollIndicators(.hidden)
+            .navigationTitle("Search Filters")
             #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
+                if searchModel.hasActiveFilters {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Clear") {
+                            searchModel.clearAllFilters()
+                        }
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         dismiss()
@@ -1790,5 +1941,179 @@ struct SearchFiltersSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private func filterSection<Content: View>(
+        title: String,
+        icon: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary.opacity(0.8))
+                Text(title)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.primary.opacity(0.8))
+            }
+            .padding(.leading, 2)
+            content()
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func dateIcon(for filter: ClipItemDateFilter) -> String {
+        switch filter {
+        case .any: return "clock"
+        case .today: return "sun.max"
+        case .yesterday: return "moon"
+        case .last7Days: return "7.circle"
+        case .last30Days: return "calendar"
+        }
+    }
+
+    private func itemTypeIcon(_ type: ItemType) -> String {
+        switch type {
+        case .text: return "text.alignleft"
+        case .richText: return "textformat"
+        case .image: return "photo"
+        case .file: return "doc"
+        case .url: return "link"
+        case .code: return "chevron.left.slash.chevron.right"
+        case .color: return "paintpalette"
+        case .mixed: return "square.stack.3d.up"
+        }
+    }
+
+}
+
+private enum FilterChipStyle {
+    case capsule
+    case roundedRect(cornerRadius: CGFloat)
+}
+
+private struct FilterChipButtonStyle: ButtonStyle {
+    let isSelected: Bool
+    let style: FilterChipStyle
+    
+    @Environment(\.colorScheme) private var colorScheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(isSelected ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.primary))
+            .background(background(isPressed: configuration.isPressed))
+            .overlay(border(isPressed: configuration.isPressed))
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
+            .animation(.spring(response: 0.4, dampingFraction: 0.75), value: isSelected)
+    }
+
+    @ViewBuilder
+    private func background(isPressed: Bool) -> some View {
+        if isSelected {
+            switch style {
+            case .capsule:
+                Capsule()
+                    .fill(Color.accentColor)
+            case .roundedRect(let cornerRadius):
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.accentColor)
+            }
+        } else {
+            switch style {
+            case .capsule:
+                if #available(iOS 26, macOS 26, *) {
+                    Capsule()
+                        .fill(Color.clear)
+                        .glassEffect(.regular.interactive(), in: .capsule)
+                } else {
+                    Capsule()
+                        .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.04))
+                }
+            case .roundedRect(let cornerRadius):
+                if #available(iOS 26, macOS 26, *) {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(Color.clear)
+                        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius))
+                } else {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.04))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func border(isPressed: Bool) -> some View {
+        let strokeColor = isSelected ? Color.white.opacity(0.2) : Color.primary.opacity(0.08)
+
+        switch style {
+        case .capsule:
+            Capsule()
+                .strokeBorder(strokeColor, lineWidth: 0.5)
+        case .roundedRect(let cornerRadius):
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(strokeColor, lineWidth: 0.5)
+        }
+    }
+}
+
+private struct FilterChipButton: View {
+    let title: String
+    let icon: String?
+    let badge: String?
+    let isSelected: Bool
+    let style: FilterChipStyle
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.footnote.weight(.medium))
+                }
+
+                Text(title)
+                    .font(.footnote.weight(.medium))
+                    .lineLimit(1)
+
+                if let badge {
+                    Text(badge)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(isSelected ? AnyShapeStyle(Color.white.opacity(0.9)) : AnyShapeStyle(.secondary))
+                        .padding(.leading, 2)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+        }
+        .buttonStyle(FilterChipButtonStyle(isSelected: isSelected, style: style))
+    }
+}
+
+private struct AppFilterChipButton: View {
+    let option: DashboardSourceAppOption
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                SourceAppIconBadge(bundleID: option.bundleID, appName: option.name, iconData: nil, size: 20)
+
+                Text(option.name)
+                    .font(.footnote.weight(.medium))
+                    .lineLimit(1)
+
+                Text("\(option.count)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(isSelected ? AnyShapeStyle(Color.white.opacity(0.9)) : AnyShapeStyle(.secondary))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+        }
+        .buttonStyle(FilterChipButtonStyle(isSelected: isSelected, style: .roundedRect(cornerRadius: 14)))
     }
 }

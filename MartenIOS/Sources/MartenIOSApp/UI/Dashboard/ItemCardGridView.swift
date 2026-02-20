@@ -6,15 +6,20 @@ struct ItemCardGridView: View {
     let items: [ClipItem]
     let selectionModel: DashboardSelectionModel
     let canReorder: Bool
+    let allowPinning: Bool
     var contentInsets: EdgeInsets = .init()
     let onTapItem: (ClipItem) -> Void
     let onCopyItem: (ClipItem) -> Void
     let onCopyPlainTextItem: (ClipItem) -> Void
     let onPreviewItem: (ClipItem) -> Void
+    let onTogglePinItem: (ClipItem) -> Void
     let onShareItem: (ClipItem) -> Void
     let onMoveItem: (ClipItem) -> Void
     let onDeleteItem: (ClipItem) -> Void
     let onReorderItems: ([NSManagedObjectID]) -> Void
+    let onSwipeToNextPinboard: () -> Void
+    let onSwipeToPreviousPinboard: () -> Void
+    private let pinboardSwipeMinDistance: CGFloat = 55
 
     #if !canImport(UIKit)
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -38,21 +43,29 @@ struct ItemCardGridView: View {
                 Text("Tap + to create your first item, or paste from the clipboard.")
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .gesture(
+                DragGesture(minimumDistance: 24)
+                    .onEnded(handlePinboardSwipe)
+            )
         } else {
             #if canImport(UIKit)
             ItemCardCollectionGridView(
                 items: items,
                 selectionModel: selectionModel,
                 canReorder: canReorder,
+                allowPinning: allowPinning,
                 contentInsets: contentInsets,
                 onTapItem: onTapItem,
                 onCopyItem: onCopyItem,
                 onCopyPlainTextItem: onCopyPlainTextItem,
                 onPreviewItem: onPreviewItem,
+                onTogglePinItem: onTogglePinItem,
                 onShareItem: onShareItem,
                 onMoveItem: onMoveItem,
                 onDeleteItem: onDeleteItem,
-                onReorderItems: onReorderItems
+                onReorderItems: onReorderItems,
+                onSwipeToNextPinboard: onSwipeToNextPinboard,
+                onSwipeToPreviousPinboard: onSwipeToPreviousPinboard
             )
             #else
             ScrollView {
@@ -80,6 +93,20 @@ struct ItemCardGridView: View {
         }
     }
 
+    private func handlePinboardSwipe(_ value: DragGesture.Value) {
+        let horizontalTranslation = value.translation.width
+        let verticalTranslation = value.translation.height
+
+        guard abs(horizontalTranslation) > abs(verticalTranslation) else { return }
+        guard abs(horizontalTranslation) >= pinboardSwipeMinDistance else { return }
+
+        if horizontalTranslation < 0 {
+            onSwipeToNextPinboard()
+        } else {
+            onSwipeToPreviousPinboard()
+        }
+    }
+
     #if !canImport(UIKit)
     @ViewBuilder
     private func cardCell(for item: ClipItem) -> some View {
@@ -87,10 +114,12 @@ struct ItemCardGridView: View {
             item: item,
             isSelectionMode: selectionModel.isSelectionMode,
             isSelected: selectionModel.isSelected(item),
+            allowPinning: allowPinning,
             onTap: { handleTap(item) },
             onCopy: { onCopyItem(item) },
             onCopyPlainText: { onCopyPlainTextItem(item) },
             onPreview: { onPreviewItem(item) },
+            onTogglePin: { onTogglePinItem(item) },
             onShare: { onShareItem(item) },
             onMove: { onMoveItem(item) },
             onDelete: { onDeleteItem(item) }

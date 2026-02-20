@@ -94,6 +94,7 @@ final class OverlaySearchViewModel: ObservableObject {
         var hasher = Hasher()
         hasher.combine(selectedPinboardID)
         var count = 0
+        var options: [String: AppFilterOption] = [:]
 
         for item in allItems {
             if let selectedPinboardID {
@@ -103,11 +104,16 @@ final class OverlaySearchViewModel: ObservableObject {
                 }
             }
             guard let key = appFilterKey(for: item) else { continue }
-            let name = item.sourceAppName?.isEmpty == false ? item.sourceAppName! : key
+            let name = (item.sourceAppName?.isEmpty == false) ? (item.sourceAppName ?? key) : key
             hasher.combine(key)
             hasher.combine(name)
             hasher.combine(item.sourceAppBundleID)
             count += 1
+
+            if options[key] == nil {
+                options[key] = AppFilterOption(
+                    id: key, name: name, bundleID: item.sourceAppBundleID)
+            }
         }
         hasher.combine(count)
         let signature = hasher.finalize()
@@ -116,22 +122,6 @@ final class OverlaySearchViewModel: ObservableObject {
             return
         }
         lastAppOptionsSignature = signature
-
-        var options: [String: AppFilterOption] = [:]
-        for item in allItems {
-            if let selectedPinboardID {
-                guard item.pinboards?.contains(where: { $0.id == selectedPinboardID }) ?? false
-                else {
-                    continue
-                }
-            }
-            guard let key = appFilterKey(for: item) else { continue }
-            let name = item.sourceAppName?.isEmpty == false ? item.sourceAppName! : key
-            if options[key] == nil {
-                options[key] = AppFilterOption(
-                    id: key, name: name, bundleID: item.sourceAppBundleID)
-            }
-        }
 
         appOptions =
             options

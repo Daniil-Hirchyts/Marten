@@ -8,6 +8,7 @@ public protocol ClipItemStoring: Sendable {
 
     func deleteItem(objectID: NSManagedObjectID) throws
     func updateItem(_ item: ClipItem, with payload: ClipItemPayload) throws
+    func togglePin(_ item: ClipItem) throws
     func toggleFavorite(_ item: ClipItem) throws
     func moveItemsToPinboard(_ items: [ClipItem], pinboard: Pinboard) throws
 }

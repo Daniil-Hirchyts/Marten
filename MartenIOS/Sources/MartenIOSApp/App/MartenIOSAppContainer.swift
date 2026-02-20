@@ -62,6 +62,7 @@ public final class MartenIOSAppContainer {
 
     private var hasStarted = false
     private var lastSeenShareExtensionSuccessAt: Double
+    private var lastSeenKeyboardMutationAt: Double
 
     public convenience init(
         persistenceController: PersistenceController = .shared,
@@ -102,6 +103,9 @@ public final class MartenIOSAppContainer {
         MartenIOSDefaults.registerDefaults(userDefaults)
         self.lastSeenShareExtensionSuccessAt = userDefaults.double(
             forKey: MartenIOSDefaults.shareExtensionLastSuccessAtKey
+        )
+        self.lastSeenKeyboardMutationAt = userDefaults.double(
+            forKey: MartenIOSDefaults.keyboardLastMutationAtKey
         )
 
         let resolvedStore = clipItemStore ?? ClipItemStore(persistence: persistenceController)
@@ -461,6 +465,14 @@ public final class MartenIOSAppContainer {
         }
     }
 
+    public func togglePin(objectID: NSManagedObjectID) async {
+        do {
+            try await commandService.togglePin(objectID: objectID)
+        } catch {
+            lastOperationErrorMessage = error.localizedDescription
+        }
+    }
+
     public func removeItems(
         _ objectIDs: [NSManagedObjectID], fromPinboardID pinboardID: NSManagedObjectID
     )
@@ -593,9 +605,15 @@ public final class MartenIOSAppContainer {
         let latestShareExtensionSuccessAt = userDefaults.double(
             forKey: MartenIOSDefaults.shareExtensionLastSuccessAtKey
         )
-        guard latestShareExtensionSuccessAt > lastSeenShareExtensionSuccessAt else { return }
+        let latestKeyboardMutationAt = userDefaults.double(
+            forKey: MartenIOSDefaults.keyboardLastMutationAtKey
+        )
+        let hasShareUpdate = latestShareExtensionSuccessAt > lastSeenShareExtensionSuccessAt
+        let hasKeyboardMutation = latestKeyboardMutationAt > lastSeenKeyboardMutationAt
+        guard hasShareUpdate || hasKeyboardMutation else { return }
 
         lastSeenShareExtensionSuccessAt = latestShareExtensionSuccessAt
+        lastSeenKeyboardMutationAt = latestKeyboardMutationAt
         invalidateDashboardItems()
 
         let viewContext = persistenceController.viewContext

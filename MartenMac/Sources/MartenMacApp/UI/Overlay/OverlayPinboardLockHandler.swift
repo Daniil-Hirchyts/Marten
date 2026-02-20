@@ -14,7 +14,7 @@ struct OverlayPinboardLockHandler {
             return
         }
 
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(OverlayAnimation.standardTransition) {
             pinboardLockController.setLockEnabled(enabled, pinboardID: pinboard.id)
         }
 
@@ -24,7 +24,7 @@ struct OverlayPinboardLockHandler {
     }
 
     func lockPinboardNow(_ pinboard: Pinboard, selectedPinboardID: UUID?) {
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(OverlayAnimation.standardTransition) {
             pinboardLockController.lockNow(pinboardID: pinboard.id)
         }
 

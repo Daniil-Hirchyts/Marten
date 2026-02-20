@@ -299,7 +299,7 @@ private struct FilterChip: View {
         }
         .buttonStyle(.plain)
         .onHover { hover in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(OverlayAnimation.quickTransition) {
                 isHovering = hover
             }
         }
@@ -368,7 +368,7 @@ private struct AppFilterChip: View {
         }
         .buttonStyle(.plain)
         .onHover { hover in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(OverlayAnimation.quickTransition) {
                 isHovering = hover
             }
         }

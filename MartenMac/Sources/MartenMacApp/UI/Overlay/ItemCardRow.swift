@@ -94,7 +94,7 @@ struct ItemCardRow: View {
                         .padding(.vertical, verticalPadding)
                         .animation(
                             dragState != nil
-                                ? .spring(response: 0.32, dampingFraction: 0.86)
+                                ? OverlayAnimation.cardSpring
                                 : nil,
                             value: visibleItemsOrderSignature(visibleItems)
                         )
@@ -115,7 +115,7 @@ struct ItemCardRow: View {
                         .padding(.vertical, verticalPadding)
                         .animation(
                             dragState != nil
-                                ? .spring(response: 0.32, dampingFraction: 0.86)
+                                ? OverlayAnimation.cardSpring
                                 : nil,
                             value: visibleItemsOrderSignature(visibleItems)
                         )

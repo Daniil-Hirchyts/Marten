@@ -24,18 +24,14 @@ final class ThumbnailImageCache {
 
     func setImage(_ image: NSImage, forKey key: String) {
         cache.setObject(image, forKey: key as NSString)
-        clearMissing(forKey: key)
+        lock.lock()
+        missingKeys.remove(key)
+        lock.unlock()
     }
 
     func setMissing(forKey key: String) {
         lock.lock()
         missingKeys.insert(key)
-        lock.unlock()
-    }
-
-    private func clearMissing(forKey key: String) {
-        lock.lock()
-        missingKeys.remove(key)
         lock.unlock()
     }
 }

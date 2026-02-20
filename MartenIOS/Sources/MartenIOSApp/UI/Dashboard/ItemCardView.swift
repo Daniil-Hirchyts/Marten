@@ -2,17 +2,19 @@ import MartenCore
 import SwiftUI
 
 struct ItemCardView: View {
-    let item: ClipItem
+    @ObservedObject private var item: ClipItem
     let isSelectionMode: Bool
     let isSelected: Bool
     let handlesTapGesture: Bool
     let handlesPressGesture: Bool
     let showsContextMenu: Bool
     let showsSelectionFeedback: Bool
+    let allowPinning: Bool
     let onTap: () -> Void
     let onCopy: () -> Void
     let onCopyPlainText: () -> Void
     let onPreview: () -> Void
+    let onTogglePin: () -> Void
     let onShare: () -> Void
     let onMove: () -> Void
     let onDelete: () -> Void
@@ -25,25 +27,34 @@ struct ItemCardView: View {
         handlesPressGesture: Bool = true,
         showsContextMenu: Bool = true,
         showsSelectionFeedback: Bool = true,
+        allowPinning: Bool = false,
         onTap: @escaping () -> Void,
         onCopy: @escaping () -> Void,
         onCopyPlainText: @escaping () -> Void,
         onPreview: @escaping () -> Void,
+        onTogglePin: @escaping () -> Void = {},
         onShare: @escaping () -> Void,
         onMove: @escaping () -> Void,
         onDelete: @escaping () -> Void
     ) {
-        self.item = item
+        _item = ObservedObject(wrappedValue: item)
+        let initialPresentation = ItemCardPresentation(item: item)
+        _presentation = State(initialValue: initialPresentation)
+        _cachedImageTaskID = State(initialValue: Self.makeImageTaskID(for: item))
+        _cachedLinkPreviewTaskID = State(initialValue: Self.makeLinkPreviewTaskID(for: item))
+        _cachedIsPinned = State(initialValue: item.isPinned)
         self.isSelectionMode = isSelectionMode
         self.isSelected = isSelected
         self.handlesTapGesture = handlesTapGesture
         self.handlesPressGesture = handlesPressGesture
         self.showsContextMenu = showsContextMenu
         self.showsSelectionFeedback = showsSelectionFeedback
+        self.allowPinning = allowPinning
         self.onTap = onTap
         self.onCopy = onCopy
         self.onCopyPlainText = onCopyPlainText
         self.onPreview = onPreview
+        self.onTogglePin = onTogglePin
         self.onShare = onShare
         self.onMove = onMove
         self.onDelete = onDelete
@@ -51,13 +62,15 @@ struct ItemCardView: View {
 
     #if canImport(UIKit)
     @State private var thumbnailImage: UIImage?
-    @State private var linkPreviewImage: UIImage?
+    @State private var linkPreviewResult: LinkPreviewImageResult?
     #elseif canImport(AppKit)
     @State private var thumbnailImage: NSImage?
-    @State private var linkPreviewImage: NSImage?
+    @State private var linkPreviewResult: LinkPreviewImageResult?
     #endif
-    @State private var presentation: ItemCardPresentation?
+    @State private var presentation: ItemCardPresentation
     @State private var cachedImageTaskID: String?
+    @State private var cachedLinkPreviewTaskID: String
+    @State private var cachedIsPinned: Bool
     @State private var isPressed = false
 
     @Environment(\.colorScheme) private var colorScheme
@@ -66,12 +79,8 @@ struct ItemCardView: View {
     private let cardPadding: CGFloat = 12
     private let headerMinHeight: CGFloat = 50
 
-    private var resolvedPresentation: ItemCardPresentation {
-        presentation ?? ItemCardPresentation(item: item)
-    }
-
     var body: some View {
-        let pres = resolvedPresentation
+        let pres = presentation
 
         tapWrappedContent(cardContent(pres))
             .contentShape(.rect(cornerRadius: cardCornerRadius))
@@ -81,25 +90,26 @@ struct ItemCardView: View {
             .modifier(SelectionFeedbackModifier(isEnabled: showsSelectionFeedback, isSelected: isSelected))
             .modifier(ContextMenuModifier(
                 isEnabled: showsContextMenu,
+                allowPinning: allowPinning,
+                isPinned: cachedIsPinned,
                 onCopy: onCopy,
                 onCopyPlainText: onCopyPlainText,
                 onPreview: onPreview,
+                onTogglePin: onTogglePin,
                 onShare: onShare,
                 onMove: onMove,
                 onDelete: onDelete
             ))
             .onAppear {
-                refreshPresentation()
-                refreshImageTaskID()
+                refreshSnapshotState()
             }
-            .onChange(of: item.modifiedAt) {
-                refreshPresentation()
-                refreshImageTaskID()
+            .onReceive(item.objectWillChange) {
+                refreshSnapshotState()
             }
             .task(id: cachedImageTaskID) {
                 await loadThumbnailImage()
             }
-            .task(id: item.linkPreview?.id.uuidString ?? "no-link-preview-\(item.objectID.uriRepresentation().absoluteString)") {
+            .task(id: cachedLinkPreviewTaskID) {
                 // Separate task for link preview images - triggers when linkPreview.id changes
                 await loadLinkPreviewImage()
             }
@@ -199,6 +209,12 @@ struct ItemCardView: View {
                 )
             }
 
+            if allowPinning, item.isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(headerTextColor(for: pres).opacity(0.85))
+            }
+
             if isSelectionMode {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.body)
@@ -242,17 +258,17 @@ struct ItemCardView: View {
 
     @ViewBuilder
     private var previewContent: some View {
-        switch resolvedPresentation.previewKind {
+        switch presentation.previewKind {
         case .text, .richText:
-            Text(resolvedPresentation.snippet ?? "")
+            Text(presentation.snippet ?? "")
                 .font(.system(size: 12))
-                .foregroundStyle(secondaryTextColor(for: resolvedPresentation))
+                .foregroundStyle(secondaryTextColor(for: presentation))
                 .lineLimit(5)
                 .frame(maxWidth: .infinity, alignment: .leading)
         case .code:
-            Text(resolvedPresentation.snippet ?? "")
+            Text(presentation.snippet ?? "")
                 .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(secondaryTextColor(for: resolvedPresentation))
+                .foregroundStyle(secondaryTextColor(for: presentation))
                 .lineLimit(5)
                 .frame(maxWidth: .infinity, alignment: .leading)
         case .link:
@@ -264,9 +280,9 @@ struct ItemCardView: View {
         case .color:
             colorPreview
         case .mixed:
-            Text(resolvedPresentation.snippet ?? "Mixed item")
+            Text(presentation.snippet ?? "Mixed item")
                 .font(.system(size: 12))
-                .foregroundStyle(secondaryTextColor(for: resolvedPresentation))
+                .foregroundStyle(secondaryTextColor(for: presentation))
                 .lineLimit(4)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -301,28 +317,42 @@ struct ItemCardView: View {
     private var linkPreview: some View {
         GeometryReader { geometry in
             ZStack {
-                if let linkPreviewImage {
+                switch linkPreviewResult {
+                case .banner(let image):
                     #if canImport(UIKit)
-                    Image(uiImage: linkPreviewImage)
+                    Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
                     #elseif canImport(AppKit)
-                    Image(nsImage: linkPreviewImage)
+                    Image(nsImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
                     #endif
-                } else {
-                    Rectangle()
-                        .fill(
-                            colorScheme == .dark
-                                ? Color.white.opacity(0.08)
-                                : Color.black.opacity(0.05)
-                        )
-
+                case .favicon(let image):
+                    linkPreviewPlaceholderBackground
+                    #if canImport(UIKit)
+                    Image(uiImage: image)
+                        .resizable()
+                        .interpolation(.high)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                    #elseif canImport(AppKit)
+                    Image(nsImage: image)
+                        .resizable()
+                        .interpolation(.high)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                    #endif
+                case nil:
+                    linkPreviewPlaceholderBackground
                     Image(systemName: "link")
                         .font(.system(size: 36, weight: .light))
                         .foregroundStyle(
@@ -337,18 +367,27 @@ struct ItemCardView: View {
         .clipped()
     }
 
+    private var linkPreviewPlaceholderBackground: some View {
+        Rectangle()
+            .fill(
+                colorScheme == .dark
+                    ? Color.white.opacity(0.08)
+                    : Color.black.opacity(0.05)
+            )
+    }
+
     private var filePreview: some View {
         VStack(spacing: 4) {
             Spacer(minLength: 0)
 
             Image(systemName: "doc.fill")
                 .font(.system(size: 30, weight: .regular))
-                .foregroundStyle(secondaryTextColor(for: resolvedPresentation))
+                .foregroundStyle(secondaryTextColor(for: presentation))
 
-            if let fileName = resolvedPresentation.fileName {
+            if let fileName = presentation.fileName {
                 Text(fileName)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(primaryTextColor(for: resolvedPresentation))
+                    .foregroundStyle(primaryTextColor(for: presentation))
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 6)
@@ -360,7 +399,7 @@ struct ItemCardView: View {
     }
 
     private var colorPreview: some View {
-        let hex = resolvedPresentation.colorHex ?? "#808080"
+        let hex = presentation.colorHex ?? "#808080"
         let background = Color(hex: hex, fallback: .gray)
         let foreground = ColorHex.foregroundColor(
             for: ColorHex.normalizedHex(from: hex) ?? "#808080"
@@ -370,7 +409,7 @@ struct ItemCardView: View {
             .fill(background)
             .frame(height: 56)
             .overlay {
-                Text(resolvedPresentation.snippet ?? hex)
+                Text(presentation.snippet ?? hex)
                     .font(.caption.weight(.semibold).monospaced())
                     .foregroundStyle(foreground)
                     .lineLimit(1)
@@ -481,18 +520,36 @@ struct ItemCardView: View {
         return parts.joined(separator: ", ")
     }
 
-    private func refreshPresentation() {
-        presentation = ItemCardPresentation(item: item)
+    private var isItemSnapshotAvailable: Bool {
+        item.managedObjectContext != nil && !item.isDeleted
     }
 
-    private func refreshImageTaskID() {
+    private static func makeImageTaskID(for item: ClipItem) -> String {
         let linkPreviewID = item.linkPreview?.id.uuidString ?? "none"
         let linkPreviewTimestamp = item.linkPreview?.fetchedAt.timeIntervalSince1970 ?? 0
-        cachedImageTaskID = "\(item.objectID.uriRepresentation().absoluteString)-\(item.modifiedAt.timeIntervalSince1970)-\(linkPreviewID)-\(linkPreviewTimestamp)"
+        return
+            "\(item.objectID.uriRepresentation().absoluteString)-\(item.modifiedAt.timeIntervalSince1970)-\(linkPreviewID)-\(linkPreviewTimestamp)"
+    }
+
+    private static func makeLinkPreviewTaskID(for item: ClipItem) -> String {
+        item.linkPreview?.id.uuidString
+            ?? "no-link-preview-\(item.objectID.uriRepresentation().absoluteString)"
+    }
+
+    private func refreshSnapshotState() {
+        guard isItemSnapshotAvailable else { return }
+        presentation = ItemCardPresentation(item: item)
+        cachedIsPinned = item.isPinned
+        cachedImageTaskID = Self.makeImageTaskID(for: item)
+        cachedLinkPreviewTaskID = Self.makeLinkPreviewTaskID(for: item)
     }
 
     private func loadThumbnailImage() async {
-        let pres = resolvedPresentation
+        guard isItemSnapshotAvailable else {
+            thumbnailImage = nil
+            return
+        }
+        let pres = presentation
         if pres.previewKind == .image {
             thumbnailImage = await ImageThumbnailLoader.shared.loadThumbnail(for: item)
         } else {
@@ -501,11 +558,15 @@ struct ItemCardView: View {
     }
     
     private func loadLinkPreviewImage() async {
-        let pres = resolvedPresentation
+        guard isItemSnapshotAvailable else {
+            linkPreviewResult = nil
+            return
+        }
+        let pres = presentation
         if pres.previewKind == .link, let linkPreview = item.linkPreview {
-            linkPreviewImage = await LinkPreviewImageLoader.shared.loadImage(for: linkPreview)
+            linkPreviewResult = await LinkPreviewImageLoader.shared.loadImage(for: linkPreview)
         } else {
-            linkPreviewImage = nil
+            linkPreviewResult = nil
         }
     }
 }
@@ -540,9 +601,12 @@ private struct SelectionFeedbackModifier: ViewModifier {
 
 private struct ContextMenuModifier: ViewModifier {
     let isEnabled: Bool
+    let allowPinning: Bool
+    let isPinned: Bool
     let onCopy: () -> Void
     let onCopyPlainText: () -> Void
     let onPreview: () -> Void
+    let onTogglePin: () -> Void
     let onShare: () -> Void
     let onMove: () -> Void
     let onDelete: () -> Void
@@ -550,29 +614,55 @@ private struct ContextMenuModifier: ViewModifier {
     func body(content: Content) -> some View {
         if isEnabled {
             content.contextMenu {
-                Button { onCopy() } label: {
-                    Label("Copy", systemImage: "doc.on.doc")
-                }
-                Button { onCopyPlainText() } label: {
-                    Label("Copy as Plain Text", systemImage: "textformat")
-                }
-                Divider()
-                Button { onPreview() } label: {
-                    Label("Preview", systemImage: "eye")
-                }
-                Button { onShare() } label: {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                }
-                Button { onMove() } label: {
-                    Label("Move to Pinboard", systemImage: "circle.dashed")
-                }
-                Divider()
-                Button(role: .destructive) { onDelete() } label: {
-                    Label("Delete", systemImage: "trash")
+                ForEach(ItemCardContextAction.ordered(allowPinning: allowPinning), id: \.self) { action in
+                    button(for: action)
+                    if showsDivider(after: action) {
+                        Divider()
+                    }
                 }
             }
         } else {
             content
         }
+    }
+
+    @ViewBuilder
+    private func button(for action: ItemCardContextAction) -> some View {
+        if action == .togglePin {
+            Button { perform(action) } label: {
+                Label(isPinned ? "Unpin" : "Pin", systemImage: isPinned ? "pin.slash" : "pin")
+            }
+        } else if action.isDestructive {
+            Button(role: .destructive) { perform(action) } label: {
+                Label(action.title, systemImage: action.systemImage)
+            }
+        } else {
+            Button { perform(action) } label: {
+                Label(action.title, systemImage: action.systemImage)
+            }
+        }
+    }
+
+    private func perform(_ action: ItemCardContextAction) {
+        switch action {
+        case .copy:
+            onCopy()
+        case .copyPlainText:
+            onCopyPlainText()
+        case .preview:
+            onPreview()
+        case .togglePin:
+            onTogglePin()
+        case .share:
+            onShare()
+        case .moveToPinboard:
+            onMove()
+        case .delete:
+            onDelete()
+        }
+    }
+
+    private func showsDivider(after action: ItemCardContextAction) -> Bool {
+        action == .copyPlainText || action == .togglePin || action == .moveToPinboard
     }
 }

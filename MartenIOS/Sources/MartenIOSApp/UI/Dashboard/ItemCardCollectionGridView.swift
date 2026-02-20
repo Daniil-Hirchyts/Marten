@@ -8,15 +8,19 @@ struct ItemCardCollectionGridView: UIViewControllerRepresentable {
     let items: [ClipItem]
     let selectionModel: DashboardSelectionModel
     let canReorder: Bool
+    let allowPinning: Bool
     let contentInsets: EdgeInsets
     let onTapItem: (ClipItem) -> Void
     let onCopyItem: (ClipItem) -> Void
     let onCopyPlainTextItem: (ClipItem) -> Void
     let onPreviewItem: (ClipItem) -> Void
+    let onTogglePinItem: (ClipItem) -> Void
     let onShareItem: (ClipItem) -> Void
     let onMoveItem: (ClipItem) -> Void
     let onDeleteItem: (ClipItem) -> Void
     let onReorderItems: ([NSManagedObjectID]) -> Void
+    let onSwipeToNextPinboard: () -> Void
+    let onSwipeToPreviousPinboard: () -> Void
 
     func makeUIViewController(context: Context) -> ItemCardCollectionViewController {
         let controller = ItemCardCollectionViewController(
@@ -25,15 +29,19 @@ struct ItemCardCollectionGridView: UIViewControllerRepresentable {
             onCopyItem: onCopyItem,
             onCopyPlainTextItem: onCopyPlainTextItem,
             onPreviewItem: onPreviewItem,
+            onTogglePinItem: onTogglePinItem,
             onShareItem: onShareItem,
             onMoveItem: onMoveItem,
             onDeleteItem: onDeleteItem,
-            onReorderItems: onReorderItems
+            onReorderItems: onReorderItems,
+            onSwipeToNextPinboard: onSwipeToNextPinboard,
+            onSwipeToPreviousPinboard: onSwipeToPreviousPinboard
         )
 
         controller.update(
             items: items,
             canReorder: canReorder,
+            allowPinning: allowPinning,
             isSelectionMode: selectionModel.isSelectionMode,
             selectedObjectIDs: selectionModel.selectedObjectIDs,
             contentInsets: UIEdgeInsets(
@@ -51,6 +59,7 @@ struct ItemCardCollectionGridView: UIViewControllerRepresentable {
         uiViewController.update(
             items: items,
             canReorder: canReorder,
+            allowPinning: allowPinning,
             isSelectionMode: selectionModel.isSelectionMode,
             selectedObjectIDs: selectionModel.selectedObjectIDs,
             contentInsets: UIEdgeInsets(

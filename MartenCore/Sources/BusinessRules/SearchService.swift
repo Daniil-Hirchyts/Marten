@@ -56,10 +56,19 @@ final class SearchService {
             }
 
             fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
-            fetchRequest.sortDescriptors = [
-                NSSortDescriptor(key: "modifiedAt", ascending: false),
-                NSSortDescriptor(key: "createdAt", ascending: false),
-            ]
+            if searchRequest.pinboardID != nil {
+                fetchRequest.sortDescriptors = [
+                    NSSortDescriptor(key: "isPinned", ascending: false),
+                    NSSortDescriptor(key: "displayOrder", ascending: false),
+                    NSSortDescriptor(key: "modifiedAt", ascending: false),
+                    NSSortDescriptor(key: "createdAt", ascending: false),
+                ]
+            } else {
+                fetchRequest.sortDescriptors = [
+                    NSSortDescriptor(key: "modifiedAt", ascending: false),
+                    NSSortDescriptor(key: "createdAt", ascending: false),
+                ]
+            }
             fetchRequest.fetchLimit = fetchLimit
             fetchRequest.relationshipKeyPathsForPrefetching = []
             let items = try bgContext.fetch(fetchRequest)

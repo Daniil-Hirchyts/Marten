@@ -224,7 +224,7 @@ struct PinboardTabBar<CreatePopoverContent: View>: View {
                     }
                     .buttonStyle(.plain)
                     .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(OverlayAnimation.quickTransition) {
                             isPlusHovered = hovering
                         }
                     }

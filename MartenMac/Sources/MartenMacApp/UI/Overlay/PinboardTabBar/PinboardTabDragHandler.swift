@@ -118,7 +118,7 @@ extension PinboardTabBar {
         stopAutoScroll()
         onPreviewUpdate?(nil)
 
-        withAnimation(.easeOut(duration: 0.1)) {
+        withAnimation(OverlayAnimation.dragFade) {
             dropTarget = nil
             dragOpacity = 0
         }
@@ -175,11 +175,11 @@ extension PinboardTabBar {
                     }
                     return frame.minX < currentX - autoScrollEdgeInset
                 }) {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(OverlayAnimation.quickTransition) {
                         scrollProxy.scrollTo(targetPinboard.id, anchor: .leading)
                     }
                 } else {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(OverlayAnimation.quickTransition) {
                         scrollProxy.scrollTo("all", anchor: .leading)
                     }
                 }
@@ -190,7 +190,7 @@ extension PinboardTabBar {
                     }
                     return frame.maxX > currentX + autoScrollEdgeInset
                 }) {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(OverlayAnimation.quickTransition) {
                         scrollProxy.scrollTo(targetPinboard.id, anchor: .trailing)
                     }
                 }

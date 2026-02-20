@@ -585,7 +585,7 @@ final class ClipItemRepository {
         return try fetchRefreshedItemInViewContext(objectID: updatedObjectID)
     }
 
-    func toggleFavorite(objectID: NSManagedObjectID) throws {
+    func togglePin(objectID: NSManagedObjectID) throws {
         let context = persistence.newBackgroundContext()
 
         try context.performAndWaitThrowing {
@@ -594,6 +594,9 @@ final class ClipItemRepository {
             }
 
             item.isPinned.toggle()
+            if item.isPinned {
+                item.displayOrder = Int64(Date().timeIntervalSince1970 * 1000)
+            }
             item.modifiedAt = Date()
 
             if context.hasChanges {
@@ -607,6 +610,10 @@ final class ClipItemRepository {
                 viewContext.refresh(item, mergeChanges: true)
             }
         }
+    }
+
+    func toggleFavorite(objectID: NSManagedObjectID) throws {
+        try togglePin(objectID: objectID)
     }
 
     func deleteItem(objectID: NSManagedObjectID) throws {

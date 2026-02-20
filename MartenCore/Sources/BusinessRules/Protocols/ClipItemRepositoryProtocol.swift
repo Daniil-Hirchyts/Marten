@@ -26,6 +26,7 @@ public protocol ClipItemRepositoryProtocol: Sendable {
     func updateItem(objectID: NSManagedObjectID, payload: ClipItemPayload) throws -> ClipItem
 
     func deleteItem(objectID: NSManagedObjectID) throws
+    func togglePin(objectID: NSManagedObjectID) throws
     func toggleFavorite(objectID: NSManagedObjectID) throws
     func renameItem(objectID: NSManagedObjectID, title: String?) throws
     func updateFileName(objectID: NSManagedObjectID, newFileName: String) throws

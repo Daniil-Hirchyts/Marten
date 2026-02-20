@@ -7,7 +7,7 @@ import SwiftUI
 extension OverlayShellView {
     func handlePinboardSelect(_ id: UUID?) {
         closeSearchIfEmpty()
-        withAnimation(.easeOut(duration: 0.14)) {
+        withAnimation(OverlayAnimation.pinboardSelect) {
             searchModel.selectedPinboardID = id
         }
     }
@@ -50,7 +50,7 @@ extension OverlayShellView {
                 .sorted { $0.sortOrder > $1.sortOrder }
                 .first(where: { $0.name == name })
             if let createdPinboard {
-                withAnimation(.easeOut(duration: 0.14)) {
+                withAnimation(OverlayAnimation.pinboardSelect) {
                     searchModel.selectedPinboardID = createdPinboard.id
                 }
             }
@@ -157,7 +157,7 @@ extension OverlayShellView {
             guard didCreate else { return }
 
             pinboardRenameState.pendingItem = nil
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+            withAnimation(OverlayAnimation.pinboardSpring) {
                 pinboardRenameState.isCreating = false
             }
             pinboardRenameState.iconName = nil
@@ -176,7 +176,7 @@ extension OverlayShellView {
     }
 
     func handlePinboardCancel() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+        withAnimation(OverlayAnimation.pinboardSpring) {
             pinboardRenameState.isCreating = false
         }
         pinboardRenameState.id = nil

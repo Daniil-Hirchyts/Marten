@@ -275,8 +275,7 @@ public final class OutboundSyncEngine: @unchecked Sendable {
 
         // Skip saves from inbound sync to avoid sync loops
         if let context = notification.object as? NSManagedObjectContext,
-           let author = context.transactionAuthor,
-           author == "private-inbound-sync" || author == "shared-inbound-sync" {
+           SyncTransactionAuthor.isInboundSync(context.transactionAuthor) {
             return
         }
 

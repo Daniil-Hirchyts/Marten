@@ -12,6 +12,7 @@ public enum MartenIOSDefaults {
     public static let ignoreConfidentialContentKey = "ignoreConfidentialContent"
     public static let ignoreTransientContentKey = "ignoreTransientContent"
     public static let keyboardLastSeenAtKey = "marten.keyboard.lastSeenAt"
+    public static let keyboardLastMutationAtKey = "marten.keyboard.lastMutationAt"
     public static let shareExtensionLastSuccessAtKey = "marten.shareExtension.lastSuccessAt"
     public static let showIntegrationsOnboardingKey = "marten.ios.integrations.showOnboarding"
 
@@ -26,6 +27,7 @@ public enum MartenIOSDefaults {
             ignoreConfidentialContentKey: true,
             ignoreTransientContentKey: true,
             keyboardLastSeenAtKey: 0.0,
+            keyboardLastMutationAtKey: 0.0,
             shareExtensionLastSuccessAtKey: 0.0,
             showIntegrationsOnboardingKey: true,
             SharedPinboardsFeatureFlag.key: true,

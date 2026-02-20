@@ -227,7 +227,7 @@ extension OverlayShellView {
         .menuIndicator(.hidden)
         .fixedSize()
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(OverlayAnimation.quickTransition) {
                 isOptionsHovered = hovering
             }
         }

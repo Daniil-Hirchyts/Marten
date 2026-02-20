@@ -76,15 +76,7 @@ struct ShortcutsSettingsContent: View {
         }
         .onChange(of: model.showMarten) { model.save() }
         .onChange(of: model.ocrCapture) { model.save() }
-        .onChange(of: model.quickPaste1) { model.save() }
-        .onChange(of: model.quickPaste2) { model.save() }
-        .onChange(of: model.quickPaste3) { model.save() }
-        .onChange(of: model.quickPaste4) { model.save() }
-        .onChange(of: model.quickPaste5) { model.save() }
-        .onChange(of: model.quickPaste6) { model.save() }
-        .onChange(of: model.quickPaste7) { model.save() }
-        .onChange(of: model.quickPaste8) { model.save() }
-        .onChange(of: model.quickPaste9) { model.save() }
+        .onChange(of: model.quickPastes) { model.save() }
     }
 
     private func quickPasteBinding(_ index: Int) -> Binding<HotkeyPreference> {

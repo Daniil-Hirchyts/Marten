@@ -149,7 +149,7 @@ struct ShareSettingsSheet: View {
                     namespace: accessTabNamespace,
                     matchedId: "accessTab"
                 ) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(OverlayAnimation.standardTransition) {
                         viewModel.accessControl = .onlyInvited
                     }
                 }
@@ -160,7 +160,7 @@ struct ShareSettingsSheet: View {
                     namespace: accessTabNamespace,
                     matchedId: "accessTab"
                 ) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(OverlayAnimation.standardTransition) {
                         viewModel.accessControl = .anyoneWithLink
                     }
                 }
@@ -195,7 +195,7 @@ struct ShareSettingsSheet: View {
                     namespace: permissionTabNamespace,
                     matchedId: "permissionTab"
                 ) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(OverlayAnimation.standardTransition) {
                         viewModel.defaultPermission = .canMakeChanges
                     }
                 }
@@ -206,7 +206,7 @@ struct ShareSettingsSheet: View {
                     namespace: permissionTabNamespace,
                     matchedId: "permissionTab"
                 ) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(OverlayAnimation.standardTransition) {
                         viewModel.defaultPermission = .viewOnly
                     }
                 }
