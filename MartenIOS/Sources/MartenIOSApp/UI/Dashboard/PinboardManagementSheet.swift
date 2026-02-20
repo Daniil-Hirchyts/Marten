@@ -180,7 +180,7 @@ struct PinboardManagementSheet: View {
                     iconName: pinboard.iconName
                 )
             } label: {
-                MartenSwipeActionIcon(systemName: "pencil", backgroundColor: .blue)
+                MartenSwipeActionIcon(systemName: "pencil", backgroundColor: .blue, label: "Edit")
             }
             .tint(.blue.opacity(0.25))
             .accessibilityLabel("Edit")
@@ -190,7 +190,7 @@ struct PinboardManagementSheet: View {
                     await container.deletePinboard(pinboard)
                 }
             } label: {
-                MartenSwipeActionIcon(systemName: "trash", backgroundColor: .red)
+                MartenSwipeActionIcon(systemName: "trash", backgroundColor: .red, label: "Delete")
             }
             .tint(.red.opacity(0.25))
             .accessibilityLabel("Delete")

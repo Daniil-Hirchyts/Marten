@@ -183,11 +183,7 @@ struct MartenIOSDashboardView: View {
                         .transition(MartenAnimation.fadeScale)
                 }
 
-                if let searchModel, searchModel.hasActiveFilters {
-                    activeFiltersChips(searchModel: searchModel)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 6)
-                }
+
             }
 
             // Floating bottom bar
@@ -764,12 +760,6 @@ struct MartenIOSDashboardView: View {
                         .clipped()
                         .allowsHitTesting(isSearchExpanded)
 
-                        // Separator
-                        Rectangle()
-                            .fill(.primary.opacity(0.15))
-                            .frame(width: dividerWidth, height: 24)
-                            .allowsHitTesting(false)
-
                         // Filter button (always present)
                         Button {
                             isShowingFilters = true
@@ -788,7 +778,7 @@ struct MartenIOSDashboardView: View {
                         .accessibilityIdentifier("ios.dashboard.filters")
                     }
                     .frame(width: isSearchExpanded ? expandedSearchGroupWidth : collapsedSearchGroupWidth)
-                    .glassChipBackground(isHighlighted: searchModel?.hasActiveFilters ?? false)
+                    .glassChipBackground(isHighlighted: false)
                 }
                 .frame(width: leadingClusterWidth, alignment: .leading)
 
@@ -1085,6 +1075,21 @@ struct MartenIOSDashboardView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 24)
+                .onEnded { value in
+                    let horizontal = value.translation.width
+                    let vertical = value.translation.height
+                    guard abs(horizontal) > abs(vertical) else { return }
+                    guard abs(horizontal) >= 55 else { return }
+                    if horizontal < 0 {
+                        advancePinboardSelection(by: 1)
+                    } else {
+                        advancePinboardSelection(by: -1)
+                    }
+                }
+        )
         .contentMargins(.top, 120, for: .scrollContent)
     }
 
@@ -1630,7 +1635,7 @@ struct PinboardPickerSheet: View {
                             Button(role: .destructive) {
                                 onDelete(pinboard)
                             } label: {
-                                MartenSwipeActionIcon(systemName: "trash", backgroundColor: .red)
+                                MartenSwipeActionIcon(systemName: "trash", backgroundColor: .red, label: "Delete")
                             }
                             .tint(.red)
                             .accessibilityLabel("Delete")
@@ -1640,7 +1645,7 @@ struct PinboardPickerSheet: View {
                             Button {
                                 onEdit(pinboard)
                             } label: {
-                                MartenSwipeActionIcon(systemName: "pencil", backgroundColor: .blue)
+                                MartenSwipeActionIcon(systemName: "pencil", backgroundColor: .blue, label: "Edit")
                             }
                             .tint(.blue)
                             .accessibilityLabel("Edit")
@@ -1652,7 +1657,8 @@ struct PinboardPickerSheet: View {
                                 } label: {
                                     MartenSwipeActionIcon(
                                         systemName: "square.and.arrow.up",
-                                        backgroundColor: .green
+                                        backgroundColor: .green,
+                                        label: "Share"
                                     )
                                 }
                                 .tint(.green)
@@ -1669,7 +1675,7 @@ struct PinboardPickerSheet: View {
                                         lockStateStore.lockNow(pinboardID: pinboard.id)
                                     } label: {
                                         MartenSwipeActionIcon(
-                                            systemName: "lock.fill", backgroundColor: .orange)
+                                            systemName: "lock.fill", backgroundColor: .orange, label: "Lock")
                                     }
                                     .tint(.orange)
                                     .accessibilityLabel("Lock")
@@ -1679,7 +1685,7 @@ struct PinboardPickerSheet: View {
                                     lockStateStore.setLock(false, for: pinboard.id)
                                 } label: {
                                     MartenSwipeActionIcon(
-                                        systemName: "lock.slash", backgroundColor: .gray)
+                                        systemName: "lock.slash", backgroundColor: .gray, label: "Disable")
                                 }
                                 .tint(.gray)
                                 .accessibilityLabel("Disable Lock")
@@ -1688,7 +1694,7 @@ struct PinboardPickerSheet: View {
                                     lockStateStore.setLock(true, for: pinboard.id)
                                 } label: {
                                     MartenSwipeActionIcon(
-                                        systemName: "lock", backgroundColor: .orange)
+                                        systemName: "lock", backgroundColor: .orange, label: "Lock")
                                 }
                                 .tint(.orange)
                                 .accessibilityLabel("Lock")

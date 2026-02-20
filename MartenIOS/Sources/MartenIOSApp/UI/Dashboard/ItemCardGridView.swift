@@ -43,6 +43,7 @@ struct ItemCardGridView: View {
                 Text("Tap + to create your first item, or paste from the clipboard.")
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 24)
                     .onEnded(handlePinboardSwipe)

@@ -32,93 +32,86 @@ struct NewTextItemSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                // Background
-                if #available(iOS 26, *) {
-                    Color.clear.ignoresSafeArea()
-                } else {
-                    Color(platformColor: .platformSystemGroupedBackground)
-                        .ignoresSafeArea()
-                }
-
-                // Editor Area
-                ScrollView {
-                    VStack(spacing: 0) {
-                        MartenGlassSurface(cornerRadius: 16, padding: 0) {
-                            #if canImport(UIKit)
-                                AttributedTextEditor(
-                                    attributedText: $attributedText,
-                                    plainText: $text,
-                                    command: $command,
-                                    isBold: $isBold,
-                                    isItalic: $isItalic,
-                                    isUnderline: $isUnderline,
-                                    isStrikethrough: $isStrikethrough
-                                )
-                                .frame(minHeight: 300)
-                                .padding(16)
-                            #else
-                                TextEditor(text: $text)
-                                    .frame(minHeight: 300)
-                                    .padding(16)
-                                    .scrollContentBackground(.hidden)
-                            #endif
-                        }
-
-                        HStack {
-                            Text("\(charCount) characters · \(wordCount) words")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                            Spacer()
-                        }
-                        .padding(.top, 8)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 100)  // Space for toolbar
-                }
-
-                // Floating Toolbar
-                VStack {
-                    Spacer()
-                    formattingToolbar
-                        .padding(.bottom, 16)
-                }
+        ZStack(alignment: .bottom) {
+            // Background
+            if #available(iOS 26, *) {
+                Color.clear.ignoresSafeArea()
+            } else {
+                Color(platformColor: .platformSystemGroupedBackground)
+                    .ignoresSafeArea()
             }
-            .navigationTitle("New Text")
-            #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
 
-                ToolbarItem(placement: .confirmationAction) {
+            // Editor Area — full screen
+            ScrollView {
+                #if canImport(UIKit)
+                    AttributedTextEditor(
+                        attributedText: $attributedText,
+                        plainText: $text,
+                        command: $command,
+                        isBold: $isBold,
+                        isItalic: $isItalic,
+                        isUnderline: $isUnderline,
+                        isStrikethrough: $isStrikethrough,
+                        toolbar: formattingToolbar
+                    )
+                    .frame(maxWidth: .infinity, minHeight: UIScreen.main.bounds.height * 0.7)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 90)
+                    .padding(.bottom, 20)
+                #else
+                    TextEditor(text: $text)
+                        .frame(maxWidth: .infinity, minHeight: 500)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 90)
+                        .padding(.bottom, 100)
+                        .scrollContentBackground(.hidden)
+                #endif
+            }
+            // Header overlay with Cancel / Save
+            VStack {
+                HStack {
+                    Button("Cancel") { dismiss() }
+                        .font(.system(size: 16))
+                        .foregroundStyle(.primary)
+                        .padding(.leading, 20)
+
+                    Spacer()
+
+                    Text("New Text")
+                        .font(.system(size: 16, weight: .semibold))
+
+                    Spacer()
+
                     Button("Save") {
                         handleSave()
                         dismiss()
                     }
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : Color.accentColor)
                     .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .fontWeight(.semibold)
+                    .padding(.trailing, 20)
                     .accessibilityHint("Save the text as a new clip")
                 }
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+                .background(.regularMaterial)
+                Spacer()
             }
-            .sheet(item: $appleIntelligencePreview) { preview in
-                AppleIntelligencePreviewSheet(
-                    preview: preview,
-                    onKeep: { appleIntelligencePreview = nil },
-                    onReplace: { applyAppleIntelligencePreview(preview) }
-                )
-            }
-            .task {
-                await refreshAppleIntelligenceAvailability()
-            }
+        }
+        .ignoresSafeArea(edges: .bottom)
+        .sheet(item: $appleIntelligencePreview) { preview in
+            AppleIntelligencePreviewSheet(
+                preview: preview,
+                onKeep: { appleIntelligencePreview = nil },
+                onReplace: { applyAppleIntelligencePreview(preview) }
+            )
+        }
+        .task {
+            await refreshAppleIntelligenceAvailability()
         }
     }
 
-    private var formattingToolbar: some View {
+    private var formattingToolbar: TextEditorToolbar {
         TextEditorToolbar(
             isBold: isBold,
             isItalic: isItalic,

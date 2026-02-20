@@ -24,6 +24,8 @@
     <array>
         <string>marten</string>
     </array>
+    <key>NSFaceIDUsageDescription</key>
+    <string>Marten uses Face ID to unlock protected pinboards.</string>
     <key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>

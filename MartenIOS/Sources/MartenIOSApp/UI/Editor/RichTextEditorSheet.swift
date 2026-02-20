@@ -23,8 +23,6 @@ struct RichTextEditorSheet: View {
     @State private var isItalic = false
     @State private var isUnderline = false
     @State private var isStrikethrough = false
-    @ScaledMetric(relativeTo: .subheadline) private var formatButtonWidth: CGFloat = 44
-    @ScaledMetric(relativeTo: .subheadline) private var formatButtonHeight: CGFloat = 44
 
     init(
         item: ClipItem,
@@ -42,67 +40,67 @@ struct RichTextEditorSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                // Background
-                if #available(iOS 26, *) {
-                    Color.clear.ignoresSafeArea()
-                } else {
-                    Color(platformColor: .platformSystemGroupedBackground)
-                        .ignoresSafeArea()
-                }
-
-                // Editor Area
-                ScrollView {
-                    editor
-                        .frame(minHeight: 400)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-                        .padding(.bottom, 100) // Space for toolbar
-                }
-
-                // Floating Toolbar
-                VStack {
-                    Spacer()
-                    formattingToolbar
-                        .padding(.bottom, 16)
-                }
+        ZStack(alignment: .bottom) {
+            // Background
+            if #available(iOS 26, *) {
+                Color.clear.ignoresSafeArea()
+            } else {
+                Color(platformColor: .platformSystemGroupedBackground)
+                    .ignoresSafeArea()
             }
-            .navigationTitle("Edit Rich Text")
-            .richTextSheetTitleDisplayMode()
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+
+            // Editor Area — full screen
+            ScrollView {
+                editor
+                    .frame(maxWidth: .infinity, minHeight: UIScreen.main.bounds.height * 0.7)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 90)
+                    .padding(.bottom, 20)
+            }
+
+            // Header overlay with Cancel / Save
+            VStack {
+                HStack {
                     Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
+                        .font(.system(size: 16))
+                        .foregroundStyle(.primary)
+                        .padding(.leading, 20)
+
+                    Spacer()
+
+                    Text("Edit Rich Text")
+                        .font(.system(size: 16, weight: .semibold))
+
+                    Spacer()
+
                     Button("Save") {
                         handleSave()
                     }
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : Color.accentColor)
                     .disabled(plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .fontWeight(.semibold)
+                    .padding(.trailing, 20)
                 }
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+                .background(.regularMaterial)
+                Spacer()
             }
-            .background {
-                // Gradient or Mesh background could go here
-                MartenGlassSurface(cornerRadius: 0, padding: 0) {
-                    Color.clear
-                }
-                .ignoresSafeArea()
-            }
-            .sheet(item: $appleIntelligencePreview) { preview in
-                AppleIntelligencePreviewSheet(
-                    preview: preview,
-                    onKeep: { appleIntelligencePreview = nil },
-                    onReplace: { applyAppleIntelligencePreview(preview) }
-                )
-            }
-            .task {
-                await refreshAppleIntelligenceAvailability()
-            }
+        }
+        .ignoresSafeArea(edges: .bottom)
+        .sheet(item: $appleIntelligencePreview) { preview in
+            AppleIntelligencePreviewSheet(
+                preview: preview,
+                onKeep: { appleIntelligencePreview = nil },
+                onReplace: { applyAppleIntelligencePreview(preview) }
+            )
+        }
+        .task {
+            await refreshAppleIntelligenceAvailability()
         }
     }
 
-    private var formattingToolbar: some View {
+    private var formattingToolbar: TextEditorToolbar {
         TextEditorToolbar(
             isBold: isBold,
             isItalic: isItalic,
@@ -136,26 +134,23 @@ struct RichTextEditorSheet: View {
 
     @ViewBuilder
     private var editor: some View {
-        MartenGlassSurface(cornerRadius: 16, padding: 0) {
-            #if canImport(UIKit)
-            AttributedTextEditor(
-                attributedText: $attributedText,
-                plainText: $plainText,
-                command: $command,
-                isBold: $isBold,
-                isItalic: $isItalic,
-                isUnderline: $isUnderline,
-                isStrikethrough: $isStrikethrough
-            )
+        #if canImport(UIKit)
+        AttributedTextEditor(
+            attributedText: $attributedText,
+            plainText: $plainText,
+            command: $command,
+            isBold: $isBold,
+            isItalic: $isItalic,
+            isUnderline: $isUnderline,
+            isStrikethrough: $isStrikethrough,
+            toolbar: formattingToolbar
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #else
+        TextEditor(text: $plainText)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(16)
-            #else
-            TextEditor(text: $plainText)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(16)
-                .scrollContentBackground(.hidden)
-            #endif
-        }
+            .scrollContentBackground(.hidden)
+        #endif
     }
 
     private func handleSave() {
@@ -257,14 +252,3 @@ struct RichTextEditorSheet: View {
     }
 }
 
-#if !os(iOS)
-private extension View {
-    func richTextSheetTitleDisplayMode() -> some View { self }
-}
-#else
-private extension View {
-    func richTextSheetTitleDisplayMode() -> some View {
-        navigationBarTitleDisplayMode(.inline)
-    }
-}
-#endif

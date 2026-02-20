@@ -80,87 +80,81 @@ struct TextEditorToolbar: View {
     let onHeader2: () -> Void
     let onAppleIntelligence: ((AppleIntelligenceTextAction) -> Void)?
     
-    @ScaledMetric(relativeTo: .subheadline) private var formatButtonWidth: CGFloat = 44
-    @ScaledMetric(relativeTo: .subheadline) private var formatButtonHeight: CGFloat = 44
-    
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             if let error = appleIntelligenceError {
                 Text(error)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.red.opacity(0.85))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
                     .background(
                         Capsule()
                             .fill(Color.red.opacity(0.1))
                     )
                     .padding(.horizontal, 16)
             }
-            
-            MartenGlassSurface(cornerRadius: 24, padding: 0, isInteractive: true) {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 8) {
-                        formatStateButton("B", isActive: isBold, accessibilityLabel: "Bold", action: onToggleBold)
-                        formatStateButton("I", isActive: isItalic, accessibilityLabel: "Italic", action: onToggleItalic)
-                        formatStateButton("U", isActive: isUnderline, accessibilityLabel: "Underline", action: onToggleUnderline)
-                        formatStateIconButton("strikethrough", isActive: isStrikethrough, accessibilityLabel: "Strikethrough", action: onToggleStrikethrough)
 
-                        Divider()
-                            .frame(height: 20)
-                            .padding(.horizontal, 4)
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                formatStateButton("B", isActive: isBold, accessibilityLabel: "Bold", action: onToggleBold)
+                Spacer(minLength: 0)
+                formatStateButton("I", isActive: isItalic, accessibilityLabel: "Italic", action: onToggleItalic)
+                Spacer(minLength: 0)
+                formatStateButton("U", isActive: isUnderline, accessibilityLabel: "Underline", action: onToggleUnderline)
+                Spacer(minLength: 0)
+                formatStateIconButton("strikethrough", isActive: isStrikethrough, accessibilityLabel: "Strikethrough", action: onToggleStrikethrough)
+                Spacer(minLength: 0)
+                formatIconButton("list.bullet", accessibilityLabel: "Bullet list", action: onBulletList)
+                Spacer(minLength: 0)
+                formatIconButton("list.number", accessibilityLabel: "Numbered list", action: onNumberedList)
+                Spacer(minLength: 0)
+                formatButton("H1", accessibilityLabel: "Heading 1", action: onHeader1)
+                Spacer(minLength: 0)
+                formatButton("H2", accessibilityLabel: "Heading 2", action: onHeader2)
+                Spacer(minLength: 0)
+                formatIconButton("textformat.slash", accessibilityLabel: "Clear formatting", action: onClearFormatting)
+                Spacer(minLength: 0)
 
-                        formatIconButton("list.bullet", accessibilityLabel: "Bullet list", action: onBulletList)
-                        formatIconButton("list.number", accessibilityLabel: "Numbered list", action: onNumberedList)
-
-                        Divider()
-                            .frame(height: 20)
-                            .padding(.horizontal, 4)
-
-                        formatButton("H1", accessibilityLabel: "Heading 1", action: onHeader1)
-                        formatButton("H2", accessibilityLabel: "Heading 2", action: onHeader2)
-                        
-                        Divider()
-                            .frame(height: 20)
-                            .padding(.horizontal, 4)
-                        
-                        formatIconButton("textformat", accessibilityLabel: "Clear formatting", action: onClearFormatting)
-                        
-                        if shouldShowAppleIntelligence, let onAppleIntelligence {
-                            appleIntelligenceButton(onAction: onAppleIntelligence)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                if shouldShowAppleIntelligence, let onAppleIntelligence {
+                    appleIntelligenceButton(onAction: onAppleIntelligence)
+                    Spacer(minLength: 0)
                 }
-                .scrollIndicators(.hidden)
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(Capsule().fill(Color.clear))
+            #if os(iOS)
+            .glassEffect(.regular.interactive(), in: .capsule)
+            #else
+            .background(.ultraThinMaterial, in: .capsule)
+            #endif
             .padding(.horizontal, 16)
-            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
         }
     }
-    
+
     private func formatButton(_ title: String, accessibilityLabel: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 16, weight: .semibold, design: .serif))
-                .frame(width: formatButtonWidth, height: formatButtonHeight)
+                .font(.system(size: 13, weight: .semibold, design: .serif))
+                .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
                 .foregroundStyle(.primary)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
     }
-    
+
     private func formatStateButton(_ title: String, isActive: Bool, accessibilityLabel: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 16, weight: .semibold, design: .serif))
-                .frame(width: formatButtonWidth, height: formatButtonHeight)
+                .font(.system(size: 13, weight: .semibold, design: .serif))
+                .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
                 .foregroundStyle(isActive ? Color.accentColor : .primary)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(isActive ? Color.accentColor.opacity(0.15) : Color.clear)
                 )
         }
@@ -171,31 +165,31 @@ struct TextEditorToolbar: View {
     private func formatIconButton(_ systemImage: String, accessibilityLabel: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 16, weight: .semibold))
-                .frame(width: formatButtonWidth, height: formatButtonHeight)
+                .font(.system(size: 13, weight: .medium))
+                .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
                 .foregroundStyle(.primary)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
     }
-    
+
     private func formatStateIconButton(_ systemImage: String, isActive: Bool, accessibilityLabel: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 16, weight: .semibold))
-                .frame(width: formatButtonWidth, height: formatButtonHeight)
+                .font(.system(size: 13, weight: .medium))
+                .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
                 .foregroundStyle(isActive ? Color.accentColor : .primary)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(isActive ? Color.accentColor.opacity(0.15) : Color.clear)
                 )
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
     }
-    
+
     private func appleIntelligenceButton(onAction: @escaping (AppleIntelligenceTextAction) -> Void) -> some View {
         Menu {
             ForEach(AppleIntelligenceTextAction.allCases, id: \.rawValue) { action in
@@ -211,11 +205,11 @@ struct TextEditorToolbar: View {
                         .controlSize(.small)
                 } else {
                     Image(systemName: "apple.intelligence")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.primary)
                 }
             }
-            .frame(width: formatButtonWidth, height: formatButtonHeight)
+            .frame(width: 32, height: 32)
             .contentShape(Rectangle())
         }
     }
@@ -293,35 +287,77 @@ struct AttributedTextEditor: UIViewRepresentable {
     @Binding var isItalic: Bool
     @Binding var isUnderline: Bool
     @Binding var isStrikethrough: Bool
+    var toolbar: TextEditorToolbar
 
     func makeUIView(context: Context) -> UITextView {
         let textView = UITextView()
-        textView.attributedText = attributedText
         textView.font = .systemFont(ofSize: 16)
+        textView.textColor = .label
         textView.backgroundColor = .clear
         textView.isEditable = true
         textView.alwaysBounceVertical = true
         textView.delegate = context.coordinator
-        
+
+        // Ensure typed text always uses adaptive label color
+        textView.typingAttributes = [
+            .font: UIFont.systemFont(ofSize: 16),
+            .foregroundColor: UIColor.label
+        ]
+
+        // Apply attributed text after configuring textColor so the
+        // fallback foreground from the text storage is correct
+        if attributedText.length > 0 {
+            textView.attributedText = strippingForegroundColor(attributedText)
+        }
+
         // Enable Writing Tools on iOS 18+
         if #available(iOS 18.0, *) {
             textView.writingToolsBehavior = .complete
         }
-        
+
+        // Attach toolbar as keyboard accessory view
+        let hostingController = UIHostingController(rootView: toolbar)
+        hostingController.view.backgroundColor = .clear
+        hostingController.view.frame = CGRect(
+            x: 0, y: 0,
+            width: UIScreen.main.bounds.width,
+            height: 56
+        )
+        hostingController.view.autoresizingMask = [.flexibleWidth]
+        textView.inputAccessoryView = hostingController.view
+        context.coordinator.toolbarHostingController = hostingController
+
         context.coordinator.textView = textView
         return textView
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
         if !textView.attributedText.isEqual(to: attributedText) {
-            textView.attributedText = attributedText
+            textView.attributedText = strippingForegroundColor(attributedText)
+            // Reassert textColor so the view renders label color in dark mode
+            textView.textColor = .label
         }
 
         if let command, command != context.coordinator.lastCommand {
             context.coordinator.lastCommand = command
             context.coordinator.apply(command)
         }
+
+        // Keep toolbar in sync with formatting state
+        context.coordinator.toolbarHostingController?.rootView = toolbar
     }
+
+    /// Returns a copy of the attributed string with `.foregroundColor` set to the
+    /// adaptive `UIColor.label` on every range, so text adapts to dark / light mode.
+    /// UITextView ignores `textColor` for attributed text — the attribute in the string
+    /// itself is what governs the rendered color.
+    private func strippingForegroundColor(_ source: NSAttributedString) -> NSAttributedString {
+        let mutable = NSMutableAttributedString(attributedString: source)
+        let fullRange = NSRange(location: 0, length: mutable.length)
+        mutable.addAttribute(.foregroundColor, value: UIColor.label, range: fullRange)
+        return mutable
+    }
+
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -343,6 +379,7 @@ struct AttributedTextEditor: UIViewRepresentable {
         @Binding var isStrikethrough: Bool
         weak var textView: UITextView?
         var lastCommand: RichTextEditorCommand?
+        var toolbarHostingController: UIHostingController<TextEditorToolbar>?
 
         init(
             attributedText: Binding<NSAttributedString>,
