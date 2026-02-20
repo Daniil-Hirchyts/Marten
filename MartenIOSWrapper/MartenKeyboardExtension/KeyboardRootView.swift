@@ -272,15 +272,6 @@ extension UIColor {
     }
 }
 
-private struct KeyboardActivityView: UIViewControllerRepresentable {
-    let activityItems: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
 
 @MainActor
 final class KeyboardExtensionViewModel: ObservableObject {
@@ -400,9 +391,6 @@ struct KeyboardRootView: View {
     @State private var copyButtonState: CopyButtonState = .idle
     @State private var previewItem: SharedClipItemSummary?
     @State private var moveDestinationItem: SharedClipItemSummary?
-    @State private var pendingDeleteItem: SharedClipItemSummary?
-    @State private var shareActivityItems: [Any] = []
-    @State private var isShareSheetPresented = false
 
     private enum CopyButtonState {
         case idle
@@ -516,14 +504,6 @@ struct KeyboardRootView: View {
                 }
 
                 if viewModel.isPinboardMenuPresented {
-                    Color.black.opacity(0.001)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            withAnimation(.spring(duration: 0.25)) {
-                                viewModel.isPinboardMenuPresented = false
-                            }
-                        }
-
                     VStack {
                         Spacer()
                         pinboardMenuOverlay
@@ -569,27 +549,6 @@ struct KeyboardRootView: View {
                         .zIndex(140)
                 }
 
-                if let pendingDeleteItem {
-                    Color.black.opacity(0.001)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            withAnimation(.spring(duration: 0.25)) {
-                                self.pendingDeleteItem = nil
-                            }
-                        }
-
-                    VStack {
-                        Spacer()
-                        deleteConfirmationOverlay(for: pendingDeleteItem)
-                            .padding(.bottom, 16)
-                            .padding(.horizontal, 12)
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(130)
-                }
-            }
-            .sheet(isPresented: $isShareSheetPresented) {
-                KeyboardActivityView(activityItems: shareActivityItems)
             }
         }
     }
@@ -600,7 +559,6 @@ struct KeyboardRootView: View {
                 withAnimation(.spring(duration: 0.25)) {
                     previewItem = nil
                     moveDestinationItem = nil
-                    pendingDeleteItem = nil
                     viewModel.isPinboardMenuPresented.toggle()
                 }
             } label: {
@@ -855,7 +813,7 @@ struct KeyboardRootView: View {
             }
             .frame(maxHeight: 240)
         }
-        .background(.ultraThinMaterial)
+        .background(Color(uiColor: .secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
         .overlay(
@@ -1023,20 +981,20 @@ struct KeyboardRootView: View {
             let feedback = UINotificationFeedbackGenerator()
             feedback.notificationOccurred(.warning)
         case .share:
-            handleShareAction(for: item)
+            break
         case .moveToPinboard:
             withAnimation(.spring(duration: 0.25)) {
                 viewModel.isPinboardMenuPresented = false
                 previewItem = nil
                 moveDestinationItem = item
-                pendingDeleteItem = nil
             }
         case .delete:
-            withAnimation(.spring(duration: 0.25)) {
-                viewModel.isPinboardMenuPresented = false
-                moveDestinationItem = nil
-                previewItem = nil
-                pendingDeleteItem = item
+            viewModel.isPinboardMenuPresented = false
+            moveDestinationItem = nil
+            previewItem = nil
+            Task { @MainActor in
+                let didDelete = await viewModel.deleteItem(item)
+                UINotificationFeedbackGenerator().notificationOccurred(didDelete ? .success : .error)
             }
         }
     }
@@ -1097,74 +1055,6 @@ struct KeyboardRootView: View {
         }
     }
 
-    private func handleShareAction(for item: SharedClipItemSummary) {
-        let payloads = bestEffortSharePayloads(for: item)
-        guard !payloads.isEmpty else {
-            let feedback = UINotificationFeedbackGenerator()
-            feedback.notificationOccurred(.error)
-            return
-        }
-
-        viewModel.isPinboardMenuPresented = false
-        moveDestinationItem = nil
-        previewItem = nil
-
-        shareActivityItems = payloads
-        isShareSheetPresented = true
-    }
-
-    private func bestEffortSharePayloads(for item: SharedClipItemSummary) -> [Any] {
-        var payloads: [Any] = []
-
-        if let shareURL = shareURL(for: item) {
-            payloads.append(shareURL)
-        }
-
-        if item.itemType == .image,
-            let imagePath = item.thumbnailPath?.trimmingCharacters(in: .whitespacesAndNewlines),
-            !imagePath.isEmpty
-        {
-            let url = URL(fileURLWithPath: imagePath)
-            if FileManager.default.fileExists(atPath: imagePath) {
-                payloads.append(url)
-            }
-
-            if let image = UIImage(contentsOfFile: imagePath) {
-                payloads.append(image)
-            }
-        }
-
-        if let text = copyText(for: item, asPlainText: true) {
-            payloads.append(text)
-        }
-
-        return payloads
-    }
-
-    private func shareURL(for item: SharedClipItemSummary) -> URL? {
-        if item.itemType == .file,
-            let path = item.primaryText,
-            !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            let fileURL = URL(fileURLWithPath: path)
-            if FileManager.default.fileExists(atPath: fileURL.path) {
-                return fileURL
-            }
-            return nil
-        }
-
-        if item.itemType == .url,
-            let raw = item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines),
-            !raw.isEmpty
-        {
-            if raw.localizedCaseInsensitiveContains("://") {
-                return URL(string: raw)
-            }
-            return URL(string: "https://\(raw)")
-        }
-
-        return nil
-    }
 
     private func previewOverlay(for item: SharedClipItemSummary, cardSide: CGFloat) -> some View {
         VStack {
@@ -1204,59 +1094,6 @@ struct KeyboardRootView: View {
 
     private func proxySafePreviewWidth(_ cardSide: CGFloat) -> CGFloat {
         max(220, cardSide + 28)
-    }
-
-    private func deleteConfirmationOverlay(for item: SharedClipItemSummary) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Delete Items?")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.primary)
-
-            Text("This action cannot be undone.")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-
-            HStack(spacing: 10) {
-                Button {
-                    withAnimation(.spring(duration: 0.25)) {
-                        pendingDeleteItem = nil
-                    }
-                } label: {
-                    Text("Cancel")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .frame(maxWidth: .infinity, minHeight: 40)
-                        .background(Color.primary.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(.plain)
-
-                Button(role: .destructive) {
-                    withAnimation(.spring(duration: 0.25)) {
-                        pendingDeleteItem = nil
-                    }
-                    Task { @MainActor in
-                        let didDelete = await viewModel.deleteItem(item)
-                        let feedback = UINotificationFeedbackGenerator()
-                        feedback.notificationOccurred(didDelete ? .success : .error)
-                    }
-                } label: {
-                    Text("Delete")
-                        .font(.system(size: 14, weight: .semibold))
-                        .frame(maxWidth: .infinity, minHeight: 40)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.red)
-            }
-        }
-        .padding(14)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
     }
 
     private func moveDestinationOverlay(for item: SharedClipItemSummary) -> some View {

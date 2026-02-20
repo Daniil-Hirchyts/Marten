@@ -29,10 +29,10 @@ final class KeyboardViewController: UIInputViewController {
     }
     
     private func setupKeyboardHeight() {
-        // Set a fixed height for the keyboard extension
-        let height: CGFloat = 280
+        let height: CGFloat = 250
+        heightConstraint?.isActive = false
         let constraint = view.heightAnchor.constraint(equalToConstant: height)
-        constraint.priority = .required
+        constraint.priority = UILayoutPriority(999)
         constraint.isActive = true
         heightConstraint = constraint
     }

@@ -29,8 +29,7 @@ struct MartenIOSDashboardView: View {
     @State private var isShowingMoveSheet = false
     @State private var isShowingFilters = false
     @State private var moveObjectIDs: [NSManagedObjectID] = []
-    @State private var shareActivityItems: [Any] = []
-    @State private var isShowingShareSheet = false
+    @State private var shareSheetContext: ShareSheetContext?
     @State private var pendingDeleteObjectIDs: [NSManagedObjectID] = []
     @State private var isShowingDeleteConfirmation = false
     @State private var activeDestination: ActiveDestination?
@@ -317,8 +316,8 @@ struct MartenIOSDashboardView: View {
                 }
             }
         }
-        .sheet(isPresented: $isShowingShareSheet) {
-            ActivityView(activityItems: shareActivityItems)
+        .sheet(item: $shareSheetContext) { context in
+            ActivityView(activityItems: context.items)
         }
         .sheet(item: $activeDestination) { destination in
             switch destination {
@@ -685,120 +684,168 @@ struct MartenIOSDashboardView: View {
     // MARK: - Bottom Bar
 
     private var bottomBar: some View {
-        let interItemSpacing: CGFloat = 10
+        GeometryReader { proxy in
+            let interItemSpacing: CGFloat = 10
+            let dividerWidth: CGFloat = 1
+            let collapsedSearchGroupWidth = (actionButtonSize * 2) + dividerWidth
+            let trailingButtonWidth = actionButtonSize
+            let pinboardSlotWidth = actionButtonSize
+            let leadingClusterWidth = max(
+                0,
+                proxy.size.width - trailingButtonWidth - interItemSpacing
+            )
+            let expandedSearchGroupWidth = max(
+                collapsedSearchGroupWidth,
+                leadingClusterWidth
+            )
+            let expandedTextFieldWidth = max(
+                0,
+                expandedSearchGroupWidth - collapsedSearchGroupWidth
+            )
+            let textFieldWidth = isSearchExpanded ? expandedTextFieldWidth : 0
 
-        return HStack(spacing: interItemSpacing) {
-            swipablePinboardSelector
-                .frame(width: isSearchExpanded ? 0 : actionButtonSize, height: actionButtonSize)
-                .scaleEffect(isSearchExpanded ? 0.96 : 1)
-                .opacity(isSearchExpanded ? 0 : 1)
-                .allowsHitTesting(!isSearchExpanded)
-                .accessibilityHidden(isSearchExpanded)
-                .clipped()
+            HStack(spacing: interItemSpacing) {
+                HStack(spacing: isSearchExpanded ? 0 : interItemSpacing) {
+                    // Keep pinboard selector mounted to avoid row re-layout flicker.
+                    swipablePinboardSelector
+                        .frame(width: isSearchExpanded ? 0 : pinboardSlotWidth, height: actionButtonSize)
+                        .scaleEffect(isSearchExpanded ? 0.96 : 1)
+                        .opacity(isSearchExpanded ? 0 : 1)
+                        .allowsHitTesting(!isSearchExpanded)
+                        .accessibilityHidden(isSearchExpanded)
 
-            if !isSearchExpanded {
-                Spacer(minLength: 0)
-            }
+                    if !isSearchExpanded {
+                        Spacer(minLength: 0)
+                    }
 
-            if isSearchExpanded {
-                HStack(spacing: 8) {
-                    searchToggleButton
+                    // Search + Filter group (single glass surface)
+                    HStack(spacing: 0) {
+                        searchToggleButton
 
-                    #if os(iOS)
-                        DashboardSearchTextField(
-                            text: Binding(
-                                get: { searchModel?.query ?? "" },
-                                set: { searchModel?.query = $0 }
-                            ),
-                            placeholder: "Search clips\u{2026}",
-                            focusRequest: $searchFocusRequest
-                        )
-                        .frame(height: 36)
-                        .frame(maxWidth: .infinity)
-                    #else
-                        TextField("Search clips\u{2026}", text: Binding(
-                            get: { searchModel?.query ?? "" },
-                            set: { searchModel?.query = $0 }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: .infinity)
-                    #endif
+                        // Text field — always mounted, animates with explicit width to avoid flicker.
+                        HStack(spacing: 6) {
+                            #if os(iOS)
+                                DashboardSearchTextField(
+                                    text: Binding(
+                                        get: { searchModel?.query ?? "" },
+                                        set: { searchModel?.query = $0 }
+                                    ),
+                                    placeholder: "Search clips\u{2026}",
+                                    focusRequest: $searchFocusRequest
+                                )
+                                .frame(height: 36)
+                            #else
+                                Image(systemName: "magnifyingglass")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.secondary)
+
+                                TextField("Search clips\u{2026}", text: Binding(
+                                    get: { searchModel?.query ?? "" },
+                                    set: { searchModel?.query = $0 }
+                                ))
+                            #endif
+
+                            if !(searchModel?.query.isEmpty ?? true) {
+                                Button {
+                                    searchModel?.query = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .transition(.scale(scale: 0.7).combined(with: .opacity))
+                            }
+                        }
+                        .animation(MartenAnimation.quick, value: searchModel?.query.isEmpty)
+                        .padding(.horizontal, isSearchExpanded ? 10 : 0)
+                        .frame(width: textFieldWidth, height: actionButtonSize, alignment: .leading)
+                        .opacity(isSearchExpanded ? 1 : 0)
+                        .clipped()
+                        .allowsHitTesting(isSearchExpanded)
+
+                        // Separator
+                        Rectangle()
+                            .fill(.primary.opacity(0.15))
+                            .frame(width: dividerWidth, height: 24)
+                            .allowsHitTesting(false)
+
+                        // Filter button (always present)
+                        Button {
+                            isShowingFilters = true
+                        } label: {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(
+                                    searchModel?.hasActiveFilters ?? false
+                                        ? Color.accentColor : .primary
+                                )
+                                .frame(width: actionButtonSize, height: actionButtonSize)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Filters")
+                        .accessibilityIdentifier("ios.dashboard.filters")
+                    }
+                    .frame(width: isSearchExpanded ? expandedSearchGroupWidth : collapsedSearchGroupWidth)
+                    .glassChipBackground(isHighlighted: searchModel?.hasActiveFilters ?? false)
                 }
-                .frame(maxWidth: .infinity)
-            } else {
-                searchToggleButton
-            }
+                .frame(width: leadingClusterWidth, alignment: .leading)
 
-            filtersButton
-
-            Button {
-                isShowingQuickAdd = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(width: actionButtonSize, height: actionButtonSize)
-                    .contentShape(Rectangle())
+                // Add / Close button — same position, icon morphs
+                Button {
+                    if isSearchExpanded {
+                        #if os(iOS)
+                            UIApplication.shared.sendAction(
+                                #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        #endif
+                        withAnimation(MartenAnimation.smooth) {
+                            searchModel?.clearSearchText()
+                            isSearchExpanded = false
+                        }
+                    } else {
+                        isShowingQuickAdd = true
+                    }
+                } label: {
+                    Image(systemName: isSearchExpanded ? "xmark" : "plus")
+                        .contentTransition(.symbolEffect(.replace))
+                        .font(.system(size: 18, weight: .semibold))
+                        .frame(width: actionButtonSize, height: actionButtonSize)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .glassCircleBackground(isHighlighted: false)
+                .accessibilityLabel(isSearchExpanded ? "Close Search" : "Quick Add")
+                .accessibilityIdentifier(
+                    isSearchExpanded ? "ios.dashboard.closeSearch" : "ios.dashboard.quickAdd"
+                )
             }
-            .buttonStyle(.plain)
-            .glassCircleBackground(isHighlighted: false)
-            .accessibilityLabel("Quick Add")
-            .accessibilityIdentifier("ios.dashboard.quickAdd")
+            .frame(width: proxy.size.width, height: actionButtonSize, alignment: .leading)
         }
         .frame(height: actionButtonSize)
     }
 
-    private var filtersButton: some View {
-        Button {
-            isShowingFilters = true
-        } label: {
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(
-                    searchModel?.hasActiveFilters ?? false
-                        ? Color.accentColor : .primary
-                )
-                .frame(width: actionButtonSize, height: actionButtonSize)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .glassCircleBackground(isHighlighted: searchModel?.hasActiveFilters ?? false)
-        .accessibilityLabel("Filters")
-        .accessibilityIdentifier("ios.dashboard.filters")
-    }
-
     private var searchToggleButton: some View {
         Button {
-            if isSearchExpanded {
-                searchFocusRequest = false
-                #if os(iOS)
-                    UIApplication.shared.sendAction(
-                        #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                #endif
-                withAnimation(MartenAnimation.smooth) {
-                    searchModel?.clearSearchText()
-                    isSearchExpanded = false
-                }
-            } else {
-                searchFocusRequest = false
-                withAnimation(MartenAnimation.smooth) {
-                    isSearchExpanded = true
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                    guard isSearchExpanded else { return }
-                    searchFocusRequest = true
-                }
+            guard !isSearchExpanded else {
+                searchFocusRequest = true
+                return
+            }
+            withAnimation(MartenAnimation.smooth) {
+                isSearchExpanded = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                searchFocusRequest = true
             }
         } label: {
-            Image(systemName: isSearchExpanded ? "xmark" : "magnifyingglass")
-                .contentTransition(.symbolEffect(.replace))
+            Image(systemName: "magnifyingglass")
                 .font(.system(size: 18, weight: .semibold))
                 .frame(width: actionButtonSize, height: actionButtonSize)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .glassCircleBackground(isHighlighted: isSearchExpanded)
-        .accessibilityLabel(isSearchExpanded ? "Close Search" : "Search")
-        .accessibilityIdentifier(isSearchExpanded ? "ios.dashboard.closeSearch" : "ios.dashboard.search")
+        .accessibilityLabel("Search")
+        .accessibilityIdentifier("ios.dashboard.search")
     }
 
     // MARK: - Selected Pinboard
@@ -918,6 +965,7 @@ struct MartenIOSDashboardView: View {
                         selectionModel: DashboardSelectionModel(),
                         canReorder: false,
                         allowPinning: container.selectedPinboardID != nil,
+                        contentInsets: EdgeInsets(top: 80, leading: 0, bottom: 100, trailing: 0),
                         onTapItem: { item in handleItemTap(item) },
                         onCopyItem: { item in copyItems([item.objectID]) },
                         onCopyPlainTextItem: { item in copyItemsPlainText([item.objectID]) },
@@ -1191,8 +1239,7 @@ struct MartenIOSDashboardView: View {
         }
 
         guard !payloads.isEmpty else { return }
-        shareActivityItems = payloads
-        isShowingShareSheet = true
+        shareSheetContext = ShareSheetContext(items: payloads)
     }
 
     private func resolveItems(from objectIDs: [NSManagedObjectID]) -> [ClipItem] {
@@ -1519,6 +1566,11 @@ private struct PinboardShareContext: Identifiable {
     var id: String { pinboardID.uriRepresentation().absoluteString }
 }
 
+private struct ShareSheetContext: Identifiable {
+    let id = UUID()
+    let items: [Any]
+}
+
 // MARK: - Pinboard Picker Sheet
 
 struct PinboardPickerSheet: View {
@@ -1770,8 +1822,8 @@ private struct DashboardSearchTextField: UIViewRepresentable {
     let placeholder: String
     var focusRequest: Binding<Bool>?
 
-    func makeUIView(context: Context) -> UISearchTextField {
-        let textField = UISearchTextField()
+    func makeUIView(context: Context) -> UITextField {
+        let textField = UITextField()
         textField.placeholder = placeholder
         textField.delegate = context.coordinator
         textField.addTarget(
@@ -1779,20 +1831,19 @@ private struct DashboardSearchTextField: UIViewRepresentable {
             action: #selector(Coordinator.textChanged(_:)),
             for: .editingChanged
         )
-        textField.clearButtonMode = .whileEditing
+        textField.borderStyle = .none
+        textField.backgroundColor = .clear
+        textField.clearButtonMode = .never
         textField.textAlignment = .left
         textField.returnKeyType = .search
         textField.autocorrectionType = .no
         textField.autocapitalizationType = .none
         textField.spellCheckingType = .no
-        textField.backgroundColor = UIColor.secondarySystemBackground
-        textField.layer.cornerRadius = 10
-        textField.clipsToBounds = true
         textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return textField
     }
 
-    func updateUIView(_ uiView: UISearchTextField, context: Context) {
+    func updateUIView(_ uiView: UITextField, context: Context) {
         if uiView.text != text {
             uiView.text = text
         }

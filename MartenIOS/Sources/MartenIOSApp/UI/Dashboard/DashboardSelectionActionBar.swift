@@ -16,7 +16,7 @@ struct DashboardSelectionActionBar: View {
             Spacer()
 
             // Group: Move | Copy | Share
-            MartenGlassSurface(cornerRadius: 100, padding: 0, isInteractive: true) {
+            MartenGlassSurface(cornerRadius: 100, padding: 0) {
                 HStack(spacing: 0) {
                     // Move
                     actionButtonInGroup(
