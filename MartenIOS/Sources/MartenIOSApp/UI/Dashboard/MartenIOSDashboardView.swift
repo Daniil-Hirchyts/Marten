@@ -1900,32 +1900,36 @@ struct SearchFiltersSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     filterSection(title: "Date", icon: "calendar") {
-                        FlowLayout(spacing: 8) {
-                            ForEach([ClipItemDateFilter.any, .today, .yesterday, .last7Days, .last30Days], id: \.self) { filter in
-                                FilterChipButton(
-                                    title: filter.label,
-                                    icon: dateIcon(for: filter),
-                                    badge: nil,
-                                    isSelected: searchModel.dateFilter == filter,
-                                    style: .capsule
-                                ) {
-                                    searchModel.dateFilter = filter
+                        glassChipContainer {
+                            FlowLayout(spacing: 8) {
+                                ForEach([ClipItemDateFilter.any, .today, .yesterday, .last7Days, .last30Days], id: \.self) { filter in
+                                    FilterChipButton(
+                                        title: filter.label,
+                                        icon: dateIcon(for: filter),
+                                        badge: nil,
+                                        isSelected: searchModel.dateFilter == filter,
+                                        style: .capsule
+                                    ) {
+                                        searchModel.dateFilter = filter
+                                    }
                                 }
                             }
                         }
                     }
 
                     filterSection(title: "Content Type", icon: "doc.on.doc") {
-                        FlowLayout(spacing: 8) {
-                            ForEach(ItemType.allCases, id: \.self) { type in
-                                FilterChipButton(
-                                    title: type.label,
-                                    icon: itemTypeIcon(type),
-                                    badge: nil,
-                                    isSelected: searchModel.selectedTypes.contains(type),
-                                    style: .capsule
-                                ) {
-                                    searchModel.toggleType(type)
+                        glassChipContainer {
+                            FlowLayout(spacing: 8) {
+                                ForEach(ItemType.allCases, id: \.self) { type in
+                                    FilterChipButton(
+                                        title: type.label,
+                                        icon: itemTypeIcon(type),
+                                        badge: nil,
+                                        isSelected: searchModel.selectedTypes.contains(type),
+                                        style: .capsule
+                                    ) {
+                                        searchModel.toggleType(type)
+                                    }
                                 }
                             }
                         }
@@ -1939,13 +1943,15 @@ struct SearchFiltersSheet: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 4)
                         } else {
-                            FlowLayout(spacing: 8) {
-                                ForEach(searchModel.appOptions) { option in
-                                    AppFilterChipButton(
-                                        option: option,
-                                        isSelected: searchModel.selectedSourceApps.contains(option.id)
-                                    ) {
-                                        searchModel.toggleSourceApp(option.id)
+                            glassChipContainer {
+                                FlowLayout(spacing: 8) {
+                                    ForEach(searchModel.appOptions) { option in
+                                        AppFilterChipButton(
+                                            option: option,
+                                            isSelected: searchModel.selectedSourceApps.contains(option.id)
+                                        ) {
+                                            searchModel.toggleSourceApp(option.id)
+                                        }
                                     }
                                 }
                             }
@@ -1956,16 +1962,18 @@ struct SearchFiltersSheet: View {
 
                     if !searchModel.deviceOptions.isEmpty {
                         filterSection(title: "Source Device", icon: "laptopcomputer.and.iphone") {
-                            FlowLayout(spacing: 8) {
-                                ForEach(searchModel.deviceOptions) { device in
-                                    FilterChipButton(
-                                        title: device.title,
-                                        icon: nil,
-                                        badge: "\(device.count)",
-                                        isSelected: searchModel.selectedSourceDevices.contains(device.value),
-                                        style: .capsule
-                                    ) {
-                                        searchModel.toggleSourceDevice(device.value)
+                            glassChipContainer {
+                                FlowLayout(spacing: 8) {
+                                    ForEach(searchModel.deviceOptions) { device in
+                                        FilterChipButton(
+                                            title: device.title,
+                                            icon: nil,
+                                            badge: "\(device.count)",
+                                            isSelected: searchModel.selectedSourceDevices.contains(device.value),
+                                            style: .capsule
+                                        ) {
+                                            searchModel.toggleSourceDevice(device.value)
+                                        }
                                     }
                                 }
                             }
@@ -1998,6 +2006,17 @@ struct SearchFiltersSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    @ViewBuilder
+    private func glassChipContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        if #available(iOS 26, *) {
+            GlassEffectContainer(spacing: 8) {
+                content()
+            }
+        } else {
+            content()
+        }
     }
 
     private func filterSection<Content: View>(
@@ -2058,7 +2077,7 @@ private struct FilterChipButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(isSelected ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.primary))
+            .foregroundStyle(foregroundColor)
             .background(background(isPressed: configuration.isPressed))
             .overlay(border(isPressed: configuration.isPressed))
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
@@ -2066,52 +2085,60 @@ private struct FilterChipButtonStyle: ButtonStyle {
             .animation(.spring(response: 0.4, dampingFraction: 0.75), value: isSelected)
     }
 
+    private var foregroundColor: AnyShapeStyle {
+        if isSelected {
+            if #available(iOS 26, macOS 26, *) {
+                return AnyShapeStyle(Color.primary)
+            }
+            return AnyShapeStyle(Color.white)
+        }
+        return AnyShapeStyle(Color.primary)
+    }
+
     @ViewBuilder
     private func background(isPressed: Bool) -> some View {
-        if isSelected {
-            switch style {
-            case .capsule:
+        switch style {
+        case .capsule:
+            if #available(iOS 26, macOS 26, *) {
                 Capsule()
-                    .fill(Color.accentColor)
-            case .roundedRect(let cornerRadius):
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.accentColor)
+                    .fill(Color.clear)
+                    .glassEffect(
+                        isSelected ? .regular.tint(.accentColor).interactive() : .regular.interactive(),
+                        in: .capsule
+                    )
+            } else {
+                Capsule()
+                    .fill(isSelected ? Color.accentColor : (colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.04)))
             }
-        } else {
-            switch style {
-            case .capsule:
-                if #available(iOS 26, macOS 26, *) {
-                    Capsule()
-                        .fill(Color.clear)
-                        .glassEffect(.regular.interactive(), in: .capsule)
-                } else {
-                    Capsule()
-                        .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.04))
-                }
-            case .roundedRect(let cornerRadius):
-                if #available(iOS 26, macOS 26, *) {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(Color.clear)
-                        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius))
-                } else {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.04))
-                }
+        case .roundedRect(let cornerRadius):
+            if #available(iOS 26, macOS 26, *) {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.clear)
+                    .glassEffect(
+                        isSelected ? .regular.tint(.accentColor).interactive() : .regular.interactive(),
+                        in: .rect(cornerRadius: cornerRadius)
+                    )
+            } else {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(isSelected ? Color.accentColor : (colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.04)))
             }
         }
     }
 
     @ViewBuilder
     private func border(isPressed: Bool) -> some View {
-        let strokeColor = isSelected ? Color.white.opacity(0.2) : Color.primary.opacity(0.08)
-
-        switch style {
-        case .capsule:
-            Capsule()
-                .strokeBorder(strokeColor, lineWidth: 0.5)
-        case .roundedRect(let cornerRadius):
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(strokeColor, lineWidth: 0.5)
+        if #available(iOS 26, macOS 26, *) {
+            EmptyView()
+        } else {
+            let strokeColor = isSelected ? Color.white.opacity(0.2) : Color.primary.opacity(0.08)
+            switch style {
+            case .capsule:
+                Capsule()
+                    .strokeBorder(strokeColor, lineWidth: 0.5)
+            case .roundedRect(let cornerRadius):
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(strokeColor, lineWidth: 0.5)
+            }
         }
     }
 }
