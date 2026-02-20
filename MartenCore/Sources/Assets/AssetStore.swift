@@ -5,7 +5,11 @@ public enum AssetStoreError: Error {
 }
 
 public final class AssetStore {
-    public static let shared = AssetStore()
+    // `nonisolated(unsafe)` because this is set exactly once at app startup (before any
+    // concurrent reads) and then treated as immutable. On iOS the App Group path is injected
+    // by MartenIOSStorageConfiguration so every component reads from the same location as the
+    // writer; on macOS the default (applicationSupportDirectory) is used throughout.
+    nonisolated(unsafe) public static var shared = AssetStore()
 
     private let baseURL: URL
     private let fileManager: FileManager

@@ -15,7 +15,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         installRootView()
-        setupKeyboardHeight()
+        applyKeyboardHeight()
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -28,13 +28,40 @@ final class KeyboardViewController: UIInputViewController {
         stopPasteboardMonitoring()
     }
     
-    private func setupKeyboardHeight() {
-        let height: CGFloat = 250
+    override func viewWillTransition(
+        to size: CGSize,
+        with coordinator: UIViewControllerTransitionCoordinator
+    ) {
+        super.viewWillTransition(to: size, with: coordinator)
+        coordinator.animate(alongsideTransition: { [weak self] _ in
+            self?.applyKeyboardHeight(for: size)
+        })
+    }
+
+    private func applyKeyboardHeight(for size: CGSize? = nil) {
+        let height = resolvedKeyboardHeight(for: size)
         heightConstraint?.isActive = false
         let constraint = view.heightAnchor.constraint(equalToConstant: height)
         constraint.priority = UILayoutPriority(999)
         constraint.isActive = true
         heightConstraint = constraint
+    }
+
+    private func resolvedKeyboardHeight(for size: CGSize? = nil) -> CGFloat {
+        let isLandscape: Bool
+        if let size {
+            isLandscape = UIDevice.current.userInterfaceIdiom == .pad
+                ? size.width > size.height
+                : size.width > 500
+        } else {
+            let bounds = UIScreen.main.bounds
+            isLandscape = bounds.width > bounds.height
+        }
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            return isLandscape ? 352 : 264
+        } else {
+            return isLandscape ? 162 : 226
+        }
     }
 
     private func installRootView() {
@@ -58,6 +85,7 @@ final class KeyboardViewController: UIInputViewController {
         }
 
         if let assetStore = try? storage.makeAssetStore() {
+            AssetStore.shared = assetStore
             saveService = ShareExtensionSaveService(
                 persistenceController: persistence,
                 assetStore: assetStore

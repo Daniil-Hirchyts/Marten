@@ -19,6 +19,11 @@ public struct MartenIOSStorageConfiguration: Sendable {
             return MartenIOSBootstrap()
         }
 
+        // Point the shared singleton at the App Group container so that all components
+        // (ImageThumbnailLoader, LinkPreviewImageLoader, SharedClipQueryService, …) read
+        // from the same location that ClipItemStore writes to.
+        AssetStore.shared = assetStore
+
         let clipItemStore = ClipItemStore(
             persistence: persistenceController,
             assetStore: assetStore

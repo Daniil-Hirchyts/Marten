@@ -109,6 +109,12 @@ struct ClipboardPayloadBuilder {
         case .tiff:
             itemKind = .tiff
             ext = "tiff"
+        case .heic:
+            itemKind = .jpeg  // no dedicated HEIC kind; CGImageSource decodes by magic bytes
+            ext = "heic"
+        case .heif:
+            itemKind = .jpeg
+            ext = "heif"
         default:
             itemKind = .jpeg
             ext = "jpg"
@@ -301,21 +307,39 @@ struct SystemClipboardReader: ClipboardReading {
             content.htmlData = htmlData
         }
 
-        if let image = pasteboard.image {
-            if let pngData = image.pngData() {
-                content.imageData = pngData
-                content.imageUTType = .png
-            } else if let jpegData = image.jpegData(compressionQuality: 0.95) {
-                content.imageData = jpegData
-                content.imageUTType = .jpeg
+        // Try reading raw image bytes by UTType first (avoids unnecessary decode+re-encode,
+        // preserves original quality, and supports HEIC/HEIF that pasteboard.image may miss).
+        // Order matches priority: lossless formats before lossy, modern before legacy.
+        let directImageTypes: [UTType] = [.png, .heic, .heif, .jpeg, .tiff]
+        for imageType in directImageTypes {
+            if let data = pasteboard.data(forPasteboardType: imageType.identifier),
+                !data.isEmpty
+            {
+                content.imageData = data
+                content.imageUTType = imageType
+                break
             }
-        } else if let images = pasteboard.images, let first = images.first {
-            if let pngData = first.pngData() {
-                content.imageData = pngData
-                content.imageUTType = .png
-            } else if let jpegData = first.jpegData(compressionQuality: 0.95) {
-                content.imageData = jpegData
-                content.imageUTType = .jpeg
+        }
+
+        // Fallback: let UIKit decode whatever image format is on the pasteboard and
+        // re-encode as PNG. This covers formats not listed above (e.g. GIF, BMP, WebP).
+        if content.imageData == nil {
+            if let image = pasteboard.image {
+                if let pngData = image.pngData() {
+                    content.imageData = pngData
+                    content.imageUTType = .png
+                } else if let jpegData = image.jpegData(compressionQuality: 0.95) {
+                    content.imageData = jpegData
+                    content.imageUTType = .jpeg
+                }
+            } else if let images = pasteboard.images, let first = images.first {
+                if let pngData = first.pngData() {
+                    content.imageData = pngData
+                    content.imageUTType = .png
+                } else if let jpegData = first.jpegData(compressionQuality: 0.95) {
+                    content.imageData = jpegData
+                    content.imageUTType = .jpeg
+                }
             }
         }
 

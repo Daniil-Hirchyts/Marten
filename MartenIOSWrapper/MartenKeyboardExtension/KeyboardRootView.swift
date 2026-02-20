@@ -3,6 +3,7 @@ import MartenCore
 import MartenIOSApp
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 private struct KeyboardPinboardIndicator: View {
     let colorHex: String
@@ -391,6 +392,8 @@ struct KeyboardRootView: View {
     @State private var copyButtonState: CopyButtonState = .idle
     @State private var previewItem: SharedClipItemSummary?
     @State private var moveDestinationItem: SharedClipItemSummary?
+    @State private var activeToast: String?
+    @State private var toastTask: Task<Void, Never>?
 
     private enum CopyButtonState {
         case idle
@@ -424,7 +427,7 @@ struct KeyboardRootView: View {
             let horizontalPadding: CGFloat = 12
             let verticalPadding: CGFloat = 8
             let interItemSpacing: CGFloat = 12
-            let topBarHeight: CGFloat = 42
+            let topBarHeight: CGFloat = 36
             let bottomBarHeight: CGFloat = 56
             let contentMaxHeight = max(0, proxy.size.height - topBarHeight - bottomBarHeight)
             let maxCardSideByHeight = contentMaxHeight - (verticalPadding * 2) - 8
@@ -432,7 +435,7 @@ struct KeyboardRootView: View {
             let availableWidth = max(0, proxy.size.width - (horizontalPadding * 2))
             let spacingTotal = interItemSpacing * max(0, visibleCardCount - 1)
             let maxCardSideByWidth = (availableWidth - spacingTotal) / max(1, visibleCardCount)
-            let cardSide = floor(max(150, min(320, maxCardSideByHeight, maxCardSideByWidth)))
+            let cardSide = floor(max(40, min(320, maxCardSideByHeight, maxCardSideByWidth)))
             let contentHeight = cardSide + (verticalPadding * 2)
             let rows = [GridItem(.fixed(cardSide), spacing: interItemSpacing)]
 
@@ -504,13 +507,29 @@ struct KeyboardRootView: View {
                 }
 
                 if viewModel.isPinboardMenuPresented {
-                    VStack {
+                    Color.black.opacity(0.001)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.spring(duration: 0.2)) {
+                                viewModel.isPinboardMenuPresented = false
+                            }
+                        }
+                        .zIndex(99)
+
+                    VStack(spacing: 0) {
                         Spacer()
-                        pinboardMenuOverlay
-                            .padding(.bottom, 60)
-                            .padding(.horizontal, 12)
+                        HStack(alignment: .bottom, spacing: 0) {
+                            pinboardMenuOverlay
+                                .frame(maxWidth: 280)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.bottom, 64)
+                        .padding(.horizontal, 12)
                     }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(
+                        .scale(scale: 0.82, anchor: .bottomLeading)
+                        .combined(with: .opacity)
+                    )
                     .zIndex(100)
                 }
 
@@ -549,6 +568,27 @@ struct KeyboardRootView: View {
                         .zIndex(140)
                 }
 
+                if let message = activeToast {
+                    VStack {
+                        Spacer()
+                        HStack(spacing: 5) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.white)
+                            Text(message)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(Capsule().fill(.black.opacity(0.82)))
+                        .padding(.bottom, 64)
+                    }
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
+                    .zIndex(200)
+                }
+
             }
         }
     }
@@ -556,7 +596,7 @@ struct KeyboardRootView: View {
     private var bottomControlRow: some View {
         HStack(spacing: 8) {
             Button {
-                withAnimation(.spring(duration: 0.25)) {
+                withAnimation(.spring(duration: 0.22, bounce: 0.1)) {
                     previewItem = nil
                     moveDestinationItem = nil
                     viewModel.isPinboardMenuPresented.toggle()
@@ -813,13 +853,8 @@ struct KeyboardRootView: View {
             }
             .frame(maxHeight: 240)
         }
-        .background(Color(uiColor: .secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
-        )
+        .modifier(PinboardMenuGlassModifier())
     }
 
     private var selectedPinboard: SharedPinboardSummary? {
@@ -877,7 +912,12 @@ struct KeyboardRootView: View {
             contextMenuPreview(for: item)
         }
 
-        if let dragText = dragText(for: item) {
+        if item.itemType == .image, let path = item.thumbnailPath {
+            button.onDrag {
+                onRecordHeartbeat()
+                return imageDragProvider(path: path)
+            }
+        } else if let dragText = dragText(for: item) {
             button.onDrag {
                 onRecordHeartbeat()
                 return NSItemProvider(object: dragText as NSString)
@@ -904,7 +944,44 @@ struct KeyboardRootView: View {
         return text
     }
 
+    private func imageDragProvider(path: String) -> NSItemProvider {
+        let url = URL(fileURLWithPath: path)
+        let ext = url.pathExtension.lowercased()
+        let utType: UTType
+        switch ext {
+        case "png":  utType = .png
+        case "heic": utType = .heic
+        case "heif": utType = .heif
+        case "tiff", "tif": utType = .tiff
+        default:     utType = .jpeg
+        }
+
+        let provider = NSItemProvider()
+        provider.registerDataRepresentation(forTypeIdentifier: utType.identifier, visibility: .all) { completion in
+            DispatchQueue.global(qos: .userInitiated).async {
+                if let data = try? Data(contentsOf: url) {
+                    completion(data, nil)
+                } else {
+                    completion(nil, CocoaError(.fileReadNoSuchFile))
+                }
+            }
+            return nil
+        }
+        return provider
+    }
+
     private func handleItemTap(_ item: SharedClipItemSummary) {
+        if item.itemType == .image {
+            // Images cannot be injected via insertText; copy image data to the
+            // pasteboard instead so the user can paste it in the target app.
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+            Task {
+                await pasteImageToPasteboard(item)
+            }
+            return
+        }
+
         let text = item.insertionText
         guard !text.isEmpty else { return }
 
@@ -916,6 +993,65 @@ struct KeyboardRootView: View {
         Task {
             await viewModel.markItemUsed(item)
         }
+    }
+
+    private func showToast(_ message: String) {
+        toastTask?.cancel()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            activeToast = message
+        }
+        toastTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.8))
+            guard !Task.isCancelled else { return }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                activeToast = nil
+            }
+        }
+    }
+
+    /// Writes the raw image bytes for `item` to the system pasteboard so the
+    /// user can paste it into the focused app. Falls back to a text copy if
+    /// the asset file is not available.
+    private func pasteImageToPasteboard(_ item: SharedClipItemSummary) async {
+        guard let path = item.thumbnailPath,
+              !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            if let text = item.primaryText, !text.isEmpty {
+                UIPasteboard.general.string = text
+            }
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            return
+        }
+
+        let url = URL(fileURLWithPath: path)
+        let ext = url.pathExtension.lowercased()
+        let typeIdentifier: String
+        switch ext {
+        case "png":  typeIdentifier = UTType.png.identifier
+        case "heic": typeIdentifier = UTType.heic.identifier
+        case "heif": typeIdentifier = UTType.heif.identifier
+        case "tiff", "tif": typeIdentifier = UTType.tiff.identifier
+        default:     typeIdentifier = UTType.jpeg.identifier
+        }
+
+        // Read image bytes off the main thread to avoid blocking.
+        let data = await Task.detached(priority: .userInitiated) {
+            try? Data(contentsOf: url)
+        }.value
+
+        guard let data, !data.isEmpty else {
+            if let text = item.primaryText, !text.isEmpty {
+                UIPasteboard.general.string = text
+            }
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            return
+        }
+
+        UIPasteboard.general.setData(data, forPasteboardType: typeIdentifier)
+        onRecordHeartbeat()
+        await viewModel.markItemUsed(item)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        showToast("Image copied to clipboard")
     }
 
     private func contextActionMenuButton(
@@ -937,7 +1073,7 @@ struct KeyboardRootView: View {
 
     private func contextActionTitle(for action: ItemCardContextAction, compact: Bool) -> String {
         if action == .copyPlainText {
-            return compact ? "Plain" : "Copy Plain Text"
+            return "Copy Plain Text"
         }
         return action.title
     }
@@ -949,11 +1085,7 @@ struct KeyboardRootView: View {
         let nonDeleteActions = keyboardActions.filter { $0 != .delete }
 
         ForEach(nonDeleteActions, id: \.self) { action in
-            contextActionMenuButton(
-                for: action,
-                item: item,
-                compactTitle: action == .copyPlainText
-            )
+            contextActionMenuButton(for: action, item: item)
         }
 
         if keyboardActions.contains(.delete) {
@@ -1003,6 +1135,13 @@ struct KeyboardRootView: View {
         _ item: SharedClipItemSummary,
         asPlainText: Bool = false
     ) {
+        if item.itemType == .image && !asPlainText {
+            Task {
+                await pasteImageToPasteboard(item)
+            }
+            return
+        }
+
         guard let text = copyText(for: item, asPlainText: asPlainText) else {
             let feedback = UINotificationFeedbackGenerator()
             feedback.notificationOccurred(.error)
@@ -1017,6 +1156,7 @@ struct KeyboardRootView: View {
 
         let feedback = UINotificationFeedbackGenerator()
         feedback.notificationOccurred(.success)
+        showToast(asPlainText ? "Copied as plain text" : "Copied")
     }
 
     private func copyText(for item: SharedClipItemSummary, asPlainText _: Bool) -> String? {
@@ -1242,6 +1382,25 @@ struct KeyboardRootView: View {
             withAnimation(.spring(duration: 0.25)) {
                 moveDestinationItem = nil
             }
+        }
+    }
+}
+
+private struct PinboardMenuGlassModifier: ViewModifier {
+    private let cornerRadius: CGFloat = 16
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius))
+        } else {
+            content
+                .background(Color(uiColor: .secondarySystemBackground))
+                .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
+                )
         }
     }
 }
