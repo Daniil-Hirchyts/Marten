@@ -130,17 +130,34 @@ struct ItemCardView: View {
 
     private func cardContent(_ pres: ItemCardPresentation) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            cardHeader(pres)
+            ItemCardHeaderView(
+                presentation: pres,
+                isSelectionMode: isSelectionMode,
+                isSelected: isSelected,
+                allowPinning: allowPinning,
+                isPinned: cachedIsPinned,
+                cardCornerRadius: cardCornerRadius,
+                cardPadding: cardPadding,
+                headerMinHeight: headerMinHeight
+            )
 
             VStack(alignment: .leading, spacing: 0) {
                 if isEdgeToEdgeContent(pres) {
-                    previewContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .clipped()
+                    ItemCardPreviewContent(
+                        presentation: pres,
+                        thumbnailImage: thumbnailImage,
+                        linkPreviewResult: linkPreviewResult
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .clipped()
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
-                        previewContent
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        ItemCardPreviewContent(
+                            presentation: pres,
+                            thumbnailImage: thumbnailImage,
+                            linkPreviewResult: linkPreviewResult
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         Spacer(minLength: 0)
                     }
                     .padding(.horizontal, cardPadding)
@@ -174,73 +191,6 @@ struct ItemCardView: View {
         .aspectRatio(1, contentMode: .fit)
     }
 
-    private func cardHeader(_ pres: ItemCardPresentation) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(pres.title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(headerTextColor(for: pres))
-                    .lineLimit(1)
-
-                if let subtitle = pres.headerSubtitle {
-                    Text(subtitle)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(headerTextColor(for: pres).opacity(0.7))
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer(minLength: 8)
-
-            if let colorHex = pres.primaryPinboardColorHex,
-               let sign = pres.primaryPinboardSign {
-                PinboardIndicator(
-                    colorHex: colorHex,
-                    sign: sign,
-                    size: 30,
-                    showBorder: false
-                )
-            } else {
-                SourceAppIconBadge(
-                    bundleID: pres.sourceAppBundleID,
-                    appName: pres.sourceAppDisplayName,
-                    iconData: pres.sourceAppIconData,
-                    size: 30
-                )
-            }
-
-            if allowPinning, item.isPinned {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(headerTextColor(for: pres).opacity(0.85))
-            }
-
-            if isSelectionMode {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.body)
-                    .foregroundStyle(
-                        isSelected
-                            ? Color.accentColor
-                            : headerTextColor(for: pres).opacity(0.72)
-                    )
-                    .animation(MartenAnimation.quick, value: isSelected)
-            }
-        }
-        .padding(.horizontal, cardPadding)
-        .padding(.vertical, 10)
-        .frame(minHeight: headerMinHeight, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            UnevenRoundedRectangle(
-                topLeadingRadius: cardCornerRadius,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: cardCornerRadius
-            )
-            .fill(headerBackgroundColor(for: pres))
-        )
-    }
-
     private func cardFooter(_ pres: ItemCardPresentation) -> some View {
         HStack(alignment: .center, spacing: 8) {
             Text(pres.footerLeadingText)
@@ -256,192 +206,8 @@ struct ItemCardView: View {
         }
     }
 
-    @ViewBuilder
-    private var previewContent: some View {
-        switch presentation.previewKind {
-        case .text, .richText:
-            Text(presentation.snippet ?? "")
-                .font(.system(size: 12))
-                .foregroundStyle(secondaryTextColor(for: presentation))
-                .lineLimit(5)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        case .code:
-            Text(presentation.snippet ?? "")
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(secondaryTextColor(for: presentation))
-                .lineLimit(5)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        case .link:
-            linkPreview
-        case .image:
-            imagePreview
-        case .file:
-            filePreview
-        case .color:
-            colorPreview
-        case .mixed:
-            Text(presentation.snippet ?? "Mixed item")
-                .font(.system(size: 12))
-                .foregroundStyle(secondaryTextColor(for: presentation))
-                .lineLimit(4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private var imagePreview: some View {
-        ZStack {
-            TransparencyGrid(squareSize: 10)
-
-            if let thumbnailImage {
-                #if canImport(UIKit)
-                Image(uiImage: thumbnailImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity)
-                #elseif canImport(AppKit)
-                Image(nsImage: thumbnailImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity)
-                #endif
-            } else {
-                Image(systemName: "photo")
-                    .font(.system(size: 44, weight: .light))
-                    .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.3) : Color.black.opacity(0.2))
-            }
-        }
-    }
-
-    private var linkPreview: some View {
-        GeometryReader { geometry in
-            ZStack {
-                switch linkPreviewResult {
-                case .banner(let image):
-                    #if canImport(UIKit)
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .clipped()
-                    #elseif canImport(AppKit)
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .clipped()
-                    #endif
-                case .favicon(let image):
-                    linkPreviewPlaceholderBackground
-                    #if canImport(UIKit)
-                    Image(uiImage: image)
-                        .resizable()
-                        .interpolation(.high)
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 56, height: 56)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
-                    #elseif canImport(AppKit)
-                    Image(nsImage: image)
-                        .resizable()
-                        .interpolation(.high)
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 56, height: 56)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
-                    #endif
-                case nil:
-                    linkPreviewPlaceholderBackground
-                    Image(systemName: "link")
-                        .font(.system(size: 36, weight: .light))
-                        .foregroundStyle(
-                            colorScheme == .dark
-                                ? Color.white.opacity(0.35)
-                                : Color.black.opacity(0.25)
-                        )
-                }
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-        }
-        .clipped()
-    }
-
-    private var linkPreviewPlaceholderBackground: some View {
-        Rectangle()
-            .fill(
-                colorScheme == .dark
-                    ? Color.white.opacity(0.08)
-                    : Color.black.opacity(0.05)
-            )
-    }
-
-    private var filePreview: some View {
-        VStack(spacing: 4) {
-            Spacer(minLength: 0)
-
-            Image(systemName: "doc.fill")
-                .font(.system(size: 30, weight: .regular))
-                .foregroundStyle(secondaryTextColor(for: presentation))
-
-            if let fileName = presentation.fileName {
-                Text(fileName)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(primaryTextColor(for: presentation))
-                    .lineLimit(1)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 6)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var colorPreview: some View {
-        let hex = presentation.colorHex ?? "#808080"
-        let background = Color(hex: hex, fallback: .gray)
-        let foreground = ColorHex.foregroundColor(
-            for: ColorHex.normalizedHex(from: hex) ?? "#808080"
-        )
-
-        return RoundedRectangle(cornerRadius: 10)
-            .fill(background)
-            .frame(height: 56)
-            .overlay {
-                Text(presentation.snippet ?? hex)
-                    .font(.caption.weight(.semibold).monospaced())
-                    .foregroundStyle(foreground)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .padding(.horizontal, 8)
-            }
-    }
-
     private func isEdgeToEdgeContent(_ pres: ItemCardPresentation) -> Bool {
         pres.previewKind == .image || pres.previewKind == .link
-    }
-
-    private func sourceIconDescriptor(for pres: ItemCardPresentation) -> SourceAppIconDescriptor {
-        SourceAppIconDescriptor.resolve(bundleID: pres.sourceAppBundleID, appName: pres.sourceAppDisplayName)
-    }
-
-    private func headerBackgroundColor(for pres: ItemCardPresentation) -> Color {
-        if let pinboardHex = pres.primaryPinboardColorHex,
-           let normalized = ColorHex.normalizedHex(from: pinboardHex) {
-            return Color(hex: normalized, fallback: .gray).opacity(0.96)
-        }
-
-        return sourceIconDescriptor(for: pres).backgroundColor.opacity(0.94)
-    }
-
-    private func headerTextColor(for pres: ItemCardPresentation) -> Color {
-        if let pinboardHex = pres.primaryPinboardColorHex,
-           let normalized = ColorHex.normalizedHex(from: pinboardHex) {
-            return ColorHex.foregroundColor(for: normalized)
-        }
-
-        return sourceIconDescriptor(for: pres).foregroundColor
     }
 
     private func cardBackgroundColor(for pres: ItemCardPresentation) -> Color {
@@ -471,26 +237,6 @@ struct ItemCardView: View {
         return colorScheme == .dark
             ? Color.white.opacity(0.14)
             : Color.black.opacity(0.12)
-    }
-
-    private func primaryTextColor(for pres: ItemCardPresentation) -> Color {
-        if pres.previewKind == .color,
-           let colorHex = pres.colorHex,
-           let normalized = ColorHex.normalizedHex(from: colorHex) {
-            return ColorHex.foregroundColor(for: normalized)
-        }
-
-        return colorScheme == .dark ? Color.white.opacity(0.9) : Color.black.opacity(0.9)
-    }
-
-    private func secondaryTextColor(for pres: ItemCardPresentation) -> Color {
-        if pres.previewKind == .color,
-           let colorHex = pres.colorHex,
-           let normalized = ColorHex.normalizedHex(from: colorHex) {
-            return ColorHex.foregroundColor(for: normalized).opacity(0.8)
-        }
-
-        return colorScheme == .dark ? Color.white.opacity(0.75) : Color.black.opacity(0.75)
     }
 
     private func tertiaryTextColor(for pres: ItemCardPresentation) -> Color {
@@ -556,7 +302,7 @@ struct ItemCardView: View {
             thumbnailImage = nil
         }
     }
-    
+
     private func loadLinkPreviewImage() async {
         guard isItemSnapshotAvailable else {
             linkPreviewResult = nil
@@ -568,101 +314,5 @@ struct ItemCardView: View {
         } else {
             linkPreviewResult = nil
         }
-    }
-}
-
-private struct PressGestureModifier: ViewModifier {
-    let isEnabled: Bool
-    @Binding var isPressed: Bool
-
-    func body(content: Content) -> some View {
-        if isEnabled {
-            content.onLongPressGesture(minimumDuration: .infinity, perform: {}, onPressingChanged: { pressing in
-                isPressed = pressing
-            })
-        } else {
-            content
-        }
-    }
-}
-
-private struct SelectionFeedbackModifier: ViewModifier {
-    let isEnabled: Bool
-    let isSelected: Bool
-
-    func body(content: Content) -> some View {
-        if isEnabled {
-            content.sensoryFeedback(.selection, trigger: isSelected)
-        } else {
-            content
-        }
-    }
-}
-
-private struct ContextMenuModifier: ViewModifier {
-    let isEnabled: Bool
-    let allowPinning: Bool
-    let isPinned: Bool
-    let onCopy: () -> Void
-    let onCopyPlainText: () -> Void
-    let onPreview: () -> Void
-    let onTogglePin: () -> Void
-    let onShare: () -> Void
-    let onMove: () -> Void
-    let onDelete: () -> Void
-
-    func body(content: Content) -> some View {
-        if isEnabled {
-            content.contextMenu {
-                ForEach(ItemCardContextAction.ordered(allowPinning: allowPinning), id: \.self) { action in
-                    button(for: action)
-                    if showsDivider(after: action) {
-                        Divider()
-                    }
-                }
-            }
-        } else {
-            content
-        }
-    }
-
-    @ViewBuilder
-    private func button(for action: ItemCardContextAction) -> some View {
-        if action == .togglePin {
-            Button { perform(action) } label: {
-                Label(isPinned ? "Unpin" : "Pin", systemImage: isPinned ? "pin.slash" : "pin")
-            }
-        } else if action.isDestructive {
-            Button(role: .destructive) { perform(action) } label: {
-                Label(action.title, systemImage: action.systemImage)
-            }
-        } else {
-            Button { perform(action) } label: {
-                Label(action.title, systemImage: action.systemImage)
-            }
-        }
-    }
-
-    private func perform(_ action: ItemCardContextAction) {
-        switch action {
-        case .copy:
-            onCopy()
-        case .copyPlainText:
-            onCopyPlainText()
-        case .preview:
-            onPreview()
-        case .togglePin:
-            onTogglePin()
-        case .share:
-            onShare()
-        case .moveToPinboard:
-            onMove()
-        case .delete:
-            onDelete()
-        }
-    }
-
-    private func showsDivider(after action: ItemCardContextAction) -> Bool {
-        action == .copyPlainText || action == .togglePin || action == .moveToPinboard
     }
 }

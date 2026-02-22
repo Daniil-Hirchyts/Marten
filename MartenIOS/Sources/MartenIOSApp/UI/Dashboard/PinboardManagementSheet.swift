@@ -2,6 +2,37 @@ import CoreData
 import MartenCore
 import SwiftUI
 
+private struct ShareContext: Identifiable {
+    let pinboardID: NSManagedObjectID
+    let initialAccessControl: ShareAccessControl
+    let initialPermission: SharePermission
+    let initialShareURL: URL?
+
+    var id: String { pinboardID.uriRepresentation().absoluteString }
+}
+
+private enum EditorContext: Identifiable {
+    case create
+    case edit(objectIDURI: String, name: String, colorHex: String, iconName: String?)
+
+    var id: String {
+        switch self {
+        case .create:
+            return "create"
+        case .edit(let objectIDURI, _, _, _):
+            return objectIDURI
+        }
+    }
+}
+
+private func pinboardFetchRequest() -> NSFetchRequest<Pinboard> {
+    let request = Pinboard.fetchRequest()
+    request.predicate = NSPredicate(format: "isSystemMarten == NO")
+    request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
+    request.returnsObjectsAsFaults = false
+    return request
+}
+
 struct PinboardManagementSheet: View {
     @Bindable var container: MartenIOSAppContainer
 
@@ -310,35 +341,4 @@ struct PinboardManagementSheet: View {
         return container.persistenceController.container.persistentStoreCoordinator
             .managedObjectID(forURIRepresentation: url)
     }
-}
-
-private struct ShareContext: Identifiable {
-    let pinboardID: NSManagedObjectID
-    let initialAccessControl: ShareAccessControl
-    let initialPermission: SharePermission
-    let initialShareURL: URL?
-
-    var id: String { pinboardID.uriRepresentation().absoluteString }
-}
-
-private enum EditorContext: Identifiable {
-    case create
-    case edit(objectIDURI: String, name: String, colorHex: String, iconName: String?)
-
-    var id: String {
-        switch self {
-        case .create:
-            return "create"
-        case .edit(let objectIDURI, _, _, _):
-            return objectIDURI
-        }
-    }
-}
-
-private func pinboardFetchRequest() -> NSFetchRequest<Pinboard> {
-    let request = Pinboard.fetchRequest()
-    request.predicate = NSPredicate(format: "isSystemMarten == NO")
-    request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
-    request.returnsObjectsAsFaults = false
-    return request
 }

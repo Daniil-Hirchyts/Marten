@@ -133,14 +133,14 @@ public final class MartenIOSAppContainer {
         // Default to true if not set, to match Mac app default
         self.showDuringScreenSharing = userDefaults.object(forKey: "settings.toggle.showDuringScreenSharing") as? Bool ?? true
 
-        self.syncCoordinator = Self.makeSyncCoordinator(
+        self.syncCoordinator = AppCoordinatorFactory.makeSyncCoordinator(
             persistenceController: persistenceController,
             userDefaults: userDefaults,
             syncConfigurationProvider: syncConfigurationProvider
         )
         self.sharingRepository =
             sharingRepository
-            ?? Self.makeSharingRepository(
+            ?? AppCoordinatorFactory.makeSharingRepository(
                 persistenceController: persistenceController,
                 syncConfigurationProvider: syncConfigurationProvider
             )
@@ -247,14 +247,12 @@ public final class MartenIOSAppContainer {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        do {
+        await performMutation {
             try await commandService.createTextItem(
                 text: trimmed,
                 sourceApp: sourceAppInfo(),
                 isUserCreated: true
             )
-        } catch {
-            lastOperationErrorMessage = error.localizedDescription
         }
     }
 
@@ -262,7 +260,7 @@ public final class MartenIOSAppContainer {
         let trimmed = plainText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        do {
+        await performMutation {
             let payload = ClipItemPayload(
                 representations: [
                     .plainText(trimmed, displayOrder: 0),
@@ -277,14 +275,11 @@ public final class MartenIOSAppContainer {
                 primaryText: trimmed,
                 itemType: .richText
             )
-
             try await commandService.createItem(
                 payload: payload,
                 sourceApp: sourceAppInfo(),
                 isUserCreated: true
             )
-        } catch {
-            lastOperationErrorMessage = error.localizedDescription
         }
     }
 
@@ -316,7 +311,7 @@ public final class MartenIOSAppContainer {
     public func createScannedPages(_ pageJPEGData: [Data]) async {
         guard !pageJPEGData.isEmpty else { return }
 
-        do {
+        await performMutation {
             for pageData in pageJPEGData where !pageData.isEmpty {
                 let payload = ClipItemPayload(
                     representations: [
@@ -331,15 +326,12 @@ public final class MartenIOSAppContainer {
                     primaryText: "Scanned Document",
                     itemType: .image
                 )
-
                 try await commandService.createItem(
                     payload: payload,
                     sourceApp: sourceAppInfo(),
                     isUserCreated: true
                 )
             }
-        } catch {
-            lastOperationErrorMessage = error.localizedDescription
         }
     }
 
@@ -350,14 +342,12 @@ public final class MartenIOSAppContainer {
             return
         }
 
-        do {
+        await performMutation {
             try await commandService.createPinboard(
                 name: trimmed,
                 colorHex: colorHex,
                 iconName: iconName
             )
-        } catch {
-            lastOperationErrorMessage = error.localizedDescription
         }
     }
 
@@ -373,15 +363,13 @@ public final class MartenIOSAppContainer {
             return
         }
 
-        do {
+        await performMutation {
             try await commandService.updatePinboard(
                 objectID: objectID,
                 name: trimmed,
                 colorHex: colorHex,
                 iconName: iconName
             )
-        } catch {
-            lastOperationErrorMessage = error.localizedDescription
         }
     }
 
@@ -391,10 +379,8 @@ public final class MartenIOSAppContainer {
             return
         }
 
-        do {
+        await performMutation {
             try await commandService.deletePinboard(objectID: pinboard.objectID)
-        } catch {
-            lastOperationErrorMessage = error.localizedDescription
         }
     }
 
@@ -405,14 +391,12 @@ public final class MartenIOSAppContainer {
     {
         guard !objectIDs.isEmpty else { return }
 
-        do {
+        await performMutation {
             try await commandService.moveItems(
                 objectIDs: objectIDs,
                 toPinboardID: pinboardID
             )
             invalidateDashboardItems()
-        } catch {
-            lastOperationErrorMessage = error.localizedDescription
         }
     }
 
@@ -457,20 +441,11 @@ public final class MartenIOSAppContainer {
 
     public func deleteItems(_ objectIDs: [NSManagedObjectID]) async {
         guard !objectIDs.isEmpty else { return }
-
-        do {
-            try await commandService.deleteItems(objectIDs: objectIDs)
-        } catch {
-            lastOperationErrorMessage = error.localizedDescription
-        }
+        await performMutation { try await commandService.deleteItems(objectIDs: objectIDs) }
     }
 
     public func togglePin(objectID: NSManagedObjectID) async {
-        do {
-            try await commandService.togglePin(objectID: objectID)
-        } catch {
-            lastOperationErrorMessage = error.localizedDescription
-        }
+        await performMutation { try await commandService.togglePin(objectID: objectID) }
     }
 
     public func removeItems(
@@ -479,68 +454,51 @@ public final class MartenIOSAppContainer {
         async
     {
         guard !objectIDs.isEmpty else { return }
-
-        do {
+        await performMutation {
             try await commandService.removeItems(
                 objectIDs: objectIDs,
                 fromPinboardID: pinboardID
             )
             invalidateDashboardItems()
-        } catch {
-            lastOperationErrorMessage = error.localizedDescription
         }
     }
 
     public func updateRichTextItem(objectID: NSManagedObjectID, newText: String, rtfData: Data)
         async
     {
-        do {
+        await performMutation {
             try await commandService.updateRichTextItem(
                 objectID: objectID,
                 newText: newText,
                 rtfData: rtfData
             )
-        } catch {
-            lastOperationErrorMessage = error.localizedDescription
         }
     }
 
     public func handleDeepLink(_ url: URL) {
-        guard url.scheme?.lowercased() == "marten" else { return }
+        guard let action = AppDeepLinkHandler().action(for: url) else { return }
+        apply(action)
+    }
 
-        var components: [String] = []
-        if let host = url.host, !host.isEmpty {
-            components.append(host)
-        }
-        components.append(contentsOf: url.pathComponents.filter { $0 != "/" })
-        guard let route = components.first?.lowercased() else { return }
-
-        switch route {
-        case "pinboard":
-            guard components.count >= 2, let pinboardID = UUID(uuidString: components[1]) else {
-                return
-            }
+    private func apply(_ action: AppDeepLinkAction) {
+        switch action {
+        case .selectPinboard(let pinboardID):
             setSelectedPinboardID(pinboardID)
-        case "item":
-            guard components.count >= 2, let itemID = UUID(uuidString: components[1]) else {
-                return
-            }
+        case .selectItem(let itemID):
             if let pinboardID = pinboardIDForItem(itemID: itemID) {
                 setSelectedPinboardID(pinboardID)
             }
-        case "search":
+        case .search:
             selectedTab = .search
             pendingWidgetAction = .search
-        case "paste":
+        case .paste:
             selectedTab = .dashboard
             pendingWidgetAction = .paste
-        case "create":
+        case .create:
             selectedTab = .dashboard
             pendingWidgetAction = .create
-        case "open":
+        case .openDashboard:
             selectedTab = .dashboard
-        default:
-            break
         }
     }
 
@@ -631,66 +589,9 @@ public final class MartenIOSAppContainer {
         MartenSourceIdentity.sourceAppInfo()
     }
 
-    private static func makeSyncCoordinator(
-        persistenceController: PersistenceController,
-        userDefaults: UserDefaults,
-        syncConfigurationProvider: any MartenIOSSyncConfigurationProviding
-    ) -> SyncCoordinator? {
-        let cloudKitConfiguration = CloudKitConfiguration.default
-
-        guard
-            syncConfigurationProvider.canUseCloudKit(
-                containerIdentifier: cloudKitConfiguration.containerIdentifier
-            )
-        else {
-            return nil
-        }
-
-        let syncCoordinator = SyncCoordinator.create(
-            cloudKitConfiguration: cloudKitConfiguration,
-            persistenceController: persistenceController,
-            userDefaults: userDefaults,
-            syncEnabledProvider: {
-                UserDefaults.standard.bool(forKey: MartenIOSDefaults.syncEnabledKey)
-            }
-        )
-
-        syncCoordinator.syncEnabled = syncConfigurationProvider.isSyncEnabled(userDefaults)
-
-        return syncCoordinator
-    }
-
-    private static func makeSharingRepository(
-        persistenceController: PersistenceController,
-        syncConfigurationProvider: any MartenIOSSyncConfigurationProviding
-    ) -> (any PinboardSharingRepositoryProtocol)? {
-        guard SharedPinboardsFeatureFlag.isEnabled else {
-            return nil
-        }
-
-        let cloudKitConfiguration = CloudKitConfiguration.default
-        guard
-            syncConfigurationProvider.canUseCloudKit(
-                containerIdentifier: cloudKitConfiguration.containerIdentifier)
-        else {
-            return nil
-        }
-
-        let zoneID = CKRecordZone.ID(
-            zoneName: cloudKitConfiguration.zoneName,
-            ownerName: CKCurrentUserDefaultName
-        )
-        let cloudKitManager = CloudKitManager(configuration: cloudKitConfiguration)
-        let recordMapper = CloudRecordMapper(zoneID: zoneID)
-        let shareCoordinator = ShareCoordinator(
-            cloudKitManager: cloudKitManager,
-            persistenceController: persistenceController,
-            recordMapper: recordMapper
-        )
-        return PinboardSharingRepository(
-            shareCoordinator: shareCoordinator,
-            persistenceController: persistenceController
-        )
+    private func performMutation(_ operation: () async throws -> Void) async {
+        do { try await operation() }
+        catch { lastOperationErrorMessage = error.localizedDescription }
     }
 
     private func objectIDForPinboardUUID(_ pinboardID: UUID) -> NSManagedObjectID? {
@@ -739,83 +640,17 @@ public final class MartenIOSAppContainer {
 
     private func ensureSystemPinboardExists() {
         let context = persistenceController.newBackgroundContext()
-        var survivingSystemPinboardID: UUID?
-        var removedSystemPinboardIDs = Set<UUID>()
-
+        let survivingID: UUID?
+        let removedIDs: Set<UUID>
         do {
-            try context.performAndWaitThrowing {
-                let request = Pinboard.fetchRequest()
-                request.predicate = NSPredicate(format: "isSystemMarten == YES")
-
-                let systemPinboards = try context.fetch(request)
-
-                if systemPinboards.isEmpty {
-                    guard
-                        let pinboard = NSEntityDescription.insertNewObject(
-                            forEntityName: "Pinboard",
-                            into: context
-                        ) as? Pinboard
-                    else {
-                        return
-                    }
-
-                    pinboard.id = UUID()
-                    pinboard.name = "Marten"
-                    pinboard.colorHex = "#808080"
-                    pinboard.sortOrder = 0
-                    pinboard.isSystemMarten = true
-                    pinboard.createdAt = Date()
-                    survivingSystemPinboardID = pinboard.id
-
-                    try context.save()
-                    return
-                }
-
-                let sortedPinboards = systemPinboards.sorted { lhs, rhs in
-                    let lhsItemCount = lhs.items?.count ?? 0
-                    let rhsItemCount = rhs.items?.count ?? 0
-                    if lhsItemCount != rhsItemCount {
-                        return lhsItemCount > rhsItemCount
-                    }
-                    if lhs.createdAt != rhs.createdAt {
-                        return lhs.createdAt < rhs.createdAt
-                    }
-                    return lhs.id.uuidString < rhs.id.uuidString
-                }
-
-                guard let canonical = sortedPinboards.first else { return }
-                survivingSystemPinboardID = canonical.id
-
-                canonical.name = "Marten"
-                canonical.colorHex = "#808080"
-                canonical.sortOrder = 0
-                canonical.isSystemMarten = true
-
-                for duplicate in sortedPinboards.dropFirst() {
-                    removedSystemPinboardIDs.insert(duplicate.id)
-
-                    if let items = duplicate.items {
-                        for item in items where !(canonical.items?.contains(item) ?? false) {
-                            canonical.addToItems(item)
-                        }
-                    }
-
-                    context.delete(duplicate)
-                }
-
-                if context.hasChanges {
-                    try context.save()
-                }
-            }
+            (survivingID, removedIDs) = try SystemPinboardBootstrapper().ensureSystemPinboard(in: context)
         } catch {
             lastOperationErrorMessage = error.localizedDescription
             return
         }
 
-        if let selectedPinboardID,
-            removedSystemPinboardIDs.contains(selectedPinboardID)
-        {
-            setSelectedPinboardID(survivingSystemPinboardID)
+        if let selectedPinboardID, removedIDs.contains(selectedPinboardID) {
+            setSelectedPinboardID(survivingID)
         }
     }
 }

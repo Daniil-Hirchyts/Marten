@@ -30,6 +30,8 @@ final class ItemCardCollectionViewController: UIViewController {
     private let onSwipeToNextPinboard: () -> Void
     private let onSwipeToPreviousPinboard: () -> Void
 
+    private let dragPayloadBuilder = ItemCardDragPayloadBuilder()
+
     private var itemsByID: [NSManagedObjectID: ClipItem] = [:]
     private var orderedIDs: [NSManagedObjectID] = []
     private var canReorder = false
@@ -284,7 +286,7 @@ final class ItemCardCollectionViewController: UIViewController {
     }
 
     private func updateLayoutIfNeeded() {
-        let desiredColumns = traitCollection.horizontalSizeClass == .regular ? 3 : 2
+        let desiredColumns = ItemCardLayoutCalculator.columnCount(for: traitCollection)
 
         let availableWidth = collectionView.bounds.width
             - collectionView.adjustedContentInset.left
@@ -292,9 +294,11 @@ final class ItemCardCollectionViewController: UIViewController {
             - flowLayout.sectionInset.left
             - flowLayout.sectionInset.right
 
-        let spacing = flowLayout.minimumInteritemSpacing
-        let rawItemWidth = (availableWidth - spacing * CGFloat(desiredColumns - 1)) / CGFloat(desiredColumns)
-        let itemWidth = floor(max(150, min(500, rawItemWidth)))
+        let itemWidth = ItemCardLayoutCalculator.itemWidth(
+            containerWidth: availableWidth,
+            columns: desiredColumns,
+            spacing: flowLayout.minimumInteritemSpacing
+        )
 
         guard desiredColumns != lastLayoutColumnCount || flowLayout.itemSize.width != itemWidth else { return }
 
@@ -512,7 +516,7 @@ extension ItemCardCollectionViewController: UICollectionViewDragDelegate {
         // all selected items here would double-count them.
         let objectIDKey = objectID.uriRepresentation().absoluteString as NSString
         dragSet.add(objectIDKey)
-        return [makeDragItem(for: objectID, item: item)]
+        return [dragPayloadBuilder.dragItem(for: objectID, item: item)]
     }
 
     func collectionView(_ collectionView: UICollectionView, itemsForAddingTo session: UIDragSession, at indexPath: IndexPath, point: CGPoint) -> [UIDragItem] {
@@ -527,86 +531,7 @@ extension ItemCardCollectionViewController: UICollectionViewDragDelegate {
         guard !dragSet.contains(objectIDKey) else { return [] }
 
         dragSet.add(objectIDKey)
-        return [makeDragItem(for: objectID, item: item)]
-    }
-
-    private func makeDragItem(for objectID: NSManagedObjectID, item: ClipItem) -> UIDragItem {
-        let payload = ItemDragPayload(objectIDs: [objectID])
-        let provider = NSItemProvider()
-
-        provider.registerDataRepresentation(forTypeIdentifier: UTType.json.identifier, visibility: .ownProcess) { completion in
-            do {
-                let data = try JSONEncoder().encode(payload)
-                completion(data, nil)
-            } catch {
-                completion(nil, error)
-            }
-            return nil
-        }
-
-        if let urlString = item.primaryText,
-           item.itemTypeValue == .url,
-           let url = URL(string: urlString) {
-            provider.registerObject(url as NSURL, visibility: .all)
-        } else if item.itemTypeValue == .image {
-            registerImageData(for: item, into: provider)
-        } else if let text = item.plainTextContent, !text.isEmpty {
-            provider.registerObject(text as NSString, visibility: .all)
-        }
-
-        let dragItem = UIDragItem(itemProvider: provider)
-        dragItem.localObject = objectID
-        return dragItem
-    }
-
-    /// Registers the original image bytes from `item`'s representation into
-    /// `provider` so external drop targets (Photos, Notes, Messages, …) receive
-    /// the actual image data rather than a text fallback.
-    private func registerImageData(for item: ClipItem, into provider: NSItemProvider) {
-        guard let representations = item.representations as? Set<ClipRepresentation> else { return }
-
-        let imageKinds: Set<RepresentationKind> = [.png, .jpeg, .tiff]
-        guard let rep = representations
-            .filter({ imageKinds.contains($0.kindValue) })
-            .sorted(by: { $0.displayOrder < $1.displayOrder })
-            .first
-        else { return }
-
-        // HEIC/HEIF are stored with .jpeg kind; use fileExtension to pick the right UTType.
-        let utType: UTType
-        switch rep.fileExtension?.lowercased() {
-        case "png":         utType = .png
-        case "heic":        utType = .heic
-        case "heif":        utType = .heif
-        case "tiff", "tif": utType = .tiff
-        default:
-            switch rep.kindValue {
-            case .png:  utType = .png
-            case .tiff: utType = .tiff
-            default:    utType = .jpeg
-            }
-        }
-
-        if let assetRef = rep.assetRef {
-            let imageURL = AssetStore.shared.urlForAsset(assetRef, fileExtension: rep.fileExtension)
-            guard FileManager.default.fileExists(atPath: imageURL.path) else { return }
-            provider.registerDataRepresentation(forTypeIdentifier: utType.identifier, visibility: .all) { completion in
-                DispatchQueue.global(qos: .userInitiated).async {
-                    if let data = try? Data(contentsOf: imageURL) {
-                        completion(data, nil)
-                    } else {
-                        completion(nil, CocoaError(.fileReadNoSuchFile))
-                    }
-                }
-                return nil
-            }
-        } else if let binaryData = rep.binaryData, !binaryData.isEmpty {
-            let data = binaryData
-            provider.registerDataRepresentation(forTypeIdentifier: utType.identifier, visibility: .all) { completion in
-                completion(data, nil)
-                return nil
-            }
-        }
+        return [dragPayloadBuilder.dragItem(for: objectID, item: item)]
     }
 }
 
