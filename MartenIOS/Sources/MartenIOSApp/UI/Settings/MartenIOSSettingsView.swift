@@ -33,7 +33,11 @@ struct MartenIOSSettingsView: View {
                 .listRowBackground(Color.clear)
             }
         }
+        #if os(iOS)
         .listStyle(.insetGrouped)
+        #else
+        .listStyle(.inset)
+        #endif
         .navigationTitle("Settings")
         .alert(
             "Sync Error",

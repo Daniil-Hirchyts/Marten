@@ -40,6 +40,12 @@ struct RichTextEditorSheet: View {
     }
 
     var body: some View {
+        #if canImport(UIKit)
+        let minEditorHeight = UIScreen.main.bounds.height * 0.7
+        #else
+        let minEditorHeight: CGFloat = 520
+        #endif
+
         ZStack(alignment: .bottom) {
             // Background
             if #available(iOS 26, *) {
@@ -52,7 +58,7 @@ struct RichTextEditorSheet: View {
             // Editor Area — full screen
             ScrollView {
                 editor
-                    .frame(maxWidth: .infinity, minHeight: UIScreen.main.bounds.height * 0.7)
+                    .frame(maxWidth: .infinity, minHeight: minEditorHeight)
                     .padding(.horizontal, 20)
                     .padding(.top, 90)
                     .padding(.bottom, 20)
@@ -251,4 +257,3 @@ struct RichTextEditorSheet: View {
         }
     }
 }
-

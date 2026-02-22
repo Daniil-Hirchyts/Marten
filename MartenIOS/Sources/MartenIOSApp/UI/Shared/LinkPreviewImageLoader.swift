@@ -1,12 +1,19 @@
 import CoreData
 import Foundation
 import MartenCore
-import UIKit
 import os.log
 
+#if canImport(AppKit)
+import AppKit
+typealias LinkPreviewPlatformImage = NSImage
+#elseif canImport(UIKit)
+import UIKit
+typealias LinkPreviewPlatformImage = UIImage
+#endif
+
 enum LinkPreviewImageResult {
-    case banner(UIImage)
-    case favicon(UIImage)
+    case banner(LinkPreviewPlatformImage)
+    case favicon(LinkPreviewPlatformImage)
 }
 
 private let logger = Logger(subsystem: "com.hirchyts.marten", category: "LinkPreviewImageLoader")
@@ -57,7 +64,7 @@ final class LinkPreviewImageLoader {
             if let urlString = imageURL, !urlString.isEmpty, let url = URL(string: urlString) {
                 if let (image, data) = await Self.downloadImage(from: url) {
                     // Persist to disk so we don't re-download next time
-                    await Self.persistDownloadedImage(data: data, previewObjectID: previewObjectID)
+                    Self.persistDownloadedImage(data: data, previewObjectID: previewObjectID)
                     return .banner(image)
                 }
             }
@@ -88,16 +95,16 @@ final class LinkPreviewImageLoader {
         return "lp-\(linkPreview.id.uuidString)-\(version)"
     }
 
-    private static func loadImageFromDisk(path: String) async -> UIImage? {
+    private static func loadImageFromDisk(path: String) async -> LinkPreviewPlatformImage? {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
-                continuation.resume(returning: UIImage(contentsOfFile: path))
+                continuation.resume(returning: LinkPreviewPlatformImage(contentsOfFile: path))
             }
         }
     }
 
     /// Downloads the image and returns both the UIImage and the raw Data for disk persistence.
-    private static func downloadImage(from url: URL) async -> (UIImage, Data)? {
+    private static func downloadImage(from url: URL) async -> (LinkPreviewPlatformImage, Data)? {
         var request = URLRequest(url: url)
         request.cachePolicy = .returnCacheDataElseLoad
         request.timeoutInterval = 10
@@ -105,7 +112,7 @@ final class LinkPreviewImageLoader {
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode),
-              let image = UIImage(data: data) else {
+              let image = LinkPreviewPlatformImage(data: data) else {
             return nil
         }
 
@@ -113,7 +120,7 @@ final class LinkPreviewImageLoader {
     }
 
     /// Attempts to load a favicon from the website's root domain.
-    private static func loadFavicon(from urlString: String?) async -> UIImage? {
+    private static func loadFavicon(from urlString: String?) async -> LinkPreviewPlatformImage? {
         guard let urlString, !urlString.isEmpty,
               let url = URL(string: urlString),
               let host = url.host else {

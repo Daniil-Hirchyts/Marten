@@ -18,7 +18,6 @@ final class DashboardSearchModelTests: XCTestCase {
         )
         let model = DashboardSearchModel(
             queryService: queryService,
-            voiceService: VoiceDictationService(client: MockVoiceRecognitionClient()),
             siriDonor: SiriSuggestionsDonor(donor: MockUserActivityDonor()),
             debounceNanoseconds: 0
         )
@@ -36,7 +35,6 @@ final class DashboardSearchModelTests: XCTestCase {
         let queryService = MockQueryService(responsesByQuery: [:])
         let model = DashboardSearchModel(
             queryService: queryService,
-            voiceService: VoiceDictationService(client: MockVoiceRecognitionClient()),
             siriDonor: SiriSuggestionsDonor(donor: MockUserActivityDonor()),
             debounceNanoseconds: 0
         )
@@ -64,11 +62,9 @@ final class DashboardSearchModelTests: XCTestCase {
 
         let model = DashboardSearchModel(
             queryService: MockQueryService(responsesByQuery: [:]),
-            voiceService: VoiceDictationService(client: MockVoiceRecognitionClient()),
             siriDonor: SiriSuggestionsDonor(donor: MockUserActivityDonor()),
             debounceNanoseconds: 0
         )
-
         model.updateOptions(from: [localItem, unknownItem])
 
         let thisDevice = model.deviceOptions.first { $0.value == .thisDevice }
@@ -94,11 +90,9 @@ final class DashboardSearchModelTests: XCTestCase {
 
         let model = DashboardSearchModel(
             queryService: MockQueryService(responsesByQuery: [:]),
-            voiceService: VoiceDictationService(client: MockVoiceRecognitionClient()),
             siriDonor: SiriSuggestionsDonor(donor: MockUserActivityDonor()),
             debounceNanoseconds: 0
         )
-
         model.updateOptions(from: [item1, item2])
 
         let appOption = model.appOptions.first { $0.bundleID == "com.example.app" }
@@ -123,7 +117,6 @@ final class DashboardSearchModelTests: XCTestCase {
 
         let model = DashboardSearchModel(
             queryService: MockQueryService(responsesByQuery: [:]),
-            voiceService: VoiceDictationService(client: MockVoiceRecognitionClient()),
             siriDonor: SiriSuggestionsDonor(donor: MockUserActivityDonor()),
             debounceNanoseconds: 0
         )
@@ -144,7 +137,6 @@ final class DashboardSearchModelTests: XCTestCase {
 
         let model = DashboardSearchModel(
             queryService: MockQueryService(responsesByQuery: [:]),
-            voiceService: VoiceDictationService(client: MockVoiceRecognitionClient()),
             siriDonor: SiriSuggestionsDonor(donor: MockUserActivityDonor()),
             debounceNanoseconds: 0
         )
@@ -161,7 +153,6 @@ final class DashboardSearchModelTests: XCTestCase {
         let queryService = MockQueryService(responsesByQuery: [:])
         let model = DashboardSearchModel(
             queryService: queryService,
-            voiceService: VoiceDictationService(client: MockVoiceRecognitionClient()),
             siriDonor: SiriSuggestionsDonor(donor: MockUserActivityDonor()),
             debounceNanoseconds: 0
         )

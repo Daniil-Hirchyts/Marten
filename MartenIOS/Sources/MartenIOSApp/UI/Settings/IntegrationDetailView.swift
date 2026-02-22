@@ -74,7 +74,9 @@ struct IntegrationDetailView<Content: View>: View {
             .padding(.bottom, 32)
         }
         .navigationTitle(title)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
 

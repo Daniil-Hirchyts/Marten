@@ -1,11 +1,21 @@
 import SwiftUI
 
+#if canImport(UIKit)
+import UIKit
+private let dashboardScreenWidth: CGFloat = UIScreen.main.bounds.width
+#elseif canImport(AppKit)
+import AppKit
+private let dashboardScreenWidth: CGFloat = NSScreen.main?.frame.width ?? 800
+#else
+private let dashboardScreenWidth: CGFloat = 800
+#endif
+
 struct DisplaceDistortionModifier: ViewModifier {
     var offset: CGFloat
     var isInsertion: Bool
     
     func body(content: Content) -> some View {
-        let progress = abs(offset) / UIScreen.main.bounds.width
+        let progress = abs(offset) / dashboardScreenWidth
         content
             // Elements move and displace with a 3D rotation
             .offset(x: offset)
@@ -22,8 +32,8 @@ struct DisplaceDistortionModifier: ViewModifier {
 
 public extension AnyTransition {
     static func displaceDistortion(direction: Int) -> AnyTransition {
-        let insertionOffset = UIScreen.main.bounds.width * CGFloat(direction)
-        let removalOffset = -UIScreen.main.bounds.width * CGFloat(direction)
+        let insertionOffset = dashboardScreenWidth * CGFloat(direction)
+        let removalOffset = -dashboardScreenWidth * CGFloat(direction)
         
         return .asymmetric(
             insertion: .modifier(

@@ -385,8 +385,6 @@ final class ItemCardCollectionViewController: UIViewController {
     }
 }
 
-#endif
-
 extension ItemCardCollectionViewController: UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
         if collectionView.hasActiveDrag {
@@ -681,3 +679,5 @@ extension ItemCardCollectionViewController: UIGestureRecognizerDelegate {
         return false
     }
 }
+
+#endif
