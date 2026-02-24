@@ -36,7 +36,8 @@ enum AppCoordinatorFactory {
 
     static func makeSharingRepository(
         persistenceController: PersistenceController,
-        syncConfigurationProvider: any MartenIOSSyncConfigurationProviding
+        syncConfigurationProvider: any MartenIOSSyncConfigurationProviding,
+        isPinboardLocked: (@MainActor @Sendable (UUID) -> Bool)? = nil
     ) -> (any PinboardSharingRepositoryProtocol)? {
         guard SharedPinboardsFeatureFlag.isEnabled else {
             return nil
@@ -63,7 +64,8 @@ enum AppCoordinatorFactory {
         )
         return PinboardSharingRepository(
             shareCoordinator: shareCoordinator,
-            persistenceController: persistenceController
+            persistenceController: persistenceController,
+            isPinboardLocked: isPinboardLocked
         )
     }
 }

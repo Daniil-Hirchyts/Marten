@@ -9,6 +9,7 @@ final class ItemCardContextActionTests: XCTestCase {
                 .copy,
                 .copyPlainText,
                 .preview,
+                .edit,
                 .share,
                 .moveToPinboard,
                 .delete,
@@ -23,6 +24,7 @@ final class ItemCardContextActionTests: XCTestCase {
                 .copy,
                 .copyPlainText,
                 .preview,
+                .edit,
                 .togglePin,
                 .share,
                 .moveToPinboard,
@@ -40,6 +42,7 @@ final class ItemCardContextActionTests: XCTestCase {
                 "Copy",
                 "Copy as Plain Text",
                 "Preview",
+                "Edit",
                 "Share",
                 "Move to Pinboard",
                 "Delete",
@@ -51,11 +54,12 @@ final class ItemCardContextActionTests: XCTestCase {
                 "doc.on.doc",
                 "textformat",
                 "eye",
+                "pencil",
                 "square.and.arrow.up",
                 "circle.dashed",
                 "trash",
             ]
         )
-        XCTAssertEqual(actions.map(\.isDestructive), [false, false, false, false, false, true])
+        XCTAssertEqual(actions.map(\.isDestructive), [false, false, false, false, false, false, true])
     }
 }

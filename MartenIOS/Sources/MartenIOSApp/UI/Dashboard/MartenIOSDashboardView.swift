@@ -65,6 +65,9 @@ struct MartenIOSDashboardView: View {
                         onPreviewItem: { item in
                             viewModel.handleItemPreview(item, container: container)
                         },
+                        onEditItem: { item in
+                            viewModel.handleItemEdit(item, container: container)
+                        },
                         onTogglePinItem: { item in
                             viewModel.togglePin(item, container: container)
                         },
@@ -220,6 +223,7 @@ struct MartenIOSDashboardView: View {
                     }
                 },
                 onShare: { pinboard in
+                    guard container.canOpenShareSettings(for: pinboard) else { return }
                     viewModel.isShowingPinboardPicker = false
                     if container.sharingRepository != nil {
                         let metadata = pinboard.shareMetadata
@@ -227,6 +231,7 @@ struct MartenIOSDashboardView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                             viewModel.pinboardShareContext = DashboardPinboardShareContext(
                                 pinboardID: pinboard.objectID,
+                                pinboardUUID: pinboard.id,
                                 initialAccessControl: metadata?.accessControl ?? .onlyInvited,
                                 initialPermission: metadata?.defaultPermission ?? .canMakeChanges,
                                 initialShareURL: initialShareURL
@@ -285,7 +290,42 @@ struct MartenIOSDashboardView: View {
         .sheet(item: $viewModel.shareSheetContext) { context in
             ActivityView(activityItems: context.items)
         }
-        .sheet(item: $viewModel.activeDestination) { destination in
+        .sheet(item: $viewModel.activePreviewDestination) { destination in
+            let resolver = CoreDataDashboardClipItemResolver(viewContext: container.persistenceController.viewContext)
+            switch destination {
+            case .text(let objectID):
+                if let item = resolver.item(with: objectID) {
+                    TextViewerSheet(item: item) {
+                        viewModel.transitionFromPreviewToEdit(.richText(objectID))
+                    }
+                }
+            case .image(let objectID):
+                if let item = resolver.item(with: objectID) {
+                    ImageViewerSheet(item: item, mode: .preview, onEdit: {
+                        viewModel.transitionFromPreviewToEdit(.image(objectID))
+                    })
+                }
+            case .code(let objectID):
+                if let item = resolver.item(with: objectID) {
+                    CodeViewerSheet(item: item) {
+                        viewModel.transitionFromPreviewToEdit(.code(objectID))
+                    }
+                }
+            case .url(let objectID):
+                if let item = resolver.item(with: objectID) {
+                    URLViewerSheet(item: item) {
+                        viewModel.transitionFromPreviewToEdit(.url(objectID))
+                    }
+                }
+            case .color(let objectID):
+                if let item = resolver.item(with: objectID) {
+                    ColorViewerSheet(item: item) {
+                        viewModel.transitionFromPreviewToEdit(.color(objectID))
+                    }
+                }
+            }
+        }
+        .sheet(item: $viewModel.activeEditDestination) { destination in
             let resolver = CoreDataDashboardClipItemResolver(viewContext: container.persistenceController.viewContext)
             switch destination {
             case .richText(let objectID):
@@ -305,15 +345,50 @@ struct MartenIOSDashboardView: View {
                 }
             case .image(let objectID):
                 if let item = resolver.item(with: objectID) {
-                    ImageViewerSheet(item: item)
+                    ImageViewerSheet(
+                        item: item,
+                        mode: .edit,
+                        onSaveEdits: { editedImageData in
+                        Task {
+                            await container.updateImageItem(
+                                objectID: objectID,
+                                imageData: editedImageData
+                            )
+                        }
+                    })
                 }
             case .code(let objectID):
                 if let item = resolver.item(with: objectID) {
-                    CodeViewerSheet(item: item)
+                    CodeEditorSheet(item: item) { text in
+                        Task {
+                            await container.updateTextItem(
+                                objectID: objectID,
+                                newText: text
+                            )
+                        }
+                    }
                 }
             case .url(let objectID):
                 if let item = resolver.item(with: objectID) {
-                    URLViewerSheet(item: item)
+                    LinkEditorSheet(item: item) { text in
+                        Task {
+                            await container.updateTextItem(
+                                objectID: objectID,
+                                newText: text
+                            )
+                        }
+                    }
+                }
+            case .color(let objectID):
+                if let item = resolver.item(with: objectID) {
+                    ColorEditorSheet(item: item) { text in
+                        Task {
+                            await container.updateTextItem(
+                                objectID: objectID,
+                                newText: text
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -360,7 +435,8 @@ struct MartenIOSDashboardView: View {
                     sharingRepository: sharingRepository,
                     initialAccessControl: context.initialAccessControl,
                     initialPermission: context.initialPermission,
-                    initialShareURL: context.initialShareURL
+                    initialShareURL: context.initialShareURL,
+                    isPinboardLocked: { container.lockStateStore.isLocked(context.pinboardUUID) }
                 )
             }
         }
@@ -431,8 +507,9 @@ struct MartenIOSDashboardView: View {
 
     @ViewBuilder
     private func pinboardContextMenuContent(for pinboard: Pinboard) -> some View {
-        let isLocked = container.lockStateStore.isLocked(pinboard.id)
-        let canAccess = container.lockStateStore.canAccess(pinboard.id)
+        let supportsLock = !pinboard.isShared
+        let isLocked = supportsLock && container.lockStateStore.isLocked(pinboard.id)
+        let canAccess = !isLocked || container.lockStateStore.canAccess(pinboard.id)
 
         Button {
             viewModel.pinboardEditorContext = DashboardPinboardEditorContext(
@@ -448,52 +525,67 @@ struct MartenIOSDashboardView: View {
         if container.sharingRepository != nil {
             let metadata = pinboard.shareMetadata
             let initialShareURL = metadata?.shareURL.flatMap(URL.init(string:))
-            Button {
-                viewModel.pinboardShareContext = DashboardPinboardShareContext(
-                    pinboardID: pinboard.objectID,
-                    initialAccessControl: metadata?.accessControl ?? .onlyInvited,
-                    initialPermission: metadata?.defaultPermission ?? .canMakeChanges,
-                    initialShareURL: initialShareURL
-                )
-            } label: {
-                Label(
-                    pinboard.isShared ? "Manage Sharing" : "Share",
-                    systemImage: "square.and.arrow.up"
-                )
+            if pinboard.isShared {
+                Button {
+                    guard container.canOpenShareSettings(for: pinboard) else { return }
+                    viewModel.pinboardShareContext = DashboardPinboardShareContext(
+                        pinboardID: pinboard.objectID,
+                        pinboardUUID: pinboard.id,
+                        initialAccessControl: metadata?.accessControl ?? .onlyInvited,
+                        initialPermission: metadata?.defaultPermission ?? .canMakeChanges,
+                        initialShareURL: initialShareURL
+                    )
+                } label: {
+                    Label("Manage Sharing", systemImage: "square.and.arrow.up")
+                }
+            } else if !isLocked {
+                Button {
+                    guard container.canOpenShareSettings(for: pinboard) else { return }
+                    viewModel.pinboardShareContext = DashboardPinboardShareContext(
+                        pinboardID: pinboard.objectID,
+                        pinboardUUID: pinboard.id,
+                        initialAccessControl: metadata?.accessControl ?? .onlyInvited,
+                        initialPermission: metadata?.defaultPermission ?? .canMakeChanges,
+                        initialShareURL: initialShareURL
+                    )
+                } label: {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
             }
         }
 
         Divider()
 
-        if isLocked {
-            Button {
-                viewModel.requestPinboardUnlock(pinboard, lockStateStore: container.lockStateStore) { }
-            } label: {
-                Label("Unlock", systemImage: "lock.open")
-            }
-
-            if canAccess {
+        if supportsLock {
+            if isLocked {
                 Button {
-                    container.lockStateStore.lockNow(pinboardID: pinboard.id)
+                    viewModel.requestPinboardUnlock(pinboard, lockStateStore: container.lockStateStore) { }
                 } label: {
-                    Label("Lock Now", systemImage: "lock.fill")
+                    Label("Unlock", systemImage: "lock.open")
                 }
 
+                if canAccess {
+                    Button {
+                        container.lockPinboardNow(pinboard)
+                    } label: {
+                        Label("Lock Now", systemImage: "lock.fill")
+                    }
+
+                    Button {
+                        container.setPinboardLock(false, for: pinboard)
+                    } label: {
+                        Label("Disable Lock", systemImage: "lock.slash")
+                    }
+                }
+            } else {
                 Button {
-                    container.lockStateStore.setLock(false, for: pinboard.id)
+                    container.setPinboardLock(true, for: pinboard)
                 } label: {
-                    Label("Disable Lock", systemImage: "lock.slash")
+                    Label("Lock Pinboard", systemImage: "lock")
                 }
             }
-        } else {
-            Button {
-                container.lockStateStore.setLock(true, for: pinboard.id)
-            } label: {
-                Label("Lock Pinboard", systemImage: "lock")
-            }
+            Divider()
         }
-
-        Divider()
 
         Button(role: .destructive) {
             viewModel.pendingDeletePinboard = pinboard
@@ -537,6 +629,7 @@ struct MartenIOSDashboardView: View {
                         onCopyItem: { item in viewModel.copyItems([item.objectID], container: container) },
                         onCopyPlainTextItem: { item in viewModel.copyItemsPlainText([item.objectID], container: container) },
                         onPreviewItem: { item in viewModel.handleItemPreview(item, container: container) },
+                        onEditItem: { item in viewModel.handleItemEdit(item, container: container) },
                         onTogglePinItem: { item in viewModel.togglePin(item, container: container) },
                         onShareItem: { item in viewModel.shareItems([item.objectID], container: container) },
                         onMoveItem: { item in viewModel.prepareMove([item.objectID]) },
@@ -580,11 +673,12 @@ struct MartenIOSDashboardView: View {
     }
 
     private var pinboardSignature: String {
-        customPinboards.map(\.id.uuidString).joined(separator: "|")
+        customPinboards
+            .map { "\($0.id.uuidString):\($0.isShared ? "shared" : "private")" }
+            .joined(separator: "|")
     }
 
     private var allItemsSignature: String {
         "\(allItems.count)-\(allItems.first?.objectID.uriRepresentation().absoluteString ?? "")"
     }
 }
-

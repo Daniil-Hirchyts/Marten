@@ -14,6 +14,7 @@ struct ItemCardView: View {
     let onCopy: () -> Void
     let onCopyPlainText: () -> Void
     let onPreview: () -> Void
+    let onEdit: () -> Void
     let onTogglePin: () -> Void
     let onShare: () -> Void
     let onMove: () -> Void
@@ -32,6 +33,7 @@ struct ItemCardView: View {
         onCopy: @escaping () -> Void,
         onCopyPlainText: @escaping () -> Void,
         onPreview: @escaping () -> Void,
+        onEdit: @escaping () -> Void,
         onTogglePin: @escaping () -> Void = {},
         onShare: @escaping () -> Void,
         onMove: @escaping () -> Void,
@@ -54,6 +56,7 @@ struct ItemCardView: View {
         self.onCopy = onCopy
         self.onCopyPlainText = onCopyPlainText
         self.onPreview = onPreview
+        self.onEdit = onEdit
         self.onTogglePin = onTogglePin
         self.onShare = onShare
         self.onMove = onMove
@@ -76,8 +79,8 @@ struct ItemCardView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private let cardCornerRadius: CGFloat = 20
-    private let cardPadding: CGFloat = 12
-    private let headerMinHeight: CGFloat = 50
+    private let cardPadding: CGFloat = 10
+    private let headerMinHeight: CGFloat = 42
 
     var body: some View {
         let pres = presentation
@@ -95,6 +98,7 @@ struct ItemCardView: View {
                 onCopy: onCopy,
                 onCopyPlainText: onCopyPlainText,
                 onPreview: onPreview,
+                onEdit: onEdit,
                 onTogglePin: onTogglePin,
                 onShare: onShare,
                 onMove: onMove,
@@ -161,13 +165,13 @@ struct ItemCardView: View {
                         Spacer(minLength: 0)
                     }
                     .padding(.horizontal, cardPadding)
-                    .padding(.top, 10)
+                    .padding(.top, 8)
                 }
 
                 cardFooter(pres)
                     .padding(.horizontal, cardPadding)
-                    .padding(.top, 8)
-                    .padding(.bottom, cardPadding)
+                    .padding(.top, 6)
+                    .padding(.bottom, 10)
             }
         }
         .background(
@@ -207,16 +211,10 @@ struct ItemCardView: View {
     }
 
     private func isEdgeToEdgeContent(_ pres: ItemCardPresentation) -> Bool {
-        pres.previewKind == .image || pres.previewKind == .link
+        pres.previewKind == .image || pres.previewKind == .link || pres.previewKind == .color
     }
 
     private func cardBackgroundColor(for pres: ItemCardPresentation) -> Color {
-        if pres.previewKind == .color,
-           let colorHex = pres.colorHex,
-           let normalized = ColorHex.normalizedHex(from: colorHex) {
-            return Color(hex: normalized, fallback: .gray)
-        }
-
         return colorScheme == .dark
             ? Color(.sRGB, white: 0.04, opacity: 0.72)
             : Color(.sRGB, white: 0.96, opacity: 0.9)
@@ -240,12 +238,6 @@ struct ItemCardView: View {
     }
 
     private func tertiaryTextColor(for pres: ItemCardPresentation) -> Color {
-        if pres.previewKind == .color,
-           let colorHex = pres.colorHex,
-           let normalized = ColorHex.normalizedHex(from: colorHex) {
-            return ColorHex.foregroundColor(for: normalized).opacity(0.7)
-        }
-
         return colorScheme == .dark ? Color.white.opacity(0.6) : Color.black.opacity(0.5)
     }
 

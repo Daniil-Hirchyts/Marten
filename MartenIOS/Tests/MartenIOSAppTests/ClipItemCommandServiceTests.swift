@@ -165,4 +165,20 @@ final class ClipItemCommandServiceTests: XCTestCase {
         XCTAssertEqual(updated.plainTextContent, "Updated rich text")
         XCTAssertNotNil(updated.styledTextContent)
     }
+
+    func testUpdateTextItemPersistsNewPlainText() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let service = ClipItemCommandService(store: store)
+
+        let item = try store.createTextItem(text: "Old value")
+
+        try await service.updateTextItem(
+            objectID: item.objectID,
+            newText: "let sum = a + b"
+        )
+
+        let updated = try persistence.viewContext.existingObject(with: item.objectID) as! ClipItem
+        XCTAssertEqual(updated.plainTextContent, "let sum = a + b")
+    }
 }

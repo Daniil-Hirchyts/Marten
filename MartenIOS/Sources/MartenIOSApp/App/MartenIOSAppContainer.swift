@@ -115,7 +115,8 @@ public final class MartenIOSAppContainer {
             store: resolvedStore,
             fetcher: linkPreviewFetcher
         )
-        self.lockStateStore = PinboardLockStateStore(userDefaults: userDefaults)
+        let resolvedLockStateStore = PinboardLockStateStore(userDefaults: userDefaults)
+        self.lockStateStore = resolvedLockStateStore
 
         let appearanceRawValue = userDefaults.string(forKey: MartenIOSDefaults.appearanceKey) ?? ""
         self.appearance = MartenIOSAppearance(rawValue: appearanceRawValue) ?? .system
@@ -142,7 +143,10 @@ public final class MartenIOSAppContainer {
             sharingRepository
             ?? AppCoordinatorFactory.makeSharingRepository(
                 persistenceController: persistenceController,
-                syncConfigurationProvider: syncConfigurationProvider
+                syncConfigurationProvider: syncConfigurationProvider,
+                isPinboardLocked: { pinboardID in
+                    resolvedLockStateStore.isLocked(pinboardID)
+                }
             )
     }
 
@@ -153,6 +157,7 @@ public final class MartenIOSAppContainer {
         ensureSystemPinboardExists()
         await maybeStartSyncIfEnabled()
         ensureSystemPinboardExists()
+        reconcileLockStateForShareMembership()
         await refreshPendingLinkPreviews()
     }
 
@@ -187,6 +192,34 @@ public final class MartenIOSAppContainer {
         syncErrorMessage = nil
     }
 
+    public func canOpenShareSettings(for pinboard: Pinboard) -> Bool {
+        guard !(lockStateStore.isLocked(pinboard.id) && !pinboard.isShared) else {
+            lastOperationErrorMessage = PinboardSharingError.cannotShareLockedPinboard.localizedDescription
+            return false
+        }
+        return true
+    }
+
+    public func setPinboardLock(_ enabled: Bool, for pinboard: Pinboard) {
+        if enabled && pinboard.isShared {
+            lockStateStore.setLock(false, for: pinboard.id)
+            lastOperationErrorMessage = PinboardSharingError.cannotLockSharedPinboard.localizedDescription
+            return
+        }
+
+        lockStateStore.setLock(enabled, for: pinboard.id)
+    }
+
+    public func lockPinboardNow(_ pinboard: Pinboard) {
+        guard !pinboard.isShared else {
+            lockStateStore.setLock(false, for: pinboard.id)
+            lastOperationErrorMessage = PinboardSharingError.cannotLockSharedPinboard.localizedDescription
+            return
+        }
+
+        lockStateStore.lockNow(pinboardID: pinboard.id)
+    }
+
     public func openIntegrationsSettings() {
         selectedTab = .settings
         dismissIntegrationsOnboarding()
@@ -202,6 +235,7 @@ public final class MartenIOSAppContainer {
             ensureSystemPinboardExists()
             await maybeStartSyncIfEnabled()
             ensureSystemPinboardExists()
+            reconcileLockStateForShareMembership()
             await refreshPendingLinkPreviews()
             refreshDashboardStateFromShareExtensionIfNeeded()
         case .background:
@@ -237,6 +271,21 @@ public final class MartenIOSAppContainer {
         } catch {
             syncErrorMessage = error.localizedDescription
         }
+    }
+
+    public func handleCloudKitPushNotification() async {
+        guard let syncCoordinator else { return }
+        guard syncCoordinator.syncEnabled else { return }
+
+        do {
+            try await syncCoordinator.startSync()
+        } catch {
+            syncErrorMessage = error.localizedDescription
+            return
+        }
+
+        await syncCoordinator.handlePushNotification()
+        await refreshPendingLinkPreviews()
     }
 
     public func refreshPendingLinkPreviews() async {
@@ -475,6 +524,29 @@ public final class MartenIOSAppContainer {
         }
     }
 
+    public func updateTextItem(objectID: NSManagedObjectID, newText: String) async {
+        let hasContent = !newText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard hasContent else {
+            lastOperationErrorMessage = "Content cannot be empty."
+            return
+        }
+
+        await performMutation {
+            try await commandService.updateTextItem(objectID: objectID, newText: newText)
+        }
+    }
+
+    public func updateImageItem(objectID: NSManagedObjectID, imageData: Data) async {
+        guard !imageData.isEmpty else {
+            lastOperationErrorMessage = "Image data is empty."
+            return
+        }
+
+        await performMutation {
+            try await commandService.updateImageData(objectID: objectID, imageData: imageData)
+        }
+    }
+
     public func handleDeepLink(_ url: URL) {
         guard let action = AppDeepLinkHandler().action(for: url) else { return }
         apply(action)
@@ -510,6 +582,7 @@ public final class MartenIOSAppContainer {
 
         do {
             try await syncCoordinator.acceptShare(metadata: metadata)
+            reconcileLockStateForShareMembership()
             await refreshPendingLinkPreviews()
         } catch {
             lastOperationErrorMessage = error.localizedDescription
@@ -524,6 +597,7 @@ public final class MartenIOSAppContainer {
 
         do {
             try await sharingRepository.leaveShare(pinboardID: objectID)
+            reconcileLockStateForShareMembership()
             if let selectedPinboardID,
                 let selectedObjectID = objectIDForPinboardUUID(selectedPinboardID),
                 selectedObjectID == objectID
@@ -543,6 +617,7 @@ public final class MartenIOSAppContainer {
 
         do {
             try await sharingRepository.stopSharing(pinboardID: objectID)
+            reconcileLockStateForShareMembership()
         } catch {
             lastOperationErrorMessage = error.localizedDescription
         }
@@ -583,6 +658,19 @@ public final class MartenIOSAppContainer {
 
     private func invalidateDashboardItems() {
         dashboardRefreshRevision &+= 1
+    }
+
+    private func reconcileLockStateForShareMembership() {
+        let context = persistenceController.viewContext
+        var lockableIDs: Set<UUID> = []
+        context.performAndWait {
+            let request = Pinboard.fetchRequest()
+            request.predicate = NSPredicate(format: "isSystemMarten == NO AND shareMetadata == nil")
+            request.returnsObjectsAsFaults = false
+            let pinboards = (try? context.fetch(request)) ?? []
+            lockableIDs = Set(pinboards.map(\.id))
+        }
+        lockStateStore.reconcile(validPinboardIDs: lockableIDs)
     }
 
     private func sourceAppInfo() -> SourceAppInfo {

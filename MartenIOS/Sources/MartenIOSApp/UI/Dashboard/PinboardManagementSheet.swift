@@ -4,6 +4,7 @@ import SwiftUI
 
 private struct ShareContext: Identifiable {
     let pinboardID: NSManagedObjectID
+    let pinboardUUID: UUID
     let initialAccessControl: ShareAccessControl
     let initialPermission: SharePermission
     let initialShareURL: URL?
@@ -104,7 +105,8 @@ struct PinboardManagementSheet: View {
                     sharingRepository: sharingRepository,
                     initialAccessControl: context.initialAccessControl,
                     initialPermission: context.initialPermission,
-                    initialShareURL: context.initialShareURL
+                    initialShareURL: context.initialShareURL,
+                    isPinboardLocked: { container.lockStateStore.isLocked(context.pinboardUUID) }
                 )
             }
         }
@@ -159,8 +161,9 @@ struct PinboardManagementSheet: View {
     }
 
     private func row(for pinboard: Pinboard) -> some View {
-        let isLocked = container.lockStateStore.isLocked(pinboard.id)
-        let canAccess = container.lockStateStore.canAccess(pinboard.id)
+        let supportsLock = !pinboard.isShared
+        let isLocked = supportsLock && container.lockStateStore.isLocked(pinboard.id)
+        let canAccess = !isLocked || container.lockStateStore.canAccess(pinboard.id)
 
         return HStack(spacing: 12) {
             Circle()
@@ -193,13 +196,15 @@ struct PinboardManagementSheet: View {
                     .foregroundStyle(.secondary)
             }
 
-            if isLocked {
+            if supportsLock && isLocked {
                 Image(systemName: canAccess ? "lock.open.fill" : "lock.fill")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            lockMenu(for: pinboard)
+            if supportsLock {
+                lockMenu(for: pinboard)
+            }
         }
         .contentShape(Rectangle())
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -242,14 +247,17 @@ struct PinboardManagementSheet: View {
                 let initialShareURL = metadata?.shareURL.flatMap(URL.init(string:))
                 let context = ShareContext(
                     pinboardID: pinboard.objectID,
+                    pinboardUUID: pinboard.id,
                     initialAccessControl: metadata?.accessControl ?? .onlyInvited,
                     initialPermission: metadata?.defaultPermission ?? .canMakeChanges,
                     initialShareURL: initialShareURL
                 )
+                let showsSharingActions = pinboard.isShared || !isLocked
 
                 if pinboard.isShared {
                     if pinboard.shareRole == .owner {
                         Button("Manage Sharing") {
+                            guard container.canOpenShareSettings(for: pinboard) else { return }
                             shareContext = context
                         }
                         Button("Stop Sharing", role: .destructive) {
@@ -257,22 +265,28 @@ struct PinboardManagementSheet: View {
                         }
                     } else {
                         Button("View Sharing") {
+                            guard container.canOpenShareSettings(for: pinboard) else { return }
                             shareContext = context
                         }
                         Button("Leave Shared Pinboard", role: .destructive) {
                             pendingLeaveSharedPinboardID = pinboard.objectID
                         }
                     }
-                } else {
+                } else if !isLocked {
                     Button("Share Pinboard") {
+                        guard container.canOpenShareSettings(for: pinboard) else { return }
                         shareContext = context
                     }
                 }
-                Divider()
+                if showsSharingActions {
+                    Divider()
+                }
             }
 
-            lockActions(for: pinboard)
-            Divider()
+            if !pinboard.isShared {
+                lockActions(for: pinboard)
+                Divider()
+            }
 
             Button("Delete", role: .destructive) {
                 Task {
@@ -284,34 +298,38 @@ struct PinboardManagementSheet: View {
 
     @ViewBuilder
     private func lockActions(for pinboard: Pinboard) -> some View {
-        let isLocked = container.lockStateStore.isLocked(pinboard.id)
-        let canAccess = container.lockStateStore.canAccess(pinboard.id)
+        if !pinboard.isShared {
+            let isLocked = container.lockStateStore.isLocked(pinboard.id)
+            let canAccess = container.lockStateStore.canAccess(pinboard.id)
 
-        if isLocked {
-            Button {
-                requestUnlock(for: pinboard)
-            } label: {
-                Label("Unlock", systemImage: "lock.open")
-            }
-
-            if canAccess {
+            if isLocked {
                 Button {
-                    container.lockStateStore.lockNow(pinboardID: pinboard.id)
+                    requestUnlock(for: pinboard)
                 } label: {
-                    Label("Lock Now", systemImage: "lock.fill")
+                    Label("Unlock", systemImage: "lock.open")
                 }
+
+                if canAccess {
+                    Button {
+                        container.lockPinboardNow(pinboard)
+                    } label: {
+                        Label("Lock Now", systemImage: "lock.fill")
+                    }
+                    Button {
+                        container.setPinboardLock(false, for: pinboard)
+                    } label: {
+                        Label("Disable Lock", systemImage: "lock.slash")
+                    }
+                }
+            } else {
                 Button {
-                    container.lockStateStore.setLock(false, for: pinboard.id)
+                    container.setPinboardLock(true, for: pinboard)
                 } label: {
-                    Label("Disable Lock", systemImage: "lock.slash")
+                    Label("Lock Pinboard", systemImage: "lock")
                 }
             }
         } else {
-            Button {
-                container.lockStateStore.setLock(true, for: pinboard.id)
-            } label: {
-                Label("Lock Pinboard", systemImage: "lock")
-            }
+            EmptyView()
         }
     }
 

@@ -14,6 +14,7 @@ struct ItemCardCollectionGridView: UIViewControllerRepresentable {
     let onCopyItem: (ClipItem) -> Void
     let onCopyPlainTextItem: (ClipItem) -> Void
     let onPreviewItem: (ClipItem) -> Void
+    let onEditItem: (ClipItem) -> Void
     let onTogglePinItem: (ClipItem) -> Void
     let onShareItem: (ClipItem) -> Void
     let onMoveItem: (ClipItem) -> Void
@@ -29,6 +30,7 @@ struct ItemCardCollectionGridView: UIViewControllerRepresentable {
             onCopyItem: onCopyItem,
             onCopyPlainTextItem: onCopyPlainTextItem,
             onPreviewItem: onPreviewItem,
+            onEditItem: onEditItem,
             onTogglePinItem: onTogglePinItem,
             onShareItem: onShareItem,
             onMoveItem: onMoveItem,

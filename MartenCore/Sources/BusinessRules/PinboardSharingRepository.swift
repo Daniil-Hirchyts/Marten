@@ -7,13 +7,16 @@ import Foundation
 public final class PinboardSharingRepository: PinboardSharingRepositoryProtocol, @unchecked Sendable {
     private let shareCoordinator: ShareCoordinator
     private let persistenceController: PersistenceController
+    private let isPinboardLocked: (@MainActor @Sendable (UUID) -> Bool)?
 
     public init(
         shareCoordinator: ShareCoordinator,
-        persistenceController: PersistenceController
+        persistenceController: PersistenceController,
+        isPinboardLocked: (@MainActor @Sendable (UUID) -> Bool)? = nil
     ) {
         self.shareCoordinator = shareCoordinator
         self.persistenceController = persistenceController
+        self.isPinboardLocked = isPinboardLocked
     }
 
     public func createShare(
@@ -25,6 +28,14 @@ public final class PinboardSharingRepository: PinboardSharingRepositoryProtocol,
         let localState = try loadLocalState(pinboardID: pinboardID)
         if localState.isSystemMarten {
             throw PinboardSharingError.insufficientPermission
+        }
+        if let isPinboardLocked {
+            let locked = await MainActor.run {
+                isPinboardLocked(localState.id)
+            }
+            if locked {
+                throw PinboardSharingError.cannotShareLockedPinboard
+            }
         }
 
         return try await shareCoordinator.createShare(
@@ -173,6 +184,7 @@ public final class PinboardSharingRepository: PinboardSharingRepositoryProtocol,
                 throw PinboardSharingError.shareNotFound
             }
             return LocalShareState(
+                id: pinboard.id,
                 isSystemMarten: pinboard.isSystemMarten,
                 isShared: pinboard.shareMetadata != nil,
                 isOwner: pinboard.shareMetadata?.isOwner == true
@@ -182,6 +194,7 @@ public final class PinboardSharingRepository: PinboardSharingRepositoryProtocol,
 }
 
 private struct LocalShareState {
+    let id: UUID
     let isSystemMarten: Bool
     let isShared: Bool
     let isOwner: Bool

@@ -1,26 +1,26 @@
 import Foundation
 import SwiftUI
 
-struct SourceAppIconDescriptor: Equatable {
-    enum Content: Equatable {
+public struct SourceAppIconDescriptor: Equatable {
+    public enum Content: Equatable {
         case symbol(String)
         case monogram(String)
         case generic
     }
 
-    let content: Content
-    let backgroundHex: String
+    public let content: Content
+    public let backgroundHex: String
 
-    var backgroundColor: Color {
+    public var backgroundColor: Color {
         Color(hex: backgroundHex, fallback: .gray)
     }
 
-    var foregroundColor: Color {
+    public var foregroundColor: Color {
         let normalized = ColorHex.normalizedHex(from: backgroundHex) ?? "#808080"
         return ColorHex.foregroundColor(for: normalized)
     }
 
-    static func resolve(bundleID: String?, appName: String?) -> SourceAppIconDescriptor {
+    public static func resolve(bundleID: String?, appName: String?) -> SourceAppIconDescriptor {
         let normalizedBundleID = normalize(bundleID)
         let normalizedAppName = normalize(appName)
 
@@ -48,12 +48,12 @@ struct SourceAppIconDescriptor: Equatable {
         )
     }
 
-    static func stableHash(forIdentifier identifier: String) -> String {
+    public static func stableHash(forIdentifier identifier: String) -> String {
         let hash = fnv1aHash(identifier)
         return String(format: "%08X", hash)
     }
 
-    static func stableColorHex(forIdentifier identifier: String) -> String {
+    public static func stableColorHex(forIdentifier identifier: String) -> String {
         let hash = fnv1aHash(identifier)
         let hue = Double(hash % 360) / 360.0
         let saturation = 0.56 + Double((hash >> 8) % 24) / 100.0
@@ -65,7 +65,7 @@ struct SourceAppIconDescriptor: Equatable {
         )
     }
 
-    static func fnv1aHash(_ value: String) -> UInt32 {
+    public static func fnv1aHash(_ value: String) -> UInt32 {
         var hash: UInt32 = 0x811C9DC5
         for byte in value.lowercased().utf8 {
             hash ^= UInt32(byte)
@@ -74,7 +74,7 @@ struct SourceAppIconDescriptor: Equatable {
         return hash
     }
 
-    static func fnv1aHash(_ data: Data) -> UInt32 {
+    public static func fnv1aHash(_ data: Data) -> UInt32 {
         var hash: UInt32 = 0x811C9DC5
         for byte in data {
             hash ^= UInt32(byte)

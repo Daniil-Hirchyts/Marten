@@ -11,6 +11,7 @@ struct DashboardItemsSection: View {
     let onCopyItem: (ClipItem) -> Void
     let onCopyPlainTextItem: (ClipItem) -> Void
     let onPreviewItem: (ClipItem) -> Void
+    let onEditItem: (ClipItem) -> Void
     let onTogglePinItem: (ClipItem) -> Void
     let onShareItem: (ClipItem) -> Void
     let onMoveItem: (ClipItem) -> Void
@@ -28,6 +29,7 @@ struct DashboardItemsSection: View {
         onCopyItem: @escaping (ClipItem) -> Void,
         onCopyPlainTextItem: @escaping (ClipItem) -> Void,
         onPreviewItem: @escaping (ClipItem) -> Void,
+        onEditItem: @escaping (ClipItem) -> Void,
         onTogglePinItem: @escaping (ClipItem) -> Void,
         onShareItem: @escaping (ClipItem) -> Void,
         onMoveItem: @escaping (ClipItem) -> Void,
@@ -48,6 +50,7 @@ struct DashboardItemsSection: View {
         self.onCopyItem = onCopyItem
         self.onCopyPlainTextItem = onCopyPlainTextItem
         self.onPreviewItem = onPreviewItem
+        self.onEditItem = onEditItem
         self.onTogglePinItem = onTogglePinItem
         self.onShareItem = onShareItem
         self.onMoveItem = onMoveItem
@@ -69,6 +72,7 @@ struct DashboardItemsSection: View {
             onCopyItem: onCopyItem,
             onCopyPlainTextItem: onCopyPlainTextItem,
             onPreviewItem: onPreviewItem,
+            onEditItem: onEditItem,
             onTogglePinItem: onTogglePinItem,
             onShareItem: onShareItem,
             onMoveItem: onMoveItem,
@@ -96,4 +100,3 @@ struct DashboardItemsSection: View {
         .joined(separator: "|")
     }
 }
-

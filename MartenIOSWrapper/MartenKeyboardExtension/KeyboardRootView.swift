@@ -76,170 +76,6 @@ private struct KeyboardPinboardIndicator: View {
     }
 }
 
-private struct KeyboardSourceAppIconBadge: View {
-    let bundleID: String?
-    let appName: String?
-    let iconData: Data?
-    var size: CGFloat = 30
-
-    private static let martenBundleID = "com.hirchyts.marten"
-    private static let fallbackBackgroundHex = "#6C757D"
-
-    private struct Style {
-        let symbol: String
-        let backgroundHex: String
-    }
-
-    private var normalizedBundleID: String? {
-        let trimmed = bundleID?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let trimmed, !trimmed.isEmpty else { return nil }
-        return trimmed.lowercased()
-    }
-
-    private var normalizedAppName: String? {
-        let trimmed = appName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let trimmed, !trimmed.isEmpty else { return nil }
-        return trimmed.lowercased()
-    }
-
-    private var resolvedBundleID: String? {
-        if let normalizedBundleID {
-            return normalizedBundleID
-        }
-        guard isMartenAppName else { return nil }
-        return Self.martenBundleID
-    }
-
-    private var isMartenAppName: Bool {
-        guard let normalizedAppName else { return false }
-        return normalizedAppName == "marten" || normalizedAppName.contains("marten")
-    }
-
-    private var isMartenSource: Bool {
-        if let resolvedBundleID {
-            return resolvedBundleID == Self.martenBundleID || resolvedBundleID.hasPrefix("\(Self.martenBundleID).")
-        }
-        return isMartenAppName
-    }
-
-    private var style: Style {
-        Self.style(bundleID: bundleID, appName: appName)
-    }
-
-    private var embeddedIcon: UIImage? {
-        guard let iconData, !iconData.isEmpty else { return nil }
-        return UIImage(data: iconData)
-    }
-
-    private var symbol: String {
-        style.symbol
-    }
-
-    private var backgroundColor: Color {
-        Color(hex: style.backgroundHex)
-    }
-
-    static func backgroundHex(bundleID: String?, appName: String?) -> String {
-        style(bundleID: bundleID, appName: appName).backgroundHex
-    }
-
-    static func foregroundColor(bundleID: String?, appName: String?) -> Color {
-        let normalizedHex = ColorHex.normalizedHex(from: backgroundHex(bundleID: bundleID, appName: appName))
-            ?? fallbackBackgroundHex
-        return ColorHex.foregroundColor(for: normalizedHex)
-    }
-
-    private static func style(bundleID: String?, appName: String?) -> Style {
-        let normalizedBundleID = normalize(bundleID)
-        let normalizedAppName = normalize(appName)
-
-        let resolvedBundleID: String?
-        if let normalizedBundleID {
-            resolvedBundleID = normalizedBundleID
-        } else if isMartenAppName(normalizedAppName) {
-            resolvedBundleID = martenBundleID
-        } else {
-            resolvedBundleID = nil
-        }
-
-        let isMartenSource: Bool
-        if let resolvedBundleID {
-            isMartenSource = resolvedBundleID == martenBundleID
-                || resolvedBundleID.hasPrefix("\(martenBundleID).")
-        } else {
-            isMartenSource = isMartenAppName(normalizedAppName)
-        }
-
-        if isMartenSource {
-            return Style(symbol: "sparkles", backgroundHex: "#FF2E00")
-        }
-
-        guard let resolvedBundleID else {
-            return Style(symbol: "app.fill", backgroundHex: fallbackBackgroundHex)
-        }
-
-        if resolvedBundleID.contains("safari") {
-            return Style(symbol: "safari.fill", backgroundHex: "#0A84FF")
-        }
-        if resolvedBundleID.contains("mail") {
-            return Style(symbol: "envelope.fill", backgroundHex: "#007AFF")
-        }
-        if resolvedBundleID.contains("messages") {
-            return Style(symbol: "message.fill", backgroundHex: "#34C759")
-        }
-        if resolvedBundleID.contains("notes") {
-            return Style(symbol: "note.text", backgroundHex: "#FFD60A")
-        }
-        if resolvedBundleID.contains("files") {
-            return Style(symbol: "folder.fill", backgroundHex: "#4C9CFF")
-        }
-        if resolvedBundleID.contains("photos") {
-            return Style(symbol: "photo.fill", backgroundHex: "#FF9500")
-        }
-        if resolvedBundleID.contains("chrome") {
-            return Style(symbol: "globe", backgroundHex: "#4285F4")
-        }
-
-        return Style(symbol: "app.fill", backgroundHex: fallbackBackgroundHex)
-    }
-
-    private static func normalize(_ value: String?) -> String? {
-        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        return value.lowercased()
-    }
-
-    private static func isMartenAppName(_ value: String?) -> Bool {
-        guard let value else { return false }
-        return value == "marten" || value.contains("marten")
-    }
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                .fill(backgroundColor)
-
-            if let embeddedIcon {
-                Image(uiImage: embeddedIcon)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
-            } else {
-                Image(systemName: symbol)
-                    .font(.system(size: size * 0.54, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-        }
-        .frame(width: size, height: size)
-        .overlay(
-            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5)
-        )
-    }
-}
-
 private struct KeyboardStatusChip: View {
     let systemImage: String
 
@@ -394,6 +230,7 @@ struct KeyboardRootView: View {
     @State private var moveDestinationItem: SharedClipItemSummary?
     @State private var activeToast: String?
     @State private var toastTask: Task<Void, Never>?
+    @State private var contextMenuItem: SharedClipItemSummary?
 
     private enum CopyButtonState {
         case idle
@@ -487,6 +324,7 @@ struct KeyboardRootView: View {
                             .padding(.horizontal, horizontalPadding)
                             .padding(.vertical, verticalPadding)
                         }
+                        .scrollClipDisabled()
                         .frame(height: contentHeight)
                     }
 
@@ -566,6 +404,29 @@ struct KeyboardRootView: View {
                         .padding(.vertical, 12)
                         .transition(.opacity.combined(with: .scale(scale: 0.96)))
                         .zIndex(140)
+                }
+
+                if contextMenuItem != nil {
+                    Color.black.opacity(0.35)
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(.spring(duration: 0.2)) {
+                                contextMenuItem = nil
+                            }
+                        }
+                        .zIndex(148)
+                }
+
+                if let item = contextMenuItem {
+                    VStack(spacing: 0) {
+                        Spacer()
+                        contextMenuPanel(for: item)
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 60)
+                    }
+                    .transition(.scale(scale: 0.9, anchor: .bottom).combined(with: .opacity))
+                    .zIndex(149)
                 }
 
                 if let message = activeToast {
@@ -898,33 +759,24 @@ struct KeyboardRootView: View {
         .frame(height: 28)
     }
 
-    @ViewBuilder
     private func cardButton(for item: SharedClipItemSummary, cardSide: CGFloat) -> some View {
-        let button = Button {
-            handleItemTap(item)
-        } label: {
-            cardLabel(for: item, cardSide: cardSide)
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
-            contextMenuContent(for: item)
-        } preview: {
-            contextMenuPreview(for: item)
-        }
-
-        if item.itemType == .image, let path = item.thumbnailPath {
-            button.onDrag {
-                onRecordHeartbeat()
-                return imageDragProvider(path: path)
-            }
-        } else if let dragText = dragText(for: item) {
-            button.onDrag {
-                onRecordHeartbeat()
-                return NSItemProvider(object: dragText as NSString)
-            }
-        } else {
-            button
-        }
+        cardLabel(for: item, cardSide: cardSide)
+            .overlay(
+                CardInteractionOverlay(
+                    item: item,
+                    onTap: { handleItemTap(item) },
+                    onLongPress: {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        withAnimation(.spring(duration: 0.2, bounce: 0)) {
+                            previewItem = nil
+                            moveDestinationItem = nil
+                            viewModel.isPinboardMenuPresented = false
+                            contextMenuItem = item
+                        }
+                    },
+                    onDragBegin: { onRecordHeartbeat() }
+                )
+            )
     }
 
     @ViewBuilder
@@ -936,38 +788,6 @@ struct KeyboardRootView: View {
         )
         .frame(width: cardSide)
         .contentShape(Rectangle())
-    }
-
-    private func dragText(for item: SharedClipItemSummary) -> String? {
-        let text = item.insertionText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return nil }
-        return text
-    }
-
-    private func imageDragProvider(path: String) -> NSItemProvider {
-        let url = URL(fileURLWithPath: path)
-        let ext = url.pathExtension.lowercased()
-        let utType: UTType
-        switch ext {
-        case "png":  utType = .png
-        case "heic": utType = .heic
-        case "heif": utType = .heif
-        case "tiff", "tif": utType = .tiff
-        default:     utType = .jpeg
-        }
-
-        let provider = NSItemProvider()
-        provider.registerDataRepresentation(forTypeIdentifier: utType.identifier, visibility: .all) { completion in
-            DispatchQueue.global(qos: .userInitiated).async {
-                if let data = try? Data(contentsOf: url) {
-                    completion(data, nil)
-                } else {
-                    completion(nil, CocoaError(.fileReadNoSuchFile))
-                }
-            }
-            return nil
-        }
-        return provider
     }
 
     private func handleItemTap(_ item: SharedClipItemSummary) {
@@ -1054,51 +874,62 @@ struct KeyboardRootView: View {
         showToast("Image copied to clipboard")
     }
 
-    private func contextActionMenuButton(
-        for action: ItemCardContextAction,
-        item: SharedClipItemSummary,
-        compactTitle: Bool = false
-    ) -> some View {
-        Button(role: action == .delete ? .destructive : nil) {
-            DispatchQueue.main.async {
-                self.handleContextAction(action, item: item)
+    private func contextMenuPanel(for item: SharedClipItemSummary) -> some View {
+        let actions: [ItemCardContextAction] = [.copy, .copyPlainText, .moveToPinboard]
+        return VStack(spacing: 0) {
+            ForEach(Array(actions.enumerated()), id: \.element) { idx, action in
+                Button {
+                    withAnimation(.spring(duration: 0.2)) { contextMenuItem = nil }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        handleContextAction(action, item: item)
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: action.systemImage)
+                            .font(.system(size: 15))
+                            .foregroundStyle(.primary)
+                            .frame(width: 24, alignment: .center)
+                        Text(action.title)
+                            .font(.system(size: 16))
+                            .foregroundStyle(.primary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if idx < actions.count - 1 {
+                    Divider().padding(.leading, 52)
+                }
             }
-        } label: {
-            Label(contextActionTitle(for: action, compact: compactTitle), systemImage: action.systemImage)
-                .font(.system(size: 12, weight: .medium))
-                .imageScale(.small)
-        }
-        .controlSize(.small)
-    }
 
-    private func contextActionTitle(for action: ItemCardContextAction, compact: Bool) -> String {
-        if action == .copyPlainText {
-            return "Copy Plain Text"
-        }
-        return action.title
-    }
-
-    @ViewBuilder
-    private func contextMenuContent(for item: SharedClipItemSummary) -> some View {
-        let orderedActions = ItemCardContextAction.ordered
-        let keyboardActions = orderedActions.filter { $0 != .preview && $0 != .share }
-        let nonDeleteActions = keyboardActions.filter { $0 != .delete }
-
-        ForEach(nonDeleteActions, id: \.self) { action in
-            contextActionMenuButton(for: action, item: item)
-        }
-
-        if keyboardActions.contains(.delete) {
             Divider()
-            contextActionMenuButton(for: .delete, item: item)
-        }
-    }
 
-    private func contextMenuPreview(for item: SharedClipItemSummary) -> some View {
-        KeyboardContextPreviewCard(
-            item: item,
-            pinboards: viewModel.pinboards
-        )
+            Button {
+                withAnimation(.spring(duration: 0.2)) { contextMenuItem = nil }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    handleContextAction(.delete, item: item)
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: ItemCardContextAction.delete.systemImage)
+                        .font(.system(size: 15))
+                        .foregroundStyle(.red)
+                        .frame(width: 24, alignment: .center)
+                    Text(ItemCardContextAction.delete.title)
+                        .font(.system(size: 16))
+                        .foregroundStyle(.red)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .modifier(PinboardMenuGlassModifier())
     }
 
     private func handleContextAction(_ action: ItemCardContextAction, item: SharedClipItemSummary) {
@@ -1109,6 +940,8 @@ struct KeyboardRootView: View {
             copyItemToPasteboard(item, asPlainText: true)
         case .preview:
             handlePreviewAction(for: item)
+        case .edit:
+            break
         case .togglePin:
             let feedback = UINotificationFeedbackGenerator()
             feedback.notificationOccurred(.warning)
@@ -1386,6 +1219,182 @@ struct KeyboardRootView: View {
     }
 }
 
+// MARK: - Card interaction overlay
+
+/// Transparent UIKit overlay that owns tap, long-press, and drag gestures for a card.
+/// Using UIKit gesture recognizers directly avoids conflicts that arise when SwiftUI's
+/// `.onDrag` wrapper prevents `.onLongPressGesture` from firing in a keyboard extension.
+private struct CardInteractionOverlay: UIViewRepresentable {
+    let item: SharedClipItemSummary
+    let onTap: () -> Void
+    let onLongPress: () -> Void
+    let onDragBegin: () -> Void
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = true
+
+        let tap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleTap)
+        )
+        tap.delegate = context.coordinator
+
+        let longPress = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleLongPress(_:))
+        )
+        longPress.minimumPressDuration = 0.45
+        longPress.delegate = context.coordinator
+
+        view.addGestureRecognizer(tap)
+        view.addGestureRecognizer(longPress)
+
+        let drag = UIDragInteraction(delegate: context.coordinator)
+        drag.isEnabled = true
+        view.addInteraction(drag)
+
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.item = item
+        context.coordinator.onTap = onTap
+        context.coordinator.onLongPress = onLongPress
+        context.coordinator.onDragBegin = onDragBegin
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(item: item, onTap: onTap, onLongPress: onLongPress, onDragBegin: onDragBegin)
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate, UIDragInteractionDelegate {
+        var item: SharedClipItemSummary
+        var onTap: () -> Void
+        var onLongPress: () -> Void
+        var onDragBegin: () -> Void
+        private var longPressDidFire = false
+
+        init(
+            item: SharedClipItemSummary,
+            onTap: @escaping () -> Void,
+            onLongPress: @escaping () -> Void,
+            onDragBegin: @escaping () -> Void
+        ) {
+            self.item = item
+            self.onTap = onTap
+            self.onLongPress = onLongPress
+            self.onDragBegin = onDragBegin
+        }
+
+        @objc func handleTap() {
+            guard !longPressDidFire else { longPressDidFire = false; return }
+            onTap()
+        }
+
+        @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+            guard gesture.state == .began else { return }
+            longPressDidFire = true
+            onLongPress()
+        }
+
+        // Allow our tap/long-press to coexist with the drag interaction's internal recognizer.
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+        ) -> Bool { true }
+
+        // MARK: UIDragInteractionDelegate
+
+        func dragInteraction(
+            _ interaction: UIDragInteraction,
+            itemsForBeginning session: UIDragSession
+        ) -> [UIDragItem] {
+            onDragBegin()
+            guard let provider = makeDragItemProvider() else { return [] }
+            return [UIDragItem(itemProvider: provider)]
+        }
+
+        func dragInteraction(
+            _ interaction: UIDragInteraction,
+            previewForLifting item: UIDragItem,
+            session: UIDragSession
+        ) -> UITargetedDragPreview? {
+            guard let overlayView = interaction.view else { return nil }
+            let size = overlayView.bounds.size
+            guard size.width > 0 else { return nil }
+
+            // Walk up the hierarchy to find the container that holds both
+            // the card visual and our transparent overlay. SwiftUI's .overlay()
+            // modifier creates a parent that has the base content and overlay
+            // as separate children — it's the first ancestor with the same
+            // bounds as the card and more than one subview.
+            var cardContainer: UIView = overlayView
+            var candidate = overlayView.superview
+            while let c = candidate {
+                if abs(c.bounds.width - size.width) < 1,
+                   abs(c.bounds.height - size.height) < 1,
+                   c.subviews.count >= 2 {
+                    cardContainer = c
+                    break
+                }
+                candidate = c.superview
+            }
+
+            // Render the already-displayed card layer into an image.
+            let renderer = UIGraphicsImageRenderer(size: size)
+            let image = renderer.image { _ in
+                cardContainer.layer.render(in: UIGraphicsGetCurrentContext()!)
+            }
+            let imageView = UIImageView(image: image)
+            imageView.frame = CGRect(origin: .zero, size: size)
+
+            let params = UIDragPreviewParameters()
+            params.visiblePath = UIBezierPath(roundedRect: imageView.bounds, cornerRadius: 12)
+            params.backgroundColor = .clear
+
+            let anchorView = overlayView.superview ?? overlayView
+            let center = CGPoint(x: anchorView.bounds.midX, y: anchorView.bounds.midY)
+            let target = UIDragPreviewTarget(container: anchorView, center: center)
+            return UITargetedDragPreview(view: imageView, parameters: params, target: target)
+        }
+
+        private func makeDragItemProvider() -> NSItemProvider? {
+            if item.itemType == .image, let path = item.thumbnailPath {
+                let url = URL(fileURLWithPath: path)
+                let ext = url.pathExtension.lowercased()
+                let utType: UTType
+                switch ext {
+                case "png":        utType = .png
+                case "heic":       utType = .heic
+                case "heif":       utType = .heif
+                case "tiff", "tif": utType = .tiff
+                default:           utType = .jpeg
+                }
+                let provider = NSItemProvider()
+                provider.registerDataRepresentation(
+                    forTypeIdentifier: utType.identifier,
+                    visibility: .all
+                ) { completion in
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        if let data = try? Data(contentsOf: url) {
+                            completion(data, nil)
+                        } else {
+                            completion(nil, CocoaError(.fileReadNoSuchFile))
+                        }
+                    }
+                    return nil
+                }
+                return provider
+            }
+            let text = item.insertionText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            return NSItemProvider(object: text as NSString)
+        }
+    }
+}
+
 private struct PinboardMenuGlassModifier: ViewModifier {
     private let cornerRadius: CGFloat = 16
 
@@ -1586,99 +1595,6 @@ private struct KeyboardItemCardPresentation {
     }
 }
 
-private struct KeyboardContextPreviewCard: View {
-    let item: SharedClipItemSummary
-    let pinboards: [SharedPinboardSummary]
-
-    private var pres: KeyboardItemCardPresentation {
-        KeyboardItemCardPresentation(item: item, pinboards: pinboards)
-    }
-
-    private let cardCornerRadius: CGFloat = 7
-    private let cardPadding: CGFloat = 8
-    private let headerMinHeight: CGFloat = 22
-
-    var body: some View {
-        header
-            .frame(width: 170, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .fill(headerBackgroundColor)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .strokeBorder(headerBorderColor, lineWidth: 0.5)
-        }
-    }
-
-    private var header: some View {
-        HStack(alignment: .center, spacing: 4) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(pres.title)
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundStyle(headerTextColor)
-                    .lineLimit(1)
-
-                if let subtitle = pres.headerSubtitle {
-                    Text(subtitle)
-                        .font(.system(size: 6.5, weight: .medium))
-                        .foregroundStyle(headerTextColor.opacity(0.74))
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer(minLength: 4)
-
-            if let colorHex = pres.primaryPinboardColorHex {
-                KeyboardPinboardIndicator(
-                    colorHex: colorHex,
-                    sign: pres.primaryPinboardSign,
-                    size: 14
-                )
-            } else {
-                KeyboardSourceAppIconBadge(
-                    bundleID: pres.sourceAppBundleID,
-                    appName: pres.sourceAppName,
-                    iconData: pres.sourceAppIconData,
-                    size: 14
-                )
-            }
-        }
-        .padding(.horizontal, cardPadding)
-        .padding(.vertical, 4)
-        .frame(minHeight: headerMinHeight, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var headerBackgroundColor: Color {
-        if let pinboardHex = pres.primaryPinboardColorHex,
-           let normalizedHex = ColorHex.normalizedHex(from: pinboardHex) {
-            return Color(hex: normalizedHex, fallback: .gray).opacity(0.96)
-        }
-        let hex = KeyboardSourceAppIconBadge.backgroundHex(
-            bundleID: pres.sourceAppBundleID,
-            appName: pres.sourceAppName
-        )
-        return Color(hex: hex, fallback: .gray).opacity(0.94)
-    }
-
-    private var headerTextColor: Color {
-        if let pinboardHex = pres.primaryPinboardColorHex,
-           let normalizedHex = ColorHex.normalizedHex(from: pinboardHex) {
-            return ColorHex.foregroundColor(for: normalizedHex)
-        }
-        return KeyboardSourceAppIconBadge.foregroundColor(
-            bundleID: pres.sourceAppBundleID,
-            appName: pres.sourceAppName
-        )
-    }
-
-    private var headerBorderColor: Color {
-        headerTextColor.opacity(0.28)
-    }
-}
-
 private struct KeyboardItemCardView: View {
     let item: SharedClipItemSummary
     let pinboards: [SharedPinboardSummary]
@@ -1760,7 +1676,7 @@ private struct KeyboardItemCardView: View {
                     size: 16
                 )
             } else {
-                KeyboardSourceAppIconBadge(
+                SourceAppIconBadge(
                     bundleID: pres.sourceAppBundleID,
                     appName: pres.sourceAppName,
                     iconData: pres.sourceAppIconData,
@@ -1942,11 +1858,10 @@ private struct KeyboardItemCardView: View {
            let normalizedHex = ColorHex.normalizedHex(from: pinboardHex) {
             return Color(hex: normalizedHex, fallback: .gray).opacity(0.96)
         }
-        let hex = KeyboardSourceAppIconBadge.backgroundHex(
+        return SourceAppIconDescriptor.resolve(
             bundleID: pres.sourceAppBundleID,
             appName: pres.sourceAppName
-        )
-        return Color(hex: hex, fallback: .gray).opacity(0.94)
+        ).backgroundColor.opacity(0.94)
     }
 
     private var headerTextColor: Color {
@@ -1954,10 +1869,10 @@ private struct KeyboardItemCardView: View {
            let normalizedHex = ColorHex.normalizedHex(from: pinboardHex) {
             return ColorHex.foregroundColor(for: normalizedHex)
         }
-        return KeyboardSourceAppIconBadge.foregroundColor(
+        return SourceAppIconDescriptor.resolve(
             bundleID: pres.sourceAppBundleID,
             appName: pres.sourceAppName
-        )
+        ).foregroundColor
     }
 
     private var cardBackgroundColor: Color {

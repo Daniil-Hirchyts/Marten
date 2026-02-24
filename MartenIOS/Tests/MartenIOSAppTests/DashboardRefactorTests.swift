@@ -1,3 +1,4 @@
+import CloudKit
 import CoreData
 import MartenCore
 @testable import MartenIOSApp
@@ -189,5 +190,81 @@ final class DashboardRefactorTests: XCTestCase {
         let isVisible = model.isItemVisible(item, selectedPinboardID: nil, lockStateStore: lockState)
 
         XCTAssertFalse(isVisible)
+    }
+
+    @MainActor
+    func testReconcilePinboardStateClearsLocksForSharedPinboards() throws {
+        let suiteName = "DashboardRefactorTests-\(UUID().uuidString)"
+        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create test user defaults suite")
+            return
+        }
+        userDefaults.removePersistentDomain(forName: suiteName)
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let privatePinboard = try store.createPinboard(name: "Private", colorHex: "#111111")
+        let sharedPinboard = try store.createPinboard(name: "Shared", colorHex: "#222222")
+
+        let context = persistence.viewContext
+        try context.performAndWaitThrowing {
+            guard let shared = try context.existingObject(with: sharedPinboard.objectID) as? Pinboard else {
+                XCTFail("Missing shared pinboard object")
+                return
+            }
+            guard let metadata = NSEntityDescription.insertNewObject(
+                forEntityName: "ShareMetadata",
+                into: context
+            ) as? ShareMetadata else {
+                XCTFail("Failed to insert ShareMetadata")
+                return
+            }
+            metadata.id = UUID()
+            metadata.shareRecordName = "share-\(UUID().uuidString)"
+            metadata.rootRecordName = "root-\(UUID().uuidString)"
+            metadata.zoneName = "SharedPinboard-\(UUID().uuidString)"
+            metadata.zoneOwnerName = CKCurrentUserDefaultName
+            metadata.isOwner = true
+            metadata.accessControl = .onlyInvited
+            metadata.defaultPermission = .canMakeChanges
+            metadata.pinboard = shared
+            try context.save()
+        }
+
+        let sharedInContext = try context.performAndWaitThrowing {
+            guard let shared = try context.existingObject(with: sharedPinboard.objectID) as? Pinboard else {
+                throw NSError(domain: "DashboardRefactorTests", code: 1)
+            }
+            return shared
+        }
+
+        let container = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: DashboardAlwaysDisabledSyncConfigurationProvider()
+        )
+        container.lockStateStore.setLock(true, for: privatePinboard.id)
+        container.lockStateStore.setLock(true, for: sharedInContext.id)
+
+        let viewModel = DashboardViewModel(dependencies: .live)
+        viewModel.reconcilePinboardState(
+            container: container,
+            customPinboards: [privatePinboard, sharedInContext]
+        )
+
+        XCTAssertTrue(container.lockStateStore.isLocked(privatePinboard.id))
+        XCTAssertFalse(container.lockStateStore.isLocked(sharedInContext.id))
+    }
+}
+
+private struct DashboardAlwaysDisabledSyncConfigurationProvider: MartenIOSSyncConfigurationProviding {
+    func canUseCloudKit(containerIdentifier: String) -> Bool {
+        false
+    }
+
+    func isSyncEnabled(_ userDefaults: UserDefaults) -> Bool {
+        false
     }
 }

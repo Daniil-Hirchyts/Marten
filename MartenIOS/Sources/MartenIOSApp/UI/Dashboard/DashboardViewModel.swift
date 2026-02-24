@@ -28,7 +28,8 @@ final class DashboardViewModel {
     var shareSheetContext: DashboardShareSheetContext?
     var pendingDeleteObjectIDs: [NSManagedObjectID] = []
     var isShowingDeleteConfirmation = false
-    var activeDestination: DashboardActiveDestination?
+    var activePreviewDestination: DashboardPreviewDestination?
+    var activeEditDestination: DashboardEditDestination?
     var navigateToSettings = false
     var pinboardEditorContext: DashboardPinboardEditorContext?
     var pinboardShareContext: DashboardPinboardShareContext?
@@ -131,11 +132,12 @@ final class DashboardViewModel {
     }
 
     func reconcilePinboardState(container: MartenIOSAppContainer, customPinboards: [Pinboard]) {
-        let validIDs = Set(customPinboards.map(\.id))
-        container.lockStateStore.reconcile(validPinboardIDs: validIDs)
+        let allValidIDs = Set(customPinboards.map(\.id))
+        let lockableIDs = Set(customPinboards.filter { !$0.isShared }.map(\.id))
+        container.lockStateStore.reconcile(validPinboardIDs: lockableIDs)
 
         if let selectedPinboardID = container.selectedPinboardID,
-           !validIDs.contains(selectedPinboardID)
+           !allValidIDs.contains(selectedPinboardID)
         {
             container.setSelectedPinboardID(nil)
         }
@@ -161,7 +163,7 @@ final class DashboardViewModel {
         guard !customAssignments.isEmpty else { return true }
 
         return !customAssignments.contains { pinboard in
-            lockStateStore.isLocked(pinboard.id) && !lockStateStore.canAccess(pinboard.id)
+            !pinboard.isShared && lockStateStore.isLocked(pinboard.id) && !lockStateStore.canAccess(pinboard.id)
         }
     }
 
@@ -193,15 +195,43 @@ final class DashboardViewModel {
 
         switch item.itemTypeValue {
         case .text, .richText:
-            activeDestination = .richText(item.objectID)
+            activePreviewDestination = .text(item.objectID)
         case .image:
-            activeDestination = .image(item.objectID)
+            activePreviewDestination = .image(item.objectID)
         case .code:
-            activeDestination = .code(item.objectID)
+            activePreviewDestination = .code(item.objectID)
         case .url:
-            activeDestination = .url(item.objectID)
+            activePreviewDestination = .url(item.objectID)
+        case .color:
+            activePreviewDestination = .color(item.objectID)
         default:
             copyItems([item.objectID], container: container)
+        }
+    }
+
+    func handleItemEdit(_ item: ClipItem, container: MartenIOSAppContainer) {
+        searchModel?.donateOpenItem(item)
+
+        switch item.itemTypeValue {
+        case .text, .richText:
+            activeEditDestination = .richText(item.objectID)
+        case .image:
+            activeEditDestination = .image(item.objectID)
+        case .code:
+            activeEditDestination = .code(item.objectID)
+        case .url:
+            activeEditDestination = .url(item.objectID)
+        case .color:
+            activeEditDestination = .color(item.objectID)
+        default:
+            copyItems([item.objectID], container: container)
+        }
+    }
+
+    func transitionFromPreviewToEdit(_ destination: DashboardEditDestination) {
+        activePreviewDestination = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            self.activeEditDestination = destination
         }
     }
 

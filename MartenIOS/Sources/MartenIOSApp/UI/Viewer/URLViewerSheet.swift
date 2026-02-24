@@ -4,11 +4,11 @@ import WebKit
 
 struct URLViewerSheet: View {
     let item: ClipItem
+    var onEdit: (() -> Void)? = nil
     
     @Environment(\.dismiss) private var dismiss
     @State private var url: URL?
     @State private var webViewState = WebViewState()
-    @State private var showShareSheet = false
     
     var body: some View {
         NavigationStack {
@@ -34,6 +34,14 @@ struct URLViewerSheet: View {
                 }
                 
                 ToolbarItemGroup(placement: .primaryAction) {
+                    if let onEdit {
+                        Button {
+                            onEdit()
+                        } label: {
+                            Image(systemName: "pencil")
+                        }
+                    }
+
                     if url != nil {
                         Button {
                             webViewState.goBack()

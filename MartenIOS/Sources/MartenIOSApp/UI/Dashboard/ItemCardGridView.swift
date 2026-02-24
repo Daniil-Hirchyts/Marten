@@ -12,6 +12,7 @@ struct ItemCardGridView: View {
     let onCopyItem: (ClipItem) -> Void
     let onCopyPlainTextItem: (ClipItem) -> Void
     let onPreviewItem: (ClipItem) -> Void
+    let onEditItem: (ClipItem) -> Void
     let onTogglePinItem: (ClipItem) -> Void
     let onShareItem: (ClipItem) -> Void
     let onMoveItem: (ClipItem) -> Void
@@ -60,6 +61,7 @@ struct ItemCardGridView: View {
                 onCopyItem: onCopyItem,
                 onCopyPlainTextItem: onCopyPlainTextItem,
                 onPreviewItem: onPreviewItem,
+                onEditItem: onEditItem,
                 onTogglePinItem: onTogglePinItem,
                 onShareItem: onShareItem,
                 onMoveItem: onMoveItem,
@@ -120,6 +122,7 @@ struct ItemCardGridView: View {
             onCopy: { onCopyItem(item) },
             onCopyPlainText: { onCopyPlainTextItem(item) },
             onPreview: { onPreviewItem(item) },
+            onEdit: { onEditItem(item) },
             onTogglePin: { onTogglePinItem(item) },
             onShare: { onShareItem(item) },
             onMove: { onMoveItem(item) },

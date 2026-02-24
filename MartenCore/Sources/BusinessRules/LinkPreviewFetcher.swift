@@ -1,6 +1,8 @@
 import Foundation
-import LinkPresentation
 import os.log
+#if canImport(LinkPresentation)
+import LinkPresentation
+#endif
 #if canImport(AppKit)
 import AppKit
 private typealias PlatformImage = NSImage
@@ -92,6 +94,7 @@ public final class LinkPreviewFetcher {
             throw LinkPreviewError.invalidURL
         }
 
+        #if canImport(LinkPresentation)
         // Strategy: try LPMetadataProvider first. If it fails or returns no image,
         // fall back to lightweight Open Graph HTML parsing.
         if let lpResult = await tryLPMetadataProvider(for: url) {
@@ -100,6 +103,9 @@ public final class LinkPreviewFetcher {
         }
 
         logger.info("LPMetadataProvider failed or had no image, trying OG fallback for \(url.absoluteString, privacy: .public)")
+        #else
+        logger.info("LinkPresentation unavailable, trying OG fallback for \(url.absoluteString, privacy: .public)")
+        #endif
 
         if let ogResult = await tryOpenGraphFallback(for: url) {
             logger.debug("OG fallback succeeded for \(url.absoluteString, privacy: .public)")
@@ -112,6 +118,7 @@ public final class LinkPreviewFetcher {
 
     // MARK: - LPMetadataProvider path
 
+    #if canImport(LinkPresentation)
     private func tryLPMetadataProvider(for url: URL) async -> LinkPreviewPayload? {
         do {
             let metadata = try await withTimeout(seconds: Self.lpFetchTimeoutSeconds) {
@@ -148,6 +155,7 @@ public final class LinkPreviewFetcher {
             return nil
         }
     }
+    #endif
 
     // MARK: - Open Graph HTML fallback
 
@@ -298,6 +306,7 @@ public final class LinkPreviewFetcher {
         return data
     }
 
+    #if canImport(LinkPresentation)
     private func loadImage(from provider: NSItemProvider) async throws -> Data? {
         let image: PlatformImage = try await withCheckedThrowingContinuation { continuation in
             provider.loadObject(ofClass: PlatformImage.self) { object, error in
@@ -314,6 +323,7 @@ public final class LinkPreviewFetcher {
         }
         return pngData(from: image)
     }
+    #endif
 
     private func pngData(from image: PlatformImage) -> Data? {
         #if canImport(AppKit)

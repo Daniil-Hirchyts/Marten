@@ -36,7 +36,7 @@ struct ItemCardHeaderView: View {
                 PinboardIndicator(
                     colorHex: colorHex,
                     sign: sign,
-                    size: 30,
+                    size: 20,
                     showBorder: false
                 )
             } else {
@@ -44,7 +44,8 @@ struct ItemCardHeaderView: View {
                     bundleID: presentation.sourceAppBundleID,
                     appName: presentation.sourceAppDisplayName,
                     iconData: presentation.sourceAppIconData,
-                    size: 30
+                    size: 20,
+                    showBackground: false
                 )
             }
 
@@ -66,7 +67,7 @@ struct ItemCardHeaderView: View {
             }
         }
         .padding(.horizontal, cardPadding)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
         .frame(minHeight: headerMinHeight, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(

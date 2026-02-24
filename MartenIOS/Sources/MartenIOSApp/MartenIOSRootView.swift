@@ -53,6 +53,11 @@ public struct MartenIOSRootView: View {
                 }
                 #endif
             }
+            .onReceive(NotificationCenter.default.publisher(for: MartenIOSNotifications.cloudKitRemoteChangeReceived)) { _ in
+                Task {
+                    await bootstrap.container.handleCloudKitPushNotification()
+                }
+            }
             .onOpenURL { url in
                 bootstrap.container.handleDeepLink(url)
             }

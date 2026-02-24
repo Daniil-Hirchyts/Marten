@@ -14,7 +14,8 @@ struct ShareSettingsSheet: View {
         sharingRepository: any PinboardSharingRepositoryProtocol,
         initialAccessControl: ShareAccessControl = .onlyInvited,
         initialPermission: SharePermission = .canMakeChanges,
-        initialShareURL: URL? = nil
+        initialShareURL: URL? = nil,
+        isPinboardLocked: @escaping @MainActor () -> Bool = { false }
     ) {
         _viewModel = State(
             initialValue: ShareSettingsViewModel(
@@ -22,7 +23,8 @@ struct ShareSettingsSheet: View {
                 sharingRepository: sharingRepository,
                 initialAccessControl: initialAccessControl,
                 initialDefaultPermission: initialPermission,
-                initialShareURL: initialShareURL
+                initialShareURL: initialShareURL,
+                isPinboardLocked: isPinboardLocked
             )
         )
     }
@@ -45,6 +47,14 @@ struct ShareSettingsSheet: View {
                         Text(errorMessage)
                             .font(.subheadline)
                             .foregroundStyle(.red)
+                    }
+                }
+
+                if model.isLockedForSharing {
+                    Section {
+                        Text("Unlock this pinboard before creating a share link.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -155,7 +165,7 @@ struct ShareSettingsSheet: View {
                                 await model.createShare()
                             }
                         }
-                        .disabled(model.isCreatingShare || model.isLoading)
+                        .disabled(model.isCreatingShare || model.isLoading || model.isLockedForSharing)
                     }
                 }
                 if model.hasShareLink && model.isOwner {

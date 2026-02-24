@@ -2,6 +2,7 @@ public enum ItemCardContextAction: String, CaseIterable, Sendable {
     case copy
     case copyPlainText
     case preview
+    case edit
     case togglePin
     case share
     case moveToPinboard
@@ -11,6 +12,7 @@ public enum ItemCardContextAction: String, CaseIterable, Sendable {
         .copy,
         .copyPlainText,
         .preview,
+        .edit,
         .share,
         .moveToPinboard,
         .delete,
@@ -22,6 +24,7 @@ public enum ItemCardContextAction: String, CaseIterable, Sendable {
                 .copy,
                 .copyPlainText,
                 .preview,
+                .edit,
                 .togglePin,
                 .share,
                 .moveToPinboard,
@@ -39,6 +42,8 @@ public enum ItemCardContextAction: String, CaseIterable, Sendable {
             return "Copy as Plain Text"
         case .preview:
             return "Preview"
+        case .edit:
+            return "Edit"
         case .togglePin:
             return "Pin"
         case .share:
@@ -58,6 +63,8 @@ public enum ItemCardContextAction: String, CaseIterable, Sendable {
             return "textformat"
         case .preview:
             return "eye"
+        case .edit:
+            return "pencil"
         case .togglePin:
             return "pin"
         case .share:

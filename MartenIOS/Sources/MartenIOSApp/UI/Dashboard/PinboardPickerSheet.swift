@@ -49,6 +49,7 @@ struct PinboardPickerSheet: View {
 
                 ForEach(orderedPinboards, id: \.objectID) { pinboard in
                     pinboardRow(pinboard)
+                        .contentShape(.dragPreview, RoundedRectangle(cornerRadius: rowCornerRadius))
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
@@ -62,6 +63,10 @@ struct PinboardPickerSheet: View {
                             .accessibilityLabel("Delete")
                         }
                         .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            let supportsLock = !pinboard.isShared
+                            let isLocked = supportsLock && lockStateStore.isLocked(pinboard.id)
+                            let canAccess = !isLocked || lockStateStore.canAccess(pinboard.id)
+
                             Button {
                                 onEdit(pinboard)
                             } label: {
@@ -70,8 +75,9 @@ struct PinboardPickerSheet: View {
                             .tint(.blue)
                             .accessibilityLabel("Edit")
 
-                            if container.sharingRepository != nil {
+                            if container.sharingRepository != nil && (pinboard.isShared || !isLocked) {
                                 Button {
+                                    guard container.canOpenShareSettings(for: pinboard) else { return }
                                     onShare(pinboard)
                                 } label: {
                                     MartenSwipeActionIcon(
@@ -84,35 +90,34 @@ struct PinboardPickerSheet: View {
                                 .accessibilityLabel("Share")
                             }
 
-                            let isLocked = lockStateStore.isLocked(pinboard.id)
-                            let canAccess = lockStateStore.canAccess(pinboard.id)
+                            if supportsLock {
+                                if isLocked {
+                                    if canAccess {
+                                        Button {
+                                            container.lockPinboardNow(pinboard)
+                                        } label: {
+                                            MartenSwipeActionIcon(systemName: "lock.fill", backgroundColor: .orange, label: "Lock")
+                                        }
+                                        .tint(.orange)
+                                        .accessibilityLabel("Lock")
+                                    }
 
-                            if isLocked {
-                                if canAccess {
                                     Button {
-                                        lockStateStore.lockNow(pinboardID: pinboard.id)
+                                        container.setPinboardLock(false, for: pinboard)
                                     } label: {
-                                        MartenSwipeActionIcon(systemName: "lock.fill", backgroundColor: .orange, label: "Lock")
+                                        MartenSwipeActionIcon(systemName: "lock.slash", backgroundColor: .gray, label: "Disable")
+                                    }
+                                    .tint(.gray)
+                                    .accessibilityLabel("Disable Lock")
+                                } else {
+                                    Button {
+                                        container.setPinboardLock(true, for: pinboard)
+                                    } label: {
+                                        MartenSwipeActionIcon(systemName: "lock", backgroundColor: .orange, label: "Lock")
                                     }
                                     .tint(.orange)
                                     .accessibilityLabel("Lock")
                                 }
-
-                                Button {
-                                    lockStateStore.setLock(false, for: pinboard.id)
-                                } label: {
-                                    MartenSwipeActionIcon(systemName: "lock.slash", backgroundColor: .gray, label: "Disable")
-                                }
-                                .tint(.gray)
-                                .accessibilityLabel("Disable Lock")
-                            } else {
-                                Button {
-                                    lockStateStore.setLock(true, for: pinboard.id)
-                                } label: {
-                                    MartenSwipeActionIcon(systemName: "lock", backgroundColor: .orange, label: "Lock")
-                                }
-                                .tint(.orange)
-                                .accessibilityLabel("Lock")
                             }
                         }
                 }
@@ -154,8 +159,9 @@ struct PinboardPickerSheet: View {
     }
 
     private func pinboardRow(_ pinboard: Pinboard) -> some View {
-        let isLocked = lockStateStore.isLocked(pinboard.id)
-        let canAccess = lockStateStore.canAccess(pinboard.id)
+        let supportsLock = !pinboard.isShared
+        let isLocked = supportsLock && lockStateStore.isLocked(pinboard.id)
+        let canAccess = !isLocked || lockStateStore.canAccess(pinboard.id)
 
         return Button {
             if isLocked && !canAccess {
@@ -186,4 +192,3 @@ struct PinboardPickerSheet: View {
         .buttonStyle(.plain)
     }
 }
-

@@ -50,6 +50,7 @@ struct PinboardSelectionRow: View {
             .padding(.vertical, 10)
             .contentShape(Rectangle())
         }
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: cornerRadius))
     }
 
     @ViewBuilder

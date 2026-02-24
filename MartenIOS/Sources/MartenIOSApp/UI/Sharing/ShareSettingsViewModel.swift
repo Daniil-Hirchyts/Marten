@@ -27,6 +27,7 @@ final class ShareSettingsViewModel {
     var workflowMessage: String?
 
     private let sharingRepository: any PinboardSharingRepositoryProtocol
+    private let isPinboardLocked: @MainActor () -> Bool
     let pinboardID: NSManagedObjectID
 
     private var loadedAccessControl: ShareAccessControl
@@ -38,10 +39,12 @@ final class ShareSettingsViewModel {
         sharingRepository: any PinboardSharingRepositoryProtocol,
         initialAccessControl: ShareAccessControl = .onlyInvited,
         initialDefaultPermission: SharePermission = .canMakeChanges,
-        initialShareURL: URL? = nil
+        initialShareURL: URL? = nil,
+        isPinboardLocked: @escaping @MainActor () -> Bool = { false }
     ) {
         self.pinboardID = pinboardID
         self.sharingRepository = sharingRepository
+        self.isPinboardLocked = isPinboardLocked
         self.accessControl = initialAccessControl
         self.defaultPermission = initialDefaultPermission
         self.shareURL = initialShareURL
@@ -50,6 +53,7 @@ final class ShareSettingsViewModel {
     }
 
     var hasShareLink: Bool { shareURL != nil }
+    var isLockedForSharing: Bool { !hasShareLink && isPinboardLocked() }
 
     var hasPendingSettingsChanges: Bool {
         guard hasShareLink else { return false }
@@ -73,6 +77,10 @@ final class ShareSettingsViewModel {
 
     func createShare() async {
         guard !isCreatingShare else { return }
+        guard !isLockedForSharing else {
+            present(error: PinboardSharingError.cannotShareLockedPinboard)
+            return
+        }
         isCreatingShare = true
         errorMessage = nil
         workflowMessage = nil

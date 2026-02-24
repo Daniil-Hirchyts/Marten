@@ -58,6 +58,49 @@ final class MartenIOSAppContainerSharingTests: XCTestCase {
         XCTAssertEqual(container.selectedPinboardID, pinboard.id)
     }
 
+    func testSetPinboardLockRejectsSharedPinboard() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let pinboard = try makeSharedPinboard(in: persistence)
+
+        let container = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider()
+        )
+
+        container.lockStateStore.setLock(true, for: pinboard.id)
+        container.setPinboardLock(true, for: pinboard)
+
+        XCTAssertFalse(container.lockStateStore.isLocked(pinboard.id))
+        XCTAssertEqual(
+            container.lastOperationErrorMessage,
+            PinboardSharingError.cannotLockSharedPinboard.localizedDescription
+        )
+    }
+
+    func testCanOpenShareSettingsRejectsLockedUnsharedPinboard() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let pinboard = try store.createPinboard(name: "Private", colorHex: "#112233")
+
+        let container = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider()
+        )
+
+        container.lockStateStore.setLock(true, for: pinboard.id)
+
+        XCTAssertFalse(container.canOpenShareSettings(for: pinboard))
+        XCTAssertEqual(
+            container.lastOperationErrorMessage,
+            PinboardSharingError.cannotShareLockedPinboard.localizedDescription
+        )
+    }
+
     private func makeSharedPinboard(in persistence: PersistenceController) throws -> Pinboard {
         let context = persistence.viewContext
         guard let pinboard = NSEntityDescription.insertNewObject(

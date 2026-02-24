@@ -1,4 +1,6 @@
 import Foundation
+
+#if canImport(FoundationModels)
 import FoundationModels
 
 public actor AppleIntelligenceTextService: AppleIntelligenceTextTransforming {
@@ -118,3 +120,18 @@ extension AppleIntelligenceTextService {
         }
     }
 }
+#else
+public actor AppleIntelligenceTextService: AppleIntelligenceTextTransforming {
+    public init() {}
+
+    public func availability(for locale: Locale) async -> AppleIntelligenceAvailability {
+        .unavailable(.deviceNotEligible)
+    }
+
+    public func transform(_ text: String, action: AppleIntelligenceTextAction, locale: Locale)
+        async throws -> String
+    {
+        throw AppleIntelligenceTextTransformationError.unavailable(.deviceNotEligible)
+    }
+}
+#endif

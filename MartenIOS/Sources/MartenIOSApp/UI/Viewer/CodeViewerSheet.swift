@@ -7,6 +7,7 @@ import UIKit
 
 struct CodeViewerSheet: View {
     let item: ClipItem
+    var onEdit: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var highlightedSource: AttributedString = AttributedString("")
@@ -68,6 +69,14 @@ struct CodeViewerSheet: View {
                         )
                     }
                     .accessibilityHint("Copy code to clipboard")
+
+                    if let onEdit {
+                        Button {
+                            onEdit()
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                    }
                 }
             }
             .task(id: item.objectID) {

@@ -119,4 +119,12 @@ public actor ClipItemCommandService {
             rtfData: rtfData
         )
     }
+
+    public func updateTextItem(objectID: NSManagedObjectID, newText: String) throws {
+        _ = try store.updateTextItem(objectID: objectID, newText: newText)
+    }
+
+    public func updateImageData(objectID: NSManagedObjectID, imageData: Data) throws {
+        try store.updateImageData(objectID: objectID, imageData: imageData)
+    }
 }

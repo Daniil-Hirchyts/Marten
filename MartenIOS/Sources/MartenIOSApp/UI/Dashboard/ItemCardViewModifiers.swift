@@ -36,6 +36,7 @@ struct ContextMenuModifier: ViewModifier {
     let onCopy: () -> Void
     let onCopyPlainText: () -> Void
     let onPreview: () -> Void
+    let onEdit: () -> Void
     let onTogglePin: () -> Void
     let onShare: () -> Void
     let onMove: () -> Void
@@ -81,6 +82,8 @@ struct ContextMenuModifier: ViewModifier {
             onCopyPlainText()
         case .preview:
             onPreview()
+        case .edit:
+            onEdit()
         case .togglePin:
             onTogglePin()
         case .share:

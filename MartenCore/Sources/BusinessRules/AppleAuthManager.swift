@@ -1,3 +1,4 @@
+#if !os(watchOS)
 import AuthenticationServices
 import Foundation
 #if canImport(AppKit)
@@ -235,3 +236,4 @@ extension AppleAuthManager: ASAuthorizationControllerDelegate, ASAuthorizationCo
         #endif
     }
 }
+#endif

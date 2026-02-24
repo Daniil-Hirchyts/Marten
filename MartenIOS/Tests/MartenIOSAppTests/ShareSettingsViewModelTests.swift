@@ -47,6 +47,26 @@ final class ShareSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.participants.count, 1)
     }
 
+    func testCreateShareBlockedWhenPinboardIsLocked() async throws {
+        let persistence = PersistenceController(inMemory: true)
+        let pinboardID = try makePinboardID(in: persistence)
+        let repository = MockPinboardSharingRepository()
+
+        let viewModel = ShareSettingsViewModel(
+            pinboardID: pinboardID,
+            sharingRepository: repository,
+            isPinboardLocked: { true }
+        )
+
+        await viewModel.createShare()
+
+        XCTAssertEqual(repository.createShareCalls, 0)
+        XCTAssertEqual(
+            viewModel.errorMessage,
+            PinboardSharingError.cannotShareLockedPinboard.localizedDescription
+        )
+    }
+
     func testInviteParticipantRejectsInvalidEmail() async throws {
         let persistence = PersistenceController(inMemory: true)
         let pinboardID = try makePinboardID(in: persistence)

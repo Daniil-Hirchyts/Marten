@@ -161,9 +161,9 @@ struct ItemCardPreviewContent: View {
             for: ColorHex.normalizedHex(from: hex) ?? "#808080"
         )
 
-        return RoundedRectangle(cornerRadius: 10)
+        return Rectangle()
             .fill(background)
-            .frame(height: 56)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 Text(presentation.snippet ?? hex)
                     .font(.caption.weight(.semibold).monospaced())

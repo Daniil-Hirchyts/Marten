@@ -1,12 +1,21 @@
 import SwiftUI
 
-struct SourceAppIconBadge: View {
-    let bundleID: String?
-    let appName: String?
-    let iconData: Data?
-    var size: CGFloat = 30
+public struct SourceAppIconBadge: View {
+    public let bundleID: String?
+    public let appName: String?
+    public let iconData: Data?
+    public var size: CGFloat = 30
+    public var showBackground: Bool = true
 
     @State private var remoteIcon: PlatformImage?
+
+    public init(bundleID: String?, appName: String?, iconData: Data?, size: CGFloat = 30, showBackground: Bool = true) {
+        self.bundleID = bundleID
+        self.appName = appName
+        self.iconData = iconData
+        self.size = size
+        self.showBackground = showBackground
+    }
 
     private var descriptor: SourceAppIconDescriptor {
         SourceAppIconDescriptor.resolve(bundleID: bundleID, appName: appName)
@@ -29,12 +38,14 @@ struct SourceAppIconBadge: View {
         #endif
     }
 
-    var body: some View {
+    public var body: some View {
         let bundleID = normalizedBundleID
 
         ZStack {
-            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                .fill(descriptor.backgroundColor)
+            if showBackground {
+                RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                    .fill(descriptor.backgroundColor)
+            }
 
             if let embeddedIcon {
                 remoteIconView(embeddedIcon)
@@ -53,8 +64,12 @@ struct SourceAppIconBadge: View {
         }
         .frame(width: size, height: size)
         .overlay(
-            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                .strokeBorder(descriptor.foregroundColor.opacity(0.2), lineWidth: 0.5)
+            Group {
+                if showBackground {
+                    RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                        .strokeBorder(descriptor.foregroundColor.opacity(0.2), lineWidth: 0.5)
+                }
+            }
         )
         .accessibilityHidden(true)
         .task(id: taskID(bundleID: bundleID)) {

@@ -22,6 +22,7 @@ final class ItemCardCollectionViewController: UIViewController {
     private let onCopyItem: (ClipItem) -> Void
     private let onCopyPlainTextItem: (ClipItem) -> Void
     private let onPreviewItem: (ClipItem) -> Void
+    private let onEditItem: (ClipItem) -> Void
     private let onTogglePinItem: (ClipItem) -> Void
     private let onShareItem: (ClipItem) -> Void
     private let onMoveItem: (ClipItem) -> Void
@@ -31,6 +32,7 @@ final class ItemCardCollectionViewController: UIViewController {
     private let onSwipeToPreviousPinboard: () -> Void
 
     private let dragPayloadBuilder = ItemCardDragPayloadBuilder()
+    private let cardCornerRadius: CGFloat = 20
 
     private var itemsByID: [NSManagedObjectID: ClipItem] = [:]
     private var orderedIDs: [NSManagedObjectID] = []
@@ -76,6 +78,7 @@ final class ItemCardCollectionViewController: UIViewController {
     private var panSelectionAction: PanSelectionAction?
     private var panVisitedObjectIDs: Set<NSManagedObjectID> = []
     private var wasScrollEnabledBeforePan = true
+    private var isPanSelectionInProgress = false
 
     private lazy var flowLayout: UICollectionViewFlowLayout = {
         let layout = UICollectionViewFlowLayout()
@@ -103,6 +106,7 @@ final class ItemCardCollectionViewController: UIViewController {
     private lazy var dataSource: UICollectionViewDiffableDataSource<Section, NSManagedObjectID> = {
         let registration = UICollectionView.CellRegistration<UICollectionViewCell, NSManagedObjectID> { [weak self] cell, _, objectID in
             guard let self else { return }
+            self.configureCellAppearance(cell)
             guard let item = self.itemsByID[objectID] else {
                 cell.contentConfiguration = nil
                 return
@@ -122,6 +126,7 @@ final class ItemCardCollectionViewController: UIViewController {
                     onCopy: { self.onCopyItem(item) },
                     onCopyPlainText: { self.onCopyPlainTextItem(item) },
                     onPreview: { self.onPreviewItem(item) },
+                    onEdit: { self.onEditItem(item) },
                     onShare: { self.onShareItem(item) },
                     onMove: { self.onMoveItem(item) },
                     onDelete: { self.onDeleteItem(item) }
@@ -143,6 +148,7 @@ final class ItemCardCollectionViewController: UIViewController {
         onCopyItem: @escaping (ClipItem) -> Void,
         onCopyPlainTextItem: @escaping (ClipItem) -> Void,
         onPreviewItem: @escaping (ClipItem) -> Void,
+        onEditItem: @escaping (ClipItem) -> Void,
         onTogglePinItem: @escaping (ClipItem) -> Void,
         onShareItem: @escaping (ClipItem) -> Void,
         onMoveItem: @escaping (ClipItem) -> Void,
@@ -156,6 +162,7 @@ final class ItemCardCollectionViewController: UIViewController {
         self.onCopyItem = onCopyItem
         self.onCopyPlainTextItem = onCopyPlainTextItem
         self.onPreviewItem = onPreviewItem
+        self.onEditItem = onEditItem
         self.onTogglePinItem = onTogglePinItem
         self.onShareItem = onShareItem
         self.onMoveItem = onMoveItem
@@ -255,7 +262,7 @@ final class ItemCardCollectionViewController: UIViewController {
         let reconfigurable = ids.filter { snapshot.indexOfItem($0) != nil }
         guard !reconfigurable.isEmpty else { return }
         snapshot.reconfigureItems(reconfigurable)
-        dataSource.apply(snapshot, animatingDifferences: false)
+        dataSource.apply(snapshot, animatingDifferences: true)
     }
 
     private func synchronizeSelectionToCollectionView() {
@@ -276,12 +283,13 @@ final class ItemCardCollectionViewController: UIViewController {
             }
         }
 
+        let currentlySelected = Set(collectionView.indexPathsForSelectedItems ?? [])
         for (index, id) in orderedIDs.enumerated() {
             guard desiredSelection.contains(id) else { continue }
             let indexPath = IndexPath(item: index, section: 0)
-            if collectionView.cellForItem(at: indexPath) != nil {
-                collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
-            }
+            guard collectionView.cellForItem(at: indexPath) != nil else { continue }
+            guard !currentlySelected.contains(indexPath) else { continue }
+            collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
         }
     }
 
@@ -324,6 +332,7 @@ final class ItemCardCollectionViewController: UIViewController {
 
             wasScrollEnabledBeforePan = collectionView.isScrollEnabled
             collectionView.isScrollEnabled = false
+            isPanSelectionInProgress = true
 
             panVisitedObjectIDs.removeAll(keepingCapacity: true)
             panSelectionAction = selectedObjectIDs.contains(objectID) ? .deselect : .select
@@ -338,6 +347,7 @@ final class ItemCardCollectionViewController: UIViewController {
             applyPanSelection(to: objectID, at: indexPath)
 
         case .ended, .cancelled, .failed:
+            isPanSelectionInProgress = false
             collectionView.isScrollEnabled = wasScrollEnabledBeforePan
             wasScrollEnabledBeforePan = true
 
@@ -378,14 +388,79 @@ final class ItemCardCollectionViewController: UIViewController {
             guard !selectedObjectIDs.contains(objectID) else { return }
             selectedObjectIDs.insert(objectID)
             collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
-            reconfigureItems([objectID])
 
         case .deselect:
             guard selectedObjectIDs.contains(objectID) else { return }
             selectedObjectIDs.remove(objectID)
             collectionView.deselectItem(at: indexPath, animated: false)
-            reconfigureItems([objectID])
         }
+
+        // Directly update the cell's content configuration to avoid going through
+        // dataSource.apply (which triggers performBatchUpdates, causing layout passes
+        // that resize cells at the viewport edges and shift contentOffset).
+        if let cell = collectionView.cellForItem(at: indexPath),
+           let item = itemsByID[objectID] {
+            applyPanCellConfiguration(to: cell, item: item)
+        }
+    }
+
+    private func applyPanCellConfiguration(to cell: UICollectionViewCell, item: ClipItem) {
+        cell.contentConfiguration = UIHostingConfiguration {
+            ItemCardView(
+                item: item,
+                isSelectionMode: self.isSelectionMode,
+                isSelected: self.selectedObjectIDs.contains(item.objectID),
+                handlesTapGesture: false,
+                handlesPressGesture: false,
+                showsContextMenu: false,
+                showsSelectionFeedback: false,
+                allowPinning: self.allowPinning,
+                onTap: {},
+                onCopy: { self.onCopyItem(item) },
+                onCopyPlainText: { self.onCopyPlainTextItem(item) },
+                onPreview: { self.onPreviewItem(item) },
+                onEdit: { self.onEditItem(item) },
+                onShare: { self.onShareItem(item) },
+                onMove: { self.onMoveItem(item) },
+                onDelete: { self.onDeleteItem(item) }
+            )
+            .allowsHitTesting(false)
+        }
+        .margins(.all, 0)
+    }
+
+    private func configureCellAppearance(_ cell: UICollectionViewCell) {
+        cell.backgroundColor = .clear
+        cell.contentView.backgroundColor = .clear
+        if cell.selectedBackgroundView == nil {
+            let selectedBackground = UIView()
+            selectedBackground.backgroundColor = .clear
+            cell.selectedBackgroundView = selectedBackground
+        } else {
+            cell.selectedBackgroundView?.backgroundColor = .clear
+        }
+    }
+
+    private func previewPath(for cell: UICollectionViewCell) -> UIBezierPath {
+        UIBezierPath(roundedRect: cell.contentView.bounds, cornerRadius: cardCornerRadius)
+    }
+
+    private func contextMenuTargetedPreview(for configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+        guard let objectID = configuration.identifier as? NSManagedObjectID,
+              let itemIndex = orderedIDs.firstIndex(of: objectID)
+        else {
+            return nil
+        }
+
+        let indexPath = IndexPath(item: itemIndex, section: 0)
+        guard let cell = collectionView.cellForItem(at: indexPath) else {
+            return nil
+        }
+
+        let parameters = UIPreviewParameters()
+        parameters.backgroundColor = .clear
+        parameters.visiblePath = previewPath(for: cell)
+        return UITargetedPreview(view: cell.contentView, parameters: parameters)
     }
 }
 
@@ -398,6 +473,7 @@ extension ItemCardCollectionViewController: UICollectionViewDelegate {
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        guard !isPanSelectionInProgress else { return }
         guard let objectID = dataSource.itemIdentifier(for: indexPath),
               let item = itemsByID[objectID] else {
             return
@@ -415,6 +491,7 @@ extension ItemCardCollectionViewController: UICollectionViewDelegate {
     }
 
     func collectionView(_ collectionView: UICollectionView, didDeselectItemAt indexPath: IndexPath) {
+        guard !isPanSelectionInProgress else { return }
         guard let objectID = dataSource.itemIdentifier(for: indexPath) else { return }
         guard isSelectionMode else { return }
 
@@ -445,13 +522,27 @@ extension ItemCardCollectionViewController: UICollectionViewDelegate {
             return nil
         }
 
-        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+        return UIContextMenuConfiguration(identifier: objectID, previewProvider: nil) { [weak self] _ in
             guard let self else { return nil }
             let actions = ItemCardContextAction.ordered(allowPinning: self.allowPinning).map {
                 self.menuAction(for: $0, item: item)
             }
             return UIMenu(children: actions)
         }
+    }
+
+    func collectionView(
+        _ collectionView: UICollectionView,
+        previewForHighlightingContextMenuWithConfiguration configuration: UIContextMenuConfiguration
+    ) -> UITargetedPreview? {
+        contextMenuTargetedPreview(for: configuration)
+    }
+
+    func collectionView(
+        _ collectionView: UICollectionView,
+        previewForDismissingContextMenuWithConfiguration configuration: UIContextMenuConfiguration
+    ) -> UITargetedPreview? {
+        contextMenuTargetedPreview(for: configuration)
     }
 
     private func menuAction(for action: ItemCardContextAction, item: ClipItem) -> UIAction {
@@ -480,6 +571,8 @@ extension ItemCardCollectionViewController: UICollectionViewDelegate {
                 self.onCopyPlainTextItem(item)
             case .preview:
                 self.onPreviewItem(item)
+            case .edit:
+                self.onEditItem(item)
             case .togglePin:
                 self.onTogglePinItem(item)
             case .share:
@@ -500,6 +593,17 @@ extension ItemCardCollectionViewController: UICollectionViewDragDelegate {
 
     func collectionView(_ collectionView: UICollectionView, dragSessionDidEnd session: UIDragSession) {
         isReorderingInProgress = false
+    }
+
+    func collectionView(_ collectionView: UICollectionView, dragPreviewParametersForItemAt indexPath: IndexPath) -> UIDragPreviewParameters? {
+        guard let cell = collectionView.cellForItem(at: indexPath) else {
+            return nil
+        }
+
+        let parameters = UIDragPreviewParameters()
+        parameters.backgroundColor = .clear
+        parameters.visiblePath = previewPath(for: cell)
+        return parameters
     }
 
     func collectionView(_ collectionView: UICollectionView, itemsForBeginning session: UIDragSession, at indexPath: IndexPath) -> [UIDragItem] {
