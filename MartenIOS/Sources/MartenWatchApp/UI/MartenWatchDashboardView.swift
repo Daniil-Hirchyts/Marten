@@ -62,7 +62,7 @@ struct MartenWatchDashboardView: View {
         } label: {
             pinboardCardContent(
                 title: "All",
-                iconName: "tray.2",
+                iconName: "tray",
                 statusTitle: nil,
                 statusIcon: nil,
                 statusTint: nil,
@@ -218,3 +218,4 @@ private extension String {
         }
     }
 }
+

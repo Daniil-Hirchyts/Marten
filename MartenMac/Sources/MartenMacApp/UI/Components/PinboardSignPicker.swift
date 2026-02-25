@@ -84,7 +84,7 @@ enum PinboardSignCatalog {
         .init(token: "paperplane.fill", label: "paper plane"),
         .init(token: "doc.fill", label: "document"),
         .init(token: "folder.fill", label: "folder"),
-        .init(token: "tray.full.fill", label: "tray"),
+        .init(token: "tray", label: "tray"),
         .init(token: "archivebox.fill", label: "archive"),
         .init(token: "tag.fill", label: "tag"),
         .init(token: "link", label: "link"),

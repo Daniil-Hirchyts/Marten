@@ -29,7 +29,7 @@ enum PinboardSignCatalogIOS {
         ("questionmark.circle.fill", "question"), ("clock.fill", "clock"),
         ("calendar", "calendar"), ("bell.fill", "bell"), ("envelope.fill", "mail"),
         ("paperplane.fill", "paper plane"), ("doc.fill", "document"),
-        ("folder.fill", "folder"), ("tray.full.fill", "tray"),
+        ("folder.fill", "folder"), ("tray", "tray"),
         ("archivebox.fill", "archive"), ("tag.fill", "tag"), ("link", "link"),
         ("globe", "globe"), ("location.fill", "location"), ("map.fill", "map"),
         ("camera.fill", "camera"), ("photo.fill", "photo"), ("video.fill", "video"),

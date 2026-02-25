@@ -61,7 +61,7 @@ struct PinboardSelectionRow: View {
                 Circle()
                     .fill(Color.secondary.opacity(0.15))
                     .frame(width: 32, height: 32)
-                Image(systemName: "tray.2.fill")
+                Image(systemName: "tray")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.primary)
             }

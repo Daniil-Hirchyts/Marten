@@ -93,7 +93,7 @@ struct WatchItemDetailView: View {
             Button {
                 isShowingMoveSheet = true
             } label: {
-                Label("Move to Pinboard", systemImage: "tray.and.arrow.down")
+                Label("Move to Pinboard", systemImage: "tray")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.bordered)

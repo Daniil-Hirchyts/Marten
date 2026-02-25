@@ -8,7 +8,7 @@
 
         public static var parameterSummary: some ParameterSummary {
             When(\.$pinboards, .hasNoValue) {
-                Summary("None") {
+                Summary("Choose") {
                     \.$pinboards
                 }
             } otherwise: {
@@ -20,7 +20,6 @@
 
         @Parameter(
             title: "Pinboards",
-            default: [PinboardAppEntity.noneOption],
             size: [
                 .systemSmall: 1,
                 .systemMedium: 2,
@@ -29,7 +28,7 @@
         public var pinboards: [PinboardAppEntity]?
 
         public init() {
-            self.pinboards = [PinboardAppEntity.noneOption]
+            self.pinboards = nil
         }
 
         public init(pinboards: [PinboardAppEntity]) {

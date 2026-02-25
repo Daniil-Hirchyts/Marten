@@ -57,7 +57,8 @@ actor WatchQueryService {
                     sourceAppName: $0.sourceAppName,
                     pinboardIDs: ($0.pinboards ?? []).map(\.id),
                     isPinned: $0.isPinned,
-                    byteCount: $0.byteCount
+                    byteCount: $0.byteCount,
+                    thumbnailPath: $0.thumbnailPath
                 )
             }
     }

@@ -5,11 +5,24 @@ import MartenCore
 import MartenIOSApp
 import UIKit
 
+enum KeyboardLinkPreviewImageResult {
+    case banner(UIImage)
+    case favicon(UIImage)
+}
+
 actor KeyboardLinkBannerImageLoader {
     static let shared = KeyboardLinkBannerImageLoader()
 
-    private let memoryCache = NSCache<NSString, UIImage>()
-    private var inFlight: [String: Task<UIImage?, Never>] = [:]
+    private final class CachedResult: NSObject {
+        let result: KeyboardLinkPreviewImageResult
+
+        init(_ result: KeyboardLinkPreviewImageResult) {
+            self.result = result
+        }
+    }
+
+    private let memoryCache = NSCache<NSString, CachedResult>()
+    private var inFlight: [String: Task<KeyboardLinkPreviewImageResult?, Never>] = [:]
     private let cacheDirectoryURL: URL?
 
     init() {
@@ -18,7 +31,7 @@ actor KeyboardLinkBannerImageLoader {
         let fileManager = FileManager.default
         if let cachesDirectory = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first {
             let directory = cachesDirectory.appendingPathComponent(
-                "MartenKeyboardLinkBanners",
+                "MartenKeyboardLinkPreviews",
                 isDirectory: true
             )
             if !fileManager.fileExists(atPath: directory.path) {
@@ -33,13 +46,14 @@ actor KeyboardLinkBannerImageLoader {
     func loadImage(
         for item: SharedClipItemSummary,
         allowsNetworkFetch: Bool,
-        maxPixelSize: CGFloat = 1_200
-    ) async -> UIImage? {
+        maxPixelSize: CGFloat = 1_200,
+        faviconMaxPixelSize: CGFloat = 256
+    ) async -> KeyboardLinkPreviewImageResult? {
         guard item.itemType == .url, let linkPreview = item.linkPreview else { return nil }
 
         let cacheKey = "kb-link-\(linkPreview.id.uuidString)-\(Int64(linkPreview.fetchedAt.timeIntervalSince1970 * 1000))"
 
-        if let cached = memoryCache.object(forKey: cacheKey as NSString) {
+        if let cached = memoryCache.object(forKey: cacheKey as NSString)?.result {
             return cached
         }
 
@@ -49,12 +63,13 @@ actor KeyboardLinkBannerImageLoader {
 
         let localPath = normalizedPath(linkPreview.imagePath)
         let remoteURL = normalizedURL(linkPreview.imageURL)
-        let cacheURL = cachedFileURL(for: linkPreview.id)
+        let linkURL = normalizedWebURL(item.insertionText)
+        let cacheURL = cachedBannerFileURL(for: linkPreview.id)
 
-        let task = Task<UIImage?, Never> {
+        let task = Task<KeyboardLinkPreviewImageResult?, Never> {
             if let localPath,
                let diskImage = await Self.loadDownsampledImage(atPath: localPath, maxPixelSize: maxPixelSize) {
-                return diskImage
+                return .banner(diskImage)
             }
 
             if let cacheURL,
@@ -62,37 +77,50 @@ actor KeyboardLinkBannerImageLoader {
                    atPath: cacheURL.path,
                    maxPixelSize: maxPixelSize
                ) {
-                return cachedImage
+                return .banner(cachedImage)
             }
 
-            guard allowsNetworkFetch, let remoteURL else { return nil }
-            guard let data = await Self.fetchImageData(from: remoteURL) else { return nil }
+            if allowsNetworkFetch,
+               let remoteURL,
+               let data = await Self.fetchImageData(from: remoteURL) {
+                if let cacheURL {
+                    try? data.write(to: cacheURL, options: [.atomic])
+                    if let image = await Self.loadDownsampledImage(
+                        atPath: cacheURL.path,
+                        maxPixelSize: maxPixelSize
+                    ) {
+                        return .banner(image)
+                    }
+                }
 
-            if let cacheURL {
-                try? data.write(to: cacheURL, options: [.atomic])
-                if let image = await Self.loadDownsampledImage(
-                    atPath: cacheURL.path,
-                    maxPixelSize: maxPixelSize
-                ) {
-                    return image
+                if let image = await Self.downsampledImage(from: data, maxPixelSize: maxPixelSize) {
+                    return .banner(image)
                 }
             }
 
-            return await Self.downsampledImage(from: data, maxPixelSize: maxPixelSize)
+            if allowsNetworkFetch,
+               let favicon = await Self.loadFaviconImage(
+                   for: linkURL,
+                   maxPixelSize: faviconMaxPixelSize
+               ) {
+                return .favicon(favicon)
+            }
+
+            return nil
         }
 
         inFlight[cacheKey] = task
-        let image = await task.value
+        let result = await task.value
         inFlight[cacheKey] = nil
 
-        if let image {
-            memoryCache.setObject(image, forKey: cacheKey as NSString)
+        if let result {
+            memoryCache.setObject(CachedResult(result), forKey: cacheKey as NSString)
         }
 
-        return image
+        return result
     }
 
-    private func cachedFileURL(for previewID: UUID) -> URL? {
+    private func cachedBannerFileURL(for previewID: UUID) -> URL? {
         cacheDirectoryURL?
             .appendingPathComponent("link-banner-\(previewID.uuidString)")
             .appendingPathExtension("cache")
@@ -112,6 +140,16 @@ actor KeyboardLinkBannerImageLoader {
         return URL(string: raw)
     }
 
+    private func normalizedWebURL(_ raw: String?) -> URL? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        if let url = URL(string: raw), url.scheme != nil {
+            return url
+        }
+        return URL(string: "https://\(raw)")
+    }
+
     private static func fetchImageData(from url: URL) async -> Data? {
         var request = URLRequest(url: url)
         request.cachePolicy = .returnCacheDataElseLoad
@@ -124,6 +162,27 @@ actor KeyboardLinkBannerImageLoader {
         }
 
         return data
+    }
+
+    private static func loadFaviconImage(for url: URL?, maxPixelSize: CGFloat) async -> UIImage? {
+        guard let url, let host = url.host else { return nil }
+        let scheme = url.scheme ?? "https"
+        let hostWithPort = url.port.map { "\(host):\($0)" } ?? host
+
+        let candidates = [
+            URL(string: "\(scheme)://\(hostWithPort)/apple-touch-icon.png"),
+            URL(string: "\(scheme)://\(hostWithPort)/favicon.ico"),
+        ]
+
+        for candidate in candidates {
+            guard let candidate else { continue }
+            guard let data = await fetchImageData(from: candidate) else { continue }
+            if let image = await downsampledImage(from: data, maxPixelSize: maxPixelSize) {
+                return image
+            }
+        }
+
+        return nil
     }
 
     private static func downsampledImage(from data: Data, maxPixelSize: CGFloat) async -> UIImage? {

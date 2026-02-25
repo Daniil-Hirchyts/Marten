@@ -10,7 +10,7 @@ public struct PinboardAppEntity: AppEntity {
 
     public static let noneOption = PinboardAppEntity(
         id: noneID,
-        name: "None",
+        name: "Choose",
         colorHex: "#8E8E93",
         iconName: "minus.circle"
     )

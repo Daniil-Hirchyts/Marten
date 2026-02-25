@@ -109,6 +109,10 @@ extension UIColor {
     }
 }
 
+private enum KeyboardCardMetrics {
+    static let cornerRadius: CGFloat = 16
+}
+
 
 @MainActor
 final class KeyboardExtensionViewModel: ObservableObject {
@@ -117,7 +121,10 @@ final class KeyboardExtensionViewModel: ObservableObject {
     @Published private(set) var items: [SharedClipItemSummary] = []
     @Published private(set) var isLoading = false
     @Published var errorMessage: String?
-    @Published var isPinboardMenuPresented = false
+
+    var customPinboards: [SharedPinboardSummary] {
+        pinboards.filter { !$0.isSystemMarten }
+    }
 
     private let queryService: SharedClipQueryService
     private let commandService: SharedClipCommandService
@@ -151,7 +158,6 @@ final class KeyboardExtensionViewModel: ObservableObject {
 
     func selectPinboard(_ id: UUID?) {
         selectedPinboardID = id
-        isPinboardMenuPresented = false
     }
 
     func moveItem(_ item: SharedClipItemSummary, to pinboardID: UUID?) async -> Bool {
@@ -226,16 +232,11 @@ struct KeyboardRootView: View {
 
     @State private var lockStateStore: PinboardLockStateStore
     @State private var copyButtonState: CopyButtonState = .idle
-    @State private var previewItem: SharedClipItemSummary?
-    @State private var moveDestinationItem: SharedClipItemSummary?
-    @State private var activeToast: String?
-    @State private var toastTask: Task<Void, Never>?
-    @State private var contextMenuItem: SharedClipItemSummary?
+    @State private var copiedItemID: UUID?
+    @State private var copiedOverlayTask: Task<Void, Never>?
 
     private enum CopyButtonState {
         case idle
-        case copying
-        case failure
     }
 
     init(
@@ -263,7 +264,7 @@ struct KeyboardRootView: View {
         GeometryReader { proxy in
             let horizontalPadding: CGFloat = 12
             let verticalPadding: CGFloat = 8
-            let interItemSpacing: CGFloat = 12
+            let interItemSpacing: CGFloat = 6
             let topBarHeight: CGFloat = 36
             let bottomBarHeight: CGFloat = 56
             let contentMaxHeight = max(0, proxy.size.height - topBarHeight - bottomBarHeight)
@@ -278,10 +279,8 @@ struct KeyboardRootView: View {
 
             ZStack {
                 VStack(spacing: 0) {
-                    pinboardHeaderBar
-                        .padding(.horizontal, 12)
-                        .padding(.top, 4)
-                        .padding(.bottom, 4)
+                    pinboardsTopPanel(fullWidth: proxy.size.width)
+                        .padding(.vertical, 8)
 
                     if let errorMessage = viewModel.errorMessage, !errorMessage.isEmpty {
                         VStack(spacing: 6) {
@@ -344,200 +343,122 @@ struct KeyboardRootView: View {
                     lockStateStore.reconcile(validPinboardIDs: Set(newValue.map(\.id)))
                 }
 
-                if viewModel.isPinboardMenuPresented {
-                    Color.black.opacity(0.001)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            withAnimation(.spring(duration: 0.2)) {
-                                viewModel.isPinboardMenuPresented = false
-                            }
-                        }
-                        .zIndex(99)
-
-                    VStack(spacing: 0) {
-                        Spacer()
-                        HStack(alignment: .bottom, spacing: 0) {
-                            pinboardMenuOverlay
-                                .frame(maxWidth: 280)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.bottom, 64)
-                        .padding(.horizontal, 12)
-                    }
-                    .transition(
-                        .scale(scale: 0.82, anchor: .bottomLeading)
-                        .combined(with: .opacity)
-                    )
-                    .zIndex(100)
-                }
-
-                if let moveDestinationItem {
-                    Color.black.opacity(0.001)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            withAnimation(.spring(duration: 0.25)) {
-                                self.moveDestinationItem = nil
-                            }
-                        }
-
-                    VStack {
-                        Spacer()
-                        moveDestinationOverlay(for: moveDestinationItem)
-                            .padding(.bottom, 16)
-                            .padding(.horizontal, 12)
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(120)
-                }
-
-                if let previewItem {
-                    Color.black.opacity(0.001)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            withAnimation(.spring(duration: 0.25)) {
-                                self.previewItem = nil
-                            }
-                        }
-
-                    previewOverlay(for: previewItem, cardSide: cardSide)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                        .zIndex(140)
-                }
-
-                if contextMenuItem != nil {
-                    Color.black.opacity(0.35)
-                        .ignoresSafeArea()
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            withAnimation(.spring(duration: 0.2)) {
-                                contextMenuItem = nil
-                            }
-                        }
-                        .zIndex(148)
-                }
-
-                if let item = contextMenuItem {
-                    VStack(spacing: 0) {
-                        Spacer()
-                        contextMenuPanel(for: item)
-                            .padding(.horizontal, 12)
-                            .padding(.bottom, 60)
-                    }
-                    .transition(.scale(scale: 0.9, anchor: .bottom).combined(with: .opacity))
-                    .zIndex(149)
-                }
-
-                if let message = activeToast {
-                    VStack {
-                        Spacer()
-                        HStack(spacing: 5) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.white)
-                            Text(message)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.white)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(Capsule().fill(.black.opacity(0.82)))
-                        .padding(.bottom, 64)
-                    }
-                    .allowsHitTesting(false)
-                    .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottom)))
-                    .zIndex(200)
-                }
-
             }
         }
     }
 
+    private func pinboardsTopPanel(fullWidth: CGFloat) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                pinboardPill(from: nil)
+                ForEach(viewModel.customPinboards) { pinboard in
+                    pinboardPill(from: pinboard)
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(minWidth: fullWidth)
+        }
+    }
+
+    @ViewBuilder
+    private func pinboardPill(from pinboard: SharedPinboardSummary?) -> some View {
+        let isSelected = viewModel.selectedPinboardID == pinboard?.id
+        let isLocked = pinboard.map { lockStateStore.isLocked($0.id) } ?? false
+        let canAccess = pinboard.map { lockStateStore.canAccess($0.id) } ?? true
+
+        Button {
+            if isLocked && !canAccess, let pb = pinboard {
+                Task { @MainActor in
+                    let unlocked = await lockStateStore.unlock(pinboardID: pb.id, pinboardName: pb.name)
+                    if unlocked {
+                        viewModel.selectPinboard(pb.id)
+                    }
+                }
+            } else {
+                withAnimation(.spring(duration: 0.26)) {
+                    viewModel.selectPinboard(pinboard?.id)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                KeyboardPinboardIndicator(
+                    colorHex: pinboard?.colorHex ?? "#8E8E93",
+                    sign: pinboard?.iconName ?? "tray",
+                    size: 24
+                )
+                
+                if isSelected {
+                    Text(pinboard?.name ?? "All")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.primary)
+                }
+            }
+            .padding(.leading, 4)
+            .padding(.trailing, isSelected ? 12 : 4)
+            .padding(.vertical, 4)
+            .background(isSelected ? Color.primary.opacity(0.06) : Color.clear)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @Environment(\.colorScheme) private var controlRowColorScheme
+
+    /// iOS-keyboard-style semi-transparent background for the space bar (lighter, like letter keys).
+    private var spaceKeyBackground: Color {
+        controlRowColorScheme == .dark
+            ? Color.white.opacity(0.22)
+            : Color.white.opacity(0.85)
+    }
+
+    /// iOS-keyboard-style semi-transparent background for utility keys (darker, like shift/delete).
+    private var utilityKeyBackground: Color {
+        controlRowColorScheme == .dark
+            ? Color.white.opacity(0.12)
+            : Color.black.opacity(0.06)
+    }
+
     private var bottomControlRow: some View {
         HStack(spacing: 8) {
-            Button {
-                withAnimation(.spring(duration: 0.22, bounce: 0.1)) {
-                    previewItem = nil
-                    moveDestinationItem = nil
-                    viewModel.isPinboardMenuPresented.toggle()
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    if let selected = selectedPinboard {
-                        KeyboardPinboardIndicator(
-                            colorHex: selected.colorHex,
-                            sign: selected.iconName,
-                            size: 16
-                        )
-                    } else {
-                        KeyboardPinboardIndicator(
-                            colorHex: "#007AFF",
-                            sign: "tray.full",
-                            size: 16
-                        )
-                    }
-
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(
-                            viewModel.isPinboardMenuPresented ? .degrees(180) : .degrees(0))
-                }
-                .frame(height: 44)
-                .padding(.horizontal, 12)
-                .background(Color.primary.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                handleCopyButtonTap()
-            } label: {
-                Group {
-                    if copyButtonState == .copying {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(.primary)
-                    } else {
-                        Image(systemName: copyButtonSymbol)
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                }
-                .foregroundStyle(copyButtonForeground)
-                .frame(width: 44, height: 44)
-                .background(copyButtonBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            .buttonStyle(.plain)
-            .disabled(copyButtonState == .copying)
-            .accessibilityLabel("Copy to Marten")
-            .accessibilityHint("Save selected text to Marten")
 
             Button {
                 onInsertText(" ")
                 onRecordHeartbeat()
             } label: {
-                Text("Space")
-                    .font(.system(size: 15, weight: .medium))
+                Text("space")
+                    .font(.system(size: 16, weight: .regular))
                     .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.primary.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .background(spaceKeyBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
-            .frame(minWidth: 80, maxWidth: .infinity, minHeight: 44, maxHeight: 44)
+            .frame(minWidth: 100, maxWidth: .infinity, minHeight: 44, maxHeight: 44)
+
+            Button {
+                handleCopyButtonTap()
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(.primary)
+                    .frame(width: 44, height: 44)
+                    .background(utilityKeyBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Copy to Marten")
+            .accessibilityHint("Save selected text to Marten")
 
             Button {
                 onDeleteBackward()
                 onRecordHeartbeat()
             } label: {
                 Image(systemName: "delete.left")
-                    .font(.system(size: 18))
+                    .font(.system(size: 18, weight: .regular))
                     .foregroundStyle(.primary)
                     .frame(width: 44, height: 44)
-                    .background(Color.primary.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .background(utilityKeyBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
 
@@ -546,57 +467,21 @@ struct KeyboardRootView: View {
                 onRecordHeartbeat()
             } label: {
                 Image(systemName: "return")
-                    .font(.system(size: 18))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(Color.blue)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(.primary)
+                    .frame(width: 66, height: 44)
+                    .background(utilityKeyBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 12)
         .padding(.bottom, 8)
         .padding(.top, 4)
     }
 
-    private var copyButtonSymbol: String {
-        switch copyButtonState {
-        case .idle:
-            return "doc.on.doc"
-        case .copying:
-            return "doc.on.doc"
-        case .failure:
-            return "exclamationmark.triangle.fill"
-        }
-    }
-
-    private var copyButtonForeground: Color {
-        switch copyButtonState {
-        case .failure:
-            return .white
-        default:
-            return .primary
-        }
-    }
-
-    private var copyButtonBackground: Color {
-        switch copyButtonState {
-        case .idle:
-            return Color.primary.opacity(0.05)
-        case .copying:
-            return Color.primary.opacity(0.09)
-        case .failure:
-            return .orange
-        }
-    }
-
     private func handleCopyButtonTap() {
-        guard copyButtonState != .copying else { return }
-        copyButtonState = .copying
-
         Task { @MainActor in
-            // Try copying selected text first; if nothing is selected,
-            // fall back to reading the system clipboard.
             var didCopy = await onCopySelectionToMarten()
             if !didCopy {
                 didCopy = await onCopyClipboardToMarten()
@@ -606,178 +491,28 @@ struct KeyboardRootView: View {
             if didCopy {
                 feedback.notificationOccurred(.success)
                 viewModel.refreshSilently()
-                copyButtonState = .idle
             } else {
                 feedback.notificationOccurred(.error)
-                copyButtonState = .failure
-                try? await Task.sleep(nanoseconds: 1_100_000_000)
-                copyButtonState = .idle
             }
         }
     }
 
-    private var pinboardMenuOverlay: some View {
-        VStack(spacing: 0) {
-            Button {
-                viewModel.selectPinboard(nil)
-            } label: {
-                HStack(spacing: 12) {
-                    KeyboardPinboardIndicator(
-                        colorHex: "#007AFF",
-                        sign: "tray.full",
-                        size: 24
-                    )
 
-                    Text("All")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.primary)
-
-                    Spacer()
-
-                    if viewModel.selectedPinboardID == nil {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.accentColor)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Divider()
-                .padding(.leading, 52)
-
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(customPinboards) { pinboard in
-                        let isLocked = lockStateStore.isLocked(pinboard.id)
-                        let canAccess = lockStateStore.canAccess(pinboard.id)
-                        Button {
-                            if isLocked && !canAccess {
-                                Task { @MainActor in
-                                    let unlocked = await lockStateStore.unlock(
-                                        pinboardID: pinboard.id,
-                                        pinboardName: pinboard.name
-                                    )
-                                    guard unlocked else { return }
-                                    viewModel.selectPinboard(pinboard.id)
-                                }
-                            } else {
-                                viewModel.selectPinboard(pinboard.id)
-                            }
-                        } label: {
-                            HStack(spacing: 12) {
-                                KeyboardPinboardIndicator(
-                                    colorHex: pinboard.colorHex,
-                                    sign: pinboard.iconName,
-                                    size: 24
-                                )
-
-                                HStack(spacing: 8) {
-                                    Text(pinboard.name)
-                                        .font(.system(size: 16))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(1)
-
-                                    if pinboard.isShared {
-                                        KeyboardStatusChip(systemImage: "person.2.fill")
-                                    }
-
-                                    if isLocked {
-                                        KeyboardStatusChip(
-                                            systemImage: canAccess ? "lock.open.fill" : "lock.fill")
-                                    }
-                                }
-
-                                Spacer()
-
-                                if viewModel.selectedPinboardID == pinboard.id {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(Color.accentColor)
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-
-                        if pinboard.id != customPinboards.last?.id {
-                            Divider()
-                                .padding(.leading, 52)
-                        }
-                    }
-                }
-            }
-            .frame(maxHeight: 240)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .modifier(PinboardMenuGlassModifier())
-    }
-
-    private var selectedPinboard: SharedPinboardSummary? {
-        guard let id = viewModel.selectedPinboardID else { return nil }
-        return viewModel.pinboards.first(where: { $0.id == id })
-    }
-
-    private var customPinboards: [SharedPinboardSummary] {
-        viewModel.pinboards.filter { !$0.isSystemMarten }
-    }
-
-    private var selectedPinboardTitle: String {
-        selectedPinboard?.name ?? "All"
-    }
-
-    private var itemCountTitle: String {
-        let count = viewModel.items.count
-        if count == 1 {
-            return "1 item"
-        }
-        return "\(count) items"
-    }
-
-    private var pinboardHeaderBar: some View {
-        HStack(spacing: 10) {
-            Text(selectedPinboardTitle)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            Spacer(minLength: 0)
-
-            Text(itemCountTitle)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Color.primary.opacity(0.06))
-                .clipShape(Capsule())
-        }
-        .frame(height: 28)
-    }
-
+    @ViewBuilder
     private func cardButton(for item: SharedClipItemSummary, cardSide: CGFloat) -> some View {
         cardLabel(for: item, cardSide: cardSide)
             .overlay(
-                CardInteractionOverlay(
+                CardCopiedOverlay(isVisible: copiedItemID == item.id)
+            )
+            .overlay(
+                CardDragTapOverlay(
                     item: item,
                     onTap: { handleItemTap(item) },
-                    onLongPress: {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        withAnimation(.spring(duration: 0.2, bounce: 0)) {
-                            previewItem = nil
-                            moveDestinationItem = nil
-                            viewModel.isPinboardMenuPresented = false
-                            contextMenuItem = item
-                        }
-                    },
                     onDragBegin: { onRecordHeartbeat() }
                 )
             )
     }
+
 
     @ViewBuilder
     private func cardLabel(for item: SharedClipItemSummary, cardSide: CGFloat) -> some View {
@@ -797,7 +532,7 @@ struct KeyboardRootView: View {
             let generator = UIImpactFeedbackGenerator(style: .light)
             generator.impactOccurred()
             Task {
-                await pasteImageToPasteboard(item)
+                _ = await pasteImageToPasteboard(item)
             }
             return
         }
@@ -810,21 +545,22 @@ struct KeyboardRootView: View {
 
         onInsertText(text)
         onRecordHeartbeat()
+        showCopiedOverlay(for: item.id)
         Task {
             await viewModel.markItemUsed(item)
         }
     }
 
-    private func showToast(_ message: String) {
-        toastTask?.cancel()
+    private func showCopiedOverlay(for itemID: UUID) {
+        copiedOverlayTask?.cancel()
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            activeToast = message
+            copiedItemID = itemID
         }
-        toastTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.8))
+        copiedOverlayTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.9))
             guard !Task.isCancelled else { return }
             withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-                activeToast = nil
+                copiedItemID = nil
             }
         }
     }
@@ -832,7 +568,8 @@ struct KeyboardRootView: View {
     /// Writes the raw image bytes for `item` to the system pasteboard so the
     /// user can paste it into the focused app. Falls back to a text copy if
     /// the asset file is not available.
-    private func pasteImageToPasteboard(_ item: SharedClipItemSummary) async {
+    @MainActor
+    private func pasteImageToPasteboard(_ item: SharedClipItemSummary) async -> Bool {
         guard let path = item.thumbnailPath,
               !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
@@ -840,7 +577,7 @@ struct KeyboardRootView: View {
                 UIPasteboard.general.string = text
             }
             UINotificationFeedbackGenerator().notificationOccurred(.error)
-            return
+            return false
         }
 
         let url = URL(fileURLWithPath: path)
@@ -864,370 +601,27 @@ struct KeyboardRootView: View {
                 UIPasteboard.general.string = text
             }
             UINotificationFeedbackGenerator().notificationOccurred(.error)
-            return
+            return false
         }
 
         UIPasteboard.general.setData(data, forPasteboardType: typeIdentifier)
         onRecordHeartbeat()
         await viewModel.markItemUsed(item)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        showToast("Image copied to clipboard")
+        showCopiedOverlay(for: item.id)
+        return true
     }
 
-    private func contextMenuPanel(for item: SharedClipItemSummary) -> some View {
-        let actions: [ItemCardContextAction] = [.copy, .copyPlainText, .moveToPinboard]
-        return VStack(spacing: 0) {
-            ForEach(Array(actions.enumerated()), id: \.element) { idx, action in
-                Button {
-                    withAnimation(.spring(duration: 0.2)) { contextMenuItem = nil }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        handleContextAction(action, item: item)
-                    }
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: action.systemImage)
-                            .font(.system(size: 15))
-                            .foregroundStyle(.primary)
-                            .frame(width: 24, alignment: .center)
-                        Text(action.title)
-                            .font(.system(size: 16))
-                            .foregroundStyle(.primary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                if idx < actions.count - 1 {
-                    Divider().padding(.leading, 52)
-                }
-            }
-
-            Divider()
-
-            Button {
-                withAnimation(.spring(duration: 0.2)) { contextMenuItem = nil }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    handleContextAction(.delete, item: item)
-                }
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: ItemCardContextAction.delete.systemImage)
-                        .font(.system(size: 15))
-                        .foregroundStyle(.red)
-                        .frame(width: 24, alignment: .center)
-                    Text(ItemCardContextAction.delete.title)
-                        .font(.system(size: 16))
-                        .foregroundStyle(.red)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .modifier(PinboardMenuGlassModifier())
-    }
-
-    private func handleContextAction(_ action: ItemCardContextAction, item: SharedClipItemSummary) {
-        switch action {
-        case .copy:
-            copyItemToPasteboard(item)
-        case .copyPlainText:
-            copyItemToPasteboard(item, asPlainText: true)
-        case .preview:
-            handlePreviewAction(for: item)
-        case .edit:
-            break
-        case .togglePin:
-            let feedback = UINotificationFeedbackGenerator()
-            feedback.notificationOccurred(.warning)
-        case .share:
-            break
-        case .moveToPinboard:
-            withAnimation(.spring(duration: 0.25)) {
-                viewModel.isPinboardMenuPresented = false
-                previewItem = nil
-                moveDestinationItem = item
-            }
-        case .delete:
-            viewModel.isPinboardMenuPresented = false
-            moveDestinationItem = nil
-            previewItem = nil
-            Task { @MainActor in
-                let didDelete = await viewModel.deleteItem(item)
-                UINotificationFeedbackGenerator().notificationOccurred(didDelete ? .success : .error)
-            }
-        }
-    }
-
-    private func copyItemToPasteboard(
-        _ item: SharedClipItemSummary,
-        asPlainText: Bool = false
-    ) {
-        if item.itemType == .image && !asPlainText {
-            Task {
-                await pasteImageToPasteboard(item)
-            }
-            return
-        }
-
-        guard let text = copyText(for: item, asPlainText: asPlainText) else {
-            let feedback = UINotificationFeedbackGenerator()
-            feedback.notificationOccurred(.error)
-            return
-        }
-
-        UIPasteboard.general.string = text
-        onRecordHeartbeat()
-        Task {
-            await viewModel.markItemUsed(item)
-        }
-
-        let feedback = UINotificationFeedbackGenerator()
-        feedback.notificationOccurred(.success)
-        showToast(asPlainText ? "Copied as plain text" : "Copied")
-    }
-
-    private func copyText(for item: SharedClipItemSummary, asPlainText _: Bool) -> String? {
-        let plainText = item.plainText?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let plainText, !plainText.isEmpty {
-            return plainText
-        }
-
-        let fallbackText = item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let fallbackText, !fallbackText.isEmpty {
-            return fallbackText
-        }
-
-        return nil
-    }
-
-    private func handlePreviewAction(for item: SharedClipItemSummary) {
-        guard supportsPreview(item) else {
-            copyItemToPasteboard(item)
-            return
-        }
-
-        withAnimation(.spring(duration: 0.25)) {
-            viewModel.isPinboardMenuPresented = false
-            moveDestinationItem = nil
-            previewItem = item
-        }
-    }
-
-    private func supportsPreview(_ item: SharedClipItemSummary) -> Bool {
-        switch item.itemType {
-        case .text, .richText, .image, .code, .url:
-            return true
-        default:
-            return false
-        }
-    }
-
-
-    private func previewOverlay(for item: SharedClipItemSummary, cardSide: CGFloat) -> some View {
-        VStack {
-            Spacer()
-            VStack(spacing: 12) {
-                HStack {
-                    Text("Preview")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Button("Done") {
-                        withAnimation(.spring(duration: 0.25)) {
-                            previewItem = nil
-                        }
-                    }
-                    .font(.system(size: 13, weight: .semibold))
-                    .buttonStyle(.plain)
-                }
-
-                KeyboardItemCardView(
-                    item: item,
-                    pinboards: viewModel.pinboards,
-                    allowsNetworkFetch: allowsNetworkFetch
-                )
-                .frame(width: min(proxySafePreviewWidth(cardSide), 340))
-            }
-            .padding(12)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
-        }
-    }
-
-    private func proxySafePreviewWidth(_ cardSide: CGFloat) -> CGFloat {
-        max(220, cardSide + 28)
-    }
-
-    private func moveDestinationOverlay(for item: SharedClipItemSummary) -> some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Move to Pinboard")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.primary)
-                Spacer()
-                Button {
-                    withAnimation(.spring(duration: 0.25)) {
-                        moveDestinationItem = nil
-                    }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 30, height: 30)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-
-            Divider()
-
-            Button {
-                Task { @MainActor in
-                    await performMove(item, to: nil)
-                }
-            } label: {
-                HStack(spacing: 12) {
-                    KeyboardPinboardIndicator(
-                        colorHex: "#007AFF",
-                        sign: "tray.full",
-                        size: 24
-                    )
-                    Text("All")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.primary)
-                    Spacer()
-
-                    if isInAllPinboard(item) {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color.accentColor)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Divider()
-                .padding(.leading, 52)
-
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(customPinboards) { pinboard in
-                        let isLocked = lockStateStore.isLocked(pinboard.id)
-                        let canAccess = lockStateStore.canAccess(pinboard.id)
-                        Button {
-                            if isLocked && !canAccess {
-                                Task { @MainActor in
-                                    let unlocked = await lockStateStore.unlock(
-                                        pinboardID: pinboard.id,
-                                        pinboardName: pinboard.name
-                                    )
-                                    guard unlocked else { return }
-                                    await performMove(item, to: pinboard.id)
-                                }
-                            } else {
-                                Task { @MainActor in
-                                    await performMove(item, to: pinboard.id)
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 12) {
-                                KeyboardPinboardIndicator(
-                                    colorHex: pinboard.colorHex,
-                                    sign: pinboard.iconName,
-                                    size: 24
-                                )
-
-                                HStack(spacing: 8) {
-                                    Text(pinboard.name)
-                                        .font(.system(size: 16))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(1)
-
-                                    if pinboard.isShared {
-                                        KeyboardStatusChip(systemImage: "person.2.fill")
-                                    }
-
-                                    if isLocked {
-                                        KeyboardStatusChip(
-                                            systemImage: canAccess ? "lock.open.fill" : "lock.fill"
-                                        )
-                                    }
-                                }
-
-                                Spacer()
-
-                                if item.pinboardIDs.contains(pinboard.id) {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(Color.accentColor)
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-
-                        if pinboard.id != customPinboards.last?.id {
-                            Divider()
-                                .padding(.leading, 52)
-                        }
-                    }
-                }
-            }
-            .frame(maxHeight: 260)
-        }
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
-    }
-
-    private func isInAllPinboard(_ item: SharedClipItemSummary) -> Bool {
-        let customPinboardIDs = Set(customPinboards.map(\.id))
-        return Set(item.pinboardIDs).isDisjoint(with: customPinboardIDs)
-    }
-
-    private func performMove(_ item: SharedClipItemSummary, to pinboardID: UUID?) async {
-        let didMove = await viewModel.moveItem(item, to: pinboardID)
-        let feedback = UINotificationFeedbackGenerator()
-        feedback.notificationOccurred(didMove ? .success : .error)
-
-        if didMove {
-            withAnimation(.spring(duration: 0.25)) {
-                moveDestinationItem = nil
-            }
-        }
-    }
 }
 
-// MARK: - Card interaction overlay
+// MARK: - Card drag + tap overlay
 
-/// Transparent UIKit overlay that owns tap, long-press, and drag gestures for a card.
-/// Using UIKit gesture recognizers directly avoids conflicts that arise when SwiftUI's
-/// `.onDrag` wrapper prevents `.onLongPressGesture` from firing in a keyboard extension.
-private struct CardInteractionOverlay: UIViewRepresentable {
+/// Transparent UIKit overlay that owns tap and drag for a card.
+/// Lifts a snapshot of the underlying card view so the drag preview matches
+/// the rendered card instead of the transparent interaction layer.
+private struct CardDragTapOverlay: UIViewRepresentable {
     let item: SharedClipItemSummary
     let onTap: () -> Void
-    let onLongPress: () -> Void
     let onDragBegin: () -> Void
 
     func makeUIView(context: Context) -> UIView {
@@ -1240,16 +634,7 @@ private struct CardInteractionOverlay: UIViewRepresentable {
             action: #selector(Coordinator.handleTap)
         )
         tap.delegate = context.coordinator
-
-        let longPress = UILongPressGestureRecognizer(
-            target: context.coordinator,
-            action: #selector(Coordinator.handleLongPress(_:))
-        )
-        longPress.minimumPressDuration = 0.45
-        longPress.delegate = context.coordinator
-
         view.addGestureRecognizer(tap)
-        view.addGestureRecognizer(longPress)
 
         let drag = UIDragInteraction(delegate: context.coordinator)
         drag.isEnabled = true
@@ -1261,45 +646,28 @@ private struct CardInteractionOverlay: UIViewRepresentable {
     func updateUIView(_ uiView: UIView, context: Context) {
         context.coordinator.item = item
         context.coordinator.onTap = onTap
-        context.coordinator.onLongPress = onLongPress
         context.coordinator.onDragBegin = onDragBegin
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(item: item, onTap: onTap, onLongPress: onLongPress, onDragBegin: onDragBegin)
+        Coordinator(item: item, onTap: onTap, onDragBegin: onDragBegin)
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate, UIDragInteractionDelegate {
         var item: SharedClipItemSummary
         var onTap: () -> Void
-        var onLongPress: () -> Void
         var onDragBegin: () -> Void
-        private var longPressDidFire = false
 
-        init(
-            item: SharedClipItemSummary,
-            onTap: @escaping () -> Void,
-            onLongPress: @escaping () -> Void,
-            onDragBegin: @escaping () -> Void
-        ) {
+        init(item: SharedClipItemSummary, onTap: @escaping () -> Void, onDragBegin: @escaping () -> Void) {
             self.item = item
             self.onTap = onTap
-            self.onLongPress = onLongPress
             self.onDragBegin = onDragBegin
         }
 
         @objc func handleTap() {
-            guard !longPressDidFire else { longPressDidFire = false; return }
             onTap()
         }
 
-        @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
-            guard gesture.state == .began else { return }
-            longPressDidFire = true
-            onLongPress()
-        }
-
-        // Allow our tap/long-press to coexist with the drag interaction's internal recognizer.
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
@@ -1318,46 +686,53 @@ private struct CardInteractionOverlay: UIViewRepresentable {
 
         func dragInteraction(
             _ interaction: UIDragInteraction,
-            previewForLifting item: UIDragItem,
+            previewForLifting dragItem: UIDragItem,
             session: UIDragSession
         ) -> UITargetedDragPreview? {
             guard let overlayView = interaction.view else { return nil }
             let size = overlayView.bounds.size
-            guard size.width > 0 else { return nil }
+            guard size.width > 1, size.height > 1 else { return nil }
 
-            // Walk up the hierarchy to find the container that holds both
-            // the card visual and our transparent overlay. SwiftUI's .overlay()
-            // modifier creates a parent that has the base content and overlay
-            // as separate children — it's the first ancestor with the same
-            // bounds as the card and more than one subview.
-            var cardContainer: UIView = overlayView
-            var candidate = overlayView.superview
-            while let c = candidate {
-                if abs(c.bounds.width - size.width) < 1,
-                   abs(c.bounds.height - size.height) < 1,
-                   c.subviews.count >= 2 {
-                    cardContainer = c
-                    break
-                }
-                candidate = c.superview
-            }
-
-            // Render the already-displayed card layer into an image.
-            let renderer = UIGraphicsImageRenderer(size: size)
-            let image = renderer.image { _ in
-                cardContainer.layer.render(in: UIGraphicsGetCurrentContext()!)
-            }
-            let imageView = UIImageView(image: image)
-            imageView.frame = CGRect(origin: .zero, size: size)
+            guard let previewView = makePreviewSnapshotView(from: overlayView) else { return nil }
 
             let params = UIDragPreviewParameters()
-            params.visiblePath = UIBezierPath(roundedRect: imageView.bounds, cornerRadius: 12)
+            params.visiblePath = UIBezierPath(
+                roundedRect: CGRect(origin: .zero, size: size),
+                cornerRadius: KeyboardCardMetrics.cornerRadius
+            )
             params.backgroundColor = .clear
 
             let anchorView = overlayView.superview ?? overlayView
-            let center = CGPoint(x: anchorView.bounds.midX, y: anchorView.bounds.midY)
+            let centerInOverlay = CGPoint(x: overlayView.bounds.midX, y: overlayView.bounds.midY)
+            let center = anchorView.convert(centerInOverlay, from: overlayView)
             let target = UIDragPreviewTarget(container: anchorView, center: center)
-            return UITargetedDragPreview(view: imageView, parameters: params, target: target)
+            return UITargetedDragPreview(view: previewView, parameters: params, target: target)
+        }
+
+        private func makePreviewSnapshotView(from overlayView: UIView) -> UIView? {
+            guard let window = overlayView.window else { return nil }
+            let captureRect = overlayView.convert(overlayView.bounds, to: window)
+            guard captureRect.width > 1, captureRect.height > 1 else { return nil }
+
+            let renderer = UIGraphicsImageRenderer(size: captureRect.size)
+            let image = renderer.image { _ in
+                window.drawHierarchy(
+                    in: CGRect(
+                        x: -captureRect.minX,
+                        y: -captureRect.minY,
+                        width: window.bounds.width,
+                        height: window.bounds.height
+                    ),
+                    afterScreenUpdates: false
+                )
+            }
+
+            let imageView = UIImageView(image: image)
+            imageView.frame = CGRect(origin: .zero, size: captureRect.size)
+            imageView.layer.cornerRadius = KeyboardCardMetrics.cornerRadius
+            imageView.layer.cornerCurve = .continuous
+            imageView.layer.masksToBounds = true
+            return imageView
         }
 
         private func makeDragItemProvider() -> NSItemProvider? {
@@ -1366,11 +741,11 @@ private struct CardInteractionOverlay: UIViewRepresentable {
                 let ext = url.pathExtension.lowercased()
                 let utType: UTType
                 switch ext {
-                case "png":        utType = .png
-                case "heic":       utType = .heic
-                case "heif":       utType = .heif
+                case "png":         utType = .png
+                case "heic":        utType = .heic
+                case "heif":        utType = .heif
                 case "tiff", "tif": utType = .tiff
-                default:           utType = .jpeg
+                default:            utType = .jpeg
                 }
                 let provider = NSItemProvider()
                 provider.registerDataRepresentation(
@@ -1392,6 +767,41 @@ private struct CardInteractionOverlay: UIViewRepresentable {
             guard !text.isEmpty else { return nil }
             return NSItemProvider(object: text as NSString)
         }
+    }
+}
+
+private struct CardCopiedOverlay: View {
+    let isVisible: Bool
+
+    var body: some View {
+        ZStack {
+            if isVisible {
+                // Main edge-to-edge overlay background
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(.thinMaterial)
+                    .environment(\.colorScheme, .dark)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(.black.opacity(0.08))
+                    )
+
+                VStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+
+                    Text("Copied")
+                        .font(.system(size: 10, weight: .semibold))
+                        .kerning(0.3)
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                }
+                .transition(.scale(scale: 0.85).combined(with: .opacity))
+            }
+        }
+        .allowsHitTesting(false)
+        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isVisible)
     }
 }
 
@@ -1602,14 +1012,14 @@ private struct KeyboardItemCardView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var thumbnailImage: UIImage?
-    @State private var linkPreviewImage: UIImage?
+    @State private var linkPreviewResult: KeyboardLinkPreviewImageResult?
 
     private var pres: KeyboardItemCardPresentation {
         KeyboardItemCardPresentation(item: item, pinboards: pinboards)
     }
 
-    private let cardCornerRadius: CGFloat = 12
-    private let cardPadding: CGFloat = 8
+    private let cardCornerRadius: CGFloat = KeyboardCardMetrics.cornerRadius
+    private let cardPadding: CGFloat = 12
     private let headerMinHeight: CGFloat = 30
 
     var body: some View {
@@ -1625,15 +1035,15 @@ private struct KeyboardItemCardView: View {
                     previewContent
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, cardPadding)
-                        .padding(.top, 4)
+                        .padding(.top, 8)
 
                     Spacer(minLength: 0)
                 }
 
                 cardFooter
                     .padding(.horizontal, cardPadding)
-                    .padding(.top, 2)
-                    .padding(.bottom, cardPadding)
+                    .padding(.top, 6)
+                    .padding(.bottom, 6)
             }
         }
         .background(
@@ -1680,12 +1090,13 @@ private struct KeyboardItemCardView: View {
                     bundleID: pres.sourceAppBundleID,
                     appName: pres.sourceAppName,
                     iconData: pres.sourceAppIconData,
-                    size: 16
+                    size: 16,
+                    showBackground: false
                 )
             }
         }
         .padding(.horizontal, cardPadding)
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
         .frame(minHeight: headerMinHeight, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
@@ -1702,13 +1113,13 @@ private struct KeyboardItemCardView: View {
     private var cardFooter: some View {
         HStack(alignment: .center, spacing: 6) {
             Text(pres.footerLeadingText)
-                .font(.system(size: 9))
+                .font(.system(size: 8))
                 .foregroundStyle(tertiaryTextColor)
 
             Spacer(minLength: 0)
 
             Text(pres.footerTrailingText)
-                .font(.system(size: 9))
+                .font(.system(size: 8))
                 .foregroundStyle(tertiaryTextColor)
                 .lineLimit(1)
         }
@@ -1760,38 +1171,46 @@ private struct KeyboardItemCardView: View {
     private var linkPreview: some View {
         GeometryReader { geometry in
             ZStack {
-                if let linkPreviewImage {
-                    Image(uiImage: linkPreviewImage)
+                switch linkPreviewResult {
+                case .banner(let image):
+                    Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .clipped()
-                } else {
-                    Rectangle()
-                        .fill(
+                case .favicon(let image):
+                    linkPreviewPlaceholderBackground
+                    let iconSide = min(min(geometry.size.width, geometry.size.height) * 0.44, 56)
+                    Image(uiImage: image)
+                        .resizable()
+                        .interpolation(.high)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: iconSide, height: iconSide)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                case nil:
+                    linkPreviewPlaceholderBackground
+                    Image(systemName: "link")
+                        .font(.system(size: 36, weight: .light))
+                        .foregroundStyle(
                             colorScheme == .dark
-                                ? Color.white.opacity(0.08)
-                                : Color.black.opacity(0.05)
+                                ? Color.white.opacity(0.35)
+                                : Color.black.opacity(0.25)
                         )
-
-                    VStack(spacing: 4) {
-                        Image(systemName: "link")
-                            .font(.system(size: 20, weight: .light))
-                            .foregroundStyle(.secondary)
-
-                        if let host = pres.urlHost {
-                            Text(host)
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(secondaryTextColor)
-                                .lineLimit(1)
-                                .padding(.horizontal, 8)
-                        }
-                    }
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .clipped()
+    }
+
+    private var linkPreviewPlaceholderBackground: some View {
+        Rectangle()
+            .fill(
+                colorScheme == .dark
+                    ? Color.white.opacity(0.08)
+                    : Color.black.opacity(0.05)
+            )
     }
 
     private var filePreview: some View {
@@ -1829,12 +1248,12 @@ private struct KeyboardItemCardView: View {
         let background = Color(hex: normalizedHex, fallback: .gray)
         let foreground = ColorHex.foregroundColor(for: normalizedHex)
 
-        return RoundedRectangle(cornerRadius: 8, style: .continuous)
+        return Rectangle()
             .fill(background)
-            .frame(height: 44)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 Text(normalizedHex)
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
                     .foregroundStyle(foreground)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -1843,7 +1262,7 @@ private struct KeyboardItemCardView: View {
     }
 
     private var isEdgeToEdgeContent: Bool {
-        pres.previewKind == .image || pres.previewKind == .link
+        pres.previewKind == .image || pres.previewKind == .link || pres.previewKind == .color
     }
 
     private var previewTaskID: String {
@@ -1876,13 +1295,7 @@ private struct KeyboardItemCardView: View {
     }
 
     private var cardBackgroundColor: Color {
-        if pres.previewKind == .color,
-           let colorHex = pres.colorHex,
-           let normalizedHex = ColorHex.normalizedHex(from: colorHex) {
-            return Color(hex: normalizedHex, fallback: .gray)
-        }
-
-        return colorScheme == .dark
+        colorScheme == .dark
             ? Color(.sRGB, white: 0.04, opacity: 0.72)
             : Color(.sRGB, white: 0.96, opacity: 0.9)
     }
@@ -1923,30 +1336,25 @@ private struct KeyboardItemCardView: View {
     }
 
     private var tertiaryTextColor: Color {
-        if pres.previewKind == .color,
-           let colorHex = pres.colorHex,
-           let normalizedHex = ColorHex.normalizedHex(from: colorHex) {
-            return ColorHex.foregroundColor(for: normalizedHex).opacity(0.7)
-        }
         return colorScheme == .dark ? Color.white.opacity(0.6) : Color.black.opacity(0.5)
     }
 
     private func loadPreviewAssets() async {
         switch pres.previewKind {
         case .image:
-            linkPreviewImage = nil
+            linkPreviewResult = nil
             thumbnailImage = nil
             thumbnailImage = await KeyboardImagePreviewLoader.shared.loadThumbnail(for: item)
         case .link:
             thumbnailImage = nil
-            linkPreviewImage = nil
-            linkPreviewImage = await KeyboardLinkBannerImageLoader.shared.loadImage(
+            linkPreviewResult = nil
+            linkPreviewResult = await KeyboardLinkBannerImageLoader.shared.loadImage(
                 for: item,
                 allowsNetworkFetch: allowsNetworkFetch
             )
         default:
             thumbnailImage = nil
-            linkPreviewImage = nil
+            linkPreviewResult = nil
         }
     }
 }

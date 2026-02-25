@@ -36,7 +36,7 @@ struct WatchQuickAddSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             WatchSectionTitle(title: "New Card", detail: "\(characterCount)")
 
-            Label(container.selectedPinboardTitle, systemImage: "tray.2")
+            Label(container.selectedPinboardTitle, systemImage: "tray")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)

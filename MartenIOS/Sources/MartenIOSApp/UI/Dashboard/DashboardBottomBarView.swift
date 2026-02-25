@@ -45,7 +45,7 @@ struct DashboardBottomBarView: View {
                                     size: 22
                                 )
                             } else {
-                                Image(systemName: "tray.2.fill")
+                                Image(systemName: "tray")
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundStyle(.primary)
                             }

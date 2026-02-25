@@ -22,6 +22,20 @@ struct WatchClipSummary: Identifiable, Equatable, Sendable, Hashable {
     let pinboardIDs: [UUID]
     let isPinned: Bool
     let byteCount: Int64
+    let thumbnailPath: String?
+
+    var colorHex: String? {
+        guard itemType == .color, let text = primaryText else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        // Accept #-prefixed or raw hex strings of 6 or 8 chars
+        var cleaned = trimmed
+        if cleaned.hasPrefix("#") { cleaned.removeFirst() }
+        guard cleaned.count == 6 || cleaned.count == 8,
+              cleaned.allSatisfy({ $0.isHexDigit })
+        else { return nil }
+        return "#\(cleaned)"
+    }
 
     var preferredText: String {
         let plain = plainText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

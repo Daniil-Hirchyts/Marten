@@ -13,7 +13,7 @@ struct WatchPinboardPickerSheet: View {
                     pinboardRow(
                         title: "All",
                         subtitle: "Every card",
-                        iconName: "tray.2",
+                        iconName: "tray",
                         isLocked: false,
                         isSelected: container.selectedPinboardID == nil
                     ) {
