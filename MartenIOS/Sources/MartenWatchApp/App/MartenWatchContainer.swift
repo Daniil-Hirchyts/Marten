@@ -1,4 +1,5 @@
 import CloudKit
+import Combine
 import CoreData
 import Foundation
 import MartenCore
@@ -42,6 +43,7 @@ final class MartenWatchContainer {
 
     private var hasStarted = false
     private var refreshTask: Task<Void, Never>?
+    private var cancellables = Set<AnyCancellable>()
 
     convenience init(
         persistenceController: PersistenceController = .shared,
@@ -89,6 +91,16 @@ final class MartenWatchContainer {
 
         self.syncCoordinator?.syncEnabled = true
         userDefaults.set(true, forKey: WatchDefaults.syncEnabledKey)
+
+        // Auto-refresh UI whenever an inbound sync completes
+        syncCoordinator?.syncCompletedPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                Task { [weak self] in
+                    await self?.refresh()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     func start() async {
@@ -104,10 +116,11 @@ final class MartenWatchContainer {
         switch phase {
         case .active:
             ensureSystemPinboardExists()
+            syncCoordinator?.handleAppDidBecomeActive()
             await maybeStartSync()
             await refresh()
         case .background:
-            syncCoordinator?.stopSync()
+            syncCoordinator?.handleAppWillResignActive()
         default:
             break
         }
@@ -283,7 +296,7 @@ final class MartenWatchContainer {
         } catch {
             syncErrorMessage = error.localizedDescription
             shouldPresentSyncErrorAlert = true
-            return
+            // Fall through -- the coordinator may already be set up from a previous session
         }
 
         await syncCoordinator.handlePushNotification()
@@ -389,10 +402,16 @@ final class MartenWatchContainer {
         let cloudKitConfiguration = CloudKitConfiguration.default
         let appGroupIdentifier = WatchDefaults.appGroupIdentifier
 
+        let syncConfiguration = SyncCoordinatorConfiguration(
+            periodicFetchInterval: 15.0,
+            performImmediateInboundSync: true
+        )
+
         let syncCoordinator = SyncCoordinator.create(
             cloudKitConfiguration: cloudKitConfiguration,
             persistenceController: persistenceController,
             userDefaults: userDefaults,
+            configuration: syncConfiguration,
             syncEnabledProvider: {
                 let defaults = UserDefaults(suiteName: appGroupIdentifier) ?? .standard
                 return defaults.bool(forKey: WatchDefaults.syncEnabledKey)

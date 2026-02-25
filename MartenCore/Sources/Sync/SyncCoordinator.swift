@@ -106,6 +106,11 @@ public struct SyncCoordinatorConfiguration: Sendable {
     /// Interval for periodic inbound sync when app is active (default: 30 seconds).
     public var periodicFetchInterval: TimeInterval
 
+    /// When true, the first periodic inbound sync fires immediately instead of waiting
+    /// for the full `periodicFetchInterval`. Useful on watchOS where the app may only
+    /// be active for a few seconds.
+    public var performImmediateInboundSync: Bool
+
     /// UserDefaults key for sync enabled preference.
     public var syncEnabledKey: String
 
@@ -114,16 +119,19 @@ public struct SyncCoordinatorConfiguration: Sendable {
 
     public static let `default` = SyncCoordinatorConfiguration(
         periodicFetchInterval: 30.0,
+        performImmediateInboundSync: false,
         syncEnabledKey: "com.hirchyts.marten.syncEnabled",
         lastSyncDateKey: "com.hirchyts.marten.lastSyncDate"
     )
 
     public init(
         periodicFetchInterval: TimeInterval = 30.0,
+        performImmediateInboundSync: Bool = false,
         syncEnabledKey: String = "com.hirchyts.marten.syncEnabled",
         lastSyncDateKey: String = "com.hirchyts.marten.lastSyncDate"
     ) {
         self.periodicFetchInterval = periodicFetchInterval
+        self.performImmediateInboundSync = performImmediateInboundSync
         self.syncEnabledKey = syncEnabledKey
         self.lastSyncDateKey = lastSyncDateKey
     }
@@ -180,6 +188,11 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         errorSubject.eraseToAnyPublisher()
     }
 
+    /// Fires after every completed inbound sync (periodic, push, or manual).
+    public var syncCompletedPublisher: AnyPublisher<Void, Never> {
+        syncCompletedSubject.eraseToAnyPublisher()
+    }
+
     // MARK: - Dependencies
 
     private let cloudKitManager: CloudKitManager
@@ -202,6 +215,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     private var isSyncInProgress = false
     private var cancellables = Set<AnyCancellable>()
     private let errorSubject = PassthroughSubject<CloudKitSyncError, Never>()
+    private let syncCompletedSubject = PassthroughSubject<Void, Never>()
     private var isSetUp = false
 
     private static let logger = Logger(
@@ -383,6 +397,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
 
             lastSyncDate = Date()
             updateStatus(.synced)
+            syncCompletedSubject.send()
 
             log("Manual sync completed: \(syncResult.downloadedCount) downloaded, \(syncResult.deletedCount) deleted in \(String(format: "%.2f", duration))s")
         } catch let error as CloudKitSyncError {
@@ -434,6 +449,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
 
             lastSyncDate = Date()
             updateStatus(.synced)
+            syncCompletedSubject.send()
 
             log("Push-triggered sync completed: \(result.fetchedRecordCount) fetched")
         } catch {
@@ -555,7 +571,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     }
 
     private func startPeriodicInboundSync() {
-        periodicScheduler.start(interval: configuration.periodicFetchInterval) { [weak self] in
+        periodicScheduler.start(interval: configuration.periodicFetchInterval, runImmediately: configuration.performImmediateInboundSync) { [weak self] in
             let coordinator = self
             await MainActor.run { [coordinator] in
                 guard let coordinator else { return }
@@ -594,6 +610,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
 
             lastSyncDate = Date()
             updateStatus(.synced)
+            syncCompletedSubject.send()
         } catch {
             log("Periodic sync failed: \(error.localizedDescription)")
             if let syncError = error as? CloudKitSyncError {
@@ -693,6 +710,7 @@ extension SyncCoordinator {
         cloudKitConfiguration: CloudKitConfiguration = .default,
         persistenceController: PersistenceController,
         userDefaults: UserDefaults = .standard,
+        configuration: SyncCoordinatorConfiguration = .default,
         syncEnabledProvider: @escaping @Sendable () -> Bool
     ) -> SyncCoordinator {
         let tokenManager = SyncTokenManager()
@@ -777,9 +795,7 @@ extension SyncCoordinator {
             inboundEngine: inboundEngine,
             assetSyncManager: assetSyncManager,
             persistenceController: persistenceController,
-            configuration: SyncCoordinatorConfiguration(
-                periodicFetchInterval: 30.0
-            ),
+            configuration: configuration,
             userDefaults: userDefaults,
             shareCoordinator: shareCoord,
             sharedInboundEngine: sharedInbound,
