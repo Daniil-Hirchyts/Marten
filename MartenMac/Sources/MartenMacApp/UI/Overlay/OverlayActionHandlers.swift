@@ -48,6 +48,10 @@ struct OverlayActionHandlers {
         itemOperationsHandler.togglePin(item, allowPinning: allowPinning)
     }
 
+    func convertItemType(_ item: ClipItem, to newType: ItemType) {
+        itemOperationsHandler.convertItemType(item, to: newType)
+    }
+
     // MARK: - Pinboard Operations
 
     func deletePinboard(_ pinboard: Pinboard, selectedPinboardID: UUID?) -> UUID? {

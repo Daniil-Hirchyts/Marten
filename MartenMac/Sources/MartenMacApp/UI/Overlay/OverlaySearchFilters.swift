@@ -97,7 +97,7 @@ struct FilterPopoverView: View {
                 filterSection(title: "Content Type", icon: "doc.on.doc") {
                     if #available(macOS 13.0, *) {
                         FlowLayout(spacing: 8) {
-                            ForEach(ItemType.allCases, id: \.self) { type in
+                            ForEach(filterableItemTypes, id: \.self) { type in
                                 FilterChip(
                                     title: itemTypeLabel(type),
                                     icon: itemTypeIcon(type),
@@ -110,7 +110,7 @@ struct FilterPopoverView: View {
                         }
                     } else {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 8)], spacing: 8) {
-                            ForEach(ItemType.allCases, id: \.self) { type in
+                            ForEach(filterableItemTypes, id: \.self) { type in
                                 FilterChip(
                                     title: itemTypeLabel(type),
                                     icon: itemTypeIcon(type),
@@ -177,6 +177,10 @@ struct FilterPopoverView: View {
         dateFilter != .any || !typeFilters.isEmpty || !appFilters.isEmpty
     }
 
+    private var filterableItemTypes: [ItemType] {
+        ItemType.allCases.filter { $0 != .richText }
+    }
+
     private func toggleType(_ type: ItemType) {
         if typeFilters.contains(type) {
             typeFilters.remove(type)
@@ -196,7 +200,7 @@ struct FilterPopoverView: View {
     private func itemTypeLabel(_ type: ItemType) -> String {
         switch type {
         case .text: return "Text"
-        case .richText: return "Rich Text"
+        case .richText: return "Text"
         case .image: return "Image"
         case .file: return "File"
         case .url: return "URL"
@@ -235,7 +239,7 @@ struct FilterPopoverView: View {
     private func itemTypeIcon(_ type: ItemType) -> String {
         switch type {
         case .text: return "text.alignleft"
-        case .richText: return "textformat"
+        case .richText: return "text.alignleft"
         case .image: return "photo"
         case .file: return "doc"
         case .url: return "link"
@@ -248,7 +252,7 @@ struct FilterPopoverView: View {
     private func itemTypeIdentifier(_ type: ItemType) -> String {
         switch type {
         case .text: return "text"
-        case .richText: return "richText"
+        case .richText: return "text"
         case .image: return "image"
         case .file: return "file"
         case .url: return "url"

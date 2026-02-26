@@ -98,11 +98,6 @@ extension ItemCard {
     }
 
     func refreshStyledPreviewText() {
-        guard item.itemTypeValue == .richText else {
-            styledPreviewText = nil
-            return
-        }
-
         guard let styled = item.styledTextContentWithoutTextColor else {
             styledPreviewText = nil
             return

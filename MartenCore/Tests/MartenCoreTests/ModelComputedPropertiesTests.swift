@@ -12,7 +12,7 @@ final class ModelComputedPropertiesTests: XCTestCase {
             item?.itemTypeValue = .richText
         }
 
-        XCTAssertEqual(item?.itemTypeValue, .richText)
+        XCTAssertEqual(item?.itemTypeValue, .text)
     }
 
     func testHasMultipleRepresentations() throws {

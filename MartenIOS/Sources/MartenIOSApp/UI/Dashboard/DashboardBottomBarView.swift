@@ -74,7 +74,7 @@ struct DashboardBottomBarView: View {
                             #if os(iOS)
                             DashboardSearchTextField(
                                 text: searchQuery,
-                                placeholder: "Search clips\u{2026}",
+                                placeholder: "Search cards\u{2026}",
                                 focusRequest: $searchFocusRequest
                             )
                             .frame(height: 36)
@@ -83,7 +83,7 @@ struct DashboardBottomBarView: View {
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(.secondary)
 
-                            TextField("Search clips\u{2026}", text: searchQuery)
+                            TextField("Search cards\u{2026}", text: searchQuery)
                             #endif
 
                             if !searchQuery.wrappedValue.isEmpty {

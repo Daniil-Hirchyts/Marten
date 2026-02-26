@@ -322,7 +322,7 @@ public final class MartenIOSAppContainer {
                     ),
                 ],
                 primaryText: trimmed,
-                itemType: .richText
+                itemType: .text
             )
             try await commandService.createItem(
                 payload: payload,
@@ -493,6 +493,23 @@ public final class MartenIOSAppContainer {
         await performMutation { try await commandService.deleteItems(objectIDs: objectIDs) }
     }
 
+    public func deleteAllData() async {
+        await performMutation { try await commandService.deleteAllItems() }
+        invalidateDashboardItems()
+        setSelectedPinboardID(nil)
+    }
+
+    public func deleteDataCreatedOnThisDevice() async {
+        await performMutation { try await commandService.deleteItemsFromThisDevice() }
+        invalidateDashboardItems()
+    }
+
+    public func deleteOnlyPinboards() async {
+        await performMutation { try await commandService.deleteUserPinboards() }
+        setSelectedPinboardID(nil)
+        invalidateDashboardItems()
+    }
+
     public func togglePin(objectID: NSManagedObjectID) async {
         await performMutation { try await commandService.togglePin(objectID: objectID) }
     }
@@ -533,6 +550,15 @@ public final class MartenIOSAppContainer {
 
         await performMutation {
             try await commandService.updateTextItem(objectID: objectID, newText: newText)
+        }
+    }
+
+    public func updateItemType(objectID: NSManagedObjectID, newType: ItemType) async {
+        await performMutation {
+            try await commandService.updateItemType(objectID: objectID, newType: newType)
+            if newType == .url {
+                await refreshPendingLinkPreviews()
+            }
         }
     }
 

@@ -48,6 +48,13 @@ extension OverlayShellView {
         }
     }
 
+    func handleConvertItemType(_ item: ClipItem, to newType: ItemType) {
+        withAnimation(OverlayAnimation.cardSpring) {
+            actionHandlers.convertItemType(item, to: newType)
+            cachedFilteredItems = computeFilteredItems()
+        }
+    }
+
     func handleOpenEditor(_ item: ClipItem) {
         previewCoordinator.openEditor(for: item, closeOverlay: viewModel.closeOverlayForSettings)
     }

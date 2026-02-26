@@ -1,44 +1,37 @@
 import SwiftUI
 
-struct DashboardGradientFadesView: View {
-    var body: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                LinearGradient(
-                    stops: [
-                        .init(color: Color(platformColor: .platformSystemBackground).opacity(1.0), location: 0.0),
-                        .init(color: Color(platformColor: .platformSystemBackground).opacity(0.9), location: 0.2),
-                        .init(color: Color(platformColor: .platformSystemBackground).opacity(0.5), location: 0.5),
-                        .init(color: Color(platformColor: .platformSystemBackground).opacity(0.1), location: 0.8),
-                        .init(color: Color(platformColor: .platformSystemBackground).opacity(0.0), location: 1.0),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 140)
-                .allowsHitTesting(false)
-                Spacer()
-            }
-            .ignoresSafeArea()
+struct DashboardFadeMask: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .mask(
+                VStack(spacing: 0) {
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black.opacity(0.1), location: 0.0),
+                            .init(color: .black.opacity(0.3), location: 0.6),
+                            .init(color: .black.opacity(0.8), location: 0.8),
+                            .init(color: .black, location: 1.0),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 140)
 
-            VStack(spacing: 0) {
-                Spacer()
-                LinearGradient(
-                    stops: [
-                        .init(color: Color(platformColor: .platformSystemBackground).opacity(0.0), location: 0.0),
-                        .init(color: Color(platformColor: .platformSystemBackground).opacity(0.1), location: 0.2),
-                        .init(color: Color(platformColor: .platformSystemBackground).opacity(0.5), location: 0.5),
-                        .init(color: Color(platformColor: .platformSystemBackground).opacity(0.9), location: 0.8),
-                        .init(color: Color(platformColor: .platformSystemBackground).opacity(1.0), location: 1.0),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 140)
-                .allowsHitTesting(false)
-            }
-            .ignoresSafeArea()
-        }
+                    Rectangle().fill(.black)
+
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0.0),
+                            .init(color: .black.opacity(0.9), location: 0.2),
+                            .init(color: .black.opacity(0.5), location: 0.5),
+                            .init(color: .black.opacity(0.1), location: 1.0),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 120)
+                }
+                .ignoresSafeArea()
+            )
     }
 }
-

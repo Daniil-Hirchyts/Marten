@@ -17,6 +17,8 @@ struct MartenIOSSettingsView: View {
                 Text("General")
             }
 
+            DataCleanupSettingsSection(container: container)
+
             Section {
                 HStack {
                     Spacer()

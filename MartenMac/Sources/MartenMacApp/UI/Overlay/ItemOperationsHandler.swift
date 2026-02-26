@@ -106,6 +106,14 @@ final class ItemOperationsHandler {
         }
     }
 
+    func convertItemType(_ item: ClipItem, to newType: ItemType) {
+        do {
+            _ = try store.updateItemType(objectID: item.objectID, newType: newType)
+        } catch {
+            Logger.app.error("Failed to convert item type: \(error.localizedDescription)")
+        }
+    }
+
     private func copySelectedItems(
         selectedItemIDs: Set<NSManagedObjectID>,
         orderedItems: [ClipItem],

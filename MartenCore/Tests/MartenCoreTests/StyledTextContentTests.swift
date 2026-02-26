@@ -140,7 +140,7 @@ final class StyledTextContentTests: XCTestCase {
         )
 
         XCTAssertEqual(saved.primaryText, "New")
-        XCTAssertEqual(saved.itemTypeValue, .richText)
+        XCTAssertEqual(saved.itemTypeValue, .text)
 
         guard
             let richRepresentation = saved.representations?.first(where: { $0.kindValue == .rtf })

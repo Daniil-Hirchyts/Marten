@@ -21,6 +21,7 @@ public protocol ItemOperating: AnyObject {
     func updateImageData(itemID: NSManagedObjectID, imageData: Data)
     func updateFileName(itemID: NSManagedObjectID, newFileName: String)
     func togglePin(_ item: ClipItem, allowPinning: Bool)
+    func convertItemType(_ item: ClipItem, to newType: ItemType)
 }
 
 extension ItemOperationsHandler: ItemOperating {}

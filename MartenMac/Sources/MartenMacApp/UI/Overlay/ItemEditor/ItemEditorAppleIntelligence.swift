@@ -65,14 +65,14 @@ extension ItemEditorContentView {
     }
 
     var shouldShowAppleIntelligenceControl: Bool {
-        guard let item else {
+        guard item != nil else {
             return appleIntelligenceAvailability == .available
         }
 
         if supportsCustomAppleIntelligenceActions {
             return appleIntelligenceAvailability == .available
         }
-        return item.itemTypeValue == .richText
+        return hasRichTextRepresentation
     }
 
     var isGeneratingAppleIntelligence: Bool {
@@ -90,8 +90,8 @@ extension ItemEditorContentView {
     }
 
     var richTextEditorWritingToolsResultOptions: NSWritingToolsResultOptions {
-        guard let item else { return [.plainText, .richText, .table, .list] }
-        if item.itemTypeValue == .richText {
+        guard item != nil else { return [.plainText, .richText, .table, .list] }
+        if hasRichTextRepresentation {
             return [.richText, .list, .table, .presentationIntent]
         }
         return .plainText
@@ -216,8 +216,7 @@ extension ItemEditorContentView {
                 replacementText: preview.transformedText,
                 target: preview.target
             )
-            let isRichText = item?.itemTypeValue == .richText
-            if isRichText {
+            if hasRichTextRepresentation {
                 draftAttributedText = NSAttributedString(
                     string: draftText,
                     attributes: [.font: NSFont.systemFont(ofSize: 16)]
@@ -300,5 +299,17 @@ extension ItemEditorContentView {
         case .generationFailed:
             return "Apple Intelligence couldn’t transform the text right now. Try again."
         }
+    }
+
+    private var hasRichTextRepresentation: Bool {
+        if let item, item.styledTextContentWithoutTextColor != nil {
+            return true
+        }
+
+        if let draftAttributedText {
+            return ItemEditorHelpers.hasRichFormatting(draftAttributedText)
+        }
+
+        return false
     }
 }

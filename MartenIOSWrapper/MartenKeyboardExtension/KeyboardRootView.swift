@@ -1047,13 +1047,38 @@ private struct KeyboardItemCardView: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .fill(cardBackgroundColor)
+            ZStack(alignment: .top) {
+                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+
+                // Subtle color background
+                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                    .fill(cardBackgroundColor)
+
+                // Ambient inner gradient for the whole card
+                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                glowColor.opacity(colorScheme == .dark ? 0.25 : 0.15),
+                                glowColor.opacity(colorScheme == .dark ? 0.0 : 0.0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
         )
         .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .strokeBorder(cardBorderColor, lineWidth: 0.5)
+                .strokeBorder(cardBorderColor, lineWidth: 1)
+        )
+        .shadow(
+            color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08),
+            radius: 14,
+            x: 0,
+            y: 8
         )
         .aspectRatio(1, contentMode: .fit)
         .task(id: previewTaskID) {
@@ -1100,13 +1125,39 @@ private struct KeyboardItemCardView: View {
         .frame(minHeight: headerMinHeight, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            UnevenRoundedRectangle(
-                topLeadingRadius: cardCornerRadius,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: cardCornerRadius
+            ZStack {
+                UnevenRoundedRectangle(
+                    topLeadingRadius: cardCornerRadius,
+                    bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: cardCornerRadius
+                )
+                .fill(.ultraThinMaterial)
+
+                UnevenRoundedRectangle(
+                    topLeadingRadius: cardCornerRadius,
+                    bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: cardCornerRadius
+                )
+                .fill(headerBackgroundColor)
+            }
+            .overlay(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: cardCornerRadius,
+                    bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: cardCornerRadius
+                )
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.25), .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
             )
-            .fill(headerBackgroundColor)
         )
     }
 
@@ -1272,49 +1323,51 @@ private struct KeyboardItemCardView: View {
         return "\(item.id.uuidString)-\(Int64(item.modifiedAt.timeIntervalSince1970 * 1000))-\(thumbnailPath)-\(linkPreviewID)-\(linkPreviewFetchedAt)-\(allowsNetworkFetch)"
     }
 
+    private var glowColor: Color {
+        if let pinboardHex = pres.primaryPinboardColorHex,
+           let normalized = ColorHex.normalizedHex(from: pinboardHex) {
+            return Color(hex: normalized, fallback: .gray)
+        }
+        return Color.clear
+    }
+
     private var headerBackgroundColor: Color {
         if let pinboardHex = pres.primaryPinboardColorHex,
            let normalizedHex = ColorHex.normalizedHex(from: pinboardHex) {
-            return Color(hex: normalizedHex, fallback: .gray).opacity(0.96)
+            return Color(hex: normalizedHex, fallback: .gray).opacity(colorScheme == .dark ? 0.85 : 1.0)
         }
-        return SourceAppIconDescriptor.resolve(
-            bundleID: pres.sourceAppBundleID,
-            appName: pres.sourceAppName
-        ).backgroundColor.opacity(0.94)
+        return Color.clear
     }
 
     private var headerTextColor: Color {
         if let pinboardHex = pres.primaryPinboardColorHex,
            let normalizedHex = ColorHex.normalizedHex(from: pinboardHex) {
-            return ColorHex.foregroundColor(for: normalizedHex)
+            return colorScheme == .dark ? ColorHex.foregroundColor(for: normalizedHex) : .white
         }
-        return SourceAppIconDescriptor.resolve(
-            bundleID: pres.sourceAppBundleID,
-            appName: pres.sourceAppName
-        ).foregroundColor
+        return .primary
     }
 
     private var cardBackgroundColor: Color {
-        colorScheme == .dark
-            ? Color(.sRGB, white: 0.04, opacity: 0.72)
-            : Color(.sRGB, white: 0.96, opacity: 0.9)
-    }
-
-    private var cardBorderColor: Color {
-        if let pinboardHex = pres.primaryPinboardColorHex,
-           let normalizedHex = ColorHex.normalizedHex(from: pinboardHex) {
-            return Color(hex: normalizedHex, fallback: .gray).opacity(0.35)
-        }
-
-        if pres.previewKind == .color,
-           let colorHex = pres.colorHex,
-           let normalizedHex = ColorHex.normalizedHex(from: colorHex) {
-            return ColorHex.foregroundColor(for: normalizedHex).opacity(0.3)
+        if colorScheme == .light, pres.primaryPinboardColorHex != nil {
+             return glowColor.opacity(0.05)
         }
 
         return colorScheme == .dark
-            ? Color.white.opacity(0.14)
-            : Color.black.opacity(0.12)
+            ? Color(.sRGB, white: 0.10, opacity: 0.4)
+            : Color(.sRGB, white: 1.0, opacity: 0.5)
+    }
+
+    private var cardBorderColor: AnyShapeStyle {
+        let colors = [
+            (colorScheme == .light && pres.primaryPinboardColorHex != nil) ? glowColor.opacity(0.8) : Color.white.opacity(colorScheme == .dark ? 0.15 : 0.8),
+            (colorScheme == .light && pres.primaryPinboardColorHex != nil) ? glowColor.opacity(0.2) : Color.white.opacity(colorScheme == .dark ? 0.0 : 0.2)
+        ]
+
+        return AnyShapeStyle(LinearGradient(
+            colors: colors,
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        ))
     }
 
     private var primaryTextColor: Color {

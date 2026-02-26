@@ -258,24 +258,24 @@ struct GeneralSettingsContent: View {
 
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Erase all history")
+                                Text("Delete Data")
                                     .font(.system(size: 13, weight: .medium))
-                                Text("This cannot be undone")
+                                Text("Manage data removal")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.tertiary)
                             }
 
                             Spacer()
 
-                            Button(role: .destructive) {
-                                showEraseConfirmation = true
+                            NavigationLink {
+                                DangerZoneView()
                             } label: {
-                                Text("Erase...")
+                                Text("Danger Zone...")
                                     .font(.system(size: 12, weight: .medium))
                             }
                             .buttonStyle(.bordered)
                             .tint(.red)
-                            .accessibilityIdentifier("settings.button.eraseHistory")
+                            .accessibilityIdentifier("settings.button.dangerZone")
                         }
                     }
                 }

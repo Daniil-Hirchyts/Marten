@@ -95,17 +95,17 @@ struct ItemCardPreviewContent: View {
                         .resizable()
                         .interpolation(.high)
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 56, height: 56)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                        .frame(width: 36, height: 36)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
                     #elseif canImport(AppKit)
                     Image(nsImage: image)
                         .resizable()
                         .interpolation(.high)
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 56, height: 56)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                        .frame(width: 36, height: 36)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .shadow(color: .black.opacity(0.15), radius: 3, x: 0, y: 1)
                     #endif
                 case nil:
                     linkPreviewPlaceholderBackground
@@ -157,38 +157,26 @@ struct ItemCardPreviewContent: View {
     private var colorPreview: some View {
         let hex = presentation.colorHex ?? "#808080"
         let background = Color(hex: hex, fallback: .gray)
-        let foreground = ColorHex.foregroundColor(
-            for: ColorHex.normalizedHex(from: hex) ?? "#808080"
-        )
 
-        return Rectangle()
-            .fill(background)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay {
-                Text(presentation.snippet ?? hex)
-                    .font(.caption.weight(.semibold).monospaced())
-                    .foregroundStyle(foreground)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .padding(.horizontal, 8)
-            }
+        return HStack(alignment: .center, spacing: 10) {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(background)
+                .frame(width: 32, height: 32)
+                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+            
+            Text(presentation.snippet ?? hex)
+                .font(.system(size: 14, weight: .medium, design: .monospaced))
+                .foregroundStyle(secondaryTextColor)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var primaryTextColor: Color {
-        if presentation.previewKind == .color,
-           let colorHex = presentation.colorHex,
-           let normalized = ColorHex.normalizedHex(from: colorHex) {
-            return ColorHex.foregroundColor(for: normalized)
-        }
         return colorScheme == .dark ? Color.white.opacity(0.9) : Color.black.opacity(0.9)
     }
 
     private var secondaryTextColor: Color {
-        if presentation.previewKind == .color,
-           let colorHex = presentation.colorHex,
-           let normalized = ColorHex.normalizedHex(from: colorHex) {
-            return ColorHex.foregroundColor(for: normalized).opacity(0.8)
-        }
         return colorScheme == .dark ? Color.white.opacity(0.75) : Color.black.opacity(0.75)
     }
 }

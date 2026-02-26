@@ -48,7 +48,7 @@ struct CachedItemProperties {
     private static func computeTypeLabel(for itemType: ItemType) -> String {
         switch itemType {
         case .text: return "Text"
-        case .richText: return "Rich Text"
+        case .richText: return "Text"
         case .image: return "Image"
         case .file: return "File"
         case .url: return "URL"
@@ -61,7 +61,7 @@ struct CachedItemProperties {
     private static func computeTypeIcon(for itemType: ItemType) -> String {
         switch itemType {
         case .text: return "textformat"
-        case .richText: return "doc.richtext"
+        case .richText: return "textformat"
         case .image: return "photo"
         case .file: return "doc"
         case .url: return "link"
@@ -94,7 +94,7 @@ struct CachedItemProperties {
         case .image:
             return "Image"
         case .richText:
-            return text.isEmpty ? "Rich Text" : text
+            return text.isEmpty ? "Text" : text
         case .text:
             return text.isEmpty ? "Text" : text
         case .code:
@@ -471,8 +471,7 @@ extension ItemCard {
     }
 
     var richTextPreview: AttributedString? {
-        guard item.itemTypeValue == .richText else { return nil }
-        return styledPreviewText
+        styledPreviewText
     }
 
     var footerView: some View {

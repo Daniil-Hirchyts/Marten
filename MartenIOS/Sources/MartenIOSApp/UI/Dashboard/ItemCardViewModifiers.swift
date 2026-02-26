@@ -32,11 +32,14 @@ struct SelectionFeedbackModifier: ViewModifier {
 struct ContextMenuModifier: ViewModifier {
     let isEnabled: Bool
     let allowPinning: Bool
+    let currentItemType: ItemType
+    let sourceText: String?
     let isPinned: Bool
     let onCopy: () -> Void
     let onCopyPlainText: () -> Void
     let onPreview: () -> Void
     let onEdit: () -> Void
+    let onConvertType: (ItemType) -> Void
     let onTogglePin: () -> Void
     let onShare: () -> Void
     let onMove: () -> Void
@@ -63,6 +66,24 @@ struct ContextMenuModifier: ViewModifier {
             Button { perform(action) } label: {
                 Label(isPinned ? "Unpin" : "Pin", systemImage: isPinned ? "pin.slash" : "pin")
             }
+        } else if action == .convertType {
+            let conversionTargets = ItemCardContextAction.conversionTargets(
+                for: currentItemType,
+                sourceText: sourceText
+            )
+            if !conversionTargets.isEmpty {
+                Menu {
+                    ForEach(conversionTargets, id: \.self) { type in
+                        Button {
+                            onConvertType(type)
+                        } label: {
+                            Label(type.label, systemImage: ItemCardContextAction.conversionTypeSystemImage(type))
+                        }
+                    }
+                } label: {
+                    Label(action.title, systemImage: action.systemImage)
+                }
+            }
         } else if action.isDestructive {
             Button(role: .destructive) { perform(action) } label: {
                 Label(action.title, systemImage: action.systemImage)
@@ -84,6 +105,8 @@ struct ContextMenuModifier: ViewModifier {
             onPreview()
         case .edit:
             onEdit()
+        case .convertType:
+            break
         case .togglePin:
             onTogglePin()
         case .share:

@@ -17,7 +17,7 @@ extension ItemType {
     var label: String {
         switch self {
         case .text: return "Text"
-        case .richText: return "Rich Text"
+        case .richText: return "Text"
         case .image: return "Image"
         case .file: return "File"
         case .url: return "Link"
@@ -37,4 +37,3 @@ extension ClipItemSourceDevice {
         }
     }
 }
-

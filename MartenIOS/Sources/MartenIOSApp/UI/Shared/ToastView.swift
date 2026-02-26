@@ -62,7 +62,7 @@ struct ToastModifier: ViewModifier {
             .overlay(alignment: .top) {
                 if controller.isShowing, let message = controller.message {
                     ToastView(message, systemImage: controller.systemImage)
-                        .padding(.top, 60)
+                        .padding(.top, 16)
                         .transition(.move(edge: .top).combined(with: .opacity))
                         .zIndex(1000)
                 }

@@ -27,6 +27,7 @@ struct ItemCardRow: View {
     let onCopy: (ClipItem) -> Void
     let onDelete: (ClipItem) -> Void
     let onTogglePin: (ClipItem) -> Void
+    let onConvertType: (ClipItem, ItemType) -> Void
     let onMoveToPinboard: (ClipItem, Pinboard) -> Void
     let onCreatePinboard: (ClipItem) -> Void
     let onEdit: (ClipItem) -> Void
@@ -285,6 +286,7 @@ struct ItemCardRow: View {
                 onCopy: onCopy,
                 onDelete: onDelete,
                 onTogglePin: onTogglePin,
+                onConvertType: onConvertType,
                 onMoveToPinboard: onMoveToPinboard,
                 onCreatePinboard: onCreatePinboard,
                 onEdit: onEdit,
@@ -1031,6 +1033,7 @@ struct ItemCardDragPreview: View {
             onCopy: { _ in },
             onDelete: { _ in },
             onTogglePin: { _ in },
+            onConvertType: { _, _ in },
             onMoveToPinboard: { _, _ in },
             onCreatePinboard: { _ in },
             onEdit: { _ in },
@@ -1078,6 +1081,7 @@ struct MultiItemCardDragPreview: View {
                     onCopy: { _ in },
                     onDelete: { _ in },
                     onTogglePin: { _ in },
+                    onConvertType: { _, _ in },
                     onMoveToPinboard: { _, _ in },
                     onCreatePinboard: { _ in },
                     onEdit: { _ in },

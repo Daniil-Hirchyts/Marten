@@ -52,7 +52,7 @@ final class PasteboardExtractorTests: XCTestCase {
         XCTAssertTrue(kinds.contains(.rtf))
         XCTAssertTrue(kinds.contains(.html))
         XCTAssertEqual(payload?.primaryText, "Rich")
-        XCTAssertEqual(payload?.itemType, .richText)
+        XCTAssertEqual(payload?.itemType, .text)
     }
 
     func testExtractImage() throws {

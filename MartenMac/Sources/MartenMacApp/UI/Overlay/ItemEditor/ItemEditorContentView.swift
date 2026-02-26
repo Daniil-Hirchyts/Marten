@@ -61,10 +61,12 @@ struct ItemEditorContentView: View {
             _draftText = State(initialValue: "")
             _fileName = State(initialValue: "New Text Item")
         } else if let item {
-            let initialRichText = item.itemTypeValue == .richText ? item.styledTextContentWithoutTextColor : nil
+            let initialRichText = item.styledTextContentWithoutTextColor
             _initialRichTextContent = State(initialValue: initialRichText)
             _draftAttributedText = State(initialValue: initialRichText)
-            _draftText = State(initialValue: initialRichText?.string ?? item.primaryText ?? "")
+            _draftText = State(
+                initialValue: initialRichText?.string ?? item.plainTextContent ?? item.primaryText ?? ""
+            )
 
             if item.itemTypeValue == .file, let filePath = item.primaryText {
                 _fileName = State(initialValue: URL(fileURLWithPath: filePath).lastPathComponent)

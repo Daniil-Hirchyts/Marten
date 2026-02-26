@@ -40,7 +40,7 @@ final class ShareExtensionPayloadLoaderTests: XCTestCase {
         XCTAssertEqual(payload?.representations.first?.kind, .jpeg)
     }
 
-    func testRichTextCandidateCreatesRichTextPayload() {
+    func testRichTextCandidateCreatesTextPayload() {
         let candidate = ShareExtensionPayloadCandidate(
             rtfData: Data("{\\rtf1\\ansi Test}".utf8),
             plainText: "Test"
@@ -48,6 +48,6 @@ final class ShareExtensionPayloadLoaderTests: XCTestCase {
 
         let payload = loader.payload(from: candidate)
 
-        XCTAssertEqual(payload?.itemType, .richText)
+        XCTAssertEqual(payload?.itemType, .text)
     }
 }

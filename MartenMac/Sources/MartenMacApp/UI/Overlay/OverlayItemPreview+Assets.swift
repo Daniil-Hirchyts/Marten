@@ -8,11 +8,6 @@ extension OverlayItemPreview {
     }
 
     func refreshStyledTextPreview() {
-        guard item.itemTypeValue == .richText else {
-            styledRichTextPreview = nil
-            return
-        }
-
         guard let styled = item.styledTextContentWithoutTextColor else {
             styledRichTextPreview = nil
             return

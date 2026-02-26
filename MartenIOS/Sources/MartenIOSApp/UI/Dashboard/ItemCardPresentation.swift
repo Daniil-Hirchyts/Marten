@@ -70,7 +70,7 @@ struct ItemCardPresentation: Identifiable {
             fileName = nil
             fileSize = Self.byteCountString(for: item.byteCount)
         case .richText:
-            previewKind = .richText
+            previewKind = .text
             snippet = item.plainTextContent ?? normalizedText
             urlHost = nil
             urlPath = nil
@@ -151,7 +151,7 @@ struct ItemCardPresentation: Identifiable {
         case .text:
             return "Text"
         case .richText:
-            return "Rich Text"
+            return "Text"
         case .image:
             return "Image"
         case .file:

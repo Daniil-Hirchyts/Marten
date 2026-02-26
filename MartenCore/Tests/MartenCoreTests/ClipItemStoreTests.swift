@@ -30,4 +30,80 @@ final class ClipItemStoreTests: XCTestCase {
         XCTAssertEqual(first.objectID, second.objectID)
         XCTAssertTrue(second.modifiedAt >= originalModifiedAt)
     }
+
+    func testUpdateItemTypeConvertsTextToURLAndNormalizes() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let item = try store.createTextItem(text: "example.com")
+
+        let converted = try store.updateItemType(objectID: item.objectID, newType: .url)
+
+        XCTAssertEqual(converted.itemTypeValue, .url)
+        XCTAssertEqual(converted.primaryText, "https://example.com")
+        XCTAssertTrue(converted.needsLinkPreview)
+        XCTAssertEqual(converted.representations?.count, 1)
+        XCTAssertEqual(converted.representations?.first?.kindValue, .url)
+    }
+
+    func testUpdateItemTypeRejectsRichTextConversion() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let item = try store.createTextItem(text: "Simple note")
+
+        XCTAssertThrowsError(try store.updateItemType(objectID: item.objectID, newType: .richText)) { error in
+            XCTAssertEqual(error as? ClipItemStoreError, .unsupportedTypeConversion)
+        }
+    }
+
+    func testUpdateItemTypeConvertsURLToTextAndClearsLinkPreview() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+
+        let item = try store.createItem(
+            payload: ClipItemPayload(
+                representations: [
+                    ClipRepresentationPayload(
+                        kind: .url,
+                        uti: "public.url",
+                        text: "https://example.com"
+                    )
+                ],
+                primaryText: "https://example.com",
+                itemType: .url,
+                needsLinkPreview: true
+            )
+        )
+
+        try store.updateLinkPreview(
+            objectID: item.objectID,
+            payload: LinkPreviewPayload(
+                url: URL(string: "https://example.com")!,
+                title: "Example",
+                siteName: "Example",
+                summary: "Summary",
+                imageData: nil,
+                imageURL: nil,
+                fetchedAt: Date()
+            )
+        )
+
+        let converted = try store.updateItemType(objectID: item.objectID, newType: .text)
+
+        XCTAssertEqual(converted.itemTypeValue, .text)
+        XCTAssertEqual(converted.primaryText, "https://example.com")
+        XCTAssertFalse(converted.needsLinkPreview)
+        XCTAssertNil(converted.linkPreview)
+        XCTAssertEqual(converted.representations?.count, 1)
+        XCTAssertEqual(converted.representations?.first?.kindValue, .plainText)
+    }
+
+    func testUpdateItemTypeRejectsInvalidURLConversion() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let item = try store.createTextItem(text: "not a valid url with spaces")
+
+        XCTAssertThrowsError(try store.updateItemType(objectID: item.objectID, newType: .url)) { error in
+            XCTAssertEqual(error as? ClipItemStoreError, .invalidURLForTypeConversion)
+        }
+    }
 }

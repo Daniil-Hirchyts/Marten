@@ -308,7 +308,7 @@ extension OverlayItemPreview {
     var typeTitle: String {
         switch item.itemTypeValue {
         case .text: "Text"
-        case .richText: "Rich Text"
+        case .richText: "Text"
         case .image: "Image"
         case .file: "File"
         case .url: "URL"
@@ -457,7 +457,7 @@ extension OverlayItemPreview {
     func representationLabel(for kind: RepresentationKind) -> String {
         switch kind {
         case .plainText: return "Plain Text"
-        case .rtf: return "Rich Text"
+        case .rtf: return "RTF"
         case .html: return "HTML"
         case .markdown: return "Markdown"
         case .png: return "PNG"

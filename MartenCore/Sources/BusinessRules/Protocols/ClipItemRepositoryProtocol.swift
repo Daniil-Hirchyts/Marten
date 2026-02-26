@@ -9,6 +9,7 @@ public protocol ClipItemRepositoryProtocol: Sendable {
     func createItem(payload: ClipItemPayload, sourceApp: SourceAppInfo?, isUserCreated: Bool) throws -> ClipItem
 
     func deleteAllItems() throws
+    func deleteItemsFromThisDevice() throws
     func fetchRecentItems(limit: Int) throws -> [ClipItem]
     func fetchItems(
         primaryText: String,
@@ -24,6 +25,9 @@ public protocol ClipItemRepositoryProtocol: Sendable {
 
     @discardableResult
     func updateItem(objectID: NSManagedObjectID, payload: ClipItemPayload) throws -> ClipItem
+
+    @discardableResult
+    func updateItemType(objectID: NSManagedObjectID, newType: ItemType) throws -> ClipItem
 
     func deleteItem(objectID: NSManagedObjectID) throws
     func togglePin(objectID: NSManagedObjectID) throws

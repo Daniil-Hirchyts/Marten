@@ -41,7 +41,9 @@ struct URLViewerSheet: View {
                             Image(systemName: "pencil")
                         }
                     }
-
+                }
+                
+                ToolbarItemGroup(placement: .bottomBar) {
                     if url != nil {
                         Button {
                             webViewState.goBack()
@@ -57,16 +59,24 @@ struct URLViewerSheet: View {
                         }
                         .disabled(!webViewState.canGoForward)
                         
-                        Button {
-                            webViewState.reload()
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
+                        Spacer()
                         
                         if let currentURL = webViewState.currentURL ?? url {
                             ShareLink(item: currentURL) {
                                 Image(systemName: "square.and.arrow.up")
                             }
+                            
+                            Button {
+                                openInBrowser(currentURL)
+                            } label: {
+                                Image(systemName: "safari")
+                            }
+                        }
+                        
+                        Button {
+                            webViewState.reload()
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
                         }
                     }
                 }
@@ -99,6 +109,14 @@ struct URLViewerSheet: View {
                   let parsedURL = URL(string: encodedString) {
             url = parsedURL
         }
+    }
+    
+    private func openInBrowser(_ url: URL) {
+        #if canImport(UIKit)
+        UIApplication.shared.open(url)
+        #elseif canImport(AppKit)
+        NSWorkspace.shared.open(url)
+        #endif
     }
 }
 

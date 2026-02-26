@@ -11,6 +11,7 @@ public protocol PinboardRepositoryProtocol: Sendable {
     func updatePinboard(objectID: NSManagedObjectID, name: String, colorHex: String, iconName: String?)
         throws
     func deletePinboard(objectID: NSManagedObjectID) throws
+    func deleteUserPinboards() throws
 
     func addItem(objectID: NSManagedObjectID, toPinboard pinboardID: NSManagedObjectID) throws
     func removeItem(objectID: NSManagedObjectID, fromPinboard pinboardID: NSManagedObjectID) throws

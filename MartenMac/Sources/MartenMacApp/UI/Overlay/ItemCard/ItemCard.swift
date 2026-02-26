@@ -23,6 +23,7 @@ struct ItemCard: View {
     let onCopy: (ClipItem) -> Void
     let onDelete: (ClipItem) -> Void
     let onTogglePin: (ClipItem) -> Void
+    let onConvertType: (ClipItem, ItemType) -> Void
     let onMoveToPinboard: (ClipItem, Pinboard) -> Void
     let onCreatePinboard: (ClipItem) -> Void
     let onEdit: (ClipItem) -> Void

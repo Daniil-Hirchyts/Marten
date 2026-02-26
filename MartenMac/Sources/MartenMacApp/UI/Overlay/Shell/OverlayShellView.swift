@@ -246,6 +246,7 @@ struct OverlayShellView: View {
                 onCopy: handleCopyItem,
                 onDelete: handleDeleteItem,
                 onTogglePin: handleTogglePin,
+                onConvertType: handleConvertItemType,
                 onMoveToPinboard: handleMoveToPinboard,
                 onCreatePinboard: beginPinboardCreate,
                 onEdit: handleOpenEditor,

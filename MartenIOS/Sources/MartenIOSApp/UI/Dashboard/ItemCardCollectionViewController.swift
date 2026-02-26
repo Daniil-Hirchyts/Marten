@@ -23,6 +23,7 @@ final class ItemCardCollectionViewController: UIViewController {
     private let onCopyPlainTextItem: (ClipItem) -> Void
     private let onPreviewItem: (ClipItem) -> Void
     private let onEditItem: (ClipItem) -> Void
+    private let onConvertTypeItem: (ClipItem, ItemType) -> Void
     private let onTogglePinItem: (ClipItem) -> Void
     private let onShareItem: (ClipItem) -> Void
     private let onMoveItem: (ClipItem) -> Void
@@ -127,6 +128,7 @@ final class ItemCardCollectionViewController: UIViewController {
                     onCopyPlainText: { self.onCopyPlainTextItem(item) },
                     onPreview: { self.onPreviewItem(item) },
                     onEdit: { self.onEditItem(item) },
+                    onConvertType: { type in self.onConvertTypeItem(item, type) },
                     onShare: { self.onShareItem(item) },
                     onMove: { self.onMoveItem(item) },
                     onDelete: { self.onDeleteItem(item) }
@@ -149,6 +151,7 @@ final class ItemCardCollectionViewController: UIViewController {
         onCopyPlainTextItem: @escaping (ClipItem) -> Void,
         onPreviewItem: @escaping (ClipItem) -> Void,
         onEditItem: @escaping (ClipItem) -> Void,
+        onConvertTypeItem: @escaping (ClipItem, ItemType) -> Void,
         onTogglePinItem: @escaping (ClipItem) -> Void,
         onShareItem: @escaping (ClipItem) -> Void,
         onMoveItem: @escaping (ClipItem) -> Void,
@@ -163,6 +166,7 @@ final class ItemCardCollectionViewController: UIViewController {
         self.onCopyPlainTextItem = onCopyPlainTextItem
         self.onPreviewItem = onPreviewItem
         self.onEditItem = onEditItem
+        self.onConvertTypeItem = onConvertTypeItem
         self.onTogglePinItem = onTogglePinItem
         self.onShareItem = onShareItem
         self.onMoveItem = onMoveItem
@@ -420,6 +424,7 @@ final class ItemCardCollectionViewController: UIViewController {
                 onCopyPlainText: { self.onCopyPlainTextItem(item) },
                 onPreview: { self.onPreviewItem(item) },
                 onEdit: { self.onEditItem(item) },
+                onConvertType: { type in self.onConvertTypeItem(item, type) },
                 onShare: { self.onShareItem(item) },
                 onMove: { self.onMoveItem(item) },
                 onDelete: { self.onDeleteItem(item) }
@@ -524,10 +529,10 @@ extension ItemCardCollectionViewController: UICollectionViewDelegate {
 
         return UIContextMenuConfiguration(identifier: objectID, previewProvider: nil) { [weak self] _ in
             guard let self else { return nil }
-            let actions = ItemCardContextAction.ordered(allowPinning: self.allowPinning).map {
-                self.menuAction(for: $0, item: item)
+            let elements = ItemCardContextAction.ordered(allowPinning: self.allowPinning).compactMap {
+                self.menuElement(for: $0, item: item)
             }
-            return UIMenu(children: actions)
+            return UIMenu(children: elements)
         }
     }
 
@@ -545,7 +550,7 @@ extension ItemCardCollectionViewController: UICollectionViewDelegate {
         contextMenuTargetedPreview(for: configuration)
     }
 
-    private func menuAction(for action: ItemCardContextAction, item: ClipItem) -> UIAction {
+    private func menuElement(for action: ItemCardContextAction, item: ClipItem) -> UIMenuElement? {
         let attributes: UIMenuElement.Attributes = action.isDestructive ? [.destructive] : []
 
         if action == .togglePin {
@@ -556,6 +561,30 @@ extension ItemCardCollectionViewController: UICollectionViewDelegate {
                 guard let self else { return }
                 self.onTogglePinItem(item)
             }
+        }
+
+        if action == .convertType {
+            let conversionTargets = ItemCardContextAction.conversionTargets(
+                for: item.itemTypeValue,
+                sourceText: item.plainTextContent ?? item.primaryText
+            )
+            guard !conversionTargets.isEmpty else { return nil }
+
+            let children: [UIAction] = conversionTargets.map { type in
+                UIAction(
+                    title: type.label,
+                    image: UIImage(systemName: ItemCardContextAction.conversionTypeSystemImage(type))
+                ) { [weak self] _ in
+                    guard let self else { return }
+                    self.onConvertTypeItem(item, type)
+                }
+            }
+
+            return UIMenu(
+                title: action.title,
+                image: UIImage(systemName: action.systemImage),
+                children: children
+            )
         }
 
         return UIAction(
@@ -573,6 +602,8 @@ extension ItemCardCollectionViewController: UICollectionViewDelegate {
                 self.onPreviewItem(item)
             case .edit:
                 self.onEditItem(item)
+            case .convertType:
+                break
             case .togglePin:
                 self.onTogglePinItem(item)
             case .share:

@@ -68,6 +68,9 @@ struct MartenIOSDashboardView: View {
                         onEditItem: { item in
                             viewModel.handleItemEdit(item, container: container)
                         },
+                        onConvertTypeItem: { item, type in
+                            viewModel.convertItemType(item, to: type, container: container)
+                        },
                         onTogglePinItem: { item in
                             viewModel.togglePin(item, container: container)
                         },
@@ -102,8 +105,7 @@ struct MartenIOSDashboardView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea()
-
-            DashboardGradientFadesView()
+            .modifier(DashboardFadeMask())
 
             VStack(spacing: 0) {
                 DashboardTopBarView(
@@ -612,12 +614,14 @@ struct MartenIOSDashboardView: View {
                 }
 
             VStack(spacing: 0) {
-                if searchModel.isSearching {
+                if searchModel.isSearching && visibleResults.isEmpty {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(MartenAnimation.fadeScale)
                 } else if visibleResults.isEmpty {
-                    ContentUnavailableView.search(text: searchModel.query)
+                    ContentUnavailableView.search(text: String(searchModel.query.prefix(30)) + (searchModel.query.count > 30 ? "..." : ""))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(MartenAnimation.fadeScale)
                 } else {
                     ItemCardGridView(
                         items: visibleResults,
@@ -630,6 +634,9 @@ struct MartenIOSDashboardView: View {
                         onCopyPlainTextItem: { item in viewModel.copyItemsPlainText([item.objectID], container: container) },
                         onPreviewItem: { item in viewModel.handleItemPreview(item, container: container) },
                         onEditItem: { item in viewModel.handleItemEdit(item, container: container) },
+                        onConvertTypeItem: { item, type in
+                            viewModel.convertItemType(item, to: type, container: container)
+                        },
                         onTogglePinItem: { item in viewModel.togglePin(item, container: container) },
                         onShareItem: { item in viewModel.shareItems([item.objectID], container: container) },
                         onMoveItem: { item in viewModel.prepareMove([item.objectID]) },
@@ -642,8 +649,11 @@ struct MartenIOSDashboardView: View {
                             viewModel.advancePinboardSelection(by: -1, container: container, customPinboards: customPinboards)
                         }
                     )
+                    .transition(MartenAnimation.fadeScale)
                 }
             }
+            .animation(MartenAnimation.smooth, value: searchModel.isSearching)
+            .animation(MartenAnimation.smooth, value: visibleResults.isEmpty)
         }
     }
 

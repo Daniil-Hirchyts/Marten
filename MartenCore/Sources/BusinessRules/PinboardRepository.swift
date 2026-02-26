@@ -133,6 +133,26 @@ final class PinboardRepository {
         }
     }
 
+    func deleteUserPinboards() throws {
+        let context = persistence.newBackgroundContext()
+
+        try context.performAndWaitThrowing {
+            let request = Pinboard.fetchRequest()
+            request.predicate = NSPredicate(format: "isSystemMarten == NO")
+            let pinboards = try context.fetch(request)
+
+            guard !pinboards.isEmpty else { return }
+
+            for pinboard in pinboards {
+                context.delete(pinboard)
+            }
+
+            if context.hasChanges {
+                try context.save()
+            }
+        }
+    }
+
     func addItem(objectID: NSManagedObjectID, toPinboard pinboardID: NSManagedObjectID) throws {
         let context = persistence.newBackgroundContext()
 

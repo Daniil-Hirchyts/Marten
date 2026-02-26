@@ -74,7 +74,7 @@ struct RichTextEditorSheet: View {
 
                     Spacer()
 
-                    Text("Edit Rich Text")
+                    Text("Edit Text")
                         .font(.system(size: 16, weight: .semibold))
 
                     Spacer()

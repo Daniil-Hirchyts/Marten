@@ -16,6 +16,7 @@ struct CardContextMenu: View {
     let onPastePlainText: (ClipItem) -> Void
     let onTogglePin: (ClipItem) -> Void
     let onCopy: (ClipItem) -> Void
+    let onConvertType: (ClipItem, ItemType) -> Void
     let onMoveToPinboard: (ClipItem, Pinboard) -> Void
     let onCreatePinboard: (ClipItem) -> Void
     let onEdit: (ClipItem) -> Void
@@ -27,6 +28,13 @@ struct CardContextMenu: View {
     private var identifierPrefix: String {
         "overlay.itemMenu.\(itemID.uuidString)"
     }
+
+    private static let convertibleTypes: [ItemType] = [
+        .text,
+        .url,
+        .code,
+        .color,
+    ]
 
     var body: some View {
         Button {
@@ -71,6 +79,25 @@ struct CardContextMenu: View {
             Label("Copy", systemImage: "doc.on.doc")
         }
         .accessibilityIdentifier("\(identifierPrefix).copy")
+
+        let conversionTargets = Self.conversionTargets(
+            for: item.itemTypeValue,
+            sourceText: item.plainTextContent ?? item.primaryText
+        )
+        if !readOnly, !conversionTargets.isEmpty {
+            Menu {
+                ForEach(conversionTargets, id: \.self) { type in
+                    Button {
+                        onConvertType(item, type)
+                    } label: {
+                        Label(Self.conversionLabel(for: type), systemImage: Self.conversionIcon(for: type))
+                    }
+                }
+            } label: {
+                Label("Convert Type", systemImage: "arrow.triangle.2.circlepath")
+            }
+            .accessibilityIdentifier("\(identifierPrefix).convertType")
+        }
 
         if !readOnly {
             Menu {
@@ -153,6 +180,137 @@ struct CardContextMenu: View {
         if let url = URL(string: normalizedURLString) {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    private static func conversionTargets(for currentType: ItemType, sourceText: String?) -> [ItemType] {
+        guard convertibleTypes.contains(currentType) else { return [] }
+
+        let normalizedText = sourceText?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return convertibleTypes.compactMap { candidate in
+            guard candidate != currentType else { return nil }
+
+            if candidate == .url, !hasConvertibleURL(in: normalizedText) {
+                return nil
+            }
+
+            if candidate == .color, !hasConvertibleColor(in: normalizedText) {
+                return nil
+            }
+
+            return candidate
+        }
+    }
+
+    private static func conversionLabel(for type: ItemType) -> String {
+        switch type {
+        case .text, .richText:
+            return "Text"
+        case .url:
+            return "Link"
+        case .code:
+            return "Code"
+        case .color:
+            return "Color"
+        case .image:
+            return "Image"
+        case .file:
+            return "File"
+        case .mixed:
+            return "Mixed"
+        }
+    }
+
+    private static func conversionIcon(for type: ItemType) -> String {
+        switch type {
+        case .text, .richText:
+            return "doc.plaintext"
+        case .url:
+            return "link"
+        case .code:
+            return "chevron.left.forwardslash.chevron.right"
+        case .color:
+            return "paintpalette"
+        case .image:
+            return "photo"
+        case .file:
+            return "doc"
+        case .mixed:
+            return "square.stack.3d.up"
+        }
+    }
+
+    private static func hasConvertibleColor(in text: String?) -> Bool {
+        guard let text, !text.isEmpty else { return false }
+        return normalizedHexColor(from: text) != nil
+    }
+
+    private static func normalizedHexColor(from text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var candidate = trimmed
+        if candidate.lowercased().hasPrefix("0x") {
+            candidate = String(candidate.dropFirst(2))
+        }
+        if candidate.hasPrefix("#") {
+            candidate = String(candidate.dropFirst())
+        }
+
+        let cleaned = candidate.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        let hexCharacterSet = CharacterSet(charactersIn: "0123456789ABCDEFabcdef")
+        guard cleaned.unicodeScalars.allSatisfy({ hexCharacterSet.contains($0) }) else {
+            return nil
+        }
+
+        if cleaned.count == 3 {
+            let chars = Array(cleaned)
+            return
+                "#\(String(repeating: String(chars[0]), count: 2))\(String(repeating: String(chars[1]), count: 2))\(String(repeating: String(chars[2]), count: 2))"
+                .uppercased()
+        }
+
+        if cleaned.count == 6 {
+            return "#\(cleaned)".uppercased()
+        }
+
+        if cleaned.count == 8 {
+            let start = cleaned.startIndex
+            let end = cleaned.index(start, offsetBy: 6)
+            return "#\(String(cleaned[start..<end]))".uppercased()
+        }
+
+        return nil
+    }
+
+    private static func hasConvertibleURL(in text: String?) -> Bool {
+        guard let text, !text.isEmpty else { return false }
+
+        let fullRange = NSRange(text.startIndex..<text.endIndex, in: text)
+        let linkDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        if linkDetector?.firstMatch(in: text, options: [], range: fullRange) != nil {
+            return true
+        }
+
+        guard !text.contains(where: \.isWhitespace) else { return false }
+
+        if let directURL = URL(string: text),
+            directURL.scheme != nil,
+            directURL.host != nil
+        {
+            return true
+        }
+
+        guard text.contains(".") || text.lowercased().hasPrefix("localhost") else {
+            return false
+        }
+
+        let prefixedText = "https://\(text)"
+        guard let normalizedURL = URL(string: prefixedText), normalizedURL.host != nil else {
+            return false
+        }
+
+        return true
     }
 }
 

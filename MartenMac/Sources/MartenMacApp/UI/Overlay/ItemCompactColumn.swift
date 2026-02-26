@@ -26,6 +26,7 @@ struct ItemCompactColumn: View {
     let onCopy: (ClipItem) -> Void
     let onDelete: (ClipItem) -> Void
     let onTogglePin: (ClipItem) -> Void
+    let onConvertType: (ClipItem, ItemType) -> Void
     let onMoveToPinboard: (ClipItem, Pinboard) -> Void
     let onCreatePinboard: (ClipItem) -> Void
     let onEdit: (ClipItem) -> Void
@@ -105,6 +106,7 @@ struct ItemCompactColumn: View {
                             onCopy: onCopy,
                             onDelete: onDelete,
                             onTogglePin: onTogglePin,
+                            onConvertType: onConvertType,
                             onMoveToPinboard: onMoveToPinboard,
                             onCreatePinboard: onCreatePinboard,
                             onEdit: onEdit,

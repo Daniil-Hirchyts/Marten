@@ -27,6 +27,7 @@ struct ItemCompactRow: View {
     let onCopy: (ClipItem) -> Void
     let onDelete: (ClipItem) -> Void
     let onTogglePin: (ClipItem) -> Void
+    let onConvertType: (ClipItem, ItemType) -> Void
     let onMoveToPinboard: (ClipItem, Pinboard) -> Void
     let onCreatePinboard: (ClipItem) -> Void
     let onEdit: (ClipItem) -> Void
@@ -159,6 +160,7 @@ struct ItemCompactRow: View {
                 onPastePlainText: onPastePlainText,
                 onTogglePin: onTogglePin,
                 onCopy: onCopy,
+                onConvertType: onConvertType,
                 onMoveToPinboard: onMoveToPinboard,
                 onCreatePinboard: onCreatePinboard,
                 onEdit: onEdit,
@@ -398,7 +400,7 @@ struct ItemCompactRow: View {
     private var typeLabel: String {
         switch item.itemTypeValue {
         case .text: return "Text"
-        case .richText: return "Rich Text"
+        case .richText: return "Text"
         case .image: return "Image"
         case .file: return "File"
         case .url: return "URL"
@@ -411,7 +413,7 @@ struct ItemCompactRow: View {
     private var typeCompactLabel: String {
         switch item.itemTypeValue {
         case .richText:
-            return "Rich"
+            return "Text"
         case .mixed:
             return "Mixed"
         default:
@@ -437,7 +439,7 @@ struct ItemCompactRow: View {
     private var typeIcon: String {
         switch item.itemTypeValue {
         case .text: return "textformat"
-        case .richText: return "doc.richtext"
+        case .richText: return "textformat"
         case .image: return "photo"
         case .file: return "doc"
         case .url: return "link"

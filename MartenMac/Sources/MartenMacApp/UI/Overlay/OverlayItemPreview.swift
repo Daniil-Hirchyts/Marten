@@ -164,7 +164,7 @@ struct OverlayItemPreview: View {
                 item.plainTextContent ?? item.primaryText ?? "",
                 monospaced: true
             )
-        case .richText:
+        case .richText, .text:
             if let styledRichTextPreview {
                 scrollableStyledText(styledRichTextPreview)
             } else {
@@ -173,11 +173,6 @@ struct OverlayItemPreview: View {
                     monospaced: false
                 )
             }
-        case .text:
-            scrollableText(
-                item.plainTextContent ?? item.primaryText ?? "",
-                monospaced: false
-            )
         }
     }
 

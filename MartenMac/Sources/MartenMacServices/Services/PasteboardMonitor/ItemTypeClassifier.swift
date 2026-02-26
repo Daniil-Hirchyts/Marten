@@ -56,7 +56,7 @@ final class ItemTypeClassifier {
         if hasFile { return .file }
         if hasImage { return .image }
         if hasURL { return .url }
-        if hasRichText { return .richText }
+        if hasRichText { return .text }
         if hasText {
             if let primaryText, isHexColor(primaryText) {
                 return .color
@@ -85,4 +85,3 @@ final class ItemTypeClassifier {
         return false
     }
 }
-

@@ -17,7 +17,7 @@ struct TextViewerSheet: View {
     }
 
     private var sheetTitle: String {
-        item.itemTypeValue == .richText ? "Rich Text" : "Text"
+        "Text"
     }
 
     var body: some View {

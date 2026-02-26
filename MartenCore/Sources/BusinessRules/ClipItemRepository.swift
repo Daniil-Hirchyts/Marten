@@ -14,10 +14,29 @@ public struct SourceAppInfo: Sendable {
     }
 }
 
-public enum ClipItemStoreError: Error {
+public enum ClipItemStoreError: Error, Equatable {
     case creationFailed
     case missingItem
     case missingContent
+    case unsupportedTypeConversion
+    case invalidURLForTypeConversion
+}
+
+extension ClipItemStoreError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .creationFailed:
+            return "Couldn't create the item."
+        case .missingItem:
+            return "The item no longer exists."
+        case .missingContent:
+            return "Item content is empty."
+        case .unsupportedTypeConversion:
+            return "This card type can't be converted."
+        case .invalidURLForTypeConversion:
+            return "Enter a valid URL before converting to Link."
+        }
+    }
 }
 
 final class ClipItemRepository {
@@ -25,6 +44,12 @@ final class ClipItemRepository {
         subsystem: "com.hirchyts.marten.core",
         category: "ClipItemRepository"
     )
+    private static let convertibleTextItemTypes: Set<ItemType> = [
+        .text,
+        .url,
+        .code,
+        .color,
+    ]
 
     private let persistence: PersistenceController
     private let assetStore: AssetStore
@@ -254,6 +279,59 @@ final class ClipItemRepository {
         }
     }
 
+    func deleteItemsFromThisDevice() throws {
+        let context = persistence.newBackgroundContext()
+
+        try context.performAndWaitThrowing {
+            let request = ClipItem.fetchRequest()
+
+            // Predicate matching "This Device" logic from SearchService
+            let thisDeviceMarkers = [
+                "This Device",
+                "local",
+                "local device",
+                "current device",
+            ]
+            let markerPredicates = thisDeviceMarkers.map {
+                NSPredicate(format: "lastModifiedBy ==[c] %@", $0)
+            }
+            request.predicate = NSCompoundPredicate(
+                orPredicateWithSubpredicates: [
+                    NSPredicate(format: "lastModifiedBy == nil"),
+                    NSPredicate(format: "lastModifiedBy == ''"),
+                ] + markerPredicates
+            )
+
+            request.fetchLimit = 200
+
+            while true {
+                let items = try context.fetch(request)
+                guard !items.isEmpty else { break }
+
+                let deletedIDs = items.map(\.id.uuidString).joined(separator: ",")
+                let cleanupPlans = items.map { assetManagementService.makeAssetCleanupPlan(for: $0) }
+
+                for item in items {
+                    context.delete(item)
+                }
+
+                if context.hasChanges {
+                    try context.save()
+                }
+
+                for plan in cleanupPlans {
+                    assetManagementService.executeAssetCleanupPlan(plan)
+                }
+
+                Self.logger.notice(
+                    "deleteItemsFromThisDevice removed \(items.count, privacy: .public) items [ids: \(deletedIDs, privacy: .private(mask: .hash))]"
+                )
+
+                context.reset()
+            }
+        }
+    }
+
     func fetchRecentItems(limit: Int = 100) throws -> [ClipItem] {
         let context = persistence.viewContext
         var results: [ClipItem] = []
@@ -291,7 +369,7 @@ final class ClipItemRepository {
             let request = ClipItem.fetchRequest()
             request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
                 NSPredicate(format: "isTransient == NO"),
-                NSPredicate(format: "itemType == %d", itemType.rawValue),
+                itemTypePredicate(for: itemType),
                 NSPredicate(format: "primaryText == %@", primaryText),
             ])
             request.sortDescriptors = [
@@ -385,7 +463,7 @@ final class ClipItemRepository {
             item.modifiedAt = now
             item.contentHash = Data(trimmedText.utf8).sha256Hex()
             item.displayOrder = currentDisplayOrder(reference: now)
-            item.itemTypeValue = .richText
+            item.itemTypeValue = .text
 
             let plainTextData = Data(trimmedText.utf8)
             let existingRepresentations = item.representations ?? []
@@ -585,6 +663,135 @@ final class ClipItemRepository {
         return try fetchRefreshedItemInViewContext(objectID: updatedObjectID)
     }
 
+    @discardableResult
+    func updateItemType(objectID: NSManagedObjectID, newType: ItemType) throws -> ClipItem {
+        guard Self.convertibleTextItemTypes.contains(newType) else {
+            throw ClipItemStoreError.unsupportedTypeConversion
+        }
+
+        let now = Date()
+        let displayOrder = currentDisplayOrder(reference: now)
+        let context = persistence.newBackgroundContext()
+        var updatedObjectID: NSManagedObjectID?
+
+        try context.performAndWaitThrowing {
+            guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                throw ClipItemStoreError.missingItem
+            }
+
+            let currentType = item.itemTypeValue
+            guard Self.convertibleTextItemTypes.contains(currentType) else {
+                throw ClipItemStoreError.unsupportedTypeConversion
+            }
+            guard currentType != newType else {
+                updatedObjectID = item.objectID
+                return
+            }
+
+            guard var normalizedText = normalizedConversionText(for: item) else {
+                throw ClipItemStoreError.missingContent
+            }
+
+            if newType == .url {
+                guard let normalizedURLText = normalizedURLString(from: normalizedText) else {
+                    throw ClipItemStoreError.invalidURLForTypeConversion
+                }
+                normalizedText = normalizedURLText
+            }
+
+            let representations = typeConversionRepresentations(
+                for: newType,
+                text: normalizedText
+            )
+
+            if newType != .url, let existingPreview = item.linkPreview {
+                if let existingImagePath = existingPreview.imagePath {
+                    try? FileManager.default.removeItem(atPath: existingImagePath)
+                }
+                item.linkPreview = nil
+                context.delete(existingPreview)
+            }
+
+            for representation in item.representations ?? [] {
+                item.removeFromRepresentations(representation)
+                context.delete(representation)
+            }
+
+            item.modifiedAt = now
+            item.displayOrder = displayOrder
+            item.itemTypeValue = newType
+            item.primaryText = normalizedText
+            item.searchableText = searchService.deriveSearchableText(
+                primaryText: normalizedText,
+                representations: representations
+            )
+            item.contentHash = Data(normalizedText.utf8).sha256Hex()
+            item.needsLinkPreview = (newType == .url)
+
+            var totalBytes: Int64 = 0
+            let sortedRepresentations = representations.sorted {
+                $0.displayOrder < $1.displayOrder
+            }
+
+            for representationPayload in sortedRepresentations {
+                guard
+                    let representation = NSEntityDescription.insertNewObject(
+                        forEntityName: "ClipRepresentation",
+                        into: context
+                    ) as? ClipRepresentation
+                else {
+                    throw ClipItemStoreError.creationFailed
+                }
+
+                representation.id = UUID()
+                representation.uti = representationPayload.uti
+                representation.kindValue = representationPayload.kind
+                representation.displayOrder = representationPayload.displayOrder
+                representation.fileExtension = representationPayload.fileExtension
+                representation.clipItem = item
+
+                var byteCount: Int64 = 0
+                if let text = representationPayload.text, !text.isEmpty {
+                    let textData = Data(text.utf8)
+                    representation.textData = textData
+                    byteCount += Int64(textData.count)
+                }
+
+                if let data = representationPayload.data {
+                    byteCount += Int64(data.count)
+                    if data.count > assetThresholdBytes {
+                        representation.assetRef = try assetStore.store(
+                            data: data,
+                            fileExtension: representationPayload.fileExtension
+                        )
+                        representation.binaryData = nil
+                    } else {
+                        representation.binaryData = data
+                        representation.assetRef = nil
+                    }
+                } else {
+                    representation.binaryData = nil
+                    representation.assetRef = nil
+                }
+
+                representation.byteCount = byteCount
+                totalBytes += byteCount
+                item.addToRepresentations(representation)
+            }
+
+            item.byteCount = totalBytes
+
+            try context.save()
+            updatedObjectID = item.objectID
+        }
+
+        guard let updatedObjectID else {
+            throw ClipItemStoreError.missingItem
+        }
+
+        return try fetchRefreshedItemInViewContext(objectID: updatedObjectID)
+    }
+
     func togglePin(objectID: NSManagedObjectID) throws {
         let context = persistence.newBackgroundContext()
 
@@ -750,6 +957,61 @@ final class ClipItemRepository {
         }
 
         return item
+    }
+
+    private func normalizedConversionText(for item: ClipItem) -> String? {
+        guard let sourceText = item.plainTextContent ?? item.primaryText else {
+            return nil
+        }
+
+        let clippedText = String(sourceText.prefix(10_000))
+        guard !clippedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return clippedText
+    }
+
+    private func typeConversionRepresentations(
+        for newType: ItemType,
+        text: String
+    ) -> [ClipRepresentationPayload] {
+        if newType == .url {
+            return [
+                ClipRepresentationPayload(
+                    kind: .url,
+                    uti: "public.url",
+                    text: text
+                )
+            ]
+        }
+
+        return [.plainText(text)]
+    }
+
+    private func itemTypePredicate(for type: ItemType) -> NSPredicate {
+        if type == .text {
+            return NSCompoundPredicate(orPredicateWithSubpredicates: [
+                NSPredicate(format: "itemType == %d", ItemType.text.rawValue),
+                NSPredicate(format: "itemType == %d", ItemType.richText.rawValue),
+            ])
+        }
+
+        return NSPredicate(format: "itemType == %d", type.rawValue)
+    }
+
+    private func normalizedURLString(from text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if let parsed = URL(string: trimmed), parsed.scheme != nil {
+            return parsed.absoluteString
+        }
+
+        let prefixed = "https://\(trimmed)"
+        guard let parsed = URL(string: prefixed), parsed.host != nil else {
+            return nil
+        }
+        return parsed.absoluteString
     }
 
     private func currentDisplayOrder(reference: Date = Date()) -> Int64 {

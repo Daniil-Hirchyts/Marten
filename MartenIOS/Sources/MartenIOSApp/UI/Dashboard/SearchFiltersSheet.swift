@@ -27,7 +27,7 @@ struct SearchFiltersSheet: View {
 
                     filterSection(title: "Content Type", icon: "doc.on.doc") {
                         FlowLayout(spacing: 8) {
-                            ForEach(ItemType.allCases, id: \.self) { type in
+                            ForEach(searchableItemTypes, id: \.self) { type in
                                 FilterChipButton(
                                     title: type.label,
                                     icon: itemTypeIcon(type),
@@ -110,6 +110,10 @@ struct SearchFiltersSheet: View {
         .presentationDetents([.medium, .large])
     }
 
+    private var searchableItemTypes: [ItemType] {
+        ItemType.allCases.filter { $0 != .richText }
+    }
+
     private func filterSection<Content: View>(
         title: String,
         icon: String,
@@ -143,7 +147,7 @@ struct SearchFiltersSheet: View {
     private func itemTypeIcon(_ type: ItemType) -> String {
         switch type {
         case .text: return "text.alignleft"
-        case .richText: return "textformat"
+        case .richText: return "text.alignleft"
         case .image: return "photo"
         case .file: return "doc"
         case .url: return "link"
@@ -289,4 +293,3 @@ private struct AppFilterChipButton: View {
         .buttonStyle(FilterChipButtonStyle(isSelected: isSelected, style: .roundedRect(cornerRadius: 14)))
     }
 }
-

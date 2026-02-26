@@ -16,6 +16,38 @@ struct ItemEditorAppleIntelligencePreview: Identifiable {
 }
 
 enum ItemEditorHelpers {
+    static func hasRichFormatting(_ attributedText: NSAttributedString) -> Bool {
+        guard attributedText.length > 0 else { return false }
+
+        var hasFormatting = false
+        attributedText.enumerateAttributes(
+            in: NSRange(location: 0, length: attributedText.length)
+        ) { attributes, _, stop in
+            if let font = attributes[.font] as? NSFont {
+                if font.fontDescriptor.symbolicTraits.contains(.bold)
+                    || font.fontDescriptor.symbolicTraits.contains(.italic)
+                {
+                    hasFormatting = true
+                    stop.pointee = true
+                    return
+                }
+            }
+
+            if attributes[.underlineStyle] != nil || attributes[.strikethroughStyle] != nil {
+                hasFormatting = true
+                stop.pointee = true
+                return
+            }
+
+            if attributes[.paragraphStyle] != nil {
+                hasFormatting = true
+                stop.pointee = true
+            }
+        }
+
+        return hasFormatting
+    }
+
     static func fileURLPath(from item: ClipItem) -> String? {
         FileURLAccessResolver.resolvedFileURL(from: item)?.path
     }

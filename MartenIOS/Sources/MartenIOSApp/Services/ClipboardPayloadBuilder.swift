@@ -183,7 +183,7 @@ struct ClipboardPayloadBuilder {
         return ClipItemPayload(
             representations: representations,
             primaryText: normalizedPlainText,
-            itemType: .richText
+            itemType: .text
         )
     }
 

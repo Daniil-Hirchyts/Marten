@@ -28,7 +28,7 @@ struct TextEditorView: View {
                 text: $text,
                 attributedText: $attributedText,
                 selection: $richTextSelection,
-                initialAttributedText: itemType == .richText ? initialAttributedText : nil,
+                initialAttributedText: initialAttributedText,
                 font: font,
                 writingToolsBehavior: writingToolsBehavior,
                 allowedWritingToolsResultOptions: allowedWritingToolsResultOptions,
@@ -67,4 +67,3 @@ struct TextEditorView: View {
         }
     }
 }
-

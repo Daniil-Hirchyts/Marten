@@ -37,7 +37,7 @@ final class SearchService {
             }
 
             if !searchRequest.itemTypes.isEmpty {
-                let rawValues = searchRequest.itemTypes.map(\.rawValue)
+                let rawValues = Array(Set(searchRequest.itemTypes.flatMap(rawItemTypeValues(for:))))
                 predicates.append(NSPredicate(format: "itemType IN %@", rawValues))
             }
 
@@ -156,6 +156,13 @@ final class SearchService {
         }
 
         return NSCompoundPredicate(orPredicateWithSubpredicates: predicates)
+    }
+
+    private func rawItemTypeValues(for type: ItemType) -> [Int16] {
+        if type == .text {
+            return [ItemType.text.rawValue, ItemType.richText.rawValue]
+        }
+        return [type.rawValue]
     }
 
     func deriveSearchableText(

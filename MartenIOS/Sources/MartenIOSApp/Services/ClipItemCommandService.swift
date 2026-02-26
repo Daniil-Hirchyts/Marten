@@ -59,6 +59,18 @@ public actor ClipItemCommandService {
         try store.deleteItem(objectID: objectID)
     }
 
+    public func deleteItemsFromThisDevice() throws {
+        try store.deleteItemsFromThisDevice()
+    }
+
+    public func deleteUserPinboards() throws {
+        try store.deleteUserPinboards()
+    }
+
+    public func deleteAllItems() throws {
+        try store.deleteAllItems()
+    }
+
     public func togglePin(objectID: NSManagedObjectID) throws {
         try store.togglePin(objectID: objectID)
     }
@@ -122,6 +134,10 @@ public actor ClipItemCommandService {
 
     public func updateTextItem(objectID: NSManagedObjectID, newText: String) throws {
         _ = try store.updateTextItem(objectID: objectID, newText: newText)
+    }
+
+    public func updateItemType(objectID: NSManagedObjectID, newType: ItemType) throws {
+        _ = try store.updateItemType(objectID: objectID, newType: newType)
     }
 
     public func updateImageData(objectID: NSManagedObjectID, imageData: Data) throws {

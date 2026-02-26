@@ -521,7 +521,7 @@ struct ItemCompactRowDragPreview: View {
     private var typeLabel: String {
         switch item.itemTypeValue {
         case .text: return "Text"
-        case .richText: return "Rich Text"
+        case .richText: return "Text"
         case .image: return "Image"
         case .file: return "File"
         case .url: return "URL"
@@ -533,7 +533,7 @@ struct ItemCompactRowDragPreview: View {
 
     private var typeCompactLabel: String {
         switch item.itemTypeValue {
-        case .richText: return "Rich"
+        case .richText: return "Text"
         case .mixed: return "Mixed"
         default: return typeLabel
         }
@@ -542,7 +542,7 @@ struct ItemCompactRowDragPreview: View {
     private var typeIcon: String {
         switch item.itemTypeValue {
         case .text: return "textformat"
-        case .richText: return "doc.richtext"
+        case .richText: return "textformat"
         case .image: return "photo"
         case .file: return "doc"
         case .url: return "link"

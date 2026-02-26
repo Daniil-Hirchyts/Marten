@@ -71,11 +71,12 @@ final class OverlaySearchViewModel: ObservableObject {
 
     func applyFilters(to items: [ClipItem]) -> [ClipItem] {
         guard hasActiveFilters else { return items }
+        let normalizedTypeFilters = Set(typeFilters.map { $0 == .richText ? .text : $0 })
         return items.filter { item in
             if !matchesDateFilter(item) {
                 return false
             }
-            if !typeFilters.isEmpty, !typeFilters.contains(item.itemTypeValue) {
+            if !normalizedTypeFilters.isEmpty, !normalizedTypeFilters.contains(item.itemTypeValue) {
                 return false
             }
             if !appFilters.isEmpty {

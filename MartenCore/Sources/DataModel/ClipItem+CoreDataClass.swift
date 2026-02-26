@@ -11,8 +11,14 @@ public enum ClipItemHashError: Error {
 
 public extension ClipItem {
     var itemTypeValue: ItemType {
-        get { ItemType(rawValue: itemType) ?? .text }
-        set { itemType = newValue.rawValue }
+        get {
+            let storedType = ItemType(rawValue: itemType) ?? .text
+            return storedType == .richText ? .text : storedType
+        }
+        set {
+            let normalizedType: ItemType = newValue == .richText ? .text : newValue
+            itemType = normalizedType.rawValue
+        }
     }
 
     var hasMultipleRepresentations: Bool {

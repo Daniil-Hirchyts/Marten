@@ -305,7 +305,7 @@ struct WatchItemDetailView: View {
     private var itemTypeLabel: String {
         switch currentItem.itemType {
         case .text: return "Text"
-        case .richText: return "Rich Text"
+        case .richText: return "Text"
         case .image: return "Image"
         case .file: return "File"
         case .url: return "URL"

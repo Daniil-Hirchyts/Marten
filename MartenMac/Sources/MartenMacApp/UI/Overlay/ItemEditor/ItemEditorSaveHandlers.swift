@@ -5,23 +5,7 @@ extension ItemEditorContentView {
     func handleSave() {
         guard let item else {
             if let attributed = draftAttributedText, attributed.length > 0 {
-                var hasFormatting = false
-                attributed.enumerateAttributes(in: NSRange(location: 0, length: attributed.length)) { attrs, _, stop in
-                    if attrs[.font] != nil {
-                        if let font = attrs[.font] as? NSFont {
-                            if font.fontDescriptor.symbolicTraits.contains(.bold)
-                                || font.fontDescriptor.symbolicTraits.contains(.italic)
-                            {
-                                hasFormatting = true
-                                stop.pointee = true
-                            }
-                        }
-                    }
-                    if attrs[.underlineStyle] != nil || attrs[.strikethroughStyle] != nil {
-                        hasFormatting = true
-                        stop.pointee = true
-                    }
-                }
+                let hasFormatting = ItemEditorHelpers.hasRichFormatting(attributed)
 
                 if hasFormatting {
                     let pasteboard = NSPasteboard.general
@@ -75,10 +59,17 @@ extension ItemEditorContentView {
 
         default:
             do {
-                if item.itemTypeValue == .richText {
-                    let attributed =
-                        draftAttributedText?.removingTextColorAttributes()
-                        ?? NSAttributedString(string: draftText, attributes: [.font: NSFont.systemFont(ofSize: 16)])
+                let attributed =
+                    draftAttributedText?.removingTextColorAttributes()
+                    ?? NSAttributedString(
+                        string: draftText,
+                        attributes: [.font: NSFont.systemFont(ofSize: 16)]
+                    )
+
+                let shouldPersistRichText = item.styledTextContentWithoutTextColor != nil
+                    || ItemEditorHelpers.hasRichFormatting(attributed)
+
+                if shouldPersistRichText {
                     guard let rtfData = attributed.clipboardData(for: .rtf) else {
                         NSSound.beep()
                         return
@@ -99,4 +90,3 @@ extension ItemEditorContentView {
         }
     }
 }
-

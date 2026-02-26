@@ -17,6 +17,7 @@ extension ItemCard {
             onPastePlainText: onPastePlainText,
             onTogglePin: onTogglePin,
             onCopy: onCopy,
+            onConvertType: onConvertType,
             onMoveToPinboard: onMoveToPinboard,
             onCreatePinboard: onCreatePinboard,
             onEdit: onEdit,

@@ -93,6 +93,10 @@ public final class ClipItemStore {
         try repository.deleteAllItems()
     }
 
+    public func deleteItemsFromThisDevice() throws {
+        try repository.deleteItemsFromThisDevice()
+    }
+
     public func fetchRecentItems(limit: Int = 100) throws -> [ClipItem] {
         try repository.fetchRecentItems(limit: limit)
     }
@@ -124,6 +128,11 @@ public final class ClipItemStore {
         throws -> ClipItem
     {
         try repository.updateRichTextItem(objectID: objectID, newText: newText, rtfData: rtfData)
+    }
+
+    @discardableResult
+    public func updateItemType(objectID: NSManagedObjectID, newType: ItemType) throws -> ClipItem {
+        try repository.updateItemType(objectID: objectID, newType: newType)
     }
 
     public func deleteItem(objectID: NSManagedObjectID) throws {
@@ -186,6 +195,10 @@ public final class ClipItemStore {
 
     public func deletePinboard(objectID: NSManagedObjectID) throws {
         try pinboardRepository.deletePinboard(objectID: objectID)
+    }
+
+    public func deleteUserPinboards() throws {
+        try pinboardRepository.deleteUserPinboards()
     }
 
     public func renameItem(objectID: NSManagedObjectID, title: String?) throws {

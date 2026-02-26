@@ -228,6 +228,17 @@ final class DashboardViewModel {
         }
     }
 
+    func convertItemType(_ item: ClipItem, to newType: ItemType, container: MartenIOSAppContainer) {
+        Task {
+            await container.updateItemType(objectID: item.objectID, newType: newType)
+            guard container.lastOperationErrorMessage == nil else { return }
+            toastController.show(
+                "Converted to \(newType.label)",
+                systemImage: ItemCardContextAction.conversionTypeSystemImage(newType)
+            )
+        }
+    }
+
     func transitionFromPreviewToEdit(_ destination: DashboardEditDestination) {
         activePreviewDestination = nil
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {

@@ -15,6 +15,7 @@ struct ItemCardView: View {
     let onCopyPlainText: () -> Void
     let onPreview: () -> Void
     let onEdit: () -> Void
+    let onConvertType: (ItemType) -> Void
     let onTogglePin: () -> Void
     let onShare: () -> Void
     let onMove: () -> Void
@@ -34,6 +35,7 @@ struct ItemCardView: View {
         onCopyPlainText: @escaping () -> Void,
         onPreview: @escaping () -> Void,
         onEdit: @escaping () -> Void,
+        onConvertType: @escaping (ItemType) -> Void,
         onTogglePin: @escaping () -> Void = {},
         onShare: @escaping () -> Void,
         onMove: @escaping () -> Void,
@@ -57,6 +59,7 @@ struct ItemCardView: View {
         self.onCopyPlainText = onCopyPlainText
         self.onPreview = onPreview
         self.onEdit = onEdit
+        self.onConvertType = onConvertType
         self.onTogglePin = onTogglePin
         self.onShare = onShare
         self.onMove = onMove
@@ -78,9 +81,9 @@ struct ItemCardView: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private let cardCornerRadius: CGFloat = 20
-    private let cardPadding: CGFloat = 10
-    private let headerMinHeight: CGFloat = 42
+    private let cardCornerRadius: CGFloat = 24
+    private let cardPadding: CGFloat = 14
+    private let headerMinHeight: CGFloat = 46
 
     var body: some View {
         let pres = presentation
@@ -94,11 +97,14 @@ struct ItemCardView: View {
             .modifier(ContextMenuModifier(
                 isEnabled: showsContextMenu,
                 allowPinning: allowPinning,
+                currentItemType: item.itemTypeValue,
+                sourceText: item.plainTextContent ?? item.primaryText,
                 isPinned: cachedIsPinned,
                 onCopy: onCopy,
                 onCopyPlainText: onCopyPlainText,
                 onPreview: onPreview,
                 onEdit: onEdit,
+                onConvertType: onConvertType,
                 onTogglePin: onTogglePin,
                 onShare: onShare,
                 onMove: onMove,
@@ -175,24 +181,58 @@ struct ItemCardView: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .fill(cardBackgroundColor(for: pres))
+            ZStack(alignment: .top) {
+                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                
+                // Subtle color background
+                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                    .fill(cardBackgroundColor(for: pres))
+                
+                // Ambient inner gradient for the whole card
+                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                glowColor(for: pres).opacity(colorScheme == .dark ? 0.25 : 0.15),
+                                glowColor(for: pres).opacity(colorScheme == .dark ? 0.0 : 0.0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
         )
         .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .strokeBorder(
-                    isSelected ? Color.accentColor : cardBorderColor(for: pres),
-                    lineWidth: isSelected ? 4 : 1
-                )
+            Group {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                        .strokeBorder(Color.accentColor, lineWidth: 2.5)
+                } else {
+                    RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [
+                                    (colorScheme == .light && pres.primaryPinboardColorHex != nil) ? glowColor(for: pres).opacity(0.8) : Color.white.opacity(colorScheme == .dark ? 0.15 : 0.8),
+                                    (colorScheme == .light && pres.primaryPinboardColorHex != nil) ? glowColor(for: pres).opacity(0.2) : Color.white.opacity(colorScheme == .dark ? 0.0 : 0.2)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                }
+            }
         )
         .shadow(
-            color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.12),
-            radius: isSelected ? 6 : 4,
+            color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08),
+            radius: isSelected ? 8 : 14,
             x: 0,
-            y: isSelected ? 3 : 2
+            y: isSelected ? 4 : 8
         )
         .aspectRatio(1, contentMode: .fit)
+        .animation(MartenAnimation.quick, value: isSelected)
     }
 
     private func cardFooter(_ pres: ItemCardPresentation) -> some View {
@@ -211,34 +251,31 @@ struct ItemCardView: View {
     }
 
     private func isEdgeToEdgeContent(_ pres: ItemCardPresentation) -> Bool {
-        pres.previewKind == .image || pres.previewKind == .link || pres.previewKind == .color
+        pres.previewKind == .image || pres.previewKind == .link
     }
 
     private func cardBackgroundColor(for pres: ItemCardPresentation) -> Color {
+        if colorScheme == .light, pres.primaryPinboardColorHex != nil {
+             // Subtly tint the base of the card
+             return glowColor(for: pres).opacity(0.05)
+        }
+
         return colorScheme == .dark
-            ? Color(.sRGB, white: 0.04, opacity: 0.72)
-            : Color(.sRGB, white: 0.96, opacity: 0.9)
+            ? Color(.sRGB, white: 0.10, opacity: 0.4)
+            : Color(.sRGB, white: 1.0, opacity: 0.5)
     }
 
-    private func cardBorderColor(for pres: ItemCardPresentation) -> Color {
+    private func glowColor(for pres: ItemCardPresentation) -> Color {
         if let pinboardHex = pres.primaryPinboardColorHex,
            let normalized = ColorHex.normalizedHex(from: pinboardHex) {
-            return Color(hex: normalized, fallback: .gray).opacity(0.35)
+            return Color(hex: normalized, fallback: .gray)
         }
-
-        if pres.previewKind == .color,
-           let colorHex = pres.colorHex,
-           let normalized = ColorHex.normalizedHex(from: colorHex) {
-            return ColorHex.foregroundColor(for: normalized).opacity(0.3)
-        }
-
-        return colorScheme == .dark
-            ? Color.white.opacity(0.14)
-            : Color.black.opacity(0.12)
+        
+        return Color.clear
     }
 
     private func tertiaryTextColor(for pres: ItemCardPresentation) -> Color {
-        return colorScheme == .dark ? Color.white.opacity(0.6) : Color.black.opacity(0.5)
+        return colorScheme == .dark ? Color.white.opacity(0.6) : Color.black.opacity(0.6)
     }
 
     private func accessibilityLabel(for pres: ItemCardPresentation) -> String {
