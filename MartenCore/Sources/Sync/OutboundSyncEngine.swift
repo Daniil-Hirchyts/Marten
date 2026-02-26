@@ -195,6 +195,8 @@ public final class OutboundSyncEngine: @unchecked Sendable {
                 self?.handleContextDidSave(notification)
             }
         }
+        // Flush any saves that accumulated while the engine was stopped
+        scheduleFlush(after: 0)
     }
 
     public func stop() {
@@ -265,6 +267,31 @@ public final class OutboundSyncEngine: @unchecked Sendable {
                 if self.isSyncEnabled() {
                     self.scheduleFlush(after: 0)
                 }
+                continuation.resume()
+            }
+        }
+    }
+
+    /// Fetches ClipItems with modifiedAt >= `date` and enqueues them for upload.
+    /// Use when extensions have written items while the main app was suspended.
+    public func enqueueItems(modifiedSince date: Date) async {
+        let context = persistenceController.newBackgroundContext()
+        var objectIDs: [NSManagedObjectID] = []
+
+        context.performAndWait {
+            let request = NSFetchRequest<NSManagedObjectID>(entityName: "ClipItem")
+            request.resultType = .managedObjectIDResultType
+            request.predicate = NSPredicate(format: "modifiedAt >= %@", date as NSDate)
+            objectIDs = (try? context.fetch(request)) ?? []
+        }
+
+        guard !objectIDs.isEmpty else { return }
+
+        await withCheckedContinuation { continuation in
+            stateQueue.async { [weak self] in
+                guard let self else { continuation.resume(); return }
+                self.enqueueSaveObjectIDs(objectIDs)
+                if self.isSyncEnabled() { self.scheduleFlush(after: 0) }
                 continuation.resume()
             }
         }

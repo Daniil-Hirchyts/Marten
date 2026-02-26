@@ -234,14 +234,13 @@ public final class MartenIOSAppContainer {
         case .active:
             ensureSystemPinboardExists()
             await maybeStartSyncIfEnabled()
+            syncCoordinator?.handleAppDidBecomeActive()
             ensureSystemPinboardExists()
             reconcileLockStateForShareMembership()
             await refreshPendingLinkPreviews()
             refreshDashboardStateFromShareExtensionIfNeeded()
         case .background:
-            if let syncCoordinator, syncCoordinator.syncEnabled {
-                syncCoordinator.stopSync()
-            }
+            syncCoordinator?.handleAppWillResignActive()
         default:
             break
         }
@@ -499,6 +498,19 @@ public final class MartenIOSAppContainer {
         setSelectedPinboardID(nil)
     }
 
+    public func nukeAllData() async {
+        // Stop outbound engine first so local deletes don't trigger individual CloudKit uploads
+        syncCoordinator?.stopSync()
+        // Delete all local data (items + pinboards)
+        await performMutation { try await commandService.deleteAllItems() }
+        // Delete the CloudKit zone atomically and clear all sync tokens
+        if let syncCoordinator {
+            try? await syncCoordinator.nukeAndReset()
+        }
+        invalidateDashboardItems()
+        setSelectedPinboardID(nil)
+    }
+
     public func deleteDataCreatedOnThisDevice() async {
         await performMutation { try await commandService.deleteItemsFromThisDevice() }
         invalidateDashboardItems()
@@ -671,6 +683,14 @@ public final class MartenIOSAppContainer {
         let hasKeyboardMutation = latestKeyboardMutationAt > lastSeenKeyboardMutationAt
         guard hasShareUpdate || hasKeyboardMutation else { return }
 
+        // Earliest timestamp of detected extension writes — anything >= this needs uploading
+        let lastCheckDate: Date = {
+            var timestamps: [Double] = []
+            if hasShareUpdate   { timestamps.append(lastSeenShareExtensionSuccessAt) }
+            if hasKeyboardMutation { timestamps.append(lastSeenKeyboardMutationAt) }
+            return Date(timeIntervalSince1970: timestamps.min() ?? 0)
+        }()
+
         lastSeenShareExtensionSuccessAt = latestShareExtensionSuccessAt
         lastSeenKeyboardMutationAt = latestKeyboardMutationAt
         invalidateDashboardItems()
@@ -680,6 +700,8 @@ public final class MartenIOSAppContainer {
             viewContext.refreshAllObjects()
             viewContext.processPendingChanges()
         }
+
+        syncCoordinator?.enqueueItemsModifiedSince(lastCheckDate)
     }
 
     private func invalidateDashboardItems() {

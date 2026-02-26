@@ -348,6 +348,12 @@ public final class CloudKitManager {
         try tokenManager.clearToken(for: zoneID)
     }
 
+    /// Clears all stored sync tokens (zone and database level).
+    /// Call after a full zone deletion for a clean-state restart.
+    public func clearAllSyncTokens() throws {
+        try tokenManager.clearAllTokens()
+    }
+
     // MARK: - Shared Pinboard Zone Setup
 
     /// Creates a dedicated zone for a shared pinboard in the private database.

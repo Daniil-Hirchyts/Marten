@@ -73,20 +73,20 @@ struct DangerZoneView: View {
                     titleVisibility: .visible
                 ) {
                     Button("Delete Everything", role: .destructive) {
-                        Task { 
+                        Task {
                             let context = LAContext()
                             var error: NSError?
                             if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
                                 if let success = try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Delete all your data"), success {
-                                    await container.deleteAllData()
+                                    await container.nukeAllData()
                                 }
                             } else {
-                                await container.deleteAllData()
+                                await container.nukeAllData()
                             }
                         }
                     }
                 } message: {
-                    Text("All cards and pinboards will be permanently deleted. This cannot be undone.")
+                    Text("All cards, pinboards, and iCloud data will be permanently deleted. This cannot be undone.")
                 }
             } footer: {
                 Text("These actions are permanent and cannot be undone.")

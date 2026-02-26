@@ -352,6 +352,23 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         log("Sync stopped")
     }
 
+    /// Enqueues ClipItems modified since `date` for outbound upload.
+    /// Call after detecting that an extension wrote items while the app was suspended.
+    public func enqueueItemsModifiedSince(_ date: Date) {
+        guard syncEnabled, isSetUp else { return }
+        Task { [weak self] in
+            await self?.outboundEngine.enqueueItems(modifiedSince: date)
+        }
+    }
+
+    /// Stops sync, deletes the CloudKit zone, and clears all sync tokens.
+    /// After this call, the next `startSync()` performs a full fresh setup.
+    public func nukeAndReset() async throws {
+        stopSync()
+        try await cloudKitManager.deleteZone()
+        try cloudKitManager.clearAllSyncTokens()
+    }
+
     /// Triggers an immediate sync cycle.
     ///
     /// This method:
@@ -735,7 +752,8 @@ extension SyncCoordinator {
         configuration: SyncCoordinatorConfiguration = .default,
         syncEnabledProvider: @escaping @Sendable () -> Bool
     ) -> SyncCoordinator {
-        let tokenManager = SyncTokenManager()
+        let tokenStorage = UserDefaultsSyncTokenStorage(userDefaults: userDefaults)
+        let tokenManager = SyncTokenManager(storage: tokenStorage)
         let cloudKitManager = CloudKitManager(
             configuration: cloudKitConfiguration,
             tokenManager: tokenManager
