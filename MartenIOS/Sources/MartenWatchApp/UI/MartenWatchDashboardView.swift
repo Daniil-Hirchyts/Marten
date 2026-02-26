@@ -3,29 +3,29 @@ import SwiftUI
 struct MartenWatchDashboardView: View {
     @Bindable var container: MartenWatchContainer
 
-    @State private var isShowingQuickAdd = false
     @State private var allItemsCount = 0
     @State private var pinboardItemCounts: [UUID: Int] = [:]
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: WatchVisualSystem.sectionSpacing) {
-                allPinboardCard
+        List {
+            allPinboardCard
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .listRowBackground(Color.clear)
 
-                ForEach(container.customPinboards) { pinboard in
-                    pinboardCard(for: pinboard)
-                }
+            ForEach(container.customPinboards) { pinboard in
+                pinboardCard(for: pinboard)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
             }
-            .padding(.horizontal, WatchVisualSystem.outerPadding)
-            .padding(.bottom, 56)
+
+            Color.clear.frame(height: 56)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .listRowBackground(Color.clear)
         }
         .navigationTitle("Pinboards")
         .refreshable {
             await container.refresh()
             await loadPinboardCounts()
-        }
-        .sheet(isPresented: $isShowingQuickAdd) {
-            WatchQuickAddSheet(container: container)
         }
         .overlay(alignment: .bottomTrailing) {
             addClipboardButton
@@ -63,13 +63,11 @@ struct MartenWatchDashboardView: View {
             pinboardCardContent(
                 title: "All",
                 iconName: "tray",
-                statusTitle: nil,
                 statusIcon: nil,
                 statusTint: nil,
                 color: .gray,
                 isSelected: container.selectedPinboardID == nil,
-                itemCount: allItemsCount,
-                showsChevron: false
+                itemCount: allItemsCount
             )
         }
         .buttonStyle(.plain)
@@ -78,46 +76,65 @@ struct MartenWatchDashboardView: View {
     @ViewBuilder
     private func pinboardCard(for pinboard: WatchPinboardSummary) -> some View {
         let state = pinboardState(for: pinboard)
+        let isLocked = container.lockStateStore.isLocked(pinboard.id) && !container.lockStateStore.canAccess(pinboard.id)
 
-        NavigationLink {
-            WatchPinboardCardsView(container: container, pinboardID: pinboard.id, title: pinboard.name)
-        } label: {
-            pinboardCardContent(
-                title: pinboard.name,
-                iconName: pinboard.iconName,
-                statusTitle: state.title,
-                statusIcon: state.systemImage,
-                statusTint: state.tint,
-                color: Color.watchColor(hex: pinboard.colorHex, fallback: .accentColor),
-                isSelected: container.selectedPinboardID == pinboard.id,
-                itemCount: pinboardItemCounts[pinboard.id] ?? 0,
-                showsChevron: true
-            )
+        if isLocked {
+            Button {
+                Task {
+                    await container.selectPinboard(pinboard.id)
+                    _ = await container.unlockSelectedPinboard()
+                }
+            } label: {
+                pinboardCardContent(
+                    title: pinboard.name,
+                    iconName: pinboard.iconName,
+                    statusIcon: state?.systemImage,
+                    statusTint: state?.tint,
+                    color: Color.watchColor(hex: pinboard.colorHex, fallback: .accentColor),
+                    isSelected: container.selectedPinboardID == pinboard.id,
+                    itemCount: pinboardItemCounts[pinboard.id] ?? 0
+                )
+            }
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink {
+                WatchPinboardCardsView(container: container, pinboardID: pinboard.id, title: pinboard.name)
+            } label: {
+                pinboardCardContent(
+                    title: pinboard.name,
+                    iconName: pinboard.iconName,
+                    statusIcon: state?.systemImage,
+                    statusTint: state?.tint,
+                    color: Color.watchColor(hex: pinboard.colorHex, fallback: .accentColor),
+                    isSelected: container.selectedPinboardID == pinboard.id,
+                    itemCount: pinboardItemCounts[pinboard.id] ?? 0
+                )
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
     }
 
     private func pinboardCardContent(
         title: String,
         iconName: String?,
-        statusTitle: String?,
         statusIcon: String?,
         statusTint: Color?,
         color: Color,
         isSelected: Bool,
-        itemCount: Int,
-        showsChevron: Bool
+        itemCount: Int
     ) -> some View {
         HStack(spacing: 10) {
             WatchPinboardIcon(iconName: iconName, tint: color)
 
-            VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
                 Text(title)
                     .font(.headline)
                     .lineLimit(1)
 
-                if let statusTitle, let statusIcon, let statusTint {
-                    WatchMetadataPill(title: statusTitle, systemImage: statusIcon, tint: statusTint)
+                if let statusIcon, let statusTint {
+                    Image(systemName: statusIcon)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(statusTint)
                 }
             }
 
@@ -126,18 +143,22 @@ struct MartenWatchDashboardView: View {
             Text("\(itemCount)")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-
-            if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
         }
-        .padding(WatchVisualSystem.cardPadding)
+        .padding(.horizontal, WatchVisualSystem.cardPadding)
+        .padding(.vertical, WatchVisualSystem.cardPadding + 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: WatchVisualSystem.cornerRadius, style: .continuous)
-                .fill(color.opacity(isSelected ? 0.4 : 0.26))
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            color.opacity(isSelected ? 0.6 : 0.3),
+                            color.opacity(isSelected ? 0.4 : 0.15)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: WatchVisualSystem.cornerRadius, style: .continuous)
@@ -147,31 +168,31 @@ struct MartenWatchDashboardView: View {
     }
 
     private var addClipboardButton: some View {
-        WatchFloatingGlassActionButton(
+        WatchFloatingTextFieldLinkActionButton(
             systemImage: "plus",
-            accessibilityLabel: "Add clipboard item"
-        ) {
-            isShowingQuickAdd = true
+            accessibilityLabel: "Add clipboard item",
+            prompt: "Type or dictate"
+        ) { text in
+            Task { @MainActor in
+                _ = await container.createTextItem(text)
+            }
         }
     }
 
     private func pinboardState(for pinboard: WatchPinboardSummary) -> (
-        title: String,
         systemImage: String,
         tint: Color
-    ) {
-        let isLocked = container.lockStateStore.isLocked(pinboard.id)
-            && !container.lockStateStore.canAccess(pinboard.id)
-
-        if isLocked {
-            return ("Locked", "lock.fill", .orange)
+    )? {
+        if container.lockStateStore.isLocked(pinboard.id) {
+            let isUnlocked = container.lockStateStore.canAccess(pinboard.id)
+            return (isUnlocked ? "lock.open.fill" : "lock.fill", isUnlocked ? .orange : .secondary)
         }
 
         if pinboard.isShared {
-            return ("Shared", "person.2.fill", .blue)
+            return ("person.2.fill", .secondary)
         }
 
-        return ("Private", "lock.open.fill", .secondary)
+        return nil
     }
 
     private func loadPinboardCounts() async {
@@ -185,37 +206,6 @@ struct MartenWatchDashboardView: View {
 
         allItemsCount = allCount
         pinboardItemCounts = counts
-    }
-}
-
-private struct WatchPinboardIcon: View {
-    let iconName: String?
-    let tint: Color
-
-    var body: some View {
-        Group {
-            if let iconName,
-                iconName.containsEmoji,
-                !iconName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            {
-                Text(iconName)
-                    .font(.body)
-            } else {
-                Image(systemName: iconName ?? "tray")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(tint)
-            }
-        }
-        .frame(width: 30, height: 30)
-        .background(tint.opacity(0.16), in: Circle())
-    }
-}
-
-private extension String {
-    var containsEmoji: Bool {
-        unicodeScalars.contains { scalar in
-            scalar.properties.isEmojiPresentation || (scalar.properties.isEmoji && scalar.value > 0x238C)
-        }
     }
 }
 

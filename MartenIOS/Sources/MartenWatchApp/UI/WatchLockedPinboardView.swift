@@ -6,28 +6,21 @@ struct WatchLockedPinboardView: View {
     let onUnlock: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Label("\(title) is locked", systemImage: "lock.fill")
                 .font(.headline)
 
-            Text("Unlock this pinboard to browse, edit, and move cards.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
             Button(action: onUnlock) {
-                HStack(spacing: 6) {
-                    if isAuthenticating {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-
-                    Text(isAuthenticating ? "Unlocking" : "Unlock")
-                        .frame(maxWidth: .infinity)
-                }
+                Text("Unlock")
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isAuthenticating)
         }
         .watchCard(prominence: .subtle)
+        // Also trigger unlock on tap
+        .contentShape(.rect)
+        .onTapGesture {
+            onUnlock()
+        }
     }
 }

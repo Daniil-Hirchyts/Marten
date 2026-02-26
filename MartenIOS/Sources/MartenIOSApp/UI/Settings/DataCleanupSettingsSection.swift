@@ -1,4 +1,5 @@
 import SwiftUI
+import LocalAuthentication
 
 struct DataCleanupSettingsSection: View {
     let container: MartenIOSAppContainer
@@ -47,10 +48,10 @@ struct DangerZoneView: View {
                 Button(role: .destructive) {
                     showingDeleteDeviceDataConfirmation = true
                 } label: {
-                    Text("Delete Items from This Device")
+                    Text("Clear Clipboard on This Device")
                 }
                 .confirmationDialog(
-                    "Delete Items from This Device?",
+                    "Clear Clipboard on This Device?",
                     isPresented: $showingDeleteDeviceDataConfirmation,
                     titleVisibility: .visible
                 ) {
@@ -72,7 +73,17 @@ struct DangerZoneView: View {
                     titleVisibility: .visible
                 ) {
                     Button("Delete Everything", role: .destructive) {
-                        Task { await container.deleteAllData() }
+                        Task { 
+                            let context = LAContext()
+                            var error: NSError?
+                            if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
+                                if let success = try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Delete all your data"), success {
+                                    await container.deleteAllData()
+                                }
+                            } else {
+                                await container.deleteAllData()
+                            }
+                        }
                     }
                 } message: {
                     Text("All cards and pinboards will be permanently deleted. This cannot be undone.")

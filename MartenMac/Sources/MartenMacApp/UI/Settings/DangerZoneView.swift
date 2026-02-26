@@ -37,7 +37,7 @@ struct DangerZoneView: View {
 
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Delete Items from This Device")
+                                Text("Clear Clipboard on This Device")
                                     .font(.system(size: 13, weight: .medium))
                                 Text("Permanently delete cards created locally.")
                                     .font(.system(size: 11))
@@ -91,7 +91,7 @@ struct DangerZoneView: View {
         } message: {
             Text("All pinboards will be removed. Your cards will stay in All Items.")
         }
-        .alert("Delete Items from This Device?", isPresented: $showDeleteDeviceDataConfirmation) {
+        .alert("Clear Clipboard on This Device?", isPresented: $showDeleteDeviceDataConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
                 try? ClipItemStore().deleteItemsFromThisDevice()

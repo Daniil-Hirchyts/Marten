@@ -2,6 +2,7 @@ import MartenCore
 import MartenMacServices
 import ServiceManagement
 import SwiftUI
+import LocalAuthentication
 
 struct GeneralSettingsContent: View {
     @AppStorage("openAtLogin") private var openAtLogin = false
@@ -288,7 +289,7 @@ struct GeneralSettingsContent: View {
 
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Delete Items from This Device")
+                                Text("Clear Clipboard on This Device")
                                     .font(.system(size: 13, weight: .medium))
                                 Text("Permanently delete cards created locally.")
                                     .font(.system(size: 11))
@@ -298,7 +299,7 @@ struct GeneralSettingsContent: View {
                             Button(role: .destructive) {
                                 showDeleteDeviceDataConfirmation = true
                             } label: {
-                                Text("Delete...")
+                                Text("Clear...")
                             }
                             .buttonStyle(.bordered)
                             .tint(.red)
@@ -359,9 +360,9 @@ struct GeneralSettingsContent: View {
         } message: {
             Text("All pinboards will be removed. Your cards will stay in All Items.")
         }
-        .alert("Delete Items from This Device?", isPresented: $showDeleteDeviceDataConfirmation) {
+        .alert("Clear Clipboard on This Device?", isPresented: $showDeleteDeviceDataConfirmation) {
             Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
+            Button("Clear", role: .destructive) {
                 try? ClipItemStore().deleteItemsFromThisDevice()
             }
         } message: {
@@ -370,7 +371,17 @@ struct GeneralSettingsContent: View {
         .alert("Delete Everything?", isPresented: $showDeleteAllConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete Everything", role: .destructive) {
-                try? ClipItemStore().deleteAllItems()
+                Task {
+                    let context = LAContext()
+                    var error: NSError?
+                    if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
+                        if let success = try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Delete all your data"), success {
+                            await MainActor.run { try? ClipItemStore().deleteAllItems() }
+                        }
+                    } else {
+                        try? ClipItemStore().deleteAllItems()
+                    }
+                }
             }
         } message: {
             Text("All cards and pinboards will be permanently deleted. This cannot be undone.")

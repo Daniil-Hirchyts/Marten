@@ -223,6 +223,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         category: "SyncCoordinator"
     )
     private static let membershipBackfillCompletedKey = "com.hirchyts.marten.sync.membershipBackfill.completed"
+    private static let deviceAttributionBackfillCompletedKey = "com.hirchyts.marten.deviceAttribution.backfillCompleted"
 
     // MARK: - Initialization
 
@@ -308,6 +309,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
             log("Outbound engine started")
 
             await performMembershipBackfillIfNeeded()
+            performDeviceAttributionBackfillIfNeeded()
 
             // Start shared sync engines when feature flag is enabled
             if SharedPinboardsFeatureFlag.isEnabled, sharedOutboundEngine != nil {
@@ -558,6 +560,26 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         await outboundEngine.enqueueMembershipBackfillForAllItems()
         userDefaults.set(true, forKey: Self.membershipBackfillCompletedKey)
         log("Queued one-time pinboard membership backfill")
+    }
+
+    private func performDeviceAttributionBackfillIfNeeded() {
+        guard userDefaults.bool(forKey: Self.deviceAttributionBackfillCompletedKey) == false else { return }
+
+        let repository = ClipItemRepository(persistence: persistenceController)
+        do {
+            let count = try repository.backfillDeviceAttribution()
+            userDefaults.set(true, forKey: Self.deviceAttributionBackfillCompletedKey)
+
+            if count > 0 {
+                // Force a full re-sync so updated records get pushed to CloudKit
+                try cloudKitManager.clearZoneChangeToken()
+                log("Device attribution backfill: updated \(count) items, cleared sync token for re-sync")
+            } else {
+                log("Device attribution backfill: no items needed updating")
+            }
+        } catch {
+            log("Device attribution backfill failed: \(error.localizedDescription)")
+        }
     }
 
     private func handleSyncEnabledChange() {

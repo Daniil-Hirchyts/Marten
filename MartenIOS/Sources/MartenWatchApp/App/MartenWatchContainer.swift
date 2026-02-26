@@ -27,12 +27,6 @@ final class MartenWatchContainer {
         }
     }
 
-    var searchQuery: String = "" {
-        didSet {
-            guard oldValue != searchQuery else { return }
-            scheduleRefresh(immediate: false)
-        }
-    }
 
     var lastOperationErrorMessage: String?
     var syncErrorMessage: String?
@@ -166,7 +160,7 @@ final class MartenWatchContainer {
             reconcileLockState()
 
             let fetchedItems = try await queryService.items(
-                query: searchQuery,
+                query: "",
                 pinboardID: selectedPinboardID,
                 limit: 100
             )
@@ -198,6 +192,21 @@ final class MartenWatchContainer {
     func createTextItem(_ text: String) async -> Bool {
         do {
             try await commandService.createTextItem(text)
+            await refresh()
+            return true
+        } catch {
+            lastOperationErrorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    func createTextItemInPinboard(_ text: String, pinboardID: UUID?) async -> Bool {
+        do {
+            let itemID = try await commandService.createTextItemReturningID(text)
+            if let pinboardID {
+                try await commandService.moveItem(itemID: itemID, toPinboardID: pinboardID)
+            }
             await refresh()
             return true
         } catch {
@@ -246,6 +255,22 @@ final class MartenWatchContainer {
     func moveItem(itemID: UUID, to pinboardID: UUID) async -> Bool {
         do {
             try await commandService.moveItem(itemID: itemID, toPinboardID: pinboardID)
+            await refresh()
+            return true
+        } catch {
+            lastOperationErrorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    func setItemPinboardMembership(itemID: UUID, pinboardID: UUID, isMember: Bool) async -> Bool {
+        do {
+            if isMember {
+                try await commandService.addItem(itemID: itemID, toPinboardID: pinboardID)
+            } else {
+                try await commandService.removeItem(itemID: itemID, fromPinboardID: pinboardID)
+            }
             await refresh()
             return true
         } catch {
@@ -358,8 +383,8 @@ final class MartenWatchContainer {
                 return true
             }
 
-            return !assignedCustomIDs.contains {
-                lockStateStore.isLocked($0) && !lockStateStore.canAccess($0)
+            return assignedCustomIDs.contains { pinboardID in
+                !lockStateStore.isLocked(pinboardID) || lockStateStore.canAccess(pinboardID)
             }
         }
     }

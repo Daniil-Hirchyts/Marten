@@ -4,9 +4,13 @@ struct WatchItemPreviewView: View {
     @Bindable var container: MartenWatchContainer
     let item: WatchClipSummary
 
-    @State private var isShowingEditSheet = false
-    @State private var draftText = ""
-    @State private var isSaving = false
+    @State private var draftText: String
+
+    init(container: MartenWatchContainer, item: WatchClipSummary) {
+        self.container = container
+        self.item = item
+        _draftText = State(initialValue: item.preferredText)
+    }
 
     var body: some View {
         ScrollView {
@@ -22,8 +26,10 @@ struct WatchItemPreviewView: View {
                 quickEditButton
             }
         }
-        .sheet(isPresented: $isShowingEditSheet) {
-            editSheet
+        .onChange(of: currentItem.preferredText) { old, new in
+            if draftText != new {
+                draftText = new
+            }
         }
     }
 
@@ -31,16 +37,61 @@ struct WatchItemPreviewView: View {
     private var previewContent: some View {
         switch currentItem.itemType {
         case .image:
-            VStack(alignment: .center, spacing: 10) {
-                Image(systemName: "photo")
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
+            if let path = currentItem.thumbnailPath {
+                WatchThumbnailImage(path: path)
+                    .clipShape(RoundedRectangle(cornerRadius: WatchVisualSystem.cornerRadius, style: .continuous))
+                    .frame(maxWidth: .infinity, alignment: .center)
+            } else {
+                VStack(alignment: .center, spacing: 10) {
+                    Image(systemName: "photo")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
 
-                Text("Image")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    Text("Image")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
             }
+        case .file:
+            VStack(alignment: .center, spacing: 12) {
+                Image(systemName: currentItem.systemImageName)
+                    .font(.system(size: 44))
+                    .foregroundStyle(.tint)
+
+                Text(currentItem.preferredText)
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(WatchVisualSystem.cardPadding)
             .frame(maxWidth: .infinity)
+            .background {
+                RoundedRectangle(cornerRadius: WatchVisualSystem.cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            }
+        case .color:
+            if let hex = currentItem.colorHex {
+                VStack(alignment: .center, spacing: 16) {
+                    RoundedRectangle(cornerRadius: WatchVisualSystem.cornerRadius, style: .continuous)
+                        .fill(Color.watchColor(hex: hex, fallback: .gray))
+                        .frame(width: 80, height: 80)
+                        .shadow(color: .black.opacity(0.3), radius: 3, y: 3)
+
+                    Text(hex)
+                        .font(.system(.title3, design: .monospaced, weight: .bold))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 16)
+            } else {
+                Text(currentItem.preferredText)
+                    .font(.body)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        case .url:
+            Text(currentItem.preferredText)
+                .font(.body)
+                .frame(maxWidth: .infinity, alignment: .leading)
         default:
             Text(currentItem.preferredText)
                 .font(.body)
@@ -49,61 +100,14 @@ struct WatchItemPreviewView: View {
     }
 
     private var quickEditButton: some View {
-        WatchFloatingGlassActionButton(
+        WatchFloatingTextFieldBindingActionButton(
             systemImage: "pencil",
-            accessibilityLabel: "Edit card text"
+            accessibilityLabel: "Edit card text",
+            title: "Edit text",
+            text: $draftText
         ) {
-            draftText = currentItem.preferredText
-            isShowingEditSheet = true
-        }
-    }
-
-    private var editSheet: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: WatchVisualSystem.sectionSpacing) {
-                    TextField("Edit text", text: $draftText, axis: .vertical)
-                        .lineLimit(4...12)
-                        .font(.body)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(.horizontal, WatchVisualSystem.outerPadding)
-                .padding(.bottom, 58)
-            }
-            .navigationTitle("Edit")
-            .safeAreaInset(edge: .bottom) {
-                saveButton
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        isShowingEditSheet = false
-                    }
-                    .disabled(isSaving)
-                }
-            }
-        }
-    }
-
-    private var saveButton: some View {
-        Button {
             saveText()
-        } label: {
-            HStack(spacing: 6) {
-                if isSaving {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-
-                Text(isSaving ? "Saving" : "Save")
-                    .frame(maxWidth: .infinity)
-            }
         }
-        .watchProminentGlassButtonStyle()
-        .buttonBorderShape(.capsule)
-        .disabled(isSaving || draftCharacterCount == 0)
-        .padding(.horizontal, WatchVisualSystem.outerPadding)
-        .padding(.top, 4)
     }
 
     private var supportsTextEditing: Bool {
@@ -119,20 +123,12 @@ struct WatchItemPreviewView: View {
         container.items.first(where: { $0.id == item.id }) ?? item
     }
 
-    private var draftCharacterCount: Int {
-        draftText.trimmingCharacters(in: .whitespacesAndNewlines).count
-    }
-
     private func saveText() {
-        guard !isSaving else { return }
-        isSaving = true
+        let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != currentItem.preferredText else { return }
 
         Task { @MainActor in
-            let updated = await container.updateTextItem(itemID: currentItem.id, newText: draftText)
-            isSaving = false
-            if updated {
-                isShowingEditSheet = false
-            }
+            _ = await container.updateTextItem(itemID: currentItem.id, newText: trimmed)
         }
     }
 }

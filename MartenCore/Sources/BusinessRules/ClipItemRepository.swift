@@ -134,6 +134,8 @@ final class ClipItemRepository {
         try context.performAndWaitThrowing {
             if let existing = try deduplicationService.fetchExistingItem(hash: hash, in: context) {
                 existing.modifiedAt = now
+                existing.lastModifiedBy = DeviceIdentifier.currentDeviceName
+                existing.lastModifiedAt = now
                 existing.displayOrder = displayOrder
                 if let sourceApp {
                     let previousBundleID = existing.sourceAppBundleID
@@ -163,6 +165,8 @@ final class ClipItemRepository {
             item.id = UUID()
             item.createdAt = now
             item.modifiedAt = now
+            item.lastModifiedBy = DeviceIdentifier.currentDeviceName
+            item.lastModifiedAt = now
             item.displayOrder = displayOrder
             item.sourceAppBundleID = sourceApp?.bundleID
             item.sourceAppName = sourceApp?.name
@@ -299,6 +303,7 @@ final class ClipItemRepository {
                 orPredicateWithSubpredicates: [
                     NSPredicate(format: "lastModifiedBy == nil"),
                     NSPredicate(format: "lastModifiedBy == ''"),
+                    NSPredicate(format: "lastModifiedBy == %@", DeviceIdentifier.currentDeviceName),
                 ] + markerPredicates
             )
 
@@ -401,6 +406,8 @@ final class ClipItemRepository {
             item.primaryText = trimmedText
             item.searchableText = trimmedText.normalizedForSearch()
             item.modifiedAt = now
+            item.lastModifiedBy = DeviceIdentifier.currentDeviceName
+            item.lastModifiedAt = now
             item.contentHash = Data(trimmedText.utf8).sha256Hex()
             item.displayOrder = currentDisplayOrder(reference: now)
             item.byteCount = Int64(trimmedText.utf8.count)
@@ -461,6 +468,8 @@ final class ClipItemRepository {
             item.primaryText = trimmedText
             item.searchableText = trimmedText.normalizedForSearch()
             item.modifiedAt = now
+            item.lastModifiedBy = DeviceIdentifier.currentDeviceName
+            item.lastModifiedAt = now
             item.contentHash = Data(trimmedText.utf8).sha256Hex()
             item.displayOrder = currentDisplayOrder(reference: now)
             item.itemTypeValue = .text
@@ -580,6 +589,8 @@ final class ClipItemRepository {
             }
 
             item.modifiedAt = now
+            item.lastModifiedBy = DeviceIdentifier.currentDeviceName
+            item.lastModifiedAt = now
             item.displayOrder = displayOrder
             item.itemTypeValue = payload.itemType
             item.primaryText = payload.primaryText
@@ -718,6 +729,8 @@ final class ClipItemRepository {
             }
 
             item.modifiedAt = now
+            item.lastModifiedBy = DeviceIdentifier.currentDeviceName
+            item.lastModifiedAt = now
             item.displayOrder = displayOrder
             item.itemTypeValue = newType
             item.primaryText = normalizedText
@@ -804,7 +817,10 @@ final class ClipItemRepository {
             if item.isPinned {
                 item.displayOrder = Int64(Date().timeIntervalSince1970 * 1000)
             }
-            item.modifiedAt = Date()
+            let now = Date()
+            item.modifiedAt = now
+            item.lastModifiedBy = DeviceIdentifier.currentDeviceName
+            item.lastModifiedAt = now
 
             if context.hasChanges {
                 try context.save()
@@ -868,7 +884,10 @@ final class ClipItemRepository {
                 item.customTitle = nil
             }
 
-            item.modifiedAt = Date()
+            let now = Date()
+            item.modifiedAt = now
+            item.lastModifiedBy = DeviceIdentifier.currentDeviceName
+            item.lastModifiedAt = now
             if context.hasChanges {
                 try context.save()
             }
@@ -910,6 +929,8 @@ final class ClipItemRepository {
 
             let now = Date()
             item.modifiedAt = now
+            item.lastModifiedBy = DeviceIdentifier.currentDeviceName
+            item.lastModifiedAt = now
             item.displayOrder = currentDisplayOrder(reference: now)
             try context.save()
         }
@@ -920,6 +941,50 @@ final class ClipItemRepository {
                 viewContext.refresh(item, mergeChanges: true)
             }
         }
+    }
+
+    /// Stamps all items with nil/empty `lastModifiedBy` with the current device name.
+    /// Intended to be called once per device to backfill existing data.
+    ///
+    /// - Returns: The number of items updated.
+    @discardableResult
+    func backfillDeviceAttribution() throws -> Int {
+        let context = persistence.newBackgroundContext()
+        let deviceName = DeviceIdentifier.currentDeviceName
+        let now = Date()
+        var totalUpdated = 0
+
+        try context.performAndWaitThrowing {
+            let request = ClipItem.fetchRequest()
+            request.predicate = NSCompoundPredicate(orPredicateWithSubpredicates: [
+                NSPredicate(format: "lastModifiedBy == nil"),
+                NSPredicate(format: "lastModifiedBy == ''"),
+            ])
+            request.fetchLimit = 200
+
+            while true {
+                let items = try context.fetch(request)
+                guard !items.isEmpty else { break }
+
+                for item in items {
+                    item.lastModifiedBy = deviceName
+                    item.lastModifiedAt = now
+                }
+
+                if context.hasChanges {
+                    try context.save()
+                }
+
+                totalUpdated += items.count
+                context.reset()
+            }
+        }
+
+        if totalUpdated > 0 {
+            Self.logger.notice("backfillDeviceAttribution updated \(totalUpdated, privacy: .public) items with device name")
+        }
+
+        return totalUpdated
     }
 
     func saveChanges() throws {

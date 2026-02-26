@@ -91,6 +91,7 @@ public final class ClipItemStore {
 
     public func deleteAllItems() throws {
         try repository.deleteAllItems()
+        try pinboardRepository.deleteUserPinboards()
     }
 
     public func deleteItemsFromThisDevice() throws {

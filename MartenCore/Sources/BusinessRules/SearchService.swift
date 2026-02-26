@@ -143,6 +143,7 @@ final class SearchService {
                     orPredicateWithSubpredicates: [
                     NSPredicate(format: "lastModifiedBy == nil"),
                     NSPredicate(format: "lastModifiedBy == ''"),
+                    NSPredicate(format: "lastModifiedBy == %@", DeviceIdentifier.currentDeviceName),
                     ] + markerPredicates
                 )
             case .unknown:

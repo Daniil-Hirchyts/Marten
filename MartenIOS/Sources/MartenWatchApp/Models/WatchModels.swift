@@ -73,6 +73,25 @@ struct WatchClipSummary: Identifiable, Equatable, Sendable, Hashable {
         }
     }
 
+    var displayTypeTitle: String {
+        switch itemType {
+        case .text, .richText:
+            return "Text"
+        case .image:
+            return "Image"
+        case .file:
+            return "File"
+        case .url:
+            return "Link"
+        case .code:
+            return "Code"
+        case .color:
+            return "Color"
+        case .mixed:
+            return "Item"
+        }
+    }
+
     var systemImageName: String {
         switch itemType {
         case .text, .richText:

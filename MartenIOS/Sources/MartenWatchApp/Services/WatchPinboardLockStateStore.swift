@@ -76,6 +76,16 @@ final class WatchPinboardLockStateStore {
         return true
     }
 
+    func replaceLockedPinboardIDs(_ ids: Set<UUID>) {
+        lockedPinboardIDs = ids
+
+        for unlockedID in unlockedPinboardIDs where !ids.contains(unlockedID) {
+            clearUnlockedState(for: unlockedID)
+        }
+
+        persist()
+    }
+
     func reconcile(validPinboardIDs: Set<UUID>) {
         let staleLocked = lockedPinboardIDs.subtracting(validPinboardIDs)
         if !staleLocked.isEmpty {

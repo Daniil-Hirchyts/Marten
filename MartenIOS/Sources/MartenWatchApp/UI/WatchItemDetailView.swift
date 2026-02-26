@@ -8,9 +8,14 @@ struct WatchItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isShowingDeleteConfirmation = false
     @State private var isPerformingAction = false
-    @State private var isShowingTextEditor = false
     @State private var isShowingMoveSheet = false
-    @State private var draftText = ""
+    @State private var draftText: String
+
+    init(container: MartenWatchContainer, item: WatchClipSummary) {
+        self.container = container
+        self.item = item
+        _draftText = State(initialValue: item.preferredText)
+    }
 
     var body: some View {
         ScrollView {
@@ -24,15 +29,17 @@ struct WatchItemDetailView: View {
             .padding(.bottom, 64)
         }
         .navigationTitle("Card")
-        .sheet(isPresented: $isShowingTextEditor) {
-            textEditorSheet
-        }
         .sheet(isPresented: $isShowingMoveSheet) {
             moveToPinboardSheet
         }
         .overlay(alignment: .bottomTrailing) {
             if supportsTextEditing {
                 quickEditButton
+            }
+        }
+        .onChange(of: currentItem.preferredText) { old, new in
+            if draftText != new {
+                draftText = new
             }
         }
         .alert("Delete Card?", isPresented: $isShowingDeleteConfirmation) {
@@ -79,14 +86,21 @@ struct WatchItemDetailView: View {
             WatchSectionTitle(title: "Edit", detail: nil)
 
             if supportsTextEditing {
-                Button {
-                    draftText = currentItem.preferredText
-                    isShowingTextEditor = true
-                } label: {
-                    Label("Edit Text", systemImage: "pencil")
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                ZStack {
+                    Button(action: {}) {
+                        Label("Edit Text", systemImage: "pencil")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+                    .allowsHitTesting(false)
+                    
+                    TextField("Edit text", text: $draftText)
+                        .labelsHidden()
+                        .opacity(0.011)
+                        .onSubmit {
+                            saveEditedText()
+                        }
                 }
-                .buttonStyle(.bordered)
                 .disabled(isPerformingAction)
             }
 
@@ -165,69 +179,22 @@ struct WatchItemDetailView: View {
         .watchCard(prominence: .subtle)
     }
 
-    private var textEditorSheet: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: WatchVisualSystem.sectionSpacing) {
-                    TextField("Edit text", text: $draftText, axis: .vertical)
-                        .lineLimit(4...12)
-                        .font(.body)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(.horizontal, WatchVisualSystem.outerPadding)
-                .padding(.bottom, 58)
-            }
-            .navigationTitle("Edit")
-            .safeAreaInset(edge: .bottom) {
-                saveEditedButton
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        isShowingTextEditor = false
-                    }
-                    .disabled(isPerformingAction)
-                }
-            }
-        }
-    }
-
     private var quickEditButton: some View {
-        WatchFloatingGlassActionButton(
+        WatchFloatingTextFieldBindingActionButton(
             systemImage: "pencil",
-            accessibilityLabel: "Edit card text"
+            accessibilityLabel: "Edit card text",
+            title: "Edit text",
+            text: $draftText
         ) {
-            draftText = currentItem.preferredText
-            isShowingTextEditor = true
-        }
-    }
-
-    private var saveEditedButton: some View {
-        Button {
             saveEditedText()
-        } label: {
-            HStack(spacing: 6) {
-                if isPerformingAction {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-
-                Text(isPerformingAction ? "Saving" : "Save")
-                    .frame(maxWidth: .infinity)
-            }
         }
-        .watchProminentGlassButtonStyle()
-        .buttonBorderShape(.capsule)
-        .disabled(isPerformingAction || draftCharacterCount == 0)
-        .padding(.horizontal, WatchVisualSystem.outerPadding)
-        .padding(.top, 4)
     }
 
     private var moveToPinboardSheet: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: WatchVisualSystem.sectionSpacing) {
-                    WatchSectionTitle(title: "Move To", detail: "\(container.customPinboards.count)")
+                    WatchSectionTitle(title: "Pinboards", detail: "\(container.customPinboards.count)")
 
                     if container.customPinboards.isEmpty {
                         Text("No pinboards available.")
@@ -315,10 +282,6 @@ struct WatchItemDetailView: View {
         }
     }
 
-    private var draftCharacterCount: Int {
-        draftText.trimmingCharacters(in: .whitespacesAndNewlines).count
-    }
-
     private func markUsed() {
         guard !isPerformingAction else { return }
         isPerformingAction = true
@@ -340,11 +303,16 @@ struct WatchItemDetailView: View {
     }
 
     private func moveItemFromSheet(to pinboardID: UUID) {
+        let isCurrent = currentItem.pinboardIDs.contains(pinboardID)
         guard !isPerformingAction else { return }
         isPerformingAction = true
 
         Task { @MainActor in
-            let moved = await container.moveItem(itemID: currentItem.id, to: pinboardID)
+            let moved = await container.setItemPinboardMembership(
+                itemID: currentItem.id,
+                pinboardID: pinboardID,
+                isMember: !isCurrent
+            )
             isPerformingAction = false
             if moved {
                 isShowingMoveSheet = false
@@ -353,15 +321,13 @@ struct WatchItemDetailView: View {
     }
 
     private func saveEditedText() {
-        guard !isPerformingAction else { return }
+        let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != currentItem.preferredText, !isPerformingAction else { return }
         isPerformingAction = true
 
         Task { @MainActor in
-            let updated = await container.updateTextItem(itemID: currentItem.id, newText: draftText)
+            _ = await container.updateTextItem(itemID: currentItem.id, newText: trimmed)
             isPerformingAction = false
-            if updated {
-                isShowingTextEditor = false
-            }
         }
     }
 

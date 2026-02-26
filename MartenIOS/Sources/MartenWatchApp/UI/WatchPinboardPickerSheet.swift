@@ -6,45 +6,49 @@ struct WatchPinboardPickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: WatchVisualSystem.sectionSpacing) {
-                    WatchSectionTitle(title: "Pinboards", detail: "\(container.customPinboards.count + 1)")
+            List {
+                WatchSectionTitle(title: "Pinboards", detail: "\(container.customPinboards.count + 1)")
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
 
-                    pinboardRow(
-                        title: "All",
-                        subtitle: "Every card",
-                        iconName: "tray",
-                        isLocked: false,
-                        isSelected: container.selectedPinboardID == nil
-                    ) {
-                        container.selectPinboard(nil)
-                        dismiss()
-                    }
+                pinboardRow(
+                    title: "All",
+                    subtitle: "Every card",
+                    iconName: "tray",
+                    isLocked: false,
+                    isSelected: container.selectedPinboardID == nil
+                ) {
+                    container.selectPinboard(nil)
+                    dismiss()
+                }
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .listRowBackground(Color.clear)
 
-                    if container.customPinboards.isEmpty {
-                        Text("No custom pinboards yet.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .watchCard(prominence: .subtle)
-                    } else {
-                        ForEach(container.customPinboards) { pinboard in
-                            pinboardRow(
-                                title: pinboard.name,
-                                subtitle: pinboard.isShared ? "Shared" : "Private",
-                                iconName: pinboard.iconName ?? "pin",
-                                isLocked: container.lockStateStore.isLocked(pinboard.id)
-                                    && !container.lockStateStore.canAccess(pinboard.id),
-                                isSelected: container.selectedPinboardID == pinboard.id
-                            ) {
-                                container.selectPinboard(pinboard.id)
-                                dismiss()
-                            }
+                if container.customPinboards.isEmpty {
+                    Text("No custom pinboards yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .watchCard(prominence: .subtle)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .listRowBackground(Color.clear)
+                } else {
+                    ForEach(container.customPinboards) { pinboard in
+                        pinboardRow(
+                            title: pinboard.name,
+                            subtitle: pinboard.isShared ? "Shared" : "Private",
+                            iconName: pinboard.iconName ?? "pin",
+                            isLocked: container.lockStateStore.isLocked(pinboard.id)
+                                && !container.lockStateStore.canAccess(pinboard.id),
+                            isSelected: container.selectedPinboardID == pinboard.id
+                        ) {
+                            container.selectPinboard(pinboard.id)
+                            dismiss()
                         }
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .listRowBackground(Color.clear)
                     }
                 }
-                .padding(.horizontal, WatchVisualSystem.outerPadding)
-                .padding(.bottom, WatchVisualSystem.outerPadding)
             }
             .navigationTitle("Pinboards")
         }
@@ -82,7 +86,7 @@ struct WatchPinboardPickerSheet: View {
                 if isLocked {
                     Image(systemName: "lock.fill")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
                 }
 
                 if isSelected {
@@ -96,5 +100,6 @@ struct WatchPinboardPickerSheet: View {
         }
         .buttonStyle(.plain)
         .watchCard(prominence: isSelected ? .accent : .normal)
+        .padding(.vertical, 4)
     }
 }

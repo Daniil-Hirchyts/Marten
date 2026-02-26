@@ -7,19 +7,22 @@ struct WatchThumbnailImage: View {
     @State private var cgImage: CGImage?
 
     var body: some View {
-        Group {
-            if let cgImage {
-                Image(decorative: cgImage, scale: 2.0)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            } else {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.quaternary)
-                    .aspectRatio(1, contentMode: .fit)
-                    .overlay {
-                        ProgressView()
-                    }
+        ZStack {
+            WatchTransparencyGrid(squareSize: 8)
+            
+            Group {
+                if let cgImage {
+                    Image(decorative: cgImage, scale: 2.0)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else {
+                    Rectangle()
+                        .fill(Color.clear)
+                        .aspectRatio(1, contentMode: .fit)
+                        .overlay {
+                            ProgressView()
+                        }
+                }
             }
         }
         .frame(maxWidth: .infinity)

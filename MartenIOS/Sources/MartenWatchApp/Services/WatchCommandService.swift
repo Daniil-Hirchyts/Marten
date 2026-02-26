@@ -3,6 +3,7 @@ import Foundation
 import MartenCore
 
 enum WatchCommandError: Error, Sendable, Equatable {
+    case emptyText
     case itemNotFound(UUID)
     case pinboardNotFound(UUID)
 }
@@ -28,6 +29,21 @@ actor WatchCommandService {
             ),
             isUserCreated: true
         )
+    }
+
+    func createTextItemReturningID(_ text: String) throws -> UUID {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw WatchCommandError.emptyText }
+
+        let item = try store.createTextItem(
+            text: trimmed,
+            sourceApp: SourceAppInfo(
+                bundleID: "com.hirchyts.marten.watch",
+                name: "Marten Watch"
+            ),
+            isUserCreated: true
+        )
+        return item.id
     }
 
     func markItemUsed(itemID: UUID) throws {
@@ -57,6 +73,18 @@ actor WatchCommandService {
         let itemObjectID = try resolveItemObjectID(itemID)
         let pinboardObjectID = try resolvePinboardObjectID(pinboardID)
         try store.moveItem(objectID: itemObjectID, toPinboard: pinboardObjectID)
+    }
+
+    func addItem(itemID: UUID, toPinboardID pinboardID: UUID) throws {
+        let itemObjectID = try resolveItemObjectID(itemID)
+        let pinboardObjectID = try resolvePinboardObjectID(pinboardID)
+        try store.addItem(objectID: itemObjectID, toPinboard: pinboardObjectID)
+    }
+
+    func removeItem(itemID: UUID, fromPinboardID pinboardID: UUID) throws {
+        let itemObjectID = try resolveItemObjectID(itemID)
+        let pinboardObjectID = try resolvePinboardObjectID(pinboardID)
+        try store.removeItem(objectID: itemObjectID, fromPinboard: pinboardObjectID)
     }
 
     private func resolveItemObjectID(_ itemID: UUID) throws -> NSManagedObjectID {

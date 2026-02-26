@@ -29,11 +29,13 @@ public struct MartenWatchRootView: View {
                 await bootstrap.container.handleScenePhase(newPhase)
             }
         }
+        #if !targetEnvironment(simulator)
         .onReceive(NotificationCenter.default.publisher(for: MartenWatchNotifications.cloudKitRemoteChangeReceived)) { _ in
             Task {
                 await bootstrap.container.handleCloudKitPushNotification()
             }
         }
+        #endif
     }
 }
 
