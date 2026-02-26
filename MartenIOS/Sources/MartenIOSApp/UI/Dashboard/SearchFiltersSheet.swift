@@ -171,7 +171,6 @@ private struct FilterChipButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(isSelected ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.primary))
             .background(background(isPressed: configuration.isPressed))
             .overlay(border(isPressed: configuration.isPressed))
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
@@ -181,33 +180,31 @@ private struct FilterChipButtonStyle: ButtonStyle {
 
     @ViewBuilder
     private func background(isPressed: Bool) -> some View {
-        if isSelected {
-            switch style {
-            case .capsule:
-                Capsule().fill(Color.accentColor)
-            case .roundedRect(let cornerRadius):
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.accentColor)
-            }
-        } else {
-            switch style {
-            case .capsule:
-                if #available(iOS 26, macOS 26, *) {
+        let baseOpacity: CGFloat = isSelected ? 0.25 : 0.08
+        let finalOpacity = isPressed ? baseOpacity + 0.05 : baseOpacity
+        let fillColor = colorScheme == .dark ? Color.white.opacity(finalOpacity) : Color.black.opacity(finalOpacity)
+        
+        Group {
+            if #available(iOS 26, macOS 26, *) {
+                switch style {
+                case .capsule:
                     Capsule()
                         .fill(Color.clear)
                         .glassEffect(.regular.interactive(), in: .capsule)
-                } else {
-                    Capsule()
-                        .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.04))
-                }
-            case .roundedRect(let cornerRadius):
-                if #available(iOS 26, macOS 26, *) {
+                        .brightness(isSelected ? 0.1 : 0)
+                case .roundedRect(let cornerRadius):
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .fill(Color.clear)
                         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius))
-                } else {
+                        .brightness(isSelected ? 0.1 : 0)
+                }
+            } else {
+                switch style {
+                case .capsule:
+                    Capsule().fill(fillColor)
+                case .roundedRect(let cornerRadius):
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.04))
+                        .fill(fillColor)
                 }
             }
         }
@@ -215,14 +212,15 @@ private struct FilterChipButtonStyle: ButtonStyle {
 
     @ViewBuilder
     private func border(isPressed: Bool) -> some View {
-        let strokeColor = isSelected ? Color.white.opacity(0.2) : Color.primary.opacity(0.08)
+        let baseColor = colorScheme == .dark ? Color.white : Color.black
+        let strokeColor = baseColor.opacity(isSelected ? 0.25 : 0.12)
 
         switch style {
         case .capsule:
-            Capsule().strokeBorder(strokeColor, lineWidth: 0.5)
+            Capsule().strokeBorder(strokeColor, lineWidth: 1)
         case .roundedRect(let cornerRadius):
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(strokeColor, lineWidth: 0.5)
+                .strokeBorder(strokeColor, lineWidth: 1)
         }
     }
 }
@@ -241,10 +239,12 @@ private struct FilterChipButton: View {
                 if let icon {
                     Image(systemName: icon)
                         .font(.footnote.weight(.medium))
+                        .foregroundStyle(isSelected ? AnyShapeStyle(Color.primary) : AnyShapeStyle(Color.secondary))
                 }
 
                 Text(title)
                     .font(.footnote.weight(.medium))
+                    .foregroundStyle(isSelected ? AnyShapeStyle(Color.primary) : AnyShapeStyle(Color.primary.opacity(0.8)))
                     .lineLimit(1)
 
                 if let badge {
@@ -252,7 +252,7 @@ private struct FilterChipButton: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(
                             isSelected
-                                ? AnyShapeStyle(Color.white.opacity(0.9))
+                                ? AnyShapeStyle(Color.primary.opacity(0.9))
                                 : AnyShapeStyle(.secondary)
                         )
                         .padding(.leading, 2)
@@ -277,13 +277,14 @@ private struct AppFilterChipButton: View {
 
                 Text(option.name)
                     .font(.footnote.weight(.medium))
+                    .foregroundStyle(isSelected ? AnyShapeStyle(Color.primary) : AnyShapeStyle(Color.primary.opacity(0.8)))
                     .lineLimit(1)
 
                 Text("\(option.count)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(
                         isSelected
-                            ? AnyShapeStyle(Color.white.opacity(0.9))
+                            ? AnyShapeStyle(Color.primary.opacity(0.9))
                             : AnyShapeStyle(.secondary)
                     )
             }

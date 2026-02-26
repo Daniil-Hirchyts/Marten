@@ -22,7 +22,9 @@ struct GeneralSettingsContent: View {
     @AppStorage(OCRSettingsKeys.showCaptureNotification)
     private var ocrShowCaptureNotification = true
 
-    @State private var showEraseConfirmation = false
+    @State private var showDeletePinboardsConfirmation = false
+    @State private var showDeleteDeviceDataConfirmation = false
+    @State private var showDeleteAllConfirmation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -253,29 +255,74 @@ struct GeneralSettingsContent: View {
                             .accessibilityIdentifier("settings.picker.historyRetention")
                         }
 
+                    }
+                }
+            }
+
+            // Danger Zone Section
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsSectionHeader("Danger Zone", icon: "exclamationmark.triangle")
+
+                SettingsCard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Delete Pinboards")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("Remove pinboards. Cards will stay in All Items.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                showDeletePinboardsConfirmation = true
+                            } label: {
+                                Text("Delete...")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                        }
+
                         Divider()
                             .background(Color.primary.opacity(0.1))
 
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Delete Data")
+                                Text("Delete Items from This Device")
                                     .font(.system(size: 13, weight: .medium))
-                                Text("Manage data removal")
+                                Text("Permanently delete cards created locally.")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.tertiary)
                             }
-
                             Spacer()
-
-                            NavigationLink {
-                                DangerZoneView()
+                            Button(role: .destructive) {
+                                showDeleteDeviceDataConfirmation = true
                             } label: {
-                                Text("Danger Zone...")
-                                    .font(.system(size: 12, weight: .medium))
+                                Text("Delete...")
                             }
                             .buttonStyle(.bordered)
                             .tint(.red)
-                            .accessibilityIdentifier("settings.button.dangerZone")
+                        }
+
+                        Divider()
+                            .background(Color.primary.opacity(0.1))
+
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Delete Everything")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("Delete all cards and pinboards. Cannot be undone.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                showDeleteAllConfirmation = true
+                            } label: {
+                                Text("Delete...")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
                         }
                     }
                 }
@@ -304,16 +351,29 @@ struct GeneralSettingsContent: View {
                 }
             }
         }
-        .alert("Erase History", isPresented: $showEraseConfirmation) {
-            Button("Erase", role: .destructive) {
-                ClipItemStore.deleteAll()
-            }
-            .accessibilityIdentifier("settings.button.eraseHistory.confirm")
-
+        .alert("Delete Pinboards?", isPresented: $showDeletePinboardsConfirmation) {
             Button("Cancel", role: .cancel) {}
-                .accessibilityIdentifier("settings.button.eraseHistory.cancel")
+            Button("Delete Pinboards", role: .destructive) {
+                try? ClipItemStore().deleteUserPinboards()
+            }
         } message: {
-            Text("Are you sure you want to erase all history? This action cannot be undone.")
+            Text("All pinboards will be removed. Your cards will stay in All Items.")
+        }
+        .alert("Delete Items from This Device?", isPresented: $showDeleteDeviceDataConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                try? ClipItemStore().deleteItemsFromThisDevice()
+            }
+        } message: {
+            Text("Cards created on this device will be permanently deleted.")
+        }
+        .alert("Delete Everything?", isPresented: $showDeleteAllConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete Everything", role: .destructive) {
+                try? ClipItemStore().deleteAllItems()
+            }
+        } message: {
+            Text("All cards and pinboards will be permanently deleted. This cannot be undone.")
         }
     }
 

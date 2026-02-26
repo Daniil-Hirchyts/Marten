@@ -1,88 +1,89 @@
 import MartenCore
 import SwiftUI
 
+/// Danger Zone settings view for macOS — provides destructive data management actions.
 struct DangerZoneView: View {
-    @State private var showingDeleteAllConfirmation = false
-    @State private var showingDeleteDeviceDataConfirmation = false
-    @State private var showingDeletePinboardsConfirmation = false
+    @State private var showDeletePinboardsConfirmation = false
+    @State private var showDeleteDeviceDataConfirmation = false
+    @State private var showDeleteAllConfirmation = false
 
     var body: some View {
-        Form {
-            Section {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Delete Pinboards")
-                                .font(.system(size: 13, weight: .medium))
-                            Text("All pinboards will be removed. Your cards will stay in All Items.")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.tertiary)
-                        }
-                        Spacer()
-                        Button(role: .destructive) {
-                            showingDeletePinboardsConfirmation = true
-                        } label: {
-                            Text("Delete Pinboards...")
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                SettingsSectionHeader("Danger Zone", icon: "exclamationmark.triangle")
 
-                    Divider()
+                SettingsCard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Delete Pinboards")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("Remove pinboards. Cards will stay in All Items.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                showDeletePinboardsConfirmation = true
+                            } label: {
+                                Text("Delete...")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                        }
 
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Delete Items from This Device")
-                                .font(.system(size: 13, weight: .medium))
-                            Text("Cards created on this device will be permanently deleted.")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.tertiary)
-                        }
-                        Spacer()
-                        Button(role: .destructive) {
-                            showingDeleteDeviceDataConfirmation = true
-                        } label: {
-                            Text("Delete...")
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
-                    }
+                        Divider()
+                            .background(Color.primary.opacity(0.1))
 
-                    Divider()
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Delete Items from This Device")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("Permanently delete cards created locally.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                showDeleteDeviceDataConfirmation = true
+                            } label: {
+                                Text("Delete...")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                        }
 
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Delete Everything")
-                                .font(.system(size: 13, weight: .medium))
-                            Text("All cards and pinboards will be permanently deleted. This cannot be undone.")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.tertiary)
+                        Divider()
+                            .background(Color.primary.opacity(0.1))
+
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Delete Everything")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("Delete all cards and pinboards. Cannot be undone.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                showDeleteAllConfirmation = true
+                            } label: {
+                                Text("Delete...")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
                         }
-                        Spacer()
-                        Button(role: .destructive) {
-                            showingDeleteAllConfirmation = true
-                        } label: {
-                            Text("Delete Everything...")
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
                     }
                 }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color(NSColor.controlBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
-                )
             }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 32)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .formStyle(.grouped)
-        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("Danger Zone")
-        .alert("Delete Pinboards?", isPresented: $showingDeletePinboardsConfirmation) {
+        .alert("Delete Pinboards?", isPresented: $showDeletePinboardsConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete Pinboards", role: .destructive) {
                 try? ClipItemStore().deleteUserPinboards()
@@ -90,7 +91,7 @@ struct DangerZoneView: View {
         } message: {
             Text("All pinboards will be removed. Your cards will stay in All Items.")
         }
-        .alert("Delete Items from This Device?", isPresented: $showingDeleteDeviceDataConfirmation) {
+        .alert("Delete Items from This Device?", isPresented: $showDeleteDeviceDataConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
                 try? ClipItemStore().deleteItemsFromThisDevice()
@@ -98,7 +99,7 @@ struct DangerZoneView: View {
         } message: {
             Text("Cards created on this device will be permanently deleted.")
         }
-        .alert("Delete Everything?", isPresented: $showingDeleteAllConfirmation) {
+        .alert("Delete Everything?", isPresented: $showDeleteAllConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete Everything", role: .destructive) {
                 try? ClipItemStore().deleteAllItems()
