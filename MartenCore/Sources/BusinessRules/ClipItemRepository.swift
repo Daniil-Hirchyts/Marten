@@ -58,6 +58,7 @@ final class ClipItemRepository {
     private let assetManagementService: any AssetManagementServicing
     private let deduplicationService: any ClipItemDeduplicationServicing
     private let assetThresholdBytes = 256 * 1024
+    private let syncableBinaryKinds: Set<RepresentationKind> = [.rtf, .png, .jpeg, .tiff, .pdf, .custom]
 
     init(
         persistence: PersistenceController,
@@ -215,14 +216,12 @@ final class ClipItemRepository {
 
                 if let data = repPayload.data {
                     repBytes += Int64(data.count)
-                    if data.count > assetThresholdBytes {
-                        representation.assetRef = try assetStore.store(
-                            data: data,
-                            fileExtension: repPayload.fileExtension
-                        )
-                    } else {
-                        representation.binaryData = data
-                    }
+                    try storeBinaryPayload(
+                        data,
+                        for: representation,
+                        kind: repPayload.kind,
+                        fileExtension: repPayload.fileExtension
+                    )
                 }
 
                 representation.byteCount = repBytes
@@ -534,8 +533,7 @@ final class ClipItemRepository {
             richRep.kindValue = .rtf
             richRep.displayOrder = 1
             richRep.fileExtension = "rtf"
-            richRep.binaryData = rtfData
-            richRep.assetRef = nil
+            try storeBinaryPayload(rtfData, for: richRep, kind: .rtf, fileExtension: "rtf")
             richRep.textData = nil
             richRep.byteCount = Int64(rtfData.count)
 
@@ -637,16 +635,12 @@ final class ClipItemRepository {
 
                 if let data = repPayload.data {
                     repBytes += Int64(data.count)
-                    if data.count > assetThresholdBytes {
-                        representation.assetRef = try assetStore.store(
-                            data: data,
-                            fileExtension: repPayload.fileExtension
-                        )
-                        representation.binaryData = nil
-                    } else {
-                        representation.binaryData = data
-                        representation.assetRef = nil
-                    }
+                    try storeBinaryPayload(
+                        data,
+                        for: representation,
+                        kind: repPayload.kind,
+                        fileExtension: repPayload.fileExtension
+                    )
                 } else {
                     representation.binaryData = nil
                     representation.assetRef = nil
@@ -772,16 +766,12 @@ final class ClipItemRepository {
 
                 if let data = representationPayload.data {
                     byteCount += Int64(data.count)
-                    if data.count > assetThresholdBytes {
-                        representation.assetRef = try assetStore.store(
-                            data: data,
-                            fileExtension: representationPayload.fileExtension
-                        )
-                        representation.binaryData = nil
-                    } else {
-                        representation.binaryData = data
-                        representation.assetRef = nil
-                    }
+                    try storeBinaryPayload(
+                        data,
+                        for: representation,
+                        kind: representationPayload.kind,
+                        fileExtension: representationPayload.fileExtension
+                    )
                 } else {
                     representation.binaryData = nil
                     representation.assetRef = nil
@@ -987,6 +977,77 @@ final class ClipItemRepository {
         return totalUpdated
     }
 
+    /// Migrates syncable binary payloads from inline `binaryData` storage to `assetRef` files.
+    /// Returns the number of representations migrated.
+    @discardableResult
+    func migrateSyncableBinaryRepresentationsToAssets() throws -> Int {
+        let context = persistence.newBackgroundContext()
+        var migratedCount = 0
+        let syncableKindPredicate = NSCompoundPredicate(orPredicateWithSubpredicates: syncableBinaryKinds.map {
+            NSPredicate(format: "kind == %d", $0.rawValue)
+        })
+        let candidatePredicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "binaryData != nil"),
+            NSPredicate(format: "assetRef == nil"),
+            NSPredicate(format: "kind != %d", RepresentationKind.fileURL.rawValue),
+            NSCompoundPredicate(orPredicateWithSubpredicates: [
+                syncableKindPredicate,
+                NSPredicate(format: "byteCount > %d", assetThresholdBytes),
+            ]),
+        ])
+
+        try context.performAndWaitThrowing {
+            while true {
+                let idRequest = NSFetchRequest<NSManagedObjectID>(entityName: "ClipRepresentation")
+                idRequest.resultType = .managedObjectIDResultType
+                idRequest.predicate = candidatePredicate
+                idRequest.fetchLimit = 25
+                idRequest.fetchBatchSize = 25
+
+                let objectIDs = try context.fetch(idRequest)
+                guard !objectIDs.isEmpty else { break }
+
+                for objectID in objectIDs {
+                    guard
+                        let representation = try context.existingObject(with: objectID) as? ClipRepresentation,
+                        let data = representation.binaryData
+                    else {
+                        continue
+                    }
+                    guard shouldStoreAsAsset(kind: representation.kindValue, byteCount: data.count) else {
+                        // Keep byteCount aligned with payload size so stale metadata cannot
+                        // repeatedly select this record in subsequent batches.
+                        let actualByteCount = Int64(data.count)
+                        if representation.byteCount != actualByteCount {
+                            representation.byteCount = actualByteCount
+                        }
+                        continue
+                    }
+
+                    representation.assetRef = try assetStore.store(
+                        data: data,
+                        fileExtension: representation.fileExtension
+                    )
+                    representation.binaryData = nil
+                    migratedCount += 1
+                }
+
+                if context.hasChanges {
+                    try context.save()
+                }
+                context.reset()
+            }
+        }
+
+        if migratedCount > 0 {
+            Self.logger.notice(
+                "migrateSyncableBinaryRepresentationsToAssets migrated \(migratedCount, privacy: .public) representations"
+            )
+        }
+
+        return migratedCount
+    }
+
     func saveChanges() throws {
         try persistence.saveViewContextIfNeeded()
     }
@@ -1081,6 +1142,37 @@ final class ClipItemRepository {
 
     private func currentDisplayOrder(reference: Date = Date()) -> Int64 {
         Int64(reference.timeIntervalSince1970 * 1000)
+    }
+
+    private func storeBinaryPayload(
+        _ data: Data,
+        for representation: ClipRepresentation,
+        kind: RepresentationKind,
+        fileExtension: String?
+    ) throws {
+        if shouldStoreAsAsset(kind: kind, byteCount: data.count) {
+            representation.assetRef = try assetStore.store(
+                data: data,
+                fileExtension: fileExtension
+            )
+            representation.binaryData = nil
+            return
+        }
+
+        representation.binaryData = data
+        representation.assetRef = nil
+    }
+
+    private func shouldStoreAsAsset(kind: RepresentationKind, byteCount: Int) -> Bool {
+        guard kind != .fileURL else {
+            return false
+        }
+
+        if syncableBinaryKinds.contains(kind) {
+            return true
+        }
+
+        return byteCount > assetThresholdBytes
     }
 }
 

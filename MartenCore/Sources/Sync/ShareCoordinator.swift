@@ -141,6 +141,7 @@ public final class ShareCoordinator: @unchecked Sendable {
             shareMetadata.defaultPermission = .canMakeChanges
             shareMetadata.shareURL = metadata.share.url?.absoluteString
             shareMetadata.pinboard = pinboard
+            pinboard.shareToken = makeShareToken(from: shareMetadata)
 
             try bgContext.save()
         }
@@ -339,6 +340,7 @@ public final class ShareCoordinator: @unchecked Sendable {
             guard let pinboard = try bgContext.existingObject(with: pinboardID) as? Pinboard,
                   let meta = pinboard.shareMetadata else { return }
             bgContext.delete(meta)
+            pinboard.shareToken = nil
             try bgContext.save()
         }
     }
@@ -455,6 +457,7 @@ public final class ShareCoordinator: @unchecked Sendable {
             metadata.defaultPermission = defaultPermission
             metadata.shareURL = shareURL.absoluteString
             metadata.lastParticipantRefreshAt = Date()
+            pinboard.shareToken = makeShareToken(from: metadata)
 
             try bgContext.save()
         }
@@ -473,6 +476,7 @@ public final class ShareCoordinator: @unchecked Sendable {
             metadata.defaultPermission = details.defaultPermission
             metadata.shareURL = details.shareURL?.absoluteString
             metadata.lastParticipantRefreshAt = Date()
+            pinboard.shareToken = makeShareToken(from: metadata)
 
             try bgContext.save()
         }
@@ -687,6 +691,20 @@ public final class ShareCoordinator: @unchecked Sendable {
 
         let participantIDString = String(describing: participant.participantID)
         return normalized == participantIDString || normalized == "participant:\(participantIDString)"
+    }
+
+    private func makeShareToken(from metadata: ShareMetadata) -> String? {
+        ShareTokenEnvelope(
+            shareRecordName: metadata.shareRecordName,
+            rootRecordName: metadata.rootRecordName,
+            zoneName: metadata.zoneName,
+            zoneOwnerName: metadata.zoneOwnerName,
+            isOwner: metadata.isOwner,
+            accessControlRaw: metadata.accessControlRaw,
+            defaultPermissionRaw: metadata.defaultPermissionRaw,
+            shareURL: metadata.shareURL
+        )
+        .encodedString()
     }
 }
 

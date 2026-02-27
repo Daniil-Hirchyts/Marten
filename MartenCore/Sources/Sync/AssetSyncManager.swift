@@ -138,13 +138,23 @@ public final class AssetSyncManager {
     public func attachAssetIfNeeded(from representation: ClipRepresentation, to record: CKRecord)
         async throws
     {
-        guard let assetRef = representation.assetRef else {
-            return
-        }
+        let fileURL: URL
 
-        let fileURL = assetStore.urlForAsset(assetRef, fileExtension: representation.fileExtension)
-        guard fileManager.fileExists(atPath: fileURL.path) else {
-            throw AssetSyncError.missingLocalAsset
+        if let assetRef = representation.assetRef {
+            let url = assetStore.urlForAsset(assetRef, fileExtension: representation.fileExtension)
+            guard fileManager.fileExists(atPath: url.path) else {
+                throw AssetSyncError.missingLocalAsset
+            }
+            fileURL = url
+        } else if let data = representation.binaryData, !data.isEmpty {
+            // binaryData is a local-only field with no CloudKit mapping.
+            // Migrate it to AssetStore so it can be uploaded as a CKAsset and
+            // received correctly on other platforms.
+            let newRef = try assetStore.store(data: data, fileExtension: representation.fileExtension)
+            representation.assetRef = newRef
+            fileURL = assetStore.urlForAsset(newRef, fileExtension: representation.fileExtension)
+        } else {
+            return
         }
 
         let sizeBytes = try fileSizeBytes(at: fileURL)
@@ -152,8 +162,37 @@ public final class AssetSyncManager {
         try await validateTotalBudget(direction: .upload, adding: sizeBytes)
 
         let hash = try sha256HexOfFile(at: fileURL)
-        if await cache.cachedAssetRef(forHash: hash) == nil {
+        if let assetRef = representation.assetRef,
+           await cache.cachedAssetRef(forHash: hash) == nil {
             await cache.setCachedAssetRef(assetRef, forHash: hash)
+        }
+
+        let asset = CKAsset(fileURL: fileURL)
+        record.setAsset(asset, for: ClipRepresentationField.asset.rawValue)
+    }
+
+    /// Synchronous variant used from Core Data `performAndWait` call sites.
+    public func attachAssetIfNeededSync(
+        from representation: ClipRepresentation,
+        to record: CKRecord
+    ) throws {
+        let fileURL: URL
+
+        if let assetRef = representation.assetRef {
+            let url = assetStore.urlForAsset(assetRef, fileExtension: representation.fileExtension)
+            guard fileManager.fileExists(atPath: url.path) else {
+                throw AssetSyncError.missingLocalAsset
+            }
+            fileURL = url
+        } else if let data = representation.binaryData, !data.isEmpty {
+            // binaryData is a local-only field with no CloudKit mapping.
+            // Migrate it to AssetStore so it can be uploaded as a CKAsset and
+            // received correctly on other platforms.
+            let newRef = try assetStore.store(data: data, fileExtension: representation.fileExtension)
+            representation.assetRef = newRef
+            fileURL = assetStore.urlForAsset(newRef, fileExtension: representation.fileExtension)
+        } else {
+            return
         }
 
         let asset = CKAsset(fileURL: fileURL)
@@ -204,8 +243,10 @@ public final class AssetSyncManager {
         to representation: ClipRepresentation,
         fieldKey: String = ClipRepresentationField.asset.rawValue
     ) async throws {
-        guard representation.assetRef == nil else {
-            return
+        if let existingRef = representation.assetRef {
+            let existingURL = assetStore.urlForAsset(existingRef, fileExtension: representation.fileExtension)
+            if fileManager.fileExists(atPath: existingURL.path) { return }
+            // File is missing despite assetRef being set — fall through to re-download.
         }
 
         guard let asset = record.asset(for: fieldKey), let fileURL = asset.fileURL else {
@@ -220,6 +261,34 @@ public final class AssetSyncManager {
             suggestedFileExtension: representation.fileExtension
         )
         representation.assetRef = storedRef
+    }
+
+    /// Synchronous variant used from Core Data `performAndWait` call sites.
+    public func applyDownloadedAssetIfPresentSync(
+        from record: CKRecord,
+        to representation: ClipRepresentation,
+        fieldKey: String = ClipRepresentationField.asset.rawValue
+    ) throws {
+        if let existingRef = representation.assetRef {
+            let existingURL = assetStore.urlForAsset(existingRef, fileExtension: representation.fileExtension)
+            if fileManager.fileExists(atPath: existingURL.path) { return }
+            // File is missing despite assetRef being set — fall through to re-download.
+        }
+
+        guard let asset = record.asset(for: fieldKey), let fileURL = asset.fileURL else {
+            return
+        }
+
+        let data = try Data(contentsOf: fileURL)
+        let inferredExtension: String? = {
+            if let fileExtension = representation.fileExtension, !fileExtension.isEmpty {
+                return fileExtension
+            }
+            let ext = fileURL.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
+            return ext.isEmpty ? nil : ext
+        }()
+
+        representation.assetRef = try assetStore.store(data: data, fileExtension: inferredExtension)
     }
 
     public func cleanupOrphanedAssets(

@@ -102,6 +102,8 @@ final class AppServiceContainer: AppServiceProviding {
         syncConfigurationProvider: any SyncConfigurationProviding =
             DefaultSyncConfigurationProvider()
     ) {
+        SharedPinboardsFeatureFlag.registerDefaults(.standard)
+
         self.persistence = persistence
         self.pasteboardMonitor = pasteboardMonitor ?? PasteboardMonitor(activeAppTracker: activeAppTracker)
         self.pasteboardExtractor = pasteboardExtractor
@@ -119,16 +121,22 @@ final class AppServiceContainer: AppServiceProviding {
         if syncConfigurationProvider.canUseCloudKit(
             containerIdentifier: cloudKitConfiguration.containerIdentifier
         ) {
+            let syncConfiguration = SyncCoordinatorConfiguration(
+                periodicFetchInterval: 30.0,
+                performImmediateInboundSync: true,
+                pausePeriodicInboundWhenInactive: false
+            )
             let coordinator = SyncCoordinator.create(
                 cloudKitConfiguration: cloudKitConfiguration,
                 persistenceController: persistence,
+                configuration: syncConfiguration,
                 syncEnabledProvider: { [syncConfigurationProvider] in
                     syncConfigurationProvider.isSyncEnabled()
                 }
             )
             self.syncCoordinator = coordinator
 
-            if SharedPinboardsFeatureFlag.isEnabled {
+            if SharedPinboardsFeatureFlag.isEnabled(in: .standard) {
                 let zoneID = CKRecordZone.ID(
                     zoneName: cloudKitConfiguration.zoneName,
                     ownerName: CKCurrentUserDefaultName

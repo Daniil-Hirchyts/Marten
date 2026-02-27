@@ -1,6 +1,7 @@
 import AppKit
 import CoreImage
 import Foundation
+import MartenCore
 import SwiftUI
 
 final class AppIconCache {
@@ -65,36 +66,20 @@ final class AppIconCache {
 }
 
 enum SourceAppIdentityResolver {
-    static let martenBundleID = "com.hirchyts.marten"
-
     static func normalized(_ value: String?) -> String? {
-        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty else {
-            return nil
-        }
-        return value.lowercased()
+        SourceAppIdentity.normalized(value)
     }
 
     static func isMartenAppName(_ appName: String?) -> Bool {
-        guard let normalized = normalized(appName) else { return false }
-        return normalized == "marten" || normalized.contains("marten")
+        SourceAppIdentity.isMartenSource(bundleID: nil, appName: appName)
     }
 
     static func resolvedBundleID(bundleID: String?, appName: String?) -> String? {
-        if let normalizedBundleID = normalized(bundleID) {
-            return normalizedBundleID
-        }
-        if isMartenAppName(appName) {
-            return martenBundleID
-        }
-        return nil
+        SourceAppIdentity.resolvedBundleID(bundleID: bundleID, appName: appName)
     }
 
     static func isMartenSource(bundleID: String?, appName: String?) -> Bool {
-        if let resolvedBundleID = resolvedBundleID(bundleID: bundleID, appName: appName) {
-            return resolvedBundleID.isMartenBundleIdentifier
-        }
-        return isMartenAppName(appName)
+        SourceAppIdentity.isMartenSource(bundleID: bundleID, appName: appName)
     }
 }
 
@@ -107,35 +92,30 @@ final class AppIconLoader: ObservableObject {
         loadTask?.cancel()
         icon = nil
 
+        let resolvedBundleID = SourceAppIdentityResolver.resolvedBundleID(
+            bundleID: bundleID,
+            appName: appName
+        )
+        if let resolvedBundleID,
+           resolvedBundleID.isMartenBundleIdentifier,
+           let martenIcon = NSApplication.shared.applicationIconImage
+           ?? NSImage(named: NSImage.applicationIconName) {
+            AppIconCache.shared.setIcon(martenIcon, bundleID: resolvedBundleID)
+            icon = martenIcon
+            return
+        }
+
         if let iconData,
            !iconData.isEmpty,
            let embeddedIcon = NSImage(data: iconData) {
-            if let resolvedBundleID = SourceAppIdentityResolver.resolvedBundleID(
-                bundleID: bundleID,
-                appName: appName
-            ) {
+            if let resolvedBundleID {
                 AppIconCache.shared.setIcon(embeddedIcon, bundleID: resolvedBundleID)
             }
             icon = embeddedIcon
             return
         }
 
-        guard let resolvedBundleID = SourceAppIdentityResolver.resolvedBundleID(
-            bundleID: bundleID,
-            appName: appName
-        ) else {
-            return
-        }
-
-        if resolvedBundleID.isMartenBundleIdentifier {
-            let martenIcon = NSApplication.shared.applicationIconImage
-                ?? NSImage(named: NSImage.applicationIconName)
-            if let martenIcon {
-                AppIconCache.shared.setIcon(martenIcon, bundleID: resolvedBundleID)
-                icon = martenIcon
-                return
-            }
-        }
+        guard let resolvedBundleID else { return }
 
         if let cached = AppIconCache.shared.cachedIcon(bundleID: resolvedBundleID) {
             icon = cached
@@ -241,13 +221,15 @@ struct AppIconView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
             } else if SourceAppIdentityResolver.isMartenSource(bundleID: bundleID, appName: appName) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
-                        .fill(Color(hex: AppIconCache.martenCardAccentHex, fallback: .red))
-
-                    Image(systemName: "sparkles")
-                        .font(.system(size: max(10, size - 5), weight: .semibold))
-                        .foregroundStyle(.white)
+                if let martenIcon = NSApplication.shared.applicationIconImage
+                    ?? NSImage(named: NSImage.applicationIconName) {
+                    Image(nsImage: martenIcon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } else {
+                    Image(systemName: "app.fill")
+                        .font(.system(size: max(10, size - 4), weight: .semibold))
+                        .foregroundStyle(.secondary)
                 }
             } else {
                 Image(systemName: "app")
@@ -364,7 +346,6 @@ extension NSColor {
 
 extension String {
     var isMartenBundleIdentifier: Bool {
-        let normalized = lowercased()
-        return normalized == "com.hirchyts.marten" || normalized.hasPrefix("com.hirchyts.marten.")
+        SourceAppIdentity.isMartenBundleID(self)
     }
 }

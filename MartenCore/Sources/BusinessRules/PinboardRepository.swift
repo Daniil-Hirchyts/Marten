@@ -138,7 +138,16 @@ final class PinboardRepository {
 
         try context.performAndWaitThrowing {
             let request = Pinboard.fetchRequest()
-            request.predicate = NSPredicate(format: "isSystemMarten == NO")
+            // Shared pinboards must be removed via stop/leave share flows.
+            // Keep them out of local bulk-delete to avoid CloudKit rehydration.
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "isSystemMarten == NO"),
+                NSPredicate(format: "shareMetadata == nil"),
+                NSCompoundPredicate(orPredicateWithSubpredicates: [
+                    NSPredicate(format: "shareToken == nil"),
+                    NSPredicate(format: "shareToken == ''"),
+                ]),
+            ])
             let pinboards = try context.fetch(request)
 
             guard !pinboards.isEmpty else { return }

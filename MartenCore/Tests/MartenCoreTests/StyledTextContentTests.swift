@@ -149,7 +149,13 @@ final class StyledTextContentTests: XCTestCase {
             return
         }
 
-        XCTAssertNotNil(richRepresentation.binaryData)
+        XCTAssertTrue(
+            richRepresentation.binaryData != nil || richRepresentation.assetRef != nil,
+            "RTF payload should be stored either inline or as an asset"
+        )
+        if richRepresentation.assetRef != nil {
+            XCTAssertNil(richRepresentation.binaryData)
+        }
         XCTAssertNil(richRepresentation.textData)
 
         guard let styled = saved.styledTextContentWithoutTextColor else {

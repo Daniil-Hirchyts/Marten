@@ -48,7 +48,13 @@ final class ImageThumbnailLoader {
 
     private func cacheKey(for item: ClipItem) -> String {
         let version = Int64(item.modifiedAt.timeIntervalSince1970 * 1000)
-        return "image-thumbnail-\(item.id.uuidString)-\(version)"
+        // Include assetRef state so the key changes when a representation's asset arrives
+        // after sync, even if the item's modifiedAt is unchanged.
+        let assetSig = (item.representations ?? [])
+            .compactMap { $0.assetRef?.uuidString }
+            .sorted()
+            .joined(separator: ",")
+        return "image-thumbnail-\(item.id.uuidString)-\(version)-\(assetSig)"
     }
 
     private func makeSnapshot(for item: ClipItem) -> ThumbnailSnapshot {

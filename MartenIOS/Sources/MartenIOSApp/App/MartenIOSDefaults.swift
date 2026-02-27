@@ -30,8 +30,8 @@ public enum MartenIOSDefaults {
             keyboardLastMutationAtKey: 0.0,
             shareExtensionLastSuccessAtKey: 0.0,
             showIntegrationsOnboardingKey: true,
-            SharedPinboardsFeatureFlag.key: true,
         ])
+        SharedPinboardsFeatureFlag.registerDefaults(userDefaults)
     }
 }
 

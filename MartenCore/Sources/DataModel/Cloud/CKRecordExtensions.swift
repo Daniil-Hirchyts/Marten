@@ -143,6 +143,7 @@ public enum PinboardField: String {
     case createdAt
     case modifiedAt
     case iconName
+    case shareToken
 }
 
 /// Field keys for CKPinboardMembership records.

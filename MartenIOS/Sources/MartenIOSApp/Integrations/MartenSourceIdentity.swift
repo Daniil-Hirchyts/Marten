@@ -6,8 +6,8 @@ import UIKit
 #endif
 
 public enum MartenSourceIdentity {
-    public static let bundleID = "com.hirchyts.marten"
-    public static let appName = "Marten"
+    public static let bundleID = SourceAppIdentity.martenBundleID
+    public static let appName = SourceAppIdentity.martenDisplayName
 
     public static func sourceAppInfo(iconData: Data? = iconData()) -> SourceAppInfo {
         SourceAppInfo(
@@ -19,7 +19,7 @@ public enum MartenSourceIdentity {
 
     public static func iconData(for bundles: [Bundle] = [Bundle.main]) -> Data? {
         #if canImport(UIKit)
-        for bundle in bundles {
+        for bundle in resolvedIconBundles(from: bundles) {
             if let data = iconData(in: bundle) {
                 return data
             }
@@ -31,6 +31,47 @@ public enum MartenSourceIdentity {
     }
 
     #if canImport(UIKit)
+    private static func resolvedIconBundles(from bundles: [Bundle]) -> [Bundle] {
+        var resolved: [Bundle] = []
+        var seenBundlePaths: Set<String> = []
+
+        func append(_ bundle: Bundle?) {
+            guard let bundle else { return }
+            let path = bundle.bundleURL.standardizedFileURL.path.lowercased()
+            guard seenBundlePaths.insert(path).inserted else { return }
+            resolved.append(bundle)
+        }
+
+        for bundle in bundles {
+            append(bundle)
+            append(containingAppBundle(for: bundle))
+        }
+
+        append(Bundle.main)
+        append(containingAppBundle(for: Bundle.main))
+
+        for bundle in Bundle.allFrameworks {
+            append(bundle)
+        }
+        for bundle in Bundle.allBundles {
+            append(bundle)
+            append(containingAppBundle(for: bundle))
+        }
+
+        return resolved
+    }
+
+    private static func containingAppBundle(for bundle: Bundle) -> Bundle? {
+        let bundleURL = bundle.bundleURL.standardizedFileURL
+        guard bundleURL.pathExtension.lowercased() == "appex" else { return nil }
+
+        let plugInsURL = bundleURL.deletingLastPathComponent()
+        let appURL = plugInsURL.deletingLastPathComponent()
+        guard appURL.pathExtension.lowercased() == "app" else { return nil }
+
+        return Bundle(url: appURL)
+    }
+
     private static func iconData(in bundle: Bundle) -> Data? {
         let iconFileNames = iconNames(from: bundle)
         let candidates = iconNameCandidates(from: iconFileNames)

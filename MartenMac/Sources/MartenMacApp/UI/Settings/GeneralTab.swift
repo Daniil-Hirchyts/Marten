@@ -5,6 +5,8 @@ import SwiftUI
 import LocalAuthentication
 
 struct GeneralSettingsContent: View {
+    var syncCoordinator: SyncCoordinator? = nil
+
     @AppStorage("openAtLogin") private var openAtLogin = false
     @AppStorage("alwaysPastePlainText") private var alwaysPastePlainText = false
     @AppStorage("soundEffectsEnabled") private var soundEffectsEnabled = true
@@ -26,6 +28,7 @@ struct GeneralSettingsContent: View {
     @State private var showDeletePinboardsConfirmation = false
     @State private var showDeleteDeviceDataConfirmation = false
     @State private var showDeleteAllConfirmation = false
+    @State private var deleteEverythingErrorMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -371,20 +374,21 @@ struct GeneralSettingsContent: View {
         .alert("Delete Everything?", isPresented: $showDeleteAllConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete Everything", role: .destructive) {
-                Task {
-                    let context = LAContext()
-                    var error: NSError?
-                    if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
-                        if let success = try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Delete all your data"), success {
-                            await MainActor.run { try? ClipItemStore().deleteAllItems() }
-                        }
-                    } else {
-                        try? ClipItemStore().deleteAllItems()
-                    }
-                }
+                Task { await performDeleteEverything() }
             }
         } message: {
             Text("All cards and pinboards will be permanently deleted. This cannot be undone.")
+        }
+        .alert(
+            "Delete Failed",
+            isPresented: Binding(
+                get: { deleteEverythingErrorMessage != nil },
+                set: { if !$0 { deleteEverythingErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteEverythingErrorMessage ?? "Unknown error.")
         }
     }
 
@@ -423,6 +427,33 @@ struct GeneralSettingsContent: View {
     private func normalizeOCRModeSelection() {
         if OCRCaptureMode(rawValue: ocrDefaultModeRawValue) == nil {
             ocrDefaultModeRawValue = OCRCaptureMode.staticSnapshot.rawValue
+        }
+    }
+
+    private func performDeleteEverything() async {
+        let context = LAContext()
+        var authError: NSError?
+        if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &authError) {
+            let authenticated =
+                (try? await context.evaluatePolicy(
+                    .deviceOwnerAuthentication,
+                    localizedReason: "Delete all your data"
+                )) == true
+            guard authenticated else { return }
+        }
+
+        if let syncCoordinator {
+            let result = await syncCoordinator.wipeEverything()
+            if let summary = result.failureSummary {
+                deleteEverythingErrorMessage = summary
+            }
+            return
+        }
+
+        do {
+            try ClipItemStore().deleteAllItems()
+        } catch {
+            deleteEverythingErrorMessage = error.localizedDescription
         }
     }
 }

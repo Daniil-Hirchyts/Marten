@@ -7,6 +7,7 @@ struct DashboardSourceAppOption: Identifiable, Hashable {
     let id: String
     let name: String
     let bundleID: String?
+    let iconData: Data?
     let count: Int
 }
 
@@ -163,14 +164,30 @@ final class DashboardSearchModel {
         var appCountByID: [String: Int] = [:]
         var appNameByID: [String: String] = [:]
         var appBundleByID: [String: String?] = [:]
+        var appIconByID: [String: Data] = [:]
 
         var deviceCountByValue: [ClipItemSourceDevice: Int] = [:]
 
         for item in items {
             if let appID = sourceAppID(for: item) {
-                appCountByID[appID, default: 0] += 1
-                appNameByID[appID] = sourceAppName(for: item, fallback: appID)
-                appBundleByID[appID] = item.sourceAppBundleID
+                let isMarten = SourceAppIdentity.isMartenSource(
+                    bundleID: item.sourceAppBundleID,
+                    appName: item.sourceAppName
+                )
+                let resolvedID = isMarten ? SourceAppIdentity.martenBundleID : appID
+                let resolvedName = isMarten ? SourceAppIdentity.martenDisplayName : sourceAppName(for: item, fallback: appID)
+                let resolvedBundle: String? = isMarten
+                    ? SourceAppIdentity.martenBundleID
+                    : SourceAppIdentity.resolvedBundleID(bundleID: item.sourceAppBundleID, appName: item.sourceAppName)
+                appCountByID[resolvedID, default: 0] += 1
+                appNameByID[resolvedID] = resolvedName
+                appBundleByID[resolvedID] = resolvedBundle
+                if !isMarten,
+                   let iconData = item.sourceAppIconData,
+                   !iconData.isEmpty,
+                   appIconByID[resolvedID] == nil {
+                    appIconByID[resolvedID] = iconData
+                }
             }
 
             let deviceValue = sourceDeviceValue(for: item)
@@ -183,6 +200,7 @@ final class DashboardSearchModel {
                     id: id,
                     name: appNameByID[id] ?? id,
                     bundleID: appBundleByID[id] ?? nil,
+                    iconData: appIconByID[id],
                     count: count
                 )
             }

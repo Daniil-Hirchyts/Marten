@@ -1,3 +1,4 @@
+import CoreData
 import MartenCore
 import SwiftUI
 
@@ -115,6 +116,28 @@ struct ItemCardView: View {
             }
             .onReceive(item.objectWillChange) {
                 refreshSnapshotState()
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: NSManagedObjectContext.didMergeChangesObjectIDsNotification
+                )
+            ) { notification in
+                // objectWillChange fires only for the ClipItem itself, not related
+                // ClipRepresentation objects. When an inbound sync sets assetRef on a
+                // representation (without touching modifiedAt), we need to re-evaluate.
+                guard let context = item.managedObjectContext else { return }
+                let userInfo = notification.userInfo
+                let updatedIDs = (userInfo?[NSUpdatedObjectIDsKey] as? Set<NSManagedObjectID>) ?? []
+                let insertedIDs = (userInfo?[NSInsertedObjectIDsKey] as? Set<NSManagedObjectID>) ?? []
+                let changed = updatedIDs.union(insertedIDs)
+                guard !changed.isEmpty else { return }
+                context.perform {
+                    let representationIDs = (item.representations ?? []).map(\.objectID)
+                    let hasRepChange = representationIDs.contains { changed.contains($0) }
+                    if hasRepChange {
+                        Task { @MainActor in refreshSnapshotState() }
+                    }
+                }
             }
             .task(id: cachedImageTaskID) {
                 await loadThumbnailImage()
@@ -302,8 +325,13 @@ struct ItemCardView: View {
     private static func makeImageTaskID(for item: ClipItem) -> String {
         let linkPreviewID = item.linkPreview?.id.uuidString ?? "none"
         let linkPreviewTimestamp = item.linkPreview?.fetchedAt.timeIntervalSince1970 ?? 0
-        return
-            "\(item.objectID.uriRepresentation().absoluteString)-\(item.modifiedAt.timeIntervalSince1970)-\(linkPreviewID)-\(linkPreviewTimestamp)"
+        // Include assetRef state so the image task re-fires when an asset arrives via
+        // inbound sync even if the item's modifiedAt hasn't changed.
+        let assetSig = (item.representations ?? [])
+            .compactMap { $0.assetRef?.uuidString }
+            .sorted()
+            .joined(separator: ",")
+        return "\(item.objectID.uriRepresentation().absoluteString)-\(item.modifiedAt.timeIntervalSince1970)-\(linkPreviewID)-\(linkPreviewTimestamp)-\(assetSig)"
     }
 
     private static func makeLinkPreviewTaskID(for item: ClipItem) -> String {

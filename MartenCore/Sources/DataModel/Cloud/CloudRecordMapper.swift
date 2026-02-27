@@ -119,6 +119,7 @@ public final class CloudRecordMapper {
         record.setDate(pinboard.createdAt, for: PinboardField.createdAt.rawValue)
         record.setDate(Date(), for: PinboardField.modifiedAt.rawValue)
         record.setString(pinboard.iconName, for: PinboardField.iconName.rawValue)
+        record.setString(pinboard.shareToken, for: PinboardField.shareToken.rawValue)
 
         return record
     }
@@ -231,6 +232,35 @@ public final class CloudRecordMapper {
         return record
     }
 
+    /// Maps a ClipRepresentation entity to a CKRecord in a specific zone.
+    public func mapToRecord(
+        _ representation: ClipRepresentation,
+        parentItemID: UUID,
+        zoneID targetZoneID: CKRecordZone.ID
+    ) -> CKRecord {
+        let recordID = CKRecord.ID.clipRepresentationID(representation.id, zoneID: targetZoneID)
+        let record = CKRecord(recordType: CloudRecordType.clipRepresentation.rawValue, recordID: recordID)
+
+        record.setUUID(representation.id, for: ClipRepresentationField.id.rawValue)
+        record.setUUID(parentItemID, for: ClipRepresentationField.clipItemID.rawValue)
+
+        let parentRecordID = CKRecord.ID.clipItemID(parentItemID, zoneID: targetZoneID)
+        record.setParentReference(to: parentRecordID, for: ClipRepresentationField.clipItemRef.rawValue)
+
+        record.setString(representation.uti, for: ClipRepresentationField.uti.rawValue)
+        record.setRepresentationKind(representation.kindValue, for: ClipRepresentationField.kind.rawValue)
+        record.setInt16(representation.displayOrder, for: ClipRepresentationField.displayOrder.rawValue)
+
+        if let textData = representation.textData, let text = String(data: textData, encoding: .utf8) {
+            record.setString(text, for: ClipRepresentationField.textData.rawValue)
+        }
+
+        record.setInt64(representation.byteCount, for: ClipRepresentationField.byteCount.rawValue)
+        record.setDate(Date(), for: ClipRepresentationField.modifiedAt.rawValue)
+
+        return record
+    }
+
     /// Updates an existing ClipRepresentation entity from a CKRecord.
     public func updateEntity(_ representation: ClipRepresentation, from record: CKRecord) throws {
         let missingFields = record.validateClipRepresentationFields()
@@ -303,6 +333,7 @@ public final class CloudRecordMapper {
         record.setDate(pinboard.createdAt, for: PinboardField.createdAt.rawValue)
         record.setDate(Date(), for: PinboardField.modifiedAt.rawValue)
         record.setString(pinboard.iconName, for: PinboardField.iconName.rawValue)
+        record.setString(pinboard.shareToken, for: PinboardField.shareToken.rawValue)
 
         return record
     }
@@ -362,6 +393,7 @@ public final class CloudRecordMapper {
         }
 
         pinboard.iconName = record.string(for: PinboardField.iconName.rawValue)
+        pinboard.shareToken = record.string(for: PinboardField.shareToken.rawValue)
     }
 
     // MARK: - PinboardMembership Mapping
@@ -386,6 +418,23 @@ public final class CloudRecordMapper {
     /// Maps a PinboardMembership to a CKRecord.
     public func mapToRecord(_ membership: PinboardMembershipData) -> CKRecord {
         let record = CKRecord.pinboardMembership(id: membership.id, zoneID: zoneID)
+
+        record.setUUID(membership.id, for: PinboardMembershipField.id.rawValue)
+        record.setUUID(membership.clipItemID, for: PinboardMembershipField.clipItemID.rawValue)
+        record.setUUID(membership.pinboardID, for: PinboardMembershipField.pinboardID.rawValue)
+        record.setDate(membership.addedAt, for: PinboardMembershipField.addedAt.rawValue)
+        record.setDate(membership.modifiedAt, for: PinboardMembershipField.modifiedAt.rawValue)
+
+        return record
+    }
+
+    /// Maps a PinboardMembership to a CKRecord in a specific zone.
+    public func mapToRecord(
+        _ membership: PinboardMembershipData,
+        zoneID targetZoneID: CKRecordZone.ID
+    ) -> CKRecord {
+        let recordID = CKRecord.ID.membershipID(membership.id, zoneID: targetZoneID)
+        let record = CKRecord(recordType: CloudRecordType.pinboardMembership.rawValue, recordID: recordID)
 
         record.setUUID(membership.id, for: PinboardMembershipField.id.rawValue)
         record.setUUID(membership.clipItemID, for: PinboardMembershipField.clipItemID.rawValue)
@@ -435,6 +484,30 @@ public final class CloudRecordMapper {
 
         // Set parent reference for cascade delete
         let parentRecordID = CKRecord.ID.clipItemID(parentItemID, zoneID: zoneID)
+        record.setParentReference(to: parentRecordID, for: LinkPreviewField.clipItemRef.rawValue)
+
+        record.setString(preview.url, for: LinkPreviewField.url.rawValue)
+        record.setString(preview.title, for: LinkPreviewField.title.rawValue)
+        record.setString(preview.summary, for: LinkPreviewField.summary.rawValue)
+        record.setString(preview.siteName, for: LinkPreviewField.siteName.rawValue)
+        record.setDate(preview.fetchedAt, for: LinkPreviewField.fetchedAt.rawValue)
+
+        return record
+    }
+
+    /// Maps a LinkPreview entity to a CKRecord in a specific zone.
+    public func mapToRecord(
+        _ preview: LinkPreview,
+        parentItemID: UUID,
+        zoneID targetZoneID: CKRecordZone.ID
+    ) -> CKRecord {
+        let recordID = CKRecord.ID.linkPreviewID(preview.id, zoneID: targetZoneID)
+        let record = CKRecord(recordType: CloudRecordType.linkPreview.rawValue, recordID: recordID)
+
+        record.setUUID(preview.id, for: LinkPreviewField.id.rawValue)
+        record.setUUID(parentItemID, for: LinkPreviewField.clipItemID.rawValue)
+
+        let parentRecordID = CKRecord.ID.clipItemID(parentItemID, zoneID: targetZoneID)
         record.setParentReference(to: parentRecordID, for: LinkPreviewField.clipItemRef.rawValue)
 
         record.setString(preview.url, for: LinkPreviewField.url.rawValue)

@@ -149,6 +149,79 @@ final class DashboardSearchModelTests: XCTestCase {
         XCTAssertEqual(named?.title, "MacBook Pro")
     }
 
+    func testUpdateOptionsUsesMostRecentNonEmptyIconDataPerApp() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let older = try store.createTextItem(text: "Older")
+        let newer = try store.createTextItem(text: "Newer")
+        let newestWithoutIcon = try store.createTextItem(text: "Newest")
+
+        let olderIcon = Data([0x01, 0x02])
+        let newerIcon = Data([0xAA, 0xBB, 0xCC])
+
+        try mutate(older) { item in
+            item.sourceAppBundleID = "com.example.app"
+            item.sourceAppName = "Example"
+            item.sourceAppIconData = olderIcon
+        }
+        try mutate(newer) { item in
+            item.sourceAppBundleID = "com.example.app"
+            item.sourceAppName = "Example"
+            item.sourceAppIconData = newerIcon
+        }
+        try mutate(newestWithoutIcon) { item in
+            item.sourceAppBundleID = "com.example.app"
+            item.sourceAppName = "Example"
+            item.sourceAppIconData = nil
+        }
+
+        let model = DashboardSearchModel(
+            queryService: MockQueryService(responsesByQuery: [:]),
+            siriDonor: SiriSuggestionsDonor(donor: MockUserActivityDonor()),
+            debounceNanoseconds: 0
+        )
+
+        // updateOptions prefers the first non-empty icon in the provided order.
+        model.updateOptions(from: [newer, newestWithoutIcon, older])
+
+        let option = model.appOptions.first { $0.id == "com.example.app" }
+        XCTAssertNotNil(option)
+        XCTAssertEqual(option?.iconData, newerIcon)
+    }
+
+    func testUpdateOptionsNormalizesMartenVariantsAndSkipsHistoricalIconData() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let canonical = try store.createTextItem(text: "Canonical")
+        let watchVariant = try store.createTextItem(text: "Watch")
+
+        try mutate(canonical) { item in
+            item.sourceAppBundleID = SourceAppIdentity.martenBundleID
+            item.sourceAppName = SourceAppIdentity.martenDisplayName
+            item.sourceAppIconData = Data([0x99])
+        }
+        try mutate(watchVariant) { item in
+            item.sourceAppBundleID = "com.hirchyts.marten.watch"
+            item.sourceAppName = SourceAppIdentity.martenDisplayName
+            item.sourceAppIconData = Data([0x77, 0x88])
+        }
+
+        let model = DashboardSearchModel(
+            queryService: MockQueryService(responsesByQuery: [:]),
+            siriDonor: SiriSuggestionsDonor(donor: MockUserActivityDonor()),
+            debounceNanoseconds: 0
+        )
+        model.updateOptions(from: [canonical, watchVariant])
+
+        XCTAssertEqual(model.appOptions.count, 1)
+        let option = try XCTUnwrap(model.appOptions.first)
+        XCTAssertEqual(option.id, SourceAppIdentity.martenBundleID)
+        XCTAssertEqual(option.bundleID, SourceAppIdentity.martenBundleID)
+        XCTAssertEqual(option.name, SourceAppIdentity.martenDisplayName)
+        XCTAssertNil(option.iconData)
+        XCTAssertEqual(option.count, 2)
+    }
+
     func testClearAllFiltersResetsAllSelections() async throws {
         let queryService = MockQueryService(responsesByQuery: [:])
         let model = DashboardSearchModel(

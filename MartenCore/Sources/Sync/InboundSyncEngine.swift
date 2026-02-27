@@ -210,6 +210,7 @@ public final class InboundSyncEngine: @unchecked Sendable {
     private let persistenceController: PersistenceController
     private let recordMapper: CloudRecordMapper
     private let conflictResolver: ConflictResolver
+    private let assetSyncManager: AssetSyncManager
 
     private let applyBatchSize: Int
     private let fetchTimeout: TimeInterval
@@ -220,6 +221,7 @@ public final class InboundSyncEngine: @unchecked Sendable {
         tokenStore: ZoneChangeTokenStoring,
         persistenceController: PersistenceController,
         recordMapper: CloudRecordMapper,
+        assetSyncManager: AssetSyncManager = AssetSyncManager(),
         conflictResolver: ConflictResolver = ConflictResolver(),
         applyBatchSize: Int = 100,
         fetchTimeout: TimeInterval = 30
@@ -229,6 +231,7 @@ public final class InboundSyncEngine: @unchecked Sendable {
         self.tokenStore = tokenStore
         self.persistenceController = persistenceController
         self.recordMapper = recordMapper
+        self.assetSyncManager = assetSyncManager
         self.conflictResolver = conflictResolver
         self.applyBatchSize = max(1, applyBatchSize)
         self.fetchTimeout = max(0.1, fetchTimeout)
@@ -332,6 +335,15 @@ public final class InboundSyncEngine: @unchecked Sendable {
             if allowTokenReset, let ckError = error as? CKError, ckError.code == .changeTokenExpired {
                 try tokenStore.clear()
                 return try await syncInboundInternal(allowTokenReset: false)
+            }
+            if let ckError = error as? CKError {
+                switch ckError.code {
+                case .zoneNotFound, .userDeletedZone:
+                    try tokenStore.clear()
+                    throw CloudKitErrorClassifier.classify(ckError)
+                default:
+                    break
+                }
             }
             throw error
         }
@@ -441,10 +453,12 @@ public final class InboundSyncEngine: @unchecked Sendable {
             if let existing = fetchClipRepresentation(id: id, in: context) {
                 try recordMapper.updateEntity(existing, from: record)
                 existing.clipItem = parent
+                try assetSyncManager.applyDownloadedAssetIfPresentSync(from: record, to: existing)
             } else {
                 let rep = try recordMapper.createClipRepresentation(from: record, in: context)
                 rep.clipItem = parent
                 parent.addToRepresentations(rep)
+                try assetSyncManager.applyDownloadedAssetIfPresentSync(from: record, to: rep)
             }
             return true
 
@@ -594,10 +608,12 @@ public final class InboundSyncEngine: @unchecked Sendable {
             if let existing = cache.clipRepresentations[id] {
                 try recordMapper.updateEntity(existing, from: record)
                 existing.clipItem = parent
+                try assetSyncManager.applyDownloadedAssetIfPresentSync(from: record, to: existing)
             } else {
                 let rep = try recordMapper.createClipRepresentation(from: record, in: context)
                 rep.clipItem = parent
                 parent.addToRepresentations(rep)
+                try assetSyncManager.applyDownloadedAssetIfPresentSync(from: record, to: rep)
                 cache.insert(rep)
             }
             return true

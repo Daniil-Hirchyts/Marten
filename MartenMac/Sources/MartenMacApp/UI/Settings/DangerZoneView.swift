@@ -3,9 +3,12 @@ import SwiftUI
 
 /// Danger Zone settings view for macOS — provides destructive data management actions.
 struct DangerZoneView: View {
+    var syncCoordinator: SyncCoordinator? = nil
+
     @State private var showDeletePinboardsConfirmation = false
     @State private var showDeleteDeviceDataConfirmation = false
     @State private var showDeleteAllConfirmation = false
+    @State private var deleteEverythingErrorMessage: String?
 
     var body: some View {
         ScrollView {
@@ -102,10 +105,37 @@ struct DangerZoneView: View {
         .alert("Delete Everything?", isPresented: $showDeleteAllConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete Everything", role: .destructive) {
-                try? ClipItemStore().deleteAllItems()
+                Task { await performDeleteEverything() }
             }
         } message: {
             Text("All cards and pinboards will be permanently deleted. This cannot be undone.")
+        }
+        .alert(
+            "Delete Failed",
+            isPresented: Binding(
+                get: { deleteEverythingErrorMessage != nil },
+                set: { if !$0 { deleteEverythingErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteEverythingErrorMessage ?? "Unknown error.")
+        }
+    }
+
+    private func performDeleteEverything() async {
+        if let syncCoordinator {
+            let result = await syncCoordinator.wipeEverything()
+            if let summary = result.failureSummary {
+                deleteEverythingErrorMessage = summary
+            }
+            return
+        }
+
+        do {
+            try ClipItemStore().deleteAllItems()
+        } catch {
+            deleteEverythingErrorMessage = error.localizedDescription
         }
     }
 }

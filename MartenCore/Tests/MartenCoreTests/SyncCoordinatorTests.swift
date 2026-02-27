@@ -1,5 +1,6 @@
 import CloudKit
 import Combine
+import CoreData
 import XCTest
 
 @testable import MartenCore
@@ -85,6 +86,34 @@ final class MockAssetSyncManager: @unchecked Sendable {
 
     func sendProgress(_ update: AssetSyncManager.ProgressUpdate) {
         progressSubject.send(update)
+    }
+}
+
+final class NoopZoneChangesFetcher: ZoneChangesFetching, @unchecked Sendable {
+    func fetchChanges(
+        zoneID: CKRecordZone.ID,
+        previousServerChangeTokenData: Data?,
+        recordChanged: @escaping (CKRecord) throws -> Void,
+        recordDeleted: @escaping (CKRecord.ID, String) throws -> Void,
+        tokenUpdated: @escaping (Data) throws -> Void
+    ) async throws -> Data? {
+        nil
+    }
+}
+
+final class InMemoryZoneTokenStore: ZoneChangeTokenStoring, @unchecked Sendable {
+    private var tokenData: Data?
+
+    func load() throws -> Data? {
+        tokenData
+    }
+
+    func save(_ tokenData: Data) throws {
+        self.tokenData = tokenData
+    }
+
+    func clear() throws {
+        tokenData = nil
     }
 }
 
@@ -541,4 +570,166 @@ final class SyncCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(coordinator.progress.itemsDownloaded, 10)
     }
+
+    @MainActor
+    func testPreparationErrorsTransitionCoordinatorToPushChangesFailed() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: "SyncCoordinatorPrepErrorZone", ownerName: CKCurrentUserDefaultName)
+        let persistence = PersistenceController(inMemory: true)
+        let mapper = CloudRecordMapper(zoneID: zoneID)
+
+        let mockContainer = MockCloudKitContainer()
+        let syncTokenStorage = MockSyncTokenStorage()
+        let tokenManager = SyncTokenManager(storage: syncTokenStorage)
+        let cloudKitManager = CloudKitManager(
+            configuration: CloudKitConfiguration(
+                containerIdentifier: "iCloud.com.hirchyts.marten.tests",
+                zoneName: zoneID.zoneName
+            ),
+            container: mockContainer,
+            tokenManager: tokenManager
+        )
+
+        let outboundDatabase = MockOutboundCloudDatabase()
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: tempDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let assetStore = AssetStore(baseURL: tempDirectory)
+        let assetSyncManager = AssetSyncManager(assetStore: assetStore)
+        let outboundEngine = OutboundSyncEngine(
+            persistenceController: persistence,
+            database: outboundDatabase,
+            zoneID: zoneID,
+            configuration: .init(debounceInterval: 0.01, retryBackoff: 0.01, maxRetries: 1),
+            assetSyncManager: assetSyncManager
+        )
+        let inboundEngine = InboundSyncEngine(
+            zoneID: zoneID,
+            changesFetcher: NoopZoneChangesFetcher(),
+            tokenStore: InMemoryZoneTokenStore(),
+            persistenceController: persistence,
+            recordMapper: mapper,
+            assetSyncManager: assetSyncManager
+        )
+
+        let suiteName = "SyncCoordinatorPreparationErrorTests.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let configuration = SyncCoordinatorConfiguration(
+            periodicFetchInterval: 30.0,
+            performImmediateInboundSync: false,
+            pausePeriodicInboundWhenInactive: true,
+            syncEnabledKey: "\(suiteName).syncEnabled",
+            lastSyncDateKey: "\(suiteName).lastSyncDate"
+        )
+
+        let coordinator = SyncCoordinator(
+            cloudKitManager: cloudKitManager,
+            outboundEngine: outboundEngine,
+            inboundEngine: inboundEngine,
+            assetSyncManager: assetSyncManager,
+            persistenceController: persistence,
+            configuration: configuration,
+            userDefaults: userDefaults
+        )
+
+        let statusExpectation = expectation(description: "coordinator status updates to pushChangesFailed")
+        let cancellable = coordinator.$status
+            .sink { status in
+                guard case .error(let error) = status else { return }
+                if case .pushChangesFailed = error {
+                    statusExpectation.fulfill()
+                }
+            }
+        defer { cancellable.cancel() }
+
+        outboundEngine.start()
+        defer { outboundEngine.stop() }
+
+        let context = persistence.viewContext
+        let item = makeCoordinatorTestClipItem(in: context, text: "coordinator-missing-asset")
+        let representation = makeCoordinatorTestRepresentation(for: item, in: context)
+        representation.uti = "public.png"
+        representation.kindValue = .png
+        representation.fileExtension = "png"
+        representation.assetRef = UUID()
+        representation.textData = nil
+        representation.byteCount = 1_024
+        try context.save()
+
+        await fulfillment(of: [statusExpectation], timeout: 1.5)
+
+        guard case .error(let error) = coordinator.status else {
+            XCTFail("Expected coordinator status to become .error")
+            return
+        }
+        guard case .pushChangesFailed = error else {
+            XCTFail("Expected .pushChangesFailed status, got \(error)")
+            return
+        }
+    }
+}
+
+final class SyncCoordinatorConfigurationTests: XCTestCase {
+    func testDefaultConfigurationPausesWhenInactive() {
+        let configuration = SyncCoordinatorConfiguration.default
+        XCTAssertTrue(configuration.pausePeriodicInboundWhenInactive)
+        XCTAssertFalse(configuration.performImmediateInboundSync)
+    }
+
+    func testAlwaysOnConfigurationKeepsPollingWhenInactive() {
+        let configuration = SyncCoordinatorConfiguration(
+            periodicFetchInterval: 30,
+            performImmediateInboundSync: true,
+            pausePeriodicInboundWhenInactive: false
+        )
+
+        XCTAssertFalse(configuration.pausePeriodicInboundWhenInactive)
+        XCTAssertTrue(configuration.performImmediateInboundSync)
+    }
+}
+
+private func makeCoordinatorTestClipItem(
+    in context: NSManagedObjectContext,
+    id: UUID = UUID(),
+    text: String
+) -> ClipItem {
+    let item = NSEntityDescription.insertNewObject(forEntityName: "ClipItem", into: context) as! ClipItem
+    item.id = id
+    item.createdAt = Date()
+    item.modifiedAt = Date()
+    item.displayOrder = Int64(Date().timeIntervalSince1970 * 1000)
+    item.itemTypeValue = .text
+    item.primaryText = text
+    item.searchableText = text
+    item.contentHash = "hash-\(UUID().uuidString)"
+    item.isSensitive = false
+    item.isTransient = false
+    item.needsLinkPreview = false
+    item.byteCount = Int64(text.utf8.count)
+    item.isUserCreated = true
+    item.isPinned = false
+    return item
+}
+
+private func makeCoordinatorTestRepresentation(
+    for item: ClipItem,
+    in context: NSManagedObjectContext
+) -> ClipRepresentation {
+    let representation = NSEntityDescription.insertNewObject(
+        forEntityName: "ClipRepresentation",
+        into: context
+    ) as! ClipRepresentation
+    representation.id = UUID()
+    representation.uti = "public.utf8-plain-text"
+    representation.kindValue = .plainText
+    representation.displayOrder = 0
+    representation.textData = Data((item.primaryText ?? "").utf8)
+    representation.byteCount = Int64(representation.textData?.count ?? 0)
+    representation.clipItem = item
+    return representation
 }

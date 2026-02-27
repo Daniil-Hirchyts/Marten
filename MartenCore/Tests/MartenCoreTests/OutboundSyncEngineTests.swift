@@ -1,4 +1,5 @@
 import CloudKit
+import Combine
 import CoreData
 import XCTest
 
@@ -46,6 +47,7 @@ actor MockOutboundCloudDatabase: OutboundCloudDatabase {
 final class OutboundSyncEngineTests: XCTestCase {
     private var persistence: PersistenceController!
     private var zoneID: CKRecordZone.ID!
+    private var cancellables: Set<AnyCancellable> = []
 
     override func setUp() {
         super.setUp()
@@ -56,6 +58,7 @@ final class OutboundSyncEngineTests: XCTestCase {
     override func tearDown() {
         persistence = nil
         zoneID = nil
+        cancellables.removeAll()
         super.tearDown()
     }
 
@@ -401,6 +404,193 @@ final class OutboundSyncEngineTests: XCTestCase {
             membershipRecord.recordID,
             .membershipID(clipItemID: item.id, pinboardID: pinboard.id, zoneID: zoneID)
         )
+    }
+
+    func testMissingAssetAttachmentPublishesErrorAndMarksFailedAfterRetries() async throws {
+        let db = MockOutboundCloudDatabase()
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: tempDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let assetStore = AssetStore(baseURL: tempDirectory)
+        let assetSyncManager = AssetSyncManager(assetStore: assetStore)
+        let engine = OutboundSyncEngine(
+            persistenceController: persistence,
+            database: db,
+            zoneID: zoneID,
+            configuration: .init(
+                debounceInterval: 0.01,
+                retryBackoff: 0.01,
+                maxRetries: 2
+            ),
+            assetSyncManager: assetSyncManager
+        )
+
+        var preparationErrors: [SyncRecordPreparationError] = []
+        let preparationErrorsExpectation = expectation(description: "received bounded preparation errors")
+        preparationErrorsExpectation.expectedFulfillmentCount = 2
+        preparationErrorsExpectation.assertForOverFulfill = true
+        engine.preparationErrorPublisher
+            .sink { error in
+                preparationErrors.append(error)
+                preparationErrorsExpectation.fulfill()
+            }
+            .store(in: &cancellables)
+
+        engine.start()
+        defer { engine.stop() }
+
+        let context = persistence.viewContext
+        let item = makeClipItem(in: context, text: "missing-asset")
+        let representation = makeRepresentation(for: item, in: context)
+        representation.kindValue = .png
+        representation.uti = "public.png"
+        representation.fileExtension = "png"
+        representation.assetRef = UUID()
+        representation.textData = nil
+        representation.byteCount = 1024
+        let representationRecordID = CKRecord.ID.clipRepresentationID(representation.id, zoneID: zoneID)
+        try context.save()
+
+        await fulfillment(of: [preparationErrorsExpectation], timeout: 1.5)
+        await engine.flushAndAwait()
+
+        let savedRecords = await db.calls.flatMap(\.saved)
+        XCTAssertFalse(
+            savedRecords.contains { $0.recordID == representationRecordID },
+            "Representation upload must be skipped when asset attachment fails"
+        )
+        XCTAssertEqual(engine.status(for: representationRecordID), .failed)
+        XCTAssertEqual(preparationErrors.count, 2)
+        for preparationError in preparationErrors {
+            guard
+                case .assetAttachmentFailed(
+                    engine: let engineName,
+                    representationID: let failedRepresentationID,
+                    reason: let reason
+                ) = preparationError
+            else {
+                XCTFail("Unexpected preparation error case: \(preparationError)")
+                continue
+            }
+            XCTAssertEqual(engineName, "OutboundSyncEngine")
+            XCTAssertEqual(failedRepresentationID, representation.id)
+            XCTAssertFalse(reason.isEmpty)
+        }
+    }
+
+    func testValidAssetAttachmentUploadsRepresentationWithoutPreparationErrors() async throws {
+        let db = MockOutboundCloudDatabase()
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: tempDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let assetStore = AssetStore(baseURL: tempDirectory)
+        let payload = Data(repeating: 7, count: 2048)
+        let assetRef = try assetStore.store(data: payload, fileExtension: "png")
+        let assetSyncManager = AssetSyncManager(assetStore: assetStore)
+
+        let engine = OutboundSyncEngine(
+            persistenceController: persistence,
+            database: db,
+            zoneID: zoneID,
+            configuration: .init(
+                debounceInterval: 0.01,
+                retryBackoff: 0.01,
+                maxRetries: 2
+            ),
+            assetSyncManager: assetSyncManager
+        )
+
+        let unexpectedError = expectation(description: "no preparation error expected")
+        unexpectedError.isInverted = true
+        engine.preparationErrorPublisher
+            .sink { _ in
+                unexpectedError.fulfill()
+            }
+            .store(in: &cancellables)
+
+        engine.start()
+        defer { engine.stop() }
+
+        let context = persistence.viewContext
+        let item = makeClipItem(in: context, text: "valid-asset")
+        let representation = makeRepresentation(for: item, in: context)
+        representation.kindValue = .png
+        representation.uti = "public.png"
+        representation.fileExtension = "png"
+        representation.assetRef = assetRef
+        representation.textData = nil
+        representation.byteCount = Int64(payload.count)
+        let representationRecordID = CKRecord.ID.clipRepresentationID(representation.id, zoneID: zoneID)
+        try context.save()
+
+        try await Task.sleep(nanoseconds: 250_000_000)
+        let savedRecords = await db.calls.flatMap(\.saved)
+        let uploadedRepresentation = try XCTUnwrap(
+            savedRecords.first(where: { $0.recordID == representationRecordID })
+        )
+        XCTAssertNotNil(uploadedRepresentation.asset(for: ClipRepresentationField.asset.rawValue))
+
+        await fulfillment(of: [unexpectedError], timeout: 0.2)
+    }
+
+    func testAssetRepresentationBackfillEnqueuesAssetBackedRepresentations() async throws {
+        let db = MockOutboundCloudDatabase()
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: tempDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let assetStore = AssetStore(baseURL: tempDirectory)
+        let payload = Data(repeating: 3, count: 512)
+        let assetRef = try assetStore.store(data: payload, fileExtension: "png")
+        let assetSyncManager = AssetSyncManager(assetStore: assetStore)
+
+        let context = persistence.viewContext
+        let item = makeClipItem(in: context, text: "asset-backfill")
+        let representation = makeRepresentation(for: item, in: context)
+        representation.kindValue = .png
+        representation.uti = "public.png"
+        representation.fileExtension = "png"
+        representation.assetRef = assetRef
+        representation.textData = nil
+        representation.byteCount = Int64(payload.count)
+        let representationRecordID = CKRecord.ID.clipRepresentationID(representation.id, zoneID: zoneID)
+        try context.save()
+
+        let engine = OutboundSyncEngine(
+            persistenceController: persistence,
+            database: db,
+            zoneID: zoneID,
+            configuration: .init(
+                debounceInterval: 0.01,
+                retryBackoff: 0.01,
+                maxRetries: 2
+            ),
+            assetSyncManager: assetSyncManager
+        )
+        engine.start()
+        defer { engine.stop() }
+
+        await db.resetCalls()
+        let queuedCount = await engine.enqueueAssetRepresentationBackfill()
+        XCTAssertEqual(queuedCount, 1)
+
+        await engine.flushAndAwait()
+        let savedRecords = await db.calls.flatMap(\.saved)
+        XCTAssertTrue(savedRecords.contains(where: { $0.recordID == representationRecordID }))
     }
 }
 

@@ -1,4 +1,5 @@
 import Foundation
+import MartenCore
 
 enum WatchDefaults {
     static let appGroupIdentifier = "group.com.hirchyts.marten"
@@ -12,5 +13,6 @@ enum WatchDefaults {
             lockHookPinboardIDsKey: [String](),
             syncEnabledKey: true,
         ])
+        SharedPinboardsFeatureFlag.registerDefaults(userDefaults)
     }
 }

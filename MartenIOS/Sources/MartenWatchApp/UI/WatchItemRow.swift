@@ -7,7 +7,7 @@ struct WatchItemRow: View {
     var isCopied: Bool = false
 
     private var isEdgeToEdgeContent: Bool {
-        item.itemType == .image
+        item.itemType == .image && item.thumbnailPath != nil
     }
 
     @ViewBuilder
@@ -66,7 +66,6 @@ struct WatchItemRow: View {
         }
         .frame(
             maxWidth: .infinity,
-            minHeight: isEdgeToEdgeContent ? 0 : WatchVisualSystem.itemCardHeight,
             alignment: .topLeading
         )
         .contentShape(.rect)

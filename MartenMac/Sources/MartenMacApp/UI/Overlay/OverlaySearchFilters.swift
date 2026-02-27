@@ -351,7 +351,7 @@ private struct AppFilterChip: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                AppIconView(bundleID: option.bundleID, size: 16)
+                AppIconView(bundleID: option.bundleID, appName: option.name, size: 16)
                 Text(option.name)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(textColor)

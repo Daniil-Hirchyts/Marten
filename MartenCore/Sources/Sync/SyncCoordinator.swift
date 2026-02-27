@@ -111,6 +111,10 @@ public struct SyncCoordinatorConfiguration: Sendable {
     /// be active for a few seconds.
     public var performImmediateInboundSync: Bool
 
+    /// When true, periodic inbound sync pauses while the app is inactive.
+    /// Set false on macOS to keep background polling active while the app runs.
+    public var pausePeriodicInboundWhenInactive: Bool
+
     /// UserDefaults key for sync enabled preference.
     public var syncEnabledKey: String
 
@@ -120,6 +124,7 @@ public struct SyncCoordinatorConfiguration: Sendable {
     public static let `default` = SyncCoordinatorConfiguration(
         periodicFetchInterval: 30.0,
         performImmediateInboundSync: false,
+        pausePeriodicInboundWhenInactive: true,
         syncEnabledKey: "com.hirchyts.marten.syncEnabled",
         lastSyncDateKey: "com.hirchyts.marten.lastSyncDate"
     )
@@ -127,11 +132,13 @@ public struct SyncCoordinatorConfiguration: Sendable {
     public init(
         periodicFetchInterval: TimeInterval = 30.0,
         performImmediateInboundSync: Bool = false,
+        pausePeriodicInboundWhenInactive: Bool = true,
         syncEnabledKey: String = "com.hirchyts.marten.syncEnabled",
         lastSyncDateKey: String = "com.hirchyts.marten.lastSyncDate"
     ) {
         self.periodicFetchInterval = periodicFetchInterval
         self.performImmediateInboundSync = performImmediateInboundSync
+        self.pausePeriodicInboundWhenInactive = pausePeriodicInboundWhenInactive
         self.syncEnabledKey = syncEnabledKey
         self.lastSyncDateKey = lastSyncDateKey
     }
@@ -224,6 +231,9 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     )
     private static let membershipBackfillCompletedKey = "com.hirchyts.marten.sync.membershipBackfill.completed"
     private static let deviceAttributionBackfillCompletedKey = "com.hirchyts.marten.deviceAttribution.backfillCompleted"
+    private static let representationAssetBackfillCompletedKey = "com.hirchyts.marten.sync.representationAssetBackfill.completed"
+    private static let representationAssetReuploadBackfillCompletedKey =
+        "com.hirchyts.marten.sync.representationAssetReuploadBackfill.completed"
 
     // MARK: - Initialization
 
@@ -310,18 +320,22 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
 
             await performMembershipBackfillIfNeeded()
             performDeviceAttributionBackfillIfNeeded()
+            performRepresentationAssetBackfillIfNeeded()
+            await performRepresentationAssetReuploadBackfillIfNeeded()
 
             // Start shared sync engines when feature flag is enabled
-            if SharedPinboardsFeatureFlag.isEnabled, sharedOutboundEngine != nil {
+            if SharedPinboardsFeatureFlag.isEnabled(in: userDefaults), sharedOutboundEngine != nil {
                 sharedOutboundEngine?.start()
                 try? await cloudKitManager.setupSharedDatabaseSubscription()
                 log("Shared sync engines started")
             }
 
+            isSetUp = true
+
             // Start periodic inbound sync
             startPeriodicInboundSync()
+            await reconcileShareMetadataAndSyncDiscoveredZones()
 
-            isSetUp = true
             updateStatus(.synced)
             log("Sync started successfully")
         } catch let error as CloudKitSyncError {
@@ -369,6 +383,75 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         try cloudKitManager.clearAllSyncTokens()
     }
 
+    /// Performs a global data wipe and returns a structured result with partial failures.
+    public func wipeEverything() async -> DataWipeResult {
+        var bootstrapFailures: [DataWipeResult.Failure] = []
+
+        if syncEnabled, !isSetUp {
+            do {
+                try await startSync()
+            } catch {
+                bootstrapFailures.append(
+                    .init(stage: "start-sync", message: error.localizedDescription)
+                )
+            }
+        }
+
+        let wipeService = DataWipeService(
+            persistenceController: persistenceController,
+            clipItemStore: ClipItemStore(persistence: persistenceController),
+            stopSharingAction: { [weak self] pinboardID in
+                guard let shareCoordinator = self?.shareCoordinator else {
+                    throw PinboardSharingError.featureDisabled
+                }
+                try await shareCoordinator.stopSharing(pinboardID: pinboardID)
+            },
+            leaveShareAction: { [weak self] pinboardID in
+                guard let shareCoordinator = self?.shareCoordinator else {
+                    throw PinboardSharingError.featureDisabled
+                }
+                try await shareCoordinator.leaveShare(pinboardID: pinboardID)
+            },
+            flushPrivateOutbound: { [weak self] in
+                await self?.outboundEngine.flushAndAwait()
+            },
+            flushSharedOutbound: { [weak self] in
+                await self?.sharedOutboundEngine?.flushAndAwait()
+            },
+            inboundConvergenceAction: { [weak self] in
+                guard let self else { return }
+                _ = try await self.performPrivateInboundSyncWithZoneRecovery()
+                if SharedPinboardsFeatureFlag.isEnabled(in: self.userDefaults),
+                   let sharedInbound = self.sharedInboundEngine
+                {
+                    let sharedZoneIDs = self.fetchSharedZoneIDs()
+                    if !sharedZoneIDs.isEmpty {
+                        _ = try await sharedInbound.syncInbound(zoneIDs: sharedZoneIDs)
+                    }
+                }
+                await self.reconcileShareMetadataAndSyncDiscoveredZones()
+            }
+        )
+
+        let baseResult = await wipeService.wipeEverything(scope: .global)
+        let result = DataWipeResult(
+            scope: baseResult.scope,
+            sharedPinboardsAttempted: baseResult.sharedPinboardsAttempted,
+            sharedPinboardsProcessed: baseResult.sharedPinboardsProcessed,
+            failures: bootstrapFailures + baseResult.failures
+        )
+
+        if let summary = result.failureSummary {
+            handleError(.serverRejected(reason: summary))
+        } else {
+            lastSyncDate = Date()
+            updateStatus(.synced)
+            syncCompletedSubject.send()
+        }
+
+        return result
+    }
+
     /// Triggers an immediate sync cycle.
     ///
     /// This method:
@@ -396,22 +479,34 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         do {
             // Flush outbound changes and wait for completion
             await outboundEngine.flushAndAwait()
+            await sharedOutboundEngine?.flushAndAwait()
 
             // Perform inbound sync
-            let result = try await inboundEngine.syncInbound()
+            let privateResult = try await performPrivateInboundSyncWithZoneRecovery()
+            var sharedFetchedCount = 0
+
+            if SharedPinboardsFeatureFlag.isEnabled(in: userDefaults), let sharedInbound = sharedInboundEngine {
+                let sharedZoneIDs = fetchSharedZoneIDs()
+                if !sharedZoneIDs.isEmpty {
+                    let sharedResult = try await sharedInbound.syncInbound(zoneIDs: sharedZoneIDs)
+                    sharedFetchedCount = sharedResult.fetchedRecordCount
+                }
+            }
+            await reconcileShareMetadataAndSyncDiscoveredZones()
 
             let duration = Date().timeIntervalSince(startTime)
+            let downloadedCount = privateResult.fetchedRecordCount + sharedFetchedCount
             let syncResult = SyncResult(
                 uploadedCount: 0,
-                downloadedCount: result.fetchedRecordCount,
-                deletedCount: result.deletedRecordCount,
+                downloadedCount: downloadedCount,
+                deletedCount: privateResult.deletedRecordCount,
                 duration: duration
             )
 
             updateProgress(SyncProgress(
                 itemsQueued: 0,
                 itemsUploaded: 0,
-                itemsDownloaded: result.fetchedRecordCount
+                itemsDownloaded: downloadedCount
             ))
 
             lastSyncDate = Date()
@@ -449,33 +544,36 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
 
         do {
             updateStatus(.syncing)
-            let result = try await inboundEngine.syncInbound()
+            let privateResult = try await performPrivateInboundSyncWithZoneRecovery()
+            var sharedFetchedCount = 0
 
             // Also trigger shared inbound sync when feature flag is enabled
-            if SharedPinboardsFeatureFlag.isEnabled, let sharedInbound = sharedInboundEngine {
+            if SharedPinboardsFeatureFlag.isEnabled(in: userDefaults), let sharedInbound = sharedInboundEngine {
                 let sharedZoneIDs = fetchSharedZoneIDs()
                 if !sharedZoneIDs.isEmpty {
                     let sharedResult = try await sharedInbound.syncInbound(zoneIDs: sharedZoneIDs)
+                    sharedFetchedCount = sharedResult.fetchedRecordCount
                     log("Push-triggered shared sync: \(sharedResult.fetchedRecordCount) fetched")
                 }
             }
+            await reconcileShareMetadataAndSyncDiscoveredZones()
 
+            let downloadedCount = privateResult.fetchedRecordCount + sharedFetchedCount
             updateProgress(SyncProgress(
                 itemsQueued: 0,
                 itemsUploaded: 0,
-                itemsDownloaded: result.fetchedRecordCount
+                itemsDownloaded: downloadedCount
             ))
 
             lastSyncDate = Date()
             updateStatus(.synced)
             syncCompletedSubject.send()
 
-            log("Push-triggered sync completed: \(result.fetchedRecordCount) fetched")
+            log("Push-triggered sync completed: \(downloadedCount) fetched")
         } catch {
             log("Push-triggered sync failed: \(error.localizedDescription)")
-            if let syncError = error as? CloudKitSyncError {
-                handleError(syncError)
-            }
+            let syncError = (error as? CloudKitSyncError) ?? .unexpected(error)
+            handleError(syncError)
         }
     }
 
@@ -526,6 +624,7 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         log("Syncing \(sharedZoneIDs.count) shared zone(s)")
         let result = try await sharedInbound.syncInbound(zoneIDs: sharedZoneIDs)
         log("Shared sync completed: \(result.fetchedRecordCount) fetched, \(result.deletedRecordCount) deleted")
+        await reconcileShareMetadataAndSyncDiscoveredZones()
     }
 
     // MARK: - App Lifecycle
@@ -540,6 +639,11 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
 
     /// Called when the app enters the background.
     public func handleAppWillResignActive() {
+        guard configuration.pausePeriodicInboundWhenInactive else {
+            log("App will resign active, keeping periodic sync running")
+            return
+        }
+
         log("App will resign active, pausing periodic sync")
         periodicScheduler.stop()
     }
@@ -569,6 +673,22 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
                 self?.log("Asset progress: \(progressUpdate.recordName) - \(Int(progressUpdate.fractionCompleted * 100))%")
             }
             .store(in: &cancellables)
+
+        outboundEngine.preparationErrorPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] error in
+                self?.handleError(.pushChangesFailed(error))
+            }
+            .store(in: &cancellables)
+
+        if let sharedOutboundEngine {
+            sharedOutboundEngine.preparationErrorPublisher
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] error in
+                    self?.handleError(.pushChangesFailed(error))
+                }
+                .store(in: &cancellables)
+        }
     }
 
     private func performMembershipBackfillIfNeeded() async {
@@ -596,6 +716,66 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
             }
         } catch {
             log("Device attribution backfill failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func performRepresentationAssetBackfillIfNeeded() {
+        guard userDefaults.bool(forKey: Self.representationAssetBackfillCompletedKey) == false else {
+            return
+        }
+
+        let repository = ClipItemRepository(persistence: persistenceController)
+        do {
+            let migratedCount = try repository.migrateSyncableBinaryRepresentationsToAssets()
+            userDefaults.set(true, forKey: Self.representationAssetBackfillCompletedKey)
+
+            if migratedCount > 0 {
+                log("Representation asset backfill migrated \(migratedCount) records")
+            } else {
+                log("Representation asset backfill: no migration needed")
+            }
+        } catch {
+            log("Representation asset backfill failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func performRepresentationAssetReuploadBackfillIfNeeded() async {
+        guard userDefaults.bool(forKey: Self.representationAssetReuploadBackfillCompletedKey) == false
+        else { return }
+
+        let enqueuedCount = await outboundEngine.enqueueAssetRepresentationBackfill()
+        if enqueuedCount > 0 {
+            await outboundEngine.flushAndAwait()
+            log("Representation asset reupload backfill queued \(enqueuedCount) representations")
+        } else {
+            log("Representation asset reupload backfill: no representations queued")
+        }
+
+        userDefaults.set(true, forKey: Self.representationAssetReuploadBackfillCompletedKey)
+    }
+
+    private func performPrivateInboundSyncWithZoneRecovery() async throws -> InboundSyncResult {
+        do {
+            return try await inboundEngine.syncInbound()
+        } catch let syncError as CloudKitSyncError {
+            switch syncError {
+            case .zoneNotFound, .userDeletedZone:
+                try await Task.sleep(nanoseconds: 2_000_000_000)
+                try await cloudKitManager.performCompleteSetup()
+                return try await inboundEngine.syncInbound()
+            default:
+                throw syncError
+            }
+        } catch {
+            let syncError = CloudKitErrorClassifier.classify(error)
+            switch syncError {
+            case .zoneNotFound, .userDeletedZone:
+                try await Task.sleep(nanoseconds: 2_000_000_000)
+                try await cloudKitManager.performCompleteSetup()
+                return try await inboundEngine.syncInbound()
+            default:
+                throw syncError
+            }
         }
     }
 
@@ -636,15 +816,26 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
 
         do {
             updateStatus(.syncing)
-            let result = try await inboundEngine.syncInbound()
+            let privateResult = try await performPrivateInboundSyncWithZoneRecovery()
+            var sharedFetchedCount = 0
 
-            if result.fetchedRecordCount > 0 || result.deletedRecordCount > 0 {
+            if SharedPinboardsFeatureFlag.isEnabled(in: userDefaults), let sharedInbound = sharedInboundEngine {
+                let sharedZoneIDs = fetchSharedZoneIDs()
+                if !sharedZoneIDs.isEmpty {
+                    let sharedResult = try await sharedInbound.syncInbound(zoneIDs: sharedZoneIDs)
+                    sharedFetchedCount = sharedResult.fetchedRecordCount
+                }
+            }
+            await reconcileShareMetadataAndSyncDiscoveredZones()
+
+            let downloadedCount = privateResult.fetchedRecordCount + sharedFetchedCount
+            if downloadedCount > 0 || privateResult.deletedRecordCount > 0 {
                 updateProgress(SyncProgress(
                     itemsQueued: 0,
                     itemsUploaded: 0,
-                    itemsDownloaded: result.fetchedRecordCount
+                    itemsDownloaded: downloadedCount
                 ))
-                log("Periodic sync: \(result.fetchedRecordCount) fetched, \(result.deletedRecordCount) deleted")
+                log("Periodic sync: \(downloadedCount) fetched, \(privateResult.deletedRecordCount) deleted")
             }
 
             lastSyncDate = Date()
@@ -652,9 +843,34 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
             syncCompletedSubject.send()
         } catch {
             log("Periodic sync failed: \(error.localizedDescription)")
-            if let syncError = error as? CloudKitSyncError {
-                handleError(syncError)
-            }
+            let syncError = (error as? CloudKitSyncError) ?? .unexpected(error)
+            handleError(syncError)
+        }
+    }
+
+    private func reconcileShareMetadataAndSyncDiscoveredZones() async {
+        guard SharedPinboardsFeatureFlag.isEnabled(in: userDefaults) else { return }
+
+        let result: ShareMetadataReconcileResult
+        do {
+            result = try ShareMetadataReconciler().reconcile(
+                persistenceController: persistenceController
+            )
+        } catch {
+            log("Share metadata reconciliation failed: \(error.localizedDescription)")
+            return
+        }
+
+        guard let sharedInbound = sharedInboundEngine else { return }
+        guard !result.discoveredSharedZoneIDs.isEmpty else { return }
+
+        do {
+            let inboundResult = try await sharedInbound.syncInbound(zoneIDs: result.discoveredSharedZoneIDs)
+            log(
+                "Discovered shared zones synced: \(inboundResult.fetchedRecordCount) fetched, \(inboundResult.deletedRecordCount) deleted"
+            )
+        } catch {
+            log("Discovered shared zone sync failed: \(error.localizedDescription)")
         }
     }
 
@@ -766,6 +982,8 @@ extension SyncCoordinator {
 
         let container = CKContainer(identifier: cloudKitConfiguration.containerIdentifier)
         let database = container.privateCloudDatabase
+        let shareZoneRegistry = ShareZoneRegistry(privateZoneID: zoneID)
+        let assetSyncManager = AssetSyncManager()
 
         let outboundEngine = OutboundSyncEngine(
             persistenceController: persistenceController,
@@ -776,7 +994,9 @@ extension SyncCoordinator {
                 retryBackoff: cloudKitConfiguration.syncTiming.retryBackoff,
                 maxRetries: cloudKitConfiguration.syncTiming.maxRetries
             ),
-            isSyncEnabled: syncEnabledProvider
+            isSyncEnabled: syncEnabledProvider,
+            shareZoneRegistry: shareZoneRegistry,
+            assetSyncManager: assetSyncManager
         )
 
         let tokenStore = SyncTokenZoneStore(tokenManager: tokenManager, zoneID: zoneID)
@@ -788,19 +1008,16 @@ extension SyncCoordinator {
             changesFetcher: changesFetcher,
             tokenStore: tokenStore,
             persistenceController: persistenceController,
-            recordMapper: recordMapper
+            recordMapper: recordMapper,
+            assetSyncManager: assetSyncManager
         )
-
-        let assetSyncManager = AssetSyncManager()
 
         // Conditionally build shared sync infrastructure
         var shareCoord: ShareCoordinator?
         var sharedInbound: SharedInboundSyncEngine?
         var sharedOutbound: SharedOutboundSyncEngine?
 
-        if SharedPinboardsFeatureFlag.isEnabled {
-            let shareZoneRegistry = ShareZoneRegistry(privateZoneID: zoneID)
-
+        if SharedPinboardsFeatureFlag.isEnabled(in: userDefaults) {
             shareCoord = ShareCoordinator(
                 cloudKitManager: cloudKitManager,
                 persistenceController: persistenceController,
@@ -816,7 +1033,8 @@ extension SyncCoordinator {
                 changesFetcher: sharedChangesFetcher,
                 tokenManager: tokenManager,
                 persistenceController: persistenceController,
-                recordMapper: recordMapper
+                recordMapper: recordMapper,
+                assetSyncManager: assetSyncManager
             )
 
             sharedOutbound = SharedOutboundSyncEngine(
@@ -825,7 +1043,10 @@ extension SyncCoordinator {
                 sharedDatabase: sharedDatabase,
                 shareZoneRegistry: shareZoneRegistry,
                 recordMapper: recordMapper,
-                isSyncEnabled: syncEnabledProvider
+                isSyncEnabled: syncEnabledProvider,
+                assetSyncManager: assetSyncManager,
+                attachmentRetryBackoff: cloudKitConfiguration.syncTiming.retryBackoff,
+                attachmentMaxRetries: cloudKitConfiguration.syncTiming.maxRetries
             )
         }
 

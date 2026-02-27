@@ -3,6 +3,9 @@ import CoreData
 import Foundation
 import MartenCore
 import SwiftUI
+#if os(iOS)
+private let watchBridge = WatchConnectivityBridge.shared
+#endif
 
 @MainActor
 @Observable
@@ -101,6 +104,9 @@ public final class MartenIOSAppContainer {
         self.appleIntelligence = appleIntelligence
 
         MartenIOSDefaults.registerDefaults(userDefaults)
+        if let appGroupDefaults = UserDefaults(suiteName: "group.com.hirchyts.marten") {
+            SharedPinboardsFeatureFlag.registerDefaults(appGroupDefaults)
+        }
         self.lastSeenShareExtensionSuccessAt = userDefaults.double(
             forKey: MartenIOSDefaults.shareExtensionLastSuccessAtKey
         )
@@ -143,6 +149,7 @@ public final class MartenIOSAppContainer {
             sharingRepository
             ?? AppCoordinatorFactory.makeSharingRepository(
                 persistenceController: persistenceController,
+                userDefaults: userDefaults,
                 syncConfigurationProvider: syncConfigurationProvider,
                 isPinboardLocked: { pinboardID in
                     resolvedLockStateStore.isLocked(pinboardID)
@@ -157,6 +164,7 @@ public final class MartenIOSAppContainer {
         ensureSystemPinboardExists()
         await maybeStartSyncIfEnabled()
         ensureSystemPinboardExists()
+        await reconcileShareMetadataFromTokens()
         reconcileLockStateForShareMembership()
         await refreshPendingLinkPreviews()
     }
@@ -236,6 +244,7 @@ public final class MartenIOSAppContainer {
             await maybeStartSyncIfEnabled()
             syncCoordinator?.handleAppDidBecomeActive()
             ensureSystemPinboardExists()
+            await reconcileShareMetadataFromTokens()
             reconcileLockStateForShareMembership()
             await refreshPendingLinkPreviews()
             refreshDashboardStateFromShareExtensionIfNeeded()
@@ -285,6 +294,10 @@ public final class MartenIOSAppContainer {
 
         await syncCoordinator.handlePushNotification()
         await refreshPendingLinkPreviews()
+        #if os(iOS)
+        watchBridge.notifyWatchSyncCompleted()
+        watchBridge.pushLockState(lockStateStore.lockedPinboardIDs)
+        #endif
     }
 
     public func refreshPendingLinkPreviews() async {
@@ -427,9 +440,40 @@ public final class MartenIOSAppContainer {
             return
         }
 
-        await performMutation {
-            try await commandService.deletePinboard(objectID: pinboard.objectID)
+        if pinboard.isShared {
+            guard let sharingRepository else {
+                lastOperationErrorMessage = "Sharing is unavailable in this build."
+                return
+            }
+
+            do {
+                if pinboard.shareRole == .owner {
+                    try await sharingRepository.stopSharing(pinboardID: pinboard.objectID)
+                } else {
+                    try await sharingRepository.leaveShare(pinboardID: pinboard.objectID)
+                }
+                reconcileLockStateForShareMembership()
+                if selectedPinboardID == pinboard.id {
+                    setSelectedPinboardID(nil)
+                }
+            } catch {
+                lastOperationErrorMessage = error.localizedDescription
+                return
+            }
+        } else {
+            do {
+                try await commandService.deletePinboard(objectID: pinboard.objectID)
+            } catch {
+                lastOperationErrorMessage = error.localizedDescription
+                return
+            }
+            if selectedPinboardID == pinboard.id {
+                setSelectedPinboardID(nil)
+            }
         }
+
+        await forceCloudConvergenceAfterPinboardMutation()
+        invalidateDashboardItems()
     }
 
     public func moveItems(
@@ -499,16 +543,18 @@ public final class MartenIOSAppContainer {
     }
 
     public func nukeAllData() async {
-        // Stop outbound engine first so local deletes don't trigger individual CloudKit uploads
-        syncCoordinator?.stopSync()
-        // Delete all local data (items + pinboards)
-        await performMutation { try await commandService.deleteAllItems() }
-        // Delete the CloudKit zone atomically and clear all sync tokens
         if let syncCoordinator {
-            try? await syncCoordinator.nukeAndReset()
+            let result = await syncCoordinator.wipeEverything()
+            if let summary = result.failureSummary {
+                lastOperationErrorMessage = summary
+            }
+        } else {
+            await performMutation { try await commandService.deleteAllItems() }
         }
+
         invalidateDashboardItems()
         setSelectedPinboardID(nil)
+        reconcileLockStateForShareMembership()
     }
 
     public func deleteDataCreatedOnThisDevice() async {
@@ -517,9 +563,32 @@ public final class MartenIOSAppContainer {
     }
 
     public func deleteOnlyPinboards() async {
-        await performMutation { try await commandService.deleteUserPinboards() }
+        if let sharingRepository {
+            let shareRefs = sharedPinboardReferencesForBulkDelete()
+            for reference in shareRefs {
+                do {
+                    if reference.isOwner {
+                        try await sharingRepository.stopSharing(pinboardID: reference.objectID)
+                    } else {
+                        try await sharingRepository.leaveShare(pinboardID: reference.objectID)
+                    }
+                } catch {
+                    lastOperationErrorMessage = error.localizedDescription
+                    return
+                }
+            }
+        }
+
+        do {
+            try await commandService.deleteUserPinboards()
+        } catch {
+            lastOperationErrorMessage = error.localizedDescription
+            return
+        }
         setSelectedPinboardID(nil)
         invalidateDashboardItems()
+        reconcileLockStateForShareMembership()
+        await forceCloudConvergenceAfterPinboardMutation()
     }
 
     public func togglePin(objectID: NSManagedObjectID) async {
@@ -721,8 +790,59 @@ public final class MartenIOSAppContainer {
         lockStateStore.reconcile(validPinboardIDs: lockableIDs)
     }
 
+    private func reconcileShareMetadataFromTokens() async {
+        do {
+            let result = try ShareMetadataReconciler().reconcile(
+                persistenceController: persistenceController
+            )
+            if !result.discoveredSharedZoneIDs.isEmpty {
+                try? await syncCoordinator?.syncSharedNow()
+            }
+        } catch {
+            lastOperationErrorMessage = error.localizedDescription
+        }
+    }
+
     private func sourceAppInfo() -> SourceAppInfo {
         MartenSourceIdentity.sourceAppInfo()
+    }
+
+    private func forceCloudConvergenceAfterPinboardMutation() async {
+        guard let syncCoordinator else { return }
+
+        do {
+            try await syncCoordinator.triggerSyncNow()
+            clearSyncError()
+        } catch {
+            syncErrorMessage = error.localizedDescription
+        }
+    }
+
+    private struct SharedPinboardReference {
+        let objectID: NSManagedObjectID
+        let isOwner: Bool
+    }
+
+    private func sharedPinboardReferencesForBulkDelete() -> [SharedPinboardReference] {
+        let context = persistenceController.viewContext
+        var references: [SharedPinboardReference] = []
+
+        context.performAndWait {
+            let request = Pinboard.fetchRequest()
+            request.predicate = NSPredicate(format: "isSystemMarten == NO AND shareMetadata != nil")
+            request.returnsObjectsAsFaults = false
+
+            let pinboards = (try? context.fetch(request)) ?? []
+            references = pinboards.compactMap { pinboard in
+                guard let metadata = pinboard.shareMetadata else { return nil }
+                return SharedPinboardReference(
+                    objectID: pinboard.objectID,
+                    isOwner: metadata.isOwner
+                )
+            }
+        }
+
+        return references
     }
 
     private func performMutation(_ operation: () async throws -> Void) async {

@@ -35,6 +35,10 @@ final class MartenWatchContainer {
 
     private let userDefaults: UserDefaults
 
+    #if os(watchOS)
+    private let watchConnectivityReceiver = WatchConnectivityReceiver()
+    #endif
+
     private var hasStarted = false
     private var refreshTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
@@ -95,6 +99,21 @@ final class MartenWatchContainer {
                 }
             }
             .store(in: &cancellables)
+
+        #if os(watchOS)
+        // When iPhone signals a completed sync, trigger an inbound pull on the Watch.
+        watchConnectivityReceiver.onSyncCompleted = { [weak self] in
+            guard let self else { return }
+            Task {
+                await self.syncCoordinator?.handlePushNotification()
+            }
+        }
+        // When iPhone pushes lock state, apply it immediately so the Watch UI stays consistent.
+        watchConnectivityReceiver.onLockStateReceived = { [weak self] ids in
+            self?.lockStateStore.replaceLockedPinboardIDs(ids)
+        }
+        watchConnectivityReceiver.activate()
+        #endif
     }
 
     func start() async {
@@ -103,6 +122,7 @@ final class MartenWatchContainer {
 
         ensureSystemPinboardExists()
         await maybeStartSync()
+        await reconcileShareMetadataFromTokens()
         await refresh()
     }
 
@@ -112,6 +132,7 @@ final class MartenWatchContainer {
             ensureSystemPinboardExists()
             syncCoordinator?.handleAppDidBecomeActive()
             await maybeStartSync()
+            await reconcileShareMetadataFromTokens()
             await refresh()
         case .background:
             syncCoordinator?.handleAppWillResignActive()
@@ -364,6 +385,19 @@ final class MartenWatchContainer {
     private func reconcileLockState() {
         let lockableIDs = Set(customPinboards.filter { !$0.isShared }.map(\.id))
         lockStateStore.reconcile(validPinboardIDs: lockableIDs)
+    }
+
+    private func reconcileShareMetadataFromTokens() async {
+        do {
+            let result = try ShareMetadataReconciler().reconcile(
+                persistenceController: persistenceController
+            )
+            if !result.discoveredSharedZoneIDs.isEmpty {
+                try? await syncCoordinator?.syncSharedNow()
+            }
+        } catch {
+            lastOperationErrorMessage = error.localizedDescription
+        }
     }
 
     private func visibleItems(from source: [WatchClipSummary]) -> [WatchClipSummary] {

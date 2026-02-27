@@ -25,7 +25,7 @@ enum AppCoordinatorFactory {
             persistenceController: persistenceController,
             userDefaults: userDefaults,
             syncEnabledProvider: {
-                UserDefaults.standard.bool(forKey: MartenIOSDefaults.syncEnabledKey)
+                userDefaults.bool(forKey: MartenIOSDefaults.syncEnabledKey)
             }
         )
 
@@ -36,10 +36,11 @@ enum AppCoordinatorFactory {
 
     static func makeSharingRepository(
         persistenceController: PersistenceController,
+        userDefaults: UserDefaults,
         syncConfigurationProvider: any MartenIOSSyncConfigurationProviding,
         isPinboardLocked: (@MainActor @Sendable (UUID) -> Bool)? = nil
     ) -> (any PinboardSharingRepositoryProtocol)? {
-        guard SharedPinboardsFeatureFlag.isEnabled else {
+        guard SharedPinboardsFeatureFlag.isEnabled(in: userDefaults) else {
             return nil
         }
 

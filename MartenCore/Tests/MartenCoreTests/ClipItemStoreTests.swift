@@ -106,4 +106,71 @@ final class ClipItemStoreTests: XCTestCase {
             XCTAssertEqual(error as? ClipItemStoreError, .invalidURLForTypeConversion)
         }
     }
+
+    func testRepresentationAssetBackfillSkipsNonMigratableRowsWithoutLooping() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let tempAssetDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: tempAssetDir,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempAssetDir) }
+
+        let assetStore = AssetStore(baseURL: tempAssetDir)
+        let repository = ClipItemRepository(persistence: persistence, assetStore: assetStore)
+        let store = ClipItemStore(persistence: persistence, assetStore: assetStore)
+        let seedItem = try store.createTextItem(text: "seed")
+
+        let viewContext = persistence.viewContext
+        try viewContext.performAndWaitThrowing {
+            guard let item = try viewContext.existingObject(with: seedItem.objectID) as? ClipItem else {
+                XCTFail("Expected seed item to exist")
+                return
+            }
+
+            let nonMigratable = ClipRepresentation(context: viewContext)
+            nonMigratable.id = UUID()
+            nonMigratable.kindValue = .plainText
+            nonMigratable.uti = "public.utf8-plain-text"
+            nonMigratable.displayOrder = 10
+            nonMigratable.binaryData = Data([1, 2, 3])
+            nonMigratable.byteCount = 3
+            nonMigratable.clipItem = item
+            item.addToRepresentations(nonMigratable)
+
+            let migratable = ClipRepresentation(context: viewContext)
+            migratable.id = UUID()
+            migratable.kindValue = .rtf
+            migratable.uti = "public.rtf"
+            migratable.displayOrder = 11
+            migratable.fileExtension = "rtf"
+            migratable.binaryData = Data([9, 8, 7, 6])
+            migratable.byteCount = 4
+            migratable.clipItem = item
+            item.addToRepresentations(migratable)
+
+            try viewContext.save()
+        }
+
+        let migratedCount = try repository.migrateSyncableBinaryRepresentationsToAssets()
+        XCTAssertEqual(migratedCount, 1)
+
+        viewContext.reset()
+        try viewContext.performAndWaitThrowing {
+            let request = ClipRepresentation.fetchRequest()
+            let representations = try viewContext.fetch(request)
+
+            let nonMigrated = try XCTUnwrap(representations.first(where: { $0.kindValue == .plainText && $0.binaryData != nil }))
+            XCTAssertNil(nonMigrated.assetRef)
+
+            let migrated = try XCTUnwrap(representations.first(where: { $0.kindValue == .rtf }))
+            XCTAssertNil(migrated.binaryData)
+            XCTAssertNotNil(migrated.assetRef)
+        }
+
+        // A second pass should finish immediately and report no additional work.
+        let secondPassCount = try repository.migrateSyncableBinaryRepresentationsToAssets()
+        XCTAssertEqual(secondPassCount, 0)
+    }
 }

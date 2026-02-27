@@ -1,5 +1,6 @@
 import Foundation
 import LocalAuthentication
+import MartenCore
 
 protocol WatchPinboardAuthenticationProviding: Sendable {
     func authenticate(reason: String) async -> Bool
@@ -33,6 +34,7 @@ final class WatchPinboardLockStateStore {
 
     private let userDefaults: UserDefaults
     private let authenticator: any WatchPinboardAuthenticationProviding
+    private let lockStateSynchronizer: (any PinboardLockStateSynchronizing)?
     private let unlockDurationSeconds: Int
 
     private var unlockExpirations: [UUID: Date] = [:]
@@ -41,12 +43,28 @@ final class WatchPinboardLockStateStore {
     init(
         userDefaults: UserDefaults,
         authenticator: any WatchPinboardAuthenticationProviding = DeviceOwnerWatchAuthenticationProvider(),
+        lockStateSynchronizer: (any PinboardLockStateSynchronizing)? = ICloudLockStateSynchronizer(),
         unlockDurationSeconds: Int = 30
     ) {
+        let persistedLockedIDs = Self.loadLockedIDs(from: userDefaults)
+        let synchronizedIDs = lockStateSynchronizer?.latestLockedPinboardIDs()
+
         self.userDefaults = userDefaults
         self.authenticator = authenticator
+        self.lockStateSynchronizer = lockStateSynchronizer
         self.unlockDurationSeconds = max(1, unlockDurationSeconds)
-        self.lockedPinboardIDs = Self.loadLockedIDs(from: userDefaults)
+        self.lockedPinboardIDs = synchronizedIDs ?? persistedLockedIDs
+
+        persistLocalState()
+        if synchronizedIDs == nil {
+            lockStateSynchronizer?.publish(lockedPinboardIDs: lockedPinboardIDs)
+        }
+
+        lockStateSynchronizer?.startObserving { [weak self] lockedIDs in
+            Task { @MainActor [weak self] in
+                self?.applyExternalLockedPinboardIDs(lockedIDs)
+            }
+        }
     }
 
     func isLocked(_ pinboardID: UUID) -> Bool {
@@ -83,14 +101,14 @@ final class WatchPinboardLockStateStore {
             clearUnlockedState(for: unlockedID)
         }
 
-        persist()
+        persistAndBroadcast()
     }
 
     func reconcile(validPinboardIDs: Set<UUID>) {
         let staleLocked = lockedPinboardIDs.subtracting(validPinboardIDs)
         if !staleLocked.isEmpty {
             lockedPinboardIDs.subtract(staleLocked)
-            persist()
+            persistAndBroadcast()
         }
 
         for staleID in unlockedPinboardIDs.subtracting(validPinboardIDs) {
@@ -142,9 +160,25 @@ final class WatchPinboardLockStateStore {
         }
     }
 
-    private func persist() {
+    private func persistAndBroadcast() {
+        persistLocalState()
+        lockStateSynchronizer?.publish(lockedPinboardIDs: lockedPinboardIDs)
+    }
+
+    private func persistLocalState() {
         let raw = lockedPinboardIDs.map(\.uuidString).sorted()
         userDefaults.set(raw, forKey: WatchDefaults.lockHookPinboardIDsKey)
+    }
+
+    private func applyExternalLockedPinboardIDs(_ ids: Set<UUID>) {
+        guard ids != lockedPinboardIDs else { return }
+        lockedPinboardIDs = ids
+
+        for unlockedID in unlockedPinboardIDs where !ids.contains(unlockedID) {
+            clearUnlockedState(for: unlockedID)
+        }
+
+        persistLocalState()
     }
 
     private static func loadLockedIDs(from userDefaults: UserDefaults) -> Set<UUID> {

@@ -1,3 +1,4 @@
+import CoreData
 import CoreGraphics
 import MartenCore
 import SwiftUI
@@ -17,7 +18,7 @@ enum ImageViewerMode {
 }
 
 struct ImageViewerSheet: View {
-    let item: ClipItem
+    @ObservedObject var item: ClipItem
     var mode: ImageViewerMode = .preview
     var onEdit: (() -> Void)? = nil
     var onSaveEdits: ((Data) -> Void)? = nil
@@ -28,6 +29,8 @@ struct ImageViewerSheet: View {
     @State private var image: ViewerImage?
     @State private var editedImage: ViewerImage?
     @State private var didEditImage = false
+    /// Incremented when a related representation changes so the image task re-fires.
+    @State private var imageRepVersion: Int = 0
 
     @State private var scale: CGFloat = 1
     @GestureState private var gestureScale: CGFloat = 1
@@ -105,8 +108,27 @@ struct ImageViewerSheet: View {
                     editControlsBar
                 }
             }
-            .task(id: item.objectID) {
+            .task(id: imageTaskID) {
                 await loadImage()
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: NSManagedObjectContext.didMergeChangesObjectIDsNotification
+                )
+            ) { notification in
+                // objectWillChange fires only for the ClipItem itself, not its representations.
+                // When inbound sync sets assetRef on a representation, we need to re-fire loadImage.
+                guard let context = item.managedObjectContext else { return }
+                let userInfo = notification.userInfo
+                let updatedIDs = (userInfo?[NSUpdatedObjectIDsKey] as? Set<NSManagedObjectID>) ?? []
+                let insertedIDs = (userInfo?[NSInsertedObjectIDsKey] as? Set<NSManagedObjectID>) ?? []
+                let changed = updatedIDs.union(insertedIDs)
+                guard !changed.isEmpty else { return }
+                context.perform {
+                    let repIDs = (item.representations ?? []).map(\.objectID)
+                    guard repIDs.contains(where: { changed.contains($0) }) else { return }
+                    Task { @MainActor in imageRepVersion += 1 }
+                }
             }
             .accessibilityLabel(item.primaryText ?? "Image")
             .accessibilityHint("Pinch to zoom, drag to pan, double tap to toggle zoom")
@@ -262,6 +284,10 @@ struct ImageViewerSheet: View {
         .buttonStyle(.plain)
         .disabled(!isEnabled)
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var imageTaskID: String {
+        "\(item.objectID.uriRepresentation().absoluteString)-\(imageRepVersion)"
     }
 
     private var displayedImage: ViewerImage? {

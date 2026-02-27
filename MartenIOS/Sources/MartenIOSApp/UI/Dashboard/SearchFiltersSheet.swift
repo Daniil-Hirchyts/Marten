@@ -273,7 +273,7 @@ private struct AppFilterChipButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                SourceAppIconBadge(bundleID: option.bundleID, appName: option.name, iconData: nil, size: 20)
+                SourceAppIconBadge(bundleID: option.bundleID, appName: option.name, iconData: option.iconData, size: 20)
 
                 Text(option.name)
                     .font(.footnote.weight(.medium))

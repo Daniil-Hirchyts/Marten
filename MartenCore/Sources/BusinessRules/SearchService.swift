@@ -42,13 +42,9 @@ final class SearchService {
             }
 
             if !searchRequest.sourceApps.isEmpty {
-                let values = Array(searchRequest.sourceApps)
-                predicates.append(
-                    NSCompoundPredicate(orPredicateWithSubpredicates: [
-                        NSPredicate(format: "sourceAppBundleID IN %@", values),
-                        NSPredicate(format: "sourceAppName IN %@", values),
-                    ])
-                )
+                if let sourceAppPredicate = sourceAppPredicate(searchRequest.sourceApps) {
+                    predicates.append(sourceAppPredicate)
+                }
             }
 
             if let devicePredicate = sourceDevicePredicate(searchRequest.sourceDevices) {
@@ -154,6 +150,30 @@ final class SearchService {
             case .named(let deviceName):
                 return NSPredicate(format: "lastModifiedBy == %@", deviceName)
             }
+        }
+
+        return NSCompoundPredicate(orPredicateWithSubpredicates: predicates)
+    }
+
+    private func sourceAppPredicate(_ filters: Set<String>) -> NSPredicate? {
+        let values = filters
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !values.isEmpty else { return nil }
+
+        var predicates: [NSPredicate] = [
+            NSPredicate(format: "sourceAppBundleID IN %@", values),
+            NSPredicate(format: "sourceAppName IN %@", values),
+        ]
+
+        let includesMarten = values.contains {
+            SourceAppIdentity.isMartenSource(bundleID: $0, appName: $0)
+        }
+        if includesMarten {
+            let canonical = SourceAppIdentity.martenBundleID
+            predicates.append(NSPredicate(format: "sourceAppBundleID ==[c] %@", canonical))
+            predicates.append(NSPredicate(format: "sourceAppBundleID BEGINSWITH[c] %@", canonical + "."))
+            predicates.append(NSPredicate(format: "sourceAppName ==[c] %@", SourceAppIdentity.martenDisplayName))
         }
 
         return NSCompoundPredicate(orPredicateWithSubpredicates: predicates)

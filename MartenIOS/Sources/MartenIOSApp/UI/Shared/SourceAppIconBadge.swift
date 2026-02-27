@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 public struct SourceAppIconBadge: View {
@@ -8,6 +9,7 @@ public struct SourceAppIconBadge: View {
     public var showBackground: Bool = true
 
     @State private var remoteIcon: PlatformImage?
+    private static let martenIconData = MartenSourceIdentity.iconData(for: [Bundle.main])
 
     public init(bundleID: String?, appName: String?, iconData: Data?, size: CGFloat = 30, showBackground: Bool = true) {
         self.bundleID = bundleID
@@ -30,7 +32,22 @@ public struct SourceAppIconBadge: View {
     }
 
     private var embeddedIcon: PlatformImage? {
+        guard !isMarten else { return nil }
         guard let iconData, !iconData.isEmpty else { return nil }
+        #if canImport(UIKit)
+        return UIImage(data: iconData)
+        #elseif canImport(AppKit)
+        return NSImage(data: iconData)
+        #endif
+    }
+
+    private var isMarten: Bool {
+        SourceAppIconDescriptor.isMartenSource(bundleID: bundleID, appName: appName)
+    }
+
+    private var martenIcon: PlatformImage? {
+        guard isMarten else { return nil }
+        guard let iconData = Self.martenIconData, !iconData.isEmpty else { return nil }
         #if canImport(UIKit)
         return UIImage(data: iconData)
         #elseif canImport(AppKit)
@@ -47,7 +64,12 @@ public struct SourceAppIconBadge: View {
                     .fill(descriptor.backgroundColor)
             }
 
-            if let embeddedIcon {
+            if let martenIcon {
+                remoteIconView(martenIcon)
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
+            } else if let embeddedIcon {
                 remoteIconView(embeddedIcon)
                     .scaledToFill()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -74,6 +96,7 @@ public struct SourceAppIconBadge: View {
         .accessibilityHidden(true)
         .task(id: taskID(bundleID: bundleID)) {
             remoteIcon = nil
+            guard !isMarten else { return }
             guard embeddedIcon == nil else { return }
             guard let bundleID else { return }
             let loadedIcon = await SourceAppIconRepository.shared.icon(forBundleID: bundleID)

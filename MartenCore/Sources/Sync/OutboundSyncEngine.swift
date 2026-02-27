@@ -1,4 +1,5 @@
 import CloudKit
+import Combine
 import CoreData
 import Foundation
 
@@ -105,6 +106,24 @@ public struct DefaultOutboundConflictResolver: OutboundConflictResolving {
     public init() {}
 
     public func resolve(localRecord: CKRecord, serverRecord: CKRecord) async throws -> CKRecord {
+        // For ClipItem and Pinboard records, use last-writer-wins based on modifiedAt.
+        // This prevents a stale local record from overwriting a newer server edit on shared pinboards.
+        let modifiedAtKey: String?
+        switch localRecord.cloudRecordType {
+        case .clipItem: modifiedAtKey = ClipItemField.modifiedAt.rawValue
+        case .pinboard: modifiedAtKey = PinboardField.modifiedAt.rawValue
+        default: modifiedAtKey = nil
+        }
+
+        if let key = modifiedAtKey,
+           let localDate = localRecord[key] as? Date,
+           let serverDate = serverRecord[key] as? Date,
+           localDate < serverDate {
+            // Server is newer — return server record unmodified so the conflict clears.
+            return serverRecord
+        }
+
+        // Local is newer (or no timestamp to compare) — apply local keys over server base record.
         for key in localRecord.allKeys() {
             serverRecord[key] = localRecord[key]
         }
@@ -146,6 +165,11 @@ public final class OutboundSyncEngine: @unchecked Sendable {
         var attempts: Int
     }
 
+    private struct PendingAssetAttachmentRetry {
+        var recordID: CKRecord.ID
+        var attempts: Int
+    }
+
     private let persistenceController: PersistenceController
     private let database: OutboundCloudDatabase
     private let zoneID: CKRecordZone.ID
@@ -153,15 +177,23 @@ public final class OutboundSyncEngine: @unchecked Sendable {
     private let configuration: Configuration
     private let isSyncEnabled: @Sendable () -> Bool
     private let conflictResolver: OutboundConflictResolving
+    private let shareZoneRegistry: ShareZoneRegistry?
+    private let assetSyncManager: AssetSyncManager
 
     private let stateQueue = DispatchQueue(label: "com.hirchyts.marten.sync.outbound", qos: .utility)
     private var saveObserver: NSObjectProtocol?
     private var flushTimer: DispatchWorkItem?
     private var pendingSaves: [CKRecord.ID: CKRecord] = [:]
     private var pendingDeletes: Set<CKRecord.ID> = []
+    private var pendingAssetAttachmentRetries: [NSManagedObjectID: PendingAssetAttachmentRetry] = [:]
     private var statusByID: [CKRecord.ID: RecordStatus] = [:]
     private var inFlight: WorkItem?
     private var flushCompletionContinuations: [CheckedContinuation<Void, Never>] = []
+    private let preparationErrorSubject = PassthroughSubject<SyncRecordPreparationError, Never>()
+
+    public var preparationErrorPublisher: AnyPublisher<SyncRecordPreparationError, Never> {
+        preparationErrorSubject.eraseToAnyPublisher()
+    }
 
     public init(
         persistenceController: PersistenceController,
@@ -169,7 +201,9 @@ public final class OutboundSyncEngine: @unchecked Sendable {
         zoneID: CKRecordZone.ID,
         configuration: Configuration = Configuration(),
         isSyncEnabled: @escaping @Sendable () -> Bool = { true },
-        conflictResolver: OutboundConflictResolving = DefaultOutboundConflictResolver()
+        conflictResolver: OutboundConflictResolving = DefaultOutboundConflictResolver(),
+        shareZoneRegistry: ShareZoneRegistry? = nil,
+        assetSyncManager: AssetSyncManager = AssetSyncManager()
     ) {
         self.persistenceController = persistenceController
         self.database = database
@@ -178,6 +212,8 @@ public final class OutboundSyncEngine: @unchecked Sendable {
         self.configuration = configuration
         self.isSyncEnabled = isSyncEnabled
         self.conflictResolver = conflictResolver
+        self.shareZoneRegistry = shareZoneRegistry
+        self.assetSyncManager = assetSyncManager
     }
 
     deinit {
@@ -272,6 +308,37 @@ public final class OutboundSyncEngine: @unchecked Sendable {
         }
     }
 
+    /// Queues all asset-backed representations for one-time re-upload backfill.
+    ///
+    /// Returns the number of representations enqueued.
+    public func enqueueAssetRepresentationBackfill() async -> Int {
+        let context = persistenceController.newBackgroundContext()
+        var objectIDs: [NSManagedObjectID] = []
+
+        context.performAndWait {
+            let request = NSFetchRequest<NSManagedObjectID>(entityName: "ClipRepresentation")
+            request.resultType = .managedObjectIDResultType
+            request.predicate = NSPredicate(format: "assetRef != nil")
+            objectIDs = (try? context.fetch(request)) ?? []
+        }
+
+        guard !objectIDs.isEmpty else { return 0 }
+
+        return await withCheckedContinuation { continuation in
+            stateQueue.async { [weak self] in
+                guard let self else {
+                    continuation.resume(returning: 0)
+                    return
+                }
+                self.enqueueSaveObjectIDs(objectIDs)
+                if self.isSyncEnabled() {
+                    self.scheduleFlush(after: 0)
+                }
+                continuation.resume(returning: objectIDs.count)
+            }
+        }
+    }
+
     /// Fetches ClipItems with modifiedAt >= `date` and enqueues them for upload.
     /// Use when extensions have written items while the main app was suspended.
     public func enqueueItems(modifiedSince date: Date) async {
@@ -333,7 +400,10 @@ public final class OutboundSyncEngine: @unchecked Sendable {
         return coordinator == persistenceController.container.persistentStoreCoordinator
     }
 
-    private func enqueueSaveObjectIDs(_ objectIDs: [NSManagedObjectID]) {
+    private func enqueueSaveObjectIDs(
+        _ objectIDs: [NSManagedObjectID],
+        previousAttachmentRetryAttempts: [NSManagedObjectID: Int] = [:]
+    ) {
         guard !objectIDs.isEmpty else { return }
 
         let context = persistenceController.newBackgroundContext()
@@ -343,21 +413,32 @@ public final class OutboundSyncEngine: @unchecked Sendable {
 
         context.performAndWait {
             let allCustomPinboardIDs = fetchAllCustomPinboardIDs(in: context)
+            let allPrivateCustomPinboardIDs = fetchAllPrivateCustomPinboardIDs(in: context)
 
             for objectID in objectIDs {
                 guard let entityName = objectID.entity.name else { continue }
                 guard let object = try? context.existingObject(with: objectID) else { continue }
 
                 if entityName == "ClipItem", let item = object as? ClipItem {
+                    if shouldRouteThroughShared(item: item) {
+                        enqueuePrivateStaleDeletes(
+                            for: item,
+                            candidatePinboardIDs: allCustomPinboardIDs
+                        )
+                        continue
+                    }
+
                     records.append(mapper.mapToRecord(item))
 
                     let currentCustomPinboardIDs = Set(
                         (item.pinboards ?? [])
-                            .filter { !$0.isSystemMarten }
+                            .filter { !$0.isSystemMarten && !$0.isShared }
                             .map(\.id)
                     )
-                    membershipRecords.append(contentsOf: mapper.mapPinboardMemberships(for: item))
-                    for pinboardID in allCustomPinboardIDs.subtracting(currentCustomPinboardIDs) {
+                    membershipRecords.append(
+                        contentsOf: mapPrivatePinboardMemberships(for: item)
+                    )
+                    for pinboardID in allPrivateCustomPinboardIDs.subtracting(currentCustomPinboardIDs) {
                         membershipDeleteIDs.insert(
                             .membershipID(
                                 clipItemID: item.id,
@@ -370,12 +451,36 @@ public final class OutboundSyncEngine: @unchecked Sendable {
                 }
 
                 if entityName == "ClipRepresentation", let rep = object as? ClipRepresentation {
+                    guard let parent = rep.clipItem else { continue }
+                    if shouldRouteThroughShared(item: parent) {
+                        enqueueDelete(recordID: .clipRepresentationID(rep.id, zoneID: zoneID))
+                        continue
+                    }
                     guard let parentID = rep.clipItem?.id else { continue }
-                    records.append(mapper.mapToRecord(rep, parentItemID: parentID))
+                    let record = mapper.mapToRecord(rep, parentItemID: parentID)
+                    let previousAttempts = previousAttachmentRetryAttempts[objectID] ?? 0
+                    do {
+                        try assetSyncManager.attachAssetIfNeededSync(from: rep, to: record)
+                    } catch {
+                        handleRepresentationAttachmentFailure(
+                            objectID: objectID,
+                            representationID: rep.id,
+                            recordID: record.recordID,
+                            previousAttempts: previousAttempts,
+                            error: error
+                        )
+                        continue
+                    }
+                    records.append(record)
                     continue
                 }
 
                 if entityName == "LinkPreview", let preview = object as? LinkPreview {
+                    guard let parent = preview.clipItem else { continue }
+                    if shouldRouteThroughShared(item: parent) {
+                        enqueueDelete(recordID: .linkPreviewID(preview.id, zoneID: zoneID))
+                        continue
+                    }
                     guard let parentID = preview.clipItem?.id else { continue }
                     records.append(mapper.mapToRecord(preview, parentItemID: parentID))
                     continue
@@ -383,6 +488,10 @@ public final class OutboundSyncEngine: @unchecked Sendable {
 
                 if entityName == "Pinboard", let pinboard = object as? Pinboard {
                     guard !pinboard.isSystemMarten else { continue }
+                    if shouldRouteThroughShared(pinboard: pinboard) {
+                        enqueuePrivateStaleDeletes(for: pinboard)
+                        continue
+                    }
                     records.append(mapper.mapToRecord(pinboard))
                     continue
                 }
@@ -401,6 +510,71 @@ public final class OutboundSyncEngine: @unchecked Sendable {
         enqueueDeleteRecordIDs(staleMembershipDeleteIDs)
     }
 
+    private func handleRepresentationAttachmentFailure(
+        objectID: NSManagedObjectID,
+        representationID: UUID,
+        recordID: CKRecord.ID,
+        previousAttempts: Int,
+        error: Error
+    ) {
+        let baseAttempts = max(
+            previousAttempts,
+            pendingAssetAttachmentRetries[objectID]?.attempts ?? 0
+        )
+        let nextAttempts = baseAttempts + 1
+        let reason = localizedReason(for: error)
+
+        preparationErrorSubject.send(
+            .assetAttachmentFailed(
+                engine: "OutboundSyncEngine",
+                representationID: representationID,
+                reason: reason
+            )
+        )
+
+        if nextAttempts >= configuration.maxRetries {
+            pendingAssetAttachmentRetries.removeValue(forKey: objectID)
+            statusByID[recordID] = .failed
+            return
+        }
+
+        pendingAssetAttachmentRetries[objectID] = PendingAssetAttachmentRetry(
+            recordID: recordID,
+            attempts: nextAttempts
+        )
+        statusByID[recordID] = .pending
+
+        guard isSyncEnabled() else { return }
+        guard pendingSaves.isEmpty, pendingDeletes.isEmpty, inFlight == nil else { return }
+        scheduleFlush(after: attachmentRetryDelay(forAttempt: nextAttempts))
+    }
+
+    private func processPendingAttachmentRetries() {
+        guard !pendingAssetAttachmentRetries.isEmpty else { return }
+
+        let retries = pendingAssetAttachmentRetries
+        pendingAssetAttachmentRetries.removeAll()
+
+        let previousAttemptsByObjectID = Dictionary(
+            uniqueKeysWithValues: retries.map { key, value in
+                (key, value.attempts)
+            }
+        )
+        enqueueSaveObjectIDs(
+            Array(retries.keys),
+            previousAttachmentRetryAttempts: previousAttemptsByObjectID
+        )
+    }
+
+    private func attachmentRetryDelay(forAttempt attempt: Int) -> TimeInterval {
+        configuration.retryBackoff * pow(2.0, Double(max(0, attempt - 1)))
+    }
+
+    private func localizedReason(for error: Error) -> String {
+        let message = (error as NSError).localizedDescription
+        return message.isEmpty ? String(describing: error) : message
+    }
+
     private func enqueueDeleteRecordIDs(_ recordIDs: Set<CKRecord.ID>) {
         guard !recordIDs.isEmpty else { return }
         for recordID in recordIDs {
@@ -413,6 +587,9 @@ public final class OutboundSyncEngine: @unchecked Sendable {
 
         for object in objects {
             if let item = object as? ClipItem {
+                if shouldRouteThroughShared(item: item) {
+                    continue
+                }
                 recordIDs.insert(.clipItemID(item.id, zoneID: zoneID))
                 if let reps = item.representations {
                     for rep in reps {
@@ -434,11 +611,20 @@ public final class OutboundSyncEngine: @unchecked Sendable {
                     }
                 }
             } else if let rep = object as? ClipRepresentation {
+                if let parent = rep.clipItem, shouldRouteThroughShared(item: parent) {
+                    continue
+                }
                 recordIDs.insert(.clipRepresentationID(rep.id, zoneID: zoneID))
             } else if let preview = object as? LinkPreview {
+                if let parent = preview.clipItem, shouldRouteThroughShared(item: parent) {
+                    continue
+                }
                 recordIDs.insert(.linkPreviewID(preview.id, zoneID: zoneID))
             } else if let pinboard = object as? Pinboard {
                 guard !pinboard.isSystemMarten else { continue }
+                if shouldRouteThroughShared(pinboard: pinboard) {
+                    continue
+                }
                 recordIDs.insert(.pinboardID(pinboard.id, zoneID: zoneID))
 
                 if let items = pinboard.items {
@@ -465,6 +651,78 @@ public final class OutboundSyncEngine: @unchecked Sendable {
         return Set(pinboards.map(\.id))
     }
 
+    private func fetchAllPrivateCustomPinboardIDs(in context: NSManagedObjectContext) -> Set<UUID> {
+        let request = Pinboard.fetchRequest()
+        request.predicate = NSPredicate(format: "isSystemMarten == NO AND shareMetadata == nil")
+        let pinboards = (try? context.fetch(request)) ?? []
+        return Set(pinboards.map(\.id))
+    }
+
+    private func mapPrivatePinboardMemberships(for item: ClipItem) -> [CKRecord] {
+        guard let pinboards = item.pinboards else { return [] }
+
+        return pinboards.compactMap { pinboard -> CKRecord? in
+            guard !pinboard.isSystemMarten, !pinboard.isShared else { return nil }
+            let membershipID = CKRecord.ID.deterministicMembershipUUID(
+                clipItemID: item.id,
+                pinboardID: pinboard.id
+            )
+            let membership = CloudRecordMapper.PinboardMembershipData(
+                id: membershipID,
+                clipItemID: item.id,
+                pinboardID: pinboard.id
+            )
+            return mapper.mapToRecord(membership)
+        }
+    }
+
+    private func shouldRouteThroughShared(item: ClipItem) -> Bool {
+        guard let shareZoneRegistry else { return false }
+        let routing = shareZoneRegistry.routingInfo(for: item)
+        return routing.database != .privateDB || routing.zoneID != zoneID
+    }
+
+    private func shouldRouteThroughShared(pinboard: Pinboard) -> Bool {
+        guard let shareZoneRegistry else { return false }
+        let routing = shareZoneRegistry.routingInfo(for: pinboard)
+        return routing.database != .privateDB || routing.zoneID != zoneID
+    }
+
+    private func enqueuePrivateStaleDeletes(for pinboard: Pinboard) {
+        enqueueDelete(recordID: .pinboardID(pinboard.id, zoneID: zoneID))
+        guard let items = pinboard.items else { return }
+        for item in items {
+            enqueueDelete(
+                recordID: .membershipID(
+                    clipItemID: item.id,
+                    pinboardID: pinboard.id,
+                    zoneID: zoneID
+                )
+            )
+        }
+    }
+
+    private func enqueuePrivateStaleDeletes(for item: ClipItem, candidatePinboardIDs: Set<UUID>) {
+        enqueueDelete(recordID: .clipItemID(item.id, zoneID: zoneID))
+        if let representations = item.representations {
+            for representation in representations {
+                enqueueDelete(recordID: .clipRepresentationID(representation.id, zoneID: zoneID))
+            }
+        }
+        if let preview = item.linkPreview {
+            enqueueDelete(recordID: .linkPreviewID(preview.id, zoneID: zoneID))
+        }
+        for pinboardID in candidatePinboardIDs {
+            enqueueDelete(
+                recordID: .membershipID(
+                    clipItemID: item.id,
+                    pinboardID: pinboardID,
+                    zoneID: zoneID
+                )
+            )
+        }
+    }
+
     private func enqueueDelete(recordID: CKRecord.ID) {
         pendingSaves.removeValue(forKey: recordID)
         pendingDeletes.insert(recordID)
@@ -487,6 +745,9 @@ public final class OutboundSyncEngine: @unchecked Sendable {
         stateQueue.async { [weak self] in
             guard let self else { return }
             guard self.inFlight == nil else { return }
+
+            self.processPendingAttachmentRetries()
+
             guard !self.pendingSaves.isEmpty || !self.pendingDeletes.isEmpty else { return }
 
             let work = WorkItem(

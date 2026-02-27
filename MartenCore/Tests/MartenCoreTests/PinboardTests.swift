@@ -83,4 +83,70 @@ final class PinboardTests: XCTestCase {
         XCTAssertEqual(customPinboards.count, 1)
         XCTAssertEqual(customPinboards.first?.objectID, pinboardA.objectID)
     }
+
+    func testDeleteUserPinboardsKeepsSharedPinboards() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let viewContext = persistence.viewContext
+
+        let privatePinboard = try store.createPinboard(name: "Private", colorHex: "#111111")
+        let sharedPinboard = try store.createPinboard(name: "Shared", colorHex: "#222222")
+
+        try viewContext.performAndWaitThrowing {
+            guard
+                let editableShared = try viewContext.existingObject(with: sharedPinboard.objectID) as? Pinboard,
+                let metadata = NSEntityDescription.insertNewObject(
+                    forEntityName: "ShareMetadata",
+                    into: viewContext
+                ) as? ShareMetadata
+            else {
+                XCTFail("Failed to set up shared pinboard metadata")
+                return
+            }
+
+            metadata.id = UUID()
+            metadata.shareRecordName = "share-\(UUID().uuidString)"
+            metadata.rootRecordName = "root-\(UUID().uuidString)"
+            metadata.zoneName = "SharedPinboard-\(UUID().uuidString)"
+            metadata.zoneOwnerName = "owner"
+            metadata.isOwner = false
+            metadata.accessControlRaw = ShareAccessControl.onlyInvited.rawValue
+            metadata.defaultPermissionRaw = SharePermission.canMakeChanges.rawValue
+            metadata.pinboard = editableShared
+            editableShared.shareMetadata = metadata
+
+            try viewContext.save()
+        }
+
+        try store.deleteUserPinboards()
+
+        let remaining = try store.fetchPinboards()
+        XCTAssertNil(remaining.first(where: { $0.objectID == privatePinboard.objectID }))
+        XCTAssertNotNil(remaining.first(where: { $0.objectID == sharedPinboard.objectID }))
+    }
+
+    func testDeleteUserPinboardsKeepsTokenBackedPinboards() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let viewContext = persistence.viewContext
+
+        let privatePinboard = try store.createPinboard(name: "Private", colorHex: "#111111")
+        let tokenPinboard = try store.createPinboard(name: "Token", colorHex: "#333333")
+
+        try viewContext.performAndWaitThrowing {
+            guard let editableToken = try viewContext.existingObject(with: tokenPinboard.objectID) as? Pinboard else {
+                XCTFail("Failed to load token pinboard")
+                return
+            }
+
+            editableToken.shareToken = "token-v1"
+            try viewContext.save()
+        }
+
+        try store.deleteUserPinboards()
+
+        let remaining = try store.fetchPinboards()
+        XCTAssertNil(remaining.first(where: { $0.objectID == privatePinboard.objectID }))
+        XCTAssertNotNil(remaining.first(where: { $0.objectID == tokenPinboard.objectID }))
+    }
 }

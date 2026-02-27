@@ -1,5 +1,6 @@
 import Foundation
 import LocalAuthentication
+import MartenCore
 import SwiftUI
 
 protocol PinboardAuthenticationProviding {
@@ -33,21 +34,35 @@ final class PinboardLockController: ObservableObject {
 
     private let userDefaults: UserDefaults
     private let authenticator: PinboardAuthenticationProviding
+    private let lockStateSynchronizer: (any PinboardLockStateSynchronizing)?
     private let transitionAnimation = Animation.easeInOut(duration: 0.2)
     private var unlockExpirations: [UUID: Date] = [:]
     private var expirationTasks: [UUID: Task<Void, Never>] = [:]
 
     init(
         userDefaults: UserDefaults = .standard,
-        authenticator: PinboardAuthenticationProviding = DeviceOwnerAuthenticationProvider()
+        authenticator: PinboardAuthenticationProviding = DeviceOwnerAuthenticationProvider(),
+        lockStateSynchronizer: (any PinboardLockStateSynchronizing)? = ICloudLockStateSynchronizer()
     ) {
+        PinboardSecuritySettings.migrateLockedPinboardIDsIfNeeded(userDefaults)
+        let persistedLockedIDs = Self.loadLockedPinboardIDs(from: userDefaults)
+        let synchronizedIDs = lockStateSynchronizer?.latestLockedPinboardIDs()
+
         self.userDefaults = userDefaults
         self.authenticator = authenticator
-        self.lockedPinboardIDs = Self.loadLockedPinboardIDs(from: userDefaults)
-    }
+        self.lockStateSynchronizer = lockStateSynchronizer
+        self.lockedPinboardIDs = synchronizedIDs ?? persistedLockedIDs
 
-    deinit {
-        expirationTasks.values.forEach { $0.cancel() }
+        persistLockedPinboardIDsLocally()
+        if synchronizedIDs == nil {
+            lockStateSynchronizer?.publish(lockedPinboardIDs: lockedPinboardIDs)
+        }
+
+        lockStateSynchronizer?.startObserving { [weak self] lockedIDs in
+            Task { @MainActor [weak self] in
+                self?.applyExternalLockedPinboardIDs(lockedIDs)
+            }
+        }
     }
 
     func isLocked(pinboardID: UUID) -> Bool {
@@ -78,7 +93,7 @@ final class PinboardLockController: ObservableObject {
                 clearUnlockedState(for: pinboardID)
             }
         }
-        persistLockedPinboardIDs()
+        persistLockedPinboardIDsAndBroadcast()
     }
 
     func lockNow(pinboardID: UUID) {
@@ -122,7 +137,7 @@ final class PinboardLockController: ObservableObject {
             withAnimation(transitionAnimation) {
                 lockedPinboardIDs.subtract(staleLocked)
             }
-            persistLockedPinboardIDs()
+            persistLockedPinboardIDsAndBroadcast()
         }
 
         for staleID in unlockedPinboardIDs.subtracting(validIDs) {
@@ -187,9 +202,28 @@ final class PinboardLockController: ObservableObject {
         return PinboardSecuritySettings.clampedUnlockDuration(configured)
     }
 
-    private func persistLockedPinboardIDs() {
+    private func persistLockedPinboardIDsAndBroadcast() {
+        persistLockedPinboardIDsLocally()
+        lockStateSynchronizer?.publish(lockedPinboardIDs: lockedPinboardIDs)
+    }
+
+    private func persistLockedPinboardIDsLocally() {
         let raw = lockedPinboardIDs.map(\.uuidString).sorted()
         userDefaults.set(raw, forKey: PinboardSecuritySettings.lockedPinboardIDsKey)
+    }
+
+    private func applyExternalLockedPinboardIDs(_ ids: Set<UUID>) {
+        guard ids != lockedPinboardIDs else { return }
+
+        withAnimation(transitionAnimation) {
+            lockedPinboardIDs = ids
+        }
+
+        for unlockedID in unlockedPinboardIDs where !ids.contains(unlockedID) {
+            clearUnlockedState(for: unlockedID)
+        }
+
+        persistLockedPinboardIDsLocally()
     }
 
     private static func loadLockedPinboardIDs(from userDefaults: UserDefaults) -> Set<UUID> {

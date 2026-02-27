@@ -184,6 +184,54 @@ final class SearchTests: XCTestCase {
         XCTAssertEqual(results.first?.objectID, notesItem.objectID)
     }
 
+    func testSearchRequestMartenFilterMatchesCanonicalAndLegacyVariants() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+
+        let canonical = try store.createTextItem(
+            text: "Canonical Marten",
+            sourceApp: SourceAppInfo(
+                bundleID: SourceAppIdentity.martenBundleID,
+                name: SourceAppIdentity.martenDisplayName
+            ),
+            isUserCreated: true
+        )
+        let watchVariant = try store.createTextItem(
+            text: "Watch Variant",
+            sourceApp: SourceAppInfo(
+                bundleID: "com.hirchyts.marten.watch",
+                name: SourceAppIdentity.martenDisplayName
+            ),
+            isUserCreated: true
+        )
+        let nameOnly = try store.createTextItem(
+            text: "Name Only",
+            sourceApp: SourceAppInfo(
+                bundleID: nil,
+                name: SourceAppIdentity.martenDisplayName
+            ),
+            isUserCreated: true
+        )
+        _ = try store.createTextItem(
+            text: "Other App",
+            sourceApp: SourceAppInfo(bundleID: "com.apple.notes", name: "Notes"),
+            isUserCreated: true
+        )
+
+        let results = try store.searchItems(
+            request: ClipItemSearchRequest(
+                sourceApps: [SourceAppIdentity.martenBundleID],
+                limit: 20
+            )
+        )
+
+        let resultIDs = Set(results.map(\.objectID))
+        XCTAssertTrue(resultIDs.contains(canonical.objectID))
+        XCTAssertTrue(resultIDs.contains(watchVariant.objectID))
+        XCTAssertTrue(resultIDs.contains(nameOnly.objectID))
+        XCTAssertEqual(results.count, 3)
+    }
+
     private func mutate(_ item: ClipItem, _ changes: (ClipItem) -> Void) throws {
         guard let context = item.managedObjectContext else { return }
         try context.performAndWaitThrowing {

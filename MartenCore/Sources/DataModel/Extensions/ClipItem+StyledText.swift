@@ -44,9 +44,24 @@ public extension ClipItem {
         kind: RepresentationKind,
         removingTextColors: Bool
     ) -> NSAttributedString? {
+        let payloadData: Data?
+        if let representation = representations.first(where: { $0.kindValue == kind }) {
+            if let inlineData = representation.binaryData ?? representation.textData {
+                payloadData = inlineData
+            } else if let assetRef = representation.assetRef {
+                payloadData = try? AssetStore.shared.load(
+                    assetRef: assetRef,
+                    fileExtension: representation.fileExtension
+                )
+            } else {
+                payloadData = nil
+            }
+        } else {
+            payloadData = nil
+        }
+
         guard
-            let representation = representations.first(where: { $0.kindValue == kind }),
-            let data = representation.binaryData ?? representation.textData,
+            let data = payloadData,
             let attributed = NSAttributedString.clipboardAttributedString(from: data, kind: kind)
         else {
             return nil

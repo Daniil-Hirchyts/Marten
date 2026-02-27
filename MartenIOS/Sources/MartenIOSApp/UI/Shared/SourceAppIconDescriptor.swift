@@ -1,4 +1,5 @@
 import Foundation
+import MartenCore
 import SwiftUI
 
 public struct SourceAppIconDescriptor: Equatable {
@@ -18,6 +19,12 @@ public struct SourceAppIconDescriptor: Equatable {
     public var foregroundColor: Color {
         let normalized = ColorHex.normalizedHex(from: backgroundHex) ?? "#808080"
         return ColorHex.foregroundColor(for: normalized)
+    }
+
+    public static let martenBundlePrefix = SourceAppIdentity.martenBundleID
+
+    public static func isMartenSource(bundleID: String?, appName: String?) -> Bool {
+        SourceAppIdentity.isMartenSource(bundleID: bundleID, appName: appName)
     }
 
     public static func resolve(bundleID: String?, appName: String?) -> SourceAppIconDescriptor {

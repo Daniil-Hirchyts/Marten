@@ -11,6 +11,10 @@ enum WatchCommandError: Error, Sendable, Equatable {
 actor WatchCommandService {
     private let store: ClipItemStore
     private let persistenceController: PersistenceController
+    private let martenSourceApp = SourceAppInfo(
+        bundleID: SourceAppIdentity.martenBundleID,
+        name: SourceAppIdentity.martenDisplayName
+    )
 
     init(store: ClipItemStore, persistenceController: PersistenceController) {
         self.store = store
@@ -23,10 +27,7 @@ actor WatchCommandService {
 
         _ = try store.createTextItem(
             text: trimmed,
-            sourceApp: SourceAppInfo(
-                bundleID: "com.hirchyts.marten.watch",
-                name: "Marten Watch"
-            ),
+            sourceApp: martenSourceApp,
             isUserCreated: true
         )
     }
@@ -37,10 +38,7 @@ actor WatchCommandService {
 
         let item = try store.createTextItem(
             text: trimmed,
-            sourceApp: SourceAppInfo(
-                bundleID: "com.hirchyts.marten.watch",
-                name: "Marten Watch"
-            ),
+            sourceApp: martenSourceApp,
             isUserCreated: true
         )
         return item.id

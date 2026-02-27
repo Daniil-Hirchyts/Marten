@@ -99,7 +99,27 @@ final class AssetManagementService {
             if let representations = item.representations {
                 for rep in representations {
                     if rep.kindValue == .png || rep.kindValue == .jpeg || rep.kindValue == .tiff {
-                        rep.binaryData = imageData
+                        let extensionOverride: String = {
+                            if let ext = rep.fileExtension, !ext.isEmpty {
+                                return ext
+                            }
+                            switch rep.kindValue {
+                            case .jpeg: return "jpg"
+                            case .tiff: return "tiff"
+                            default: return "png"
+                            }
+                        }()
+
+                        if let existingRef = rep.assetRef {
+                            try? assetStore.delete(assetRef: existingRef, fileExtension: rep.fileExtension)
+                        }
+
+                        rep.assetRef = try assetStore.store(
+                            data: imageData,
+                            fileExtension: extensionOverride
+                        )
+                        rep.fileExtension = extensionOverride
+                        rep.binaryData = nil
                         rep.byteCount = Int64(imageData.count)
                     }
                 }

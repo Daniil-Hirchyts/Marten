@@ -1,6 +1,19 @@
 import CloudKit
 import Foundation
 
+/// Errors that can occur while preparing records before CloudKit upload.
+public enum SyncRecordPreparationError: Error, LocalizedError, Sendable {
+    case assetAttachmentFailed(engine: String, representationID: UUID, reason: String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .assetAttachmentFailed(let engine, let representationID, let reason):
+            return
+                "\(engine) failed to attach asset for representation \(representationID.uuidString): \(reason)"
+        }
+    }
+}
+
 /// Errors that can occur during CloudKit sync operations.
 public enum CloudKitSyncError: Error, LocalizedError, Sendable {
     /// The CloudKit container is not available.

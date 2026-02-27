@@ -193,6 +193,7 @@ final class CloudRecordMapperTests: XCTestCase {
         XCTAssertFalse(record.bool(for: PinboardField.isSystemMarten.rawValue))
         XCTAssertNotNil(record.date(for: PinboardField.createdAt.rawValue))
         XCTAssertEqual(record.string(for: PinboardField.iconName.rawValue), "star.fill")
+        XCTAssertEqual(record.string(for: PinboardField.shareToken.rawValue), "token-test-value")
     }
 
     func testPinboardFromRecord() throws {
@@ -207,6 +208,7 @@ final class CloudRecordMapperTests: XCTestCase {
         XCTAssertEqual(pinboard.sortOrder, 5)
         XCTAssertFalse(pinboard.isSystemMarten)
         XCTAssertEqual(pinboard.iconName, "folder.fill")
+        XCTAssertEqual(pinboard.shareToken, "token-remote-value")
     }
 
     func testPinboardRoundTrip() throws {
@@ -222,6 +224,7 @@ final class CloudRecordMapperTests: XCTestCase {
         XCTAssertEqual(restored.sortOrder, original.sortOrder)
         XCTAssertEqual(restored.isSystemMarten, original.isSystemMarten)
         XCTAssertEqual(restored.iconName, original.iconName)
+        XCTAssertEqual(restored.shareToken, original.shareToken)
     }
 
     // MARK: - PinboardMembership Mapping Tests
@@ -450,6 +453,7 @@ final class CloudRecordMapperTests: XCTestCase {
         pinboard.isSystemMarten = false
         pinboard.createdAt = Date()
         pinboard.iconName = "star.fill"
+        pinboard.shareToken = "token-test-value"
         return pinboard
     }
 
@@ -519,6 +523,7 @@ final class CloudRecordMapperTests: XCTestCase {
         record.setBool(false, for: PinboardField.isSystemMarten.rawValue)
         record.setDate(Date(), for: PinboardField.createdAt.rawValue)
         record.setString("folder.fill", for: PinboardField.iconName.rawValue)
+        record.setString("token-remote-value", for: PinboardField.shareToken.rawValue)
 
         return record
     }

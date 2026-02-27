@@ -81,10 +81,10 @@ final class ShareLifecycleTests: XCTestCase {
 
     // MARK: - Feature Flag
 
-    func testFeatureFlagDefaultsToDisabled() {
+    func testFeatureFlagDefaultsToEnabled() {
         // Clear any existing value
         UserDefaults.standard.removeObject(forKey: SharedPinboardsFeatureFlag.key)
-        XCTAssertFalse(SharedPinboardsFeatureFlag.isEnabled)
+        XCTAssertTrue(SharedPinboardsFeatureFlag.isEnabled)
     }
 
     func testFeatureFlagCanBeEnabled() {

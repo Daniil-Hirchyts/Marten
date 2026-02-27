@@ -104,16 +104,18 @@ final class OverlaySearchViewModel: ObservableObject {
                     continue
                 }
             }
-            guard let key = appFilterKey(for: item) else { continue }
-            let name = (item.sourceAppName?.isEmpty == false) ? (item.sourceAppName ?? key) : key
-            hasher.combine(key)
-            hasher.combine(name)
-            hasher.combine(item.sourceAppBundleID)
+            guard let identity = sourceAppFilterIdentity(for: item) else { continue }
+            hasher.combine(identity.id)
+            hasher.combine(identity.name)
+            hasher.combine(identity.bundleID)
             count += 1
 
-            if options[key] == nil {
-                options[key] = AppFilterOption(
-                    id: key, name: name, bundleID: item.sourceAppBundleID)
+            if options[identity.id] == nil {
+                options[identity.id] = AppFilterOption(
+                    id: identity.id,
+                    name: identity.name,
+                    bundleID: identity.bundleID
+                )
             }
         }
         hasher.combine(count)
@@ -179,12 +181,41 @@ final class OverlaySearchViewModel: ObservableObject {
     }
 
     private func appFilterKey(for item: ClipItem) -> String? {
-        if let bundleID = item.sourceAppBundleID, !bundleID.isEmpty {
-            return bundleID
+        sourceAppFilterIdentity(for: item)?.id
+    }
+
+    private func sourceAppFilterIdentity(for item: ClipItem) -> (id: String, name: String, bundleID: String?)? {
+        let trimmedName = item.sourceAppName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasName = trimmedName?.isEmpty == false
+        let resolvedBundle = SourceAppIdentity.resolvedBundleID(
+            bundleID: item.sourceAppBundleID,
+            appName: item.sourceAppName
+        )
+
+        if SourceAppIdentity.isMartenSource(bundleID: item.sourceAppBundleID, appName: item.sourceAppName) {
+            return (
+                id: SourceAppIdentity.martenBundleID,
+                name: SourceAppIdentity.martenDisplayName,
+                bundleID: SourceAppIdentity.martenBundleID
+            )
         }
-        if let name = item.sourceAppName, !name.isEmpty {
-            return name
+
+        if let resolvedBundle {
+            return (
+                id: resolvedBundle,
+                name: hasName ? (trimmedName ?? resolvedBundle) : resolvedBundle,
+                bundleID: resolvedBundle
+            )
         }
+
+        if let trimmedName, !trimmedName.isEmpty {
+            return (
+                id: trimmedName,
+                name: trimmedName,
+                bundleID: nil
+            )
+        }
+
         return nil
     }
 }

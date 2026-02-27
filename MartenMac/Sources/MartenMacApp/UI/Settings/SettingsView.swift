@@ -133,7 +133,7 @@ struct SettingsView: View {
                 Group {
                     switch currentTab {
                     case .general:
-                        GeneralSettingsContent()
+                        GeneralSettingsContent(syncCoordinator: syncCoordinator)
                     case .shortcuts:
                         ShortcutsSettingsContent()
                     case .privacy:

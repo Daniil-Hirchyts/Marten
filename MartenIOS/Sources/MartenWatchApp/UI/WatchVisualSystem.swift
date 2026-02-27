@@ -13,7 +13,6 @@ enum WatchVisualSystem {
     static let sectionSpacing: CGFloat = 8
     static let cardPadding: CGFloat = 10
     static let cornerRadius: CGFloat = 16
-    static let itemCardHeight: CGFloat = 106
     static let itemPreviewHeight: CGFloat = 34
     static let floatingActionInset: CGFloat = 2
     static let floatingActionBottomInset: CGFloat = 10

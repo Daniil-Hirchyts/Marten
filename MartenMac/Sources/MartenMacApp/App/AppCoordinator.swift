@@ -68,6 +68,7 @@ public final class AppCoordinator: SettingsOpening {
                 PinboardSecuritySettings.unlockDurationSecondsKey: PinboardSecuritySettings.defaultUnlockDurationSeconds,
             ]
         )
+        SharedPinboardsFeatureFlag.registerDefaults(.standard)
 
         applyDockIconPolicy()
 
