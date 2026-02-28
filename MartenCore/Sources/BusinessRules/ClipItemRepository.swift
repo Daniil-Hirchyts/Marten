@@ -1,6 +1,7 @@
 import CoreData
 import Foundation
 import OSLog
+import UniformTypeIdentifiers
 
 public struct SourceAppInfo: Sendable {
     public let bundleID: String?
@@ -977,6 +978,67 @@ final class ClipItemRepository {
         return totalUpdated
     }
 
+    /// Recomputes content hashes for legacy asset-backed items that were hashed from
+    /// placeholder titles such as "Image" instead of their binary payload.
+    @discardableResult
+    func backfillBinaryContentHashes() throws -> Int {
+        let context = persistence.newBackgroundContext()
+        var updatedCount = 0
+
+        try context.performAndWaitThrowing {
+            let request = NSFetchRequest<NSManagedObjectID>(entityName: "ClipItem")
+            request.resultType = .managedObjectIDResultType
+            request.fetchBatchSize = 50
+            request.predicate = NSCompoundPredicate(orPredicateWithSubpredicates: [
+                NSPredicate(format: "ANY representations.assetRef != nil"),
+                NSPredicate(format: "ANY representations.binaryData != nil"),
+            ])
+
+            let objectIDs = try context.fetch(request)
+
+            for (index, objectID) in objectIDs.enumerated() {
+                guard let item = try context.existingObject(with: objectID) as? ClipItem else {
+                    continue
+                }
+
+                let hashingPayloads = representationPayloadsForHashing(from: item)
+                guard !hashingPayloads.isEmpty else { continue }
+
+                let recomputedHash = try deduplicationService.computeContentHash(
+                    primaryText: item.primaryText,
+                    representations: hashingPayloads
+                )
+
+                guard recomputedHash != item.contentHash else { continue }
+
+                if let existing = try deduplicationService.fetchExistingItem(hash: recomputedHash, in: context),
+                   existing.objectID != item.objectID {
+                    continue
+                }
+
+                item.contentHash = recomputedHash
+                updatedCount += 1
+
+                if (index + 1).isMultiple(of: 50), context.hasChanges {
+                    try context.save()
+                    context.reset()
+                }
+            }
+
+            if context.hasChanges {
+                try context.save()
+            }
+        }
+
+        if updatedCount > 0 {
+            Self.logger.notice(
+                "backfillBinaryContentHashes updated \(updatedCount, privacy: .public) items"
+            )
+        }
+
+        return updatedCount
+    }
+
     /// Migrates syncable binary payloads from inline `binaryData` storage to `assetRef` files.
     /// Returns the number of representations migrated.
     @discardableResult
@@ -1046,6 +1108,158 @@ final class ClipItemRepository {
         }
 
         return migratedCount
+    }
+
+    /// Repairs legacy iOS image items that were stored as `.fileURL` representations pointing
+    /// to temporary local files instead of syncable image assets.
+    ///
+    /// Returns the number of representations converted to asset-backed image payloads.
+    @discardableResult
+    func backfillImageFileURLRepresentations() throws -> Int {
+        let context = persistence.newBackgroundContext()
+        var repairedCount = 0
+        let candidatePredicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "kind == %d", RepresentationKind.fileURL.rawValue),
+            NSPredicate(format: "clipItem.itemType == %d", ItemType.image.rawValue),
+            NSPredicate(format: "assetRef == nil"),
+        ])
+
+        try context.performAndWaitThrowing {
+            while true {
+                let idRequest = NSFetchRequest<NSManagedObjectID>(entityName: "ClipRepresentation")
+                idRequest.resultType = .managedObjectIDResultType
+                idRequest.predicate = candidatePredicate
+                idRequest.fetchLimit = 25
+                idRequest.fetchBatchSize = 25
+
+                let objectIDs = try context.fetch(idRequest)
+                guard !objectIDs.isEmpty else { break }
+
+                for objectID in objectIDs {
+                    guard
+                        let representation = try context.existingObject(with: objectID)
+                            as? ClipRepresentation,
+                        let item = representation.clipItem,
+                        let sourceURL = resolvedLegacyImageFileURL(for: representation),
+                        let imageType = inferredImageType(for: sourceURL, fallbackUTI: representation.uti),
+                        imageType.conforms(to: .image),
+                        let imageData = loadDataFromResolvedFileURL(sourceURL),
+                        !imageData.isEmpty
+                    else {
+                        continue
+                    }
+
+                    let (kind, fileExtension) = normalizedImageRepresentationMetadata(
+                        type: imageType,
+                        sourceURL: sourceURL
+                    )
+
+                    representation.kindValue = kind
+                    representation.uti = imageType.identifier
+                    representation.fileExtension = fileExtension
+                    representation.textData = nil
+                    try storeBinaryPayload(
+                        imageData,
+                        for: representation,
+                        kind: kind,
+                        fileExtension: fileExtension
+                    )
+                    representation.byteCount = Int64(imageData.count)
+
+                    item.byteCount = Int64((item.representations ?? []).reduce(0) { partialResult, rep in
+                        partialResult + Int(rep.byteCount)
+                    })
+                    item.contentHash = try deduplicationService.computeContentHash(
+                        primaryText: item.primaryText,
+                        representations: representationPayloadsForHashing(from: item)
+                    )
+
+                    repairedCount += 1
+                }
+
+                if context.hasChanges {
+                    try context.save()
+                }
+                context.reset()
+            }
+        }
+
+        if repairedCount > 0 {
+            Self.logger.notice(
+                "backfillImageFileURLRepresentations repaired \(repairedCount, privacy: .public) representations"
+            )
+        }
+
+        return repairedCount
+    }
+
+    @discardableResult
+    func repairInvalidFileExtensions() throws -> Int {
+        let context = persistence.newBackgroundContext()
+        var repairedCount = 0
+
+        try context.performAndWaitThrowing {
+            let request = NSFetchRequest<NSManagedObjectID>(entityName: "ClipRepresentation")
+            request.resultType = .managedObjectIDResultType
+            request.predicate = NSPredicate(format: "fileExtension != nil")
+            let objectIDs = try context.fetch(request)
+
+            for objectID in objectIDs {
+                guard let representation = try context.existingObject(with: objectID) as? ClipRepresentation else {
+                    continue
+                }
+                guard let ext = representation.fileExtension, ext.count >= 40 else { continue }
+                
+                let uti = representation.uti
+                let preferred: String
+                if let type = UTType(uti), let typeExt = type.preferredFilenameExtension {
+                    preferred = typeExt
+                } else if representation.kindValue == .png {
+                    preferred = "png"
+                } else if representation.kindValue == .jpeg {
+                    preferred = "jpg"
+                } else if representation.kindValue == .tiff {
+                    preferred = "tiff"
+                } else {
+                    continue
+                }
+
+                if let assetRef = representation.assetRef {
+                    let oldURL = AssetStore.shared.urlForAsset(assetRef, fileExtension: ext)
+                    let newURL = AssetStore.shared.urlForAsset(assetRef, fileExtension: preferred)
+                    if FileManager.default.fileExists(atPath: oldURL.path) && !FileManager.default.fileExists(atPath: newURL.path) {
+                        try? FileManager.default.moveItem(at: oldURL, to: newURL)
+                    }
+                }
+                
+                representation.fileExtension = preferred
+                representation.clipItem?.modifiedAt = Date()
+                repairedCount += 1
+            }
+
+            if context.hasChanges {
+                try context.save()
+            }
+        }
+
+        if repairedCount > 0 {
+            Self.logger.notice("repairInvalidFileExtensions repaired \(repairedCount, privacy: .public) extensions")
+        }
+
+        return repairedCount
+    }
+
+    func countItemsMissingRepresentations() throws -> Int {
+        let context = persistence.newBackgroundContext()
+        var count = 0
+
+        try context.performAndWaitThrowing {
+            let request = NSFetchRequest<NSFetchRequestResult>(entityName: "ClipItem")
+            request.predicate = NSPredicate(format: "representations.@count == 0")
+            count = try context.count(for: request)
+        }
+
+        return count
     }
 
     func saveChanges() throws {
@@ -1144,6 +1358,112 @@ final class ClipItemRepository {
         Int64(reference.timeIntervalSince1970 * 1000)
     }
 
+    private func resolvedLegacyImageFileURL(for representation: ClipRepresentation) -> URL? {
+        if let bookmarkData = representation.binaryData,
+            let bookmarkedURL = resolveBookmarkedFileURL(from: bookmarkData)
+        {
+            return bookmarkedURL
+        }
+
+        guard
+            let textData = representation.textData,
+            let raw = String(data: textData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            !raw.isEmpty
+        else {
+            return nil
+        }
+
+        if let parsed = URL(string: raw), parsed.isFileURL {
+            return parsed
+        }
+
+        return URL(fileURLWithPath: raw)
+    }
+
+    private func resolveBookmarkedFileURL(from data: Data) -> URL? {
+        var isStale = false
+
+        if let url = try? URL(
+            resolvingBookmarkData: data,
+            options: [.withoutUI],
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ), url.isFileURL {
+            return url
+        }
+
+        #if os(macOS)
+        if let url = try? URL(
+            resolvingBookmarkData: data,
+            options: [.withSecurityScope, .withoutUI],
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ), url.isFileURL {
+            return url
+        }
+        #endif
+
+        return nil
+    }
+
+    private func inferredImageType(for sourceURL: URL, fallbackUTI: String?) -> UTType? {
+        if let contentType = try? sourceURL.resourceValues(forKeys: [.contentTypeKey]).contentType {
+            return contentType
+        }
+
+        if let type = UTType(filenameExtension: sourceURL.pathExtension) {
+            return type
+        }
+
+        if let fallbackUTI, let type = UTType(fallbackUTI) {
+            return type
+        }
+
+        return nil
+    }
+
+    private func normalizedImageRepresentationMetadata(
+        type: UTType,
+        sourceURL: URL
+    ) -> (kind: RepresentationKind, fileExtension: String) {
+        let pathExt = sourceURL.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedExtension = pathExt.count < 10 && !pathExt.isEmpty ? pathExt : (type.preferredFilenameExtension ?? "")
+
+        if type.conforms(to: .png) {
+            return (.png, normalizedExtension.isEmpty ? "png" : normalizedExtension)
+        }
+
+        if type.conforms(to: .tiff) {
+            return (.tiff, normalizedExtension.isEmpty ? "tiff" : normalizedExtension)
+        }
+
+        if type.conforms(to: .image) {
+            let fallbackExtension: String
+            switch normalizedExtension {
+            case "heic", "heif", "jpeg", "jpg", "gif", "bmp", "webp":
+                fallbackExtension = normalizedExtension
+            default:
+                fallbackExtension = "jpg"
+            }
+
+            return (.jpeg, fallbackExtension)
+        }
+
+        return (.jpeg, normalizedExtension.isEmpty ? "jpg" : normalizedExtension)
+    }
+
+    private func loadDataFromResolvedFileURL(_ url: URL) -> Data? {
+        let didStart = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStart {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        return try? Data(contentsOf: url)
+    }
+
     private func storeBinaryPayload(
         _ data: Data,
         for representation: ClipRepresentation,
@@ -1173,6 +1493,39 @@ final class ClipItemRepository {
         }
 
         return byteCount > assetThresholdBytes
+    }
+
+    private func representationPayloadsForHashing(from item: ClipItem) -> [ClipRepresentationPayload] {
+        let sortedRepresentations = (item.representations ?? []).sorted {
+            $0.displayOrder < $1.displayOrder
+        }
+
+        return sortedRepresentations.map { representation in
+            let text: String? = {
+                guard let textData = representation.textData, !textData.isEmpty else { return nil }
+                return String(data: textData, encoding: .utf8)
+            }()
+
+            let data: Data? = {
+                if let binaryData = representation.binaryData, !binaryData.isEmpty {
+                    return binaryData
+                }
+                guard let assetRef = representation.assetRef else { return nil }
+                return try? assetStore.load(
+                    assetRef: assetRef,
+                    fileExtension: representation.fileExtension
+                )
+            }()
+
+            return ClipRepresentationPayload(
+                kind: representation.kindValue,
+                uti: representation.uti,
+                text: text,
+                data: data,
+                fileExtension: representation.fileExtension,
+                displayOrder: representation.displayOrder
+            )
+        }
     }
 }
 

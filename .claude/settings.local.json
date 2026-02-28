@@ -28,7 +28,8 @@
       "Bash(xcrun momc:*)",
       "WebFetch(domain:keyboardkit.com)",
       "WebFetch(domain:gist.github.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(DB=~/Library/Containers/com.hirchyts.marten/Data/Library/Application Support/Marten/MartenCore.sqlite:*)"
     ]
   }
 }

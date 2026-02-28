@@ -158,6 +158,78 @@ final class InboundSyncEngineTests: XCTestCase {
         XCTAssertEqual(tokenStore.saveCallCount, 1)
     }
 
+    func testUnresolvedDeferredChildDoesNotAdvanceTokenAndLaterRefetchRepairsMissingRepresentation() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: "Test", ownerName: CKCurrentUserDefaultName)
+        let persistence = PersistenceController(inMemory: true)
+        let mapper = CloudRecordMapper(zoneID: zoneID)
+
+        let tokenStore = InMemoryZoneTokenStore()
+        let fetcher = MockZoneChangesFetcher()
+        let itemID = UUID()
+        let representationID = UUID()
+        let firstToken = Data([0x11])
+        let secondToken = Data([0x22])
+
+        let representationRecord = CKRecord.clipRepresentation(id: representationID, zoneID: zoneID)
+        representationRecord.setUUID(representationID, for: ClipRepresentationField.id.rawValue)
+        representationRecord.setUUID(itemID, for: ClipRepresentationField.clipItemID.rawValue)
+        representationRecord.setParentReference(
+            to: .clipItemID(itemID, zoneID: zoneID),
+            for: ClipRepresentationField.clipItemRef.rawValue
+        )
+        representationRecord.setString("public.utf8-plain-text", for: ClipRepresentationField.uti.rawValue)
+        representationRecord.setRepresentationKind(.plainText, for: ClipRepresentationField.kind.rawValue)
+        representationRecord.setString("hello", for: ClipRepresentationField.textData.rawValue)
+        representationRecord.setInt16(0, for: ClipRepresentationField.displayOrder.rawValue)
+        representationRecord.setInt64(5, for: ClipRepresentationField.byteCount.rawValue)
+
+        let itemRecord = CKRecord.clipItem(id: itemID, zoneID: zoneID)
+        itemRecord.setUUID(itemID, for: ClipItemField.id.rawValue)
+        itemRecord.setDate(Date(), for: ClipItemField.createdAt.rawValue)
+        itemRecord.setDate(Date(), for: ClipItemField.modifiedAt.rawValue)
+        itemRecord.setString("hello", for: ClipItemField.primaryText.rawValue)
+        itemRecord.setString("hash-child-repair", for: ClipItemField.contentHash.rawValue)
+        itemRecord.setItemType(.text, for: ClipItemField.itemType.rawValue)
+
+        fetcher.plans = [
+            .success(
+                events: [.changed(representationRecord), .tokenUpdated(firstToken)],
+                finalToken: firstToken
+            ),
+            .success(
+                events: [
+                    .changed(itemRecord),
+                    .changed(representationRecord),
+                    .tokenUpdated(secondToken),
+                ],
+                finalToken: secondToken
+            ),
+        ]
+
+        let engine = InboundSyncEngine(
+            zoneID: zoneID,
+            changesFetcher: fetcher,
+            tokenStore: tokenStore,
+            persistenceController: persistence,
+            recordMapper: mapper
+        )
+
+        _ = try await engine.syncInbound()
+        XCTAssertEqual(tokenStore.saveCallCount, 0)
+        XCTAssertEqual(fetcher.receivedPreviousTokenData, [nil])
+
+        _ = try await engine.syncInbound()
+        XCTAssertEqual(fetcher.receivedPreviousTokenData, [nil, nil])
+        XCTAssertEqual(tokenStore.saveCallCount, 1)
+
+        let request = ClipItem.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", itemID as CVarArg)
+        let items = try persistence.viewContext.fetch(request)
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items.first?.representations?.count, 1)
+        XCTAssertEqual(items.first?.representations?.first?.kindValue, .plainText)
+    }
+
     func testDeletionRemovesLocalEntity() async throws {
         let zoneID = CKRecordZone.ID(zoneName: "Test", ownerName: CKCurrentUserDefaultName)
         let persistence = PersistenceController(inMemory: true)

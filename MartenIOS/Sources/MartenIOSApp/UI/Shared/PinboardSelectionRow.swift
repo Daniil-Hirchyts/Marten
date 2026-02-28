@@ -19,38 +19,54 @@ struct PinboardSelectionRow: View {
     var lockState: LockState? = nil
     var cornerRadius: CGFloat = 999
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
-        MartenGlassSurface(cornerRadius: cornerRadius, padding: 0, isInteractive: false) {
-            HStack(spacing: 12) {
-                leadingView
-
-                titleView
-
-                Spacer()
-
-                if showsSelectionCheckmark, isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.subheadline.weight(.heavy))
-                        .foregroundStyle(Color.accentColor)
-                }
-
-                if showsSharedBadge {
-                    Image(systemName: "person.2.fill")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-
-                if let lockState, lockState.isLocked {
-                    Image(systemName: lockState.canAccess ? "lock.open.fill" : "lock.fill")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
+        let baseOpacity: CGFloat = isSelected ? 0.25 : 0.08
+        let fillColor = colorScheme == .dark ? Color.white.opacity(baseOpacity) : Color.black.opacity(baseOpacity)
+        
+        Group {
+            if #available(iOS 26, macOS 26, *) {
+                contentHStack
+                    .background(Color.clear)
+                    .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
+                    .brightness(isSelected ? 0.1 : 0)
+            } else {
+                contentHStack
+                    .background(fillColor, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .contentShape(Rectangle())
         }
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: cornerRadius))
+    }
+
+    private var contentHStack: some View {
+        HStack(spacing: 12) {
+            leadingView
+
+            titleView
+
+            Spacer()
+
+            if showsSelectionCheckmark, isSelected {
+                Image(systemName: "checkmark")
+                    .font(.subheadline.weight(.heavy))
+                    .foregroundStyle(Color.accentColor)
+            }
+
+            if showsSharedBadge {
+                Image(systemName: "person.2.fill")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+
+            if let lockState, lockState.isLocked {
+                Image(systemName: lockState.canAccess ? "lock.open.fill" : "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder

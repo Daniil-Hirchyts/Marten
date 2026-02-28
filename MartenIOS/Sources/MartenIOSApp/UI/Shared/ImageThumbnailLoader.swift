@@ -51,7 +51,11 @@ final class ImageThumbnailLoader {
         // Include assetRef state so the key changes when a representation's asset arrives
         // after sync, even if the item's modifiedAt is unchanged.
         let assetSig = (item.representations ?? [])
-            .compactMap { $0.assetRef?.uuidString }
+            .map { representation in
+                let assetRef = representation.assetRef?.uuidString ?? "none"
+                let fileExtension = representation.fileExtension?.lowercased() ?? "none"
+                return "\(assetRef).\(fileExtension)"
+            }
             .sorted()
             .joined(separator: ",")
         return "image-thumbnail-\(item.id.uuidString)-\(version)-\(assetSig)"
@@ -108,14 +112,14 @@ private func loadDownsampledImage(
                 return image
             }
 
-            if let assetRef = representation.assetRef {
-                let path = AssetStore.shared.urlForAsset(
-                    assetRef,
+            if let assetRef = representation.assetRef,
+                let data = try? AssetStore.shared.load(
+                    assetRef: assetRef,
                     fileExtension: representation.fileExtension
-                ).path
-                if let image = downsampleImage(atPath: path, maxPixelSize: maxPixelSize) {
-                    return image
-                }
+                ),
+                let image = downsampleImage(from: data, maxPixelSize: maxPixelSize)
+            {
+                return image
             }
         case .fileURL:
             if let textData = representation.textData,

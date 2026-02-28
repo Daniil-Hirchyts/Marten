@@ -672,6 +672,99 @@ final class SyncCoordinatorTests: XCTestCase {
             return
         }
     }
+
+    @MainActor
+    func testStartSyncClearsTokenWhenItemsAreMissingRepresentations() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: "SyncCoordinatorMissingRepsZone", ownerName: CKCurrentUserDefaultName)
+        let persistence = PersistenceController(inMemory: true)
+        let mapper = CloudRecordMapper(zoneID: zoneID)
+
+        let mockContainer = MockCloudKitContainer()
+        let syncTokenStorage = MockSyncTokenStorage()
+        let tokenManager = SyncTokenManager(storage: syncTokenStorage)
+        let cloudKitManager = CloudKitManager(
+            configuration: CloudKitConfiguration(
+                containerIdentifier: "iCloud.com.hirchyts.marten.tests",
+                zoneName: zoneID.zoneName
+            ),
+            container: mockContainer,
+            tokenManager: tokenManager
+        )
+
+        let outboundDatabase = MockOutboundCloudDatabase()
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: tempDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let assetStore = AssetStore(baseURL: tempDirectory)
+        let assetSyncManager = AssetSyncManager(assetStore: assetStore)
+        let outboundEngine = OutboundSyncEngine(
+            persistenceController: persistence,
+            database: outboundDatabase,
+            zoneID: zoneID,
+            configuration: .init(debounceInterval: 0.01, retryBackoff: 0.01, maxRetries: 1),
+            assetSyncManager: assetSyncManager
+        )
+        let inboundEngine = InboundSyncEngine(
+            zoneID: zoneID,
+            changesFetcher: NoopZoneChangesFetcher(),
+            tokenStore: InMemoryZoneTokenStore(),
+            persistenceController: persistence,
+            recordMapper: mapper,
+            assetSyncManager: assetSyncManager
+        )
+
+        try persistence.viewContext.performAndWaitThrowing {
+            let item = ClipItem(context: persistence.viewContext)
+            item.id = UUID()
+            item.createdAt = Date()
+            item.modifiedAt = Date()
+            item.displayOrder = Int64(Date().timeIntervalSince1970 * 1000)
+            item.itemTypeValue = .image
+            item.primaryText = "Image"
+            item.searchableText = "image"
+            item.contentHash = UUID().uuidString
+            item.lastModifiedBy = DeviceIdentifier.currentDeviceName
+            item.lastModifiedAt = Date()
+            item.isSensitive = false
+            item.isTransient = false
+            item.needsLinkPreview = false
+            item.byteCount = 256
+            item.isUserCreated = true
+            item.isPinned = false
+            try persistence.viewContext.save()
+        }
+
+        let suiteName = "SyncCoordinatorMissingRepsTests.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let configuration = SyncCoordinatorConfiguration(
+            periodicFetchInterval: 30.0,
+            performImmediateInboundSync: false,
+            pausePeriodicInboundWhenInactive: true,
+            syncEnabledKey: "\(suiteName).syncEnabled",
+            lastSyncDateKey: "\(suiteName).lastSyncDate"
+        )
+        userDefaults.set(true, forKey: configuration.syncEnabledKey)
+
+        let coordinator = SyncCoordinator(
+            cloudKitManager: cloudKitManager,
+            outboundEngine: outboundEngine,
+            inboundEngine: inboundEngine,
+            assetSyncManager: assetSyncManager,
+            persistenceController: persistence,
+            configuration: configuration,
+            userDefaults: userDefaults
+        )
+
+        try await coordinator.startSync()
+
+        XCTAssertEqual(syncTokenStorage.deleteCallCount, 1)
+    }
 }
 
 final class SyncCoordinatorConfigurationTests: XCTestCase {

@@ -28,30 +28,35 @@ public final class AssetStore {
     }
 
     public func load(assetRef: UUID, fileExtension: String? = nil) throws -> Data {
-        let url = urlForAsset(assetRef, fileExtension: fileExtension)
-        guard fileManager.fileExists(atPath: url.path) else {
+        guard let url = existingURLForAsset(assetRef, fileExtension: fileExtension) else {
             throw AssetStoreError.missingAsset
         }
         return try Data(contentsOf: url)
     }
 
     public func delete(assetRef: UUID, fileExtension: String? = nil) throws {
-        let url = urlForAsset(assetRef, fileExtension: fileExtension)
-        if fileManager.fileExists(atPath: url.path) {
-            try fileManager.removeItem(at: url)
-            return
+        guard let url = existingURLForAsset(assetRef, fileExtension: fileExtension) else {
+            throw AssetStoreError.missingAsset
+        }
+        try fileManager.removeItem(at: url)
+    }
+
+    public func existingURLForAsset(_ assetRef: UUID, fileExtension: String? = nil) -> URL? {
+        let exactURL = urlForAsset(assetRef, fileExtension: fileExtension)
+        if fileManager.fileExists(atPath: exactURL.path) {
+            return exactURL
         }
 
         let uuidString = assetRef.uuidString
-        let contents = try fileManager.contentsOfDirectory(at: baseURL, includingPropertiesForKeys: nil, options: [])
-        for item in contents {
-            if item.deletingPathExtension().lastPathComponent == uuidString {
-                try fileManager.removeItem(at: item)
-                return
-            }
-        }
+        let contents = try? fileManager.contentsOfDirectory(
+            at: baseURL,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )
 
-        throw AssetStoreError.missingAsset
+        return contents?.first { item in
+            item.deletingPathExtension().lastPathComponent == uuidString
+        }
     }
 
     public func urlForAsset(_ assetRef: UUID, fileExtension: String? = nil) -> URL {

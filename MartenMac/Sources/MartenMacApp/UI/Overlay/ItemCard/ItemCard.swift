@@ -130,6 +130,11 @@ struct ItemCard: View {
                         refreshImageResolution()
                     }
 
+                    if oldValue.representationAssetSignature != newValue.representationAssetSignature {
+                        refreshThumbnailImage()
+                        refreshImageResolution()
+                    }
+
                     if oldValue.linkPreviewImagePath != newValue.linkPreviewImagePath
                         || oldValue.primaryText != newValue.primaryText
                     {
@@ -146,6 +151,32 @@ struct ItemCard: View {
                         || oldValue.itemType != newValue.itemType
                     {
                         refreshStyledPreviewText()
+                    }
+                }
+                .onReceive(
+                    NotificationCenter.default.publisher(
+                        for: NSManagedObjectContext.didMergeChangesObjectIDsNotification
+                    )
+                ) { notification in
+                    guard let context = item.managedObjectContext else { return }
+                    let userInfo = notification.userInfo
+                    let updatedIDs = (userInfo?[NSUpdatedObjectIDsKey] as? Set<NSManagedObjectID>) ?? []
+                    let insertedIDs = (userInfo?[NSInsertedObjectIDsKey] as? Set<NSManagedObjectID>) ?? []
+                    let changed = updatedIDs.union(insertedIDs)
+                    guard !changed.isEmpty else { return }
+
+                    context.perform {
+                        let representationIDs = (item.representations ?? []).map(\.objectID)
+                        let hasRepresentationChange = representationIDs.contains { changed.contains($0) }
+                        let hasItemChange = changed.contains(item.objectID)
+                        guard hasItemChange || hasRepresentationChange else { return }
+
+                        Task { @MainActor in
+                            cachedProps = CachedItemProperties(item: item)
+                            lastKnownModifiedAt = item.modifiedAt
+                            refreshPreviewAssets()
+                            refreshStyledPreviewText()
+                        }
                     }
                 }
                 .accessibilityElement(children: isEditing ? .contain : .ignore)
@@ -193,6 +224,7 @@ struct ItemCard: View {
 private struct ContentSignature: Equatable {
     let primaryText: String?
     let thumbnailPath: String?
+    let representationAssetSignature: String
     let customTitle: String?
     let linkPreviewImagePath: String?
     let sourceAppBundleID: String?
@@ -204,6 +236,14 @@ private struct ContentSignature: Equatable {
     init(item: ClipItem) {
         primaryText = item.primaryText
         thumbnailPath = item.thumbnailPath
+        representationAssetSignature = (item.representations ?? [])
+            .map { representation in
+                let assetRef = representation.assetRef?.uuidString ?? "none"
+                let fileExtension = representation.fileExtension?.lowercased() ?? "none"
+                return "\(assetRef).\(fileExtension)"
+            }
+            .sorted()
+            .joined(separator: ",")
         customTitle = item.customTitle
         linkPreviewImagePath = item.linkPreview?.imagePath
         sourceAppBundleID = item.sourceAppBundleID

@@ -106,6 +106,161 @@ final class AssetSyncManagerTests: XCTestCase {
         try? fileManager.removeItem(at: tempDir)
     }
 
+    func testApplyDownloadedAssetSyncPersistsInferredFileExtension() throws {
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        let assetStore = AssetStore(baseURL: tempDir)
+        let persistence = PersistenceController(inMemory: true)
+        let context = persistence.viewContext
+
+        let remoteTempFile = tempDir.appendingPathComponent("remote-image").appendingPathExtension("png")
+        let remoteData = Data(repeating: 3, count: 1024)
+        try remoteData.write(to: remoteTempFile)
+
+        let zoneID = CKRecordZone.ID(zoneName: "TestZone", ownerName: CKCurrentUserDefaultName)
+        let repID = UUID()
+        let record = CKRecord.clipRepresentation(id: repID, zoneID: zoneID)
+        record.setAsset(
+            CKAsset(fileURL: remoteTempFile),
+            for: ClipRepresentationField.asset.rawValue
+        )
+
+        let rep: ClipRepresentation = try context.performAndWaitThrowing {
+            guard
+                let obj = NSEntityDescription.insertNewObject(
+                    forEntityName: "ClipRepresentation",
+                    into: context
+                ) as? ClipRepresentation
+            else {
+                throw NSError(domain: "test", code: 22)
+            }
+            obj.id = repID
+            obj.uti = "public.png"
+            obj.kindValue = .png
+            obj.displayOrder = 0
+            obj.byteCount = Int64(remoteData.count)
+            obj.fileExtension = nil
+            return obj
+        }
+
+        let manager = AssetSyncManager(assetStore: assetStore)
+        try manager.applyDownloadedAssetIfPresentSync(from: record, to: rep)
+
+        let storedRef = try XCTUnwrap(rep.assetRef)
+        XCTAssertEqual(rep.fileExtension, "png")
+        let storedURL = assetStore.urlForAsset(storedRef, fileExtension: "png")
+        XCTAssertTrue(fileManager.fileExists(atPath: storedURL.path))
+        XCTAssertEqual(try Data(contentsOf: storedURL), remoteData)
+
+        try? fileManager.removeItem(at: tempDir)
+    }
+
+    func testApplyDownloadedAssetSyncUsesPreloadedDataWhenTempFileUnavailable() throws {
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        let assetStore = AssetStore(baseURL: tempDir)
+        let persistence = PersistenceController(inMemory: true)
+        let context = persistence.viewContext
+
+        let zoneID = CKRecordZone.ID(zoneName: "TestZone", ownerName: CKCurrentUserDefaultName)
+        let repID = UUID()
+        // Record has NO CKAsset attached (simulates temp file already cleaned up)
+        let record = CKRecord.clipRepresentation(id: repID, zoneID: zoneID)
+
+        let remoteData = Data(repeating: 42, count: 512)
+
+        let rep: ClipRepresentation = try context.performAndWaitThrowing {
+            guard
+                let obj = NSEntityDescription.insertNewObject(
+                    forEntityName: "ClipRepresentation",
+                    into: context
+                ) as? ClipRepresentation
+            else {
+                throw NSError(domain: "test", code: 30)
+            }
+            obj.id = repID
+            obj.uti = "public.png"
+            obj.kindValue = .png
+            obj.displayOrder = 0
+            obj.byteCount = Int64(remoteData.count)
+            obj.fileExtension = nil
+            return obj
+        }
+
+        let manager = AssetSyncManager(assetStore: assetStore)
+        let preloaded = AssetSyncManager.PreloadedAsset(data: remoteData, fileExtension: "png")
+        try manager.applyDownloadedAssetIfPresentSync(
+            from: record, to: rep, preloadedAssetData: preloaded
+        )
+
+        let storedRef = try XCTUnwrap(rep.assetRef)
+        XCTAssertEqual(rep.fileExtension, "png")
+        let storedURL = assetStore.urlForAsset(storedRef, fileExtension: "png")
+        XCTAssertTrue(fileManager.fileExists(atPath: storedURL.path))
+        XCTAssertEqual(try Data(contentsOf: storedURL), remoteData)
+
+        try? fileManager.removeItem(at: tempDir)
+    }
+
+    func testApplyDownloadedAssetSyncPrefersLiveTempFileOverPreloadedData() throws {
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+        let assetStore = AssetStore(baseURL: tempDir)
+        let persistence = PersistenceController(inMemory: true)
+        let context = persistence.viewContext
+
+        let remoteTempFile = tempDir.appendingPathComponent("live-asset").appendingPathExtension("jpeg")
+        let liveData = Data(repeating: 77, count: 256)
+        try liveData.write(to: remoteTempFile)
+
+        let zoneID = CKRecordZone.ID(zoneName: "TestZone", ownerName: CKCurrentUserDefaultName)
+        let repID = UUID()
+        let record = CKRecord.clipRepresentation(id: repID, zoneID: zoneID)
+        record.setAsset(
+            CKAsset(fileURL: remoteTempFile),
+            for: ClipRepresentationField.asset.rawValue
+        )
+
+        let rep: ClipRepresentation = try context.performAndWaitThrowing {
+            guard
+                let obj = NSEntityDescription.insertNewObject(
+                    forEntityName: "ClipRepresentation",
+                    into: context
+                ) as? ClipRepresentation
+            else {
+                throw NSError(domain: "test", code: 31)
+            }
+            obj.id = repID
+            obj.uti = "public.jpeg"
+            obj.kindValue = .jpeg
+            obj.displayOrder = 0
+            obj.byteCount = Int64(liveData.count)
+            obj.fileExtension = nil
+            return obj
+        }
+
+        let manager = AssetSyncManager(assetStore: assetStore)
+        let staleData = Data(repeating: 99, count: 256)
+        let preloaded = AssetSyncManager.PreloadedAsset(data: staleData, fileExtension: "png")
+        try manager.applyDownloadedAssetIfPresentSync(
+            from: record, to: rep, preloadedAssetData: preloaded
+        )
+
+        // Should use live CKAsset data, not the preloaded data
+        let storedRef = try XCTUnwrap(rep.assetRef)
+        XCTAssertEqual(rep.fileExtension, "jpeg")
+        let storedURL = assetStore.urlForAsset(storedRef, fileExtension: "jpeg")
+        XCTAssertEqual(try Data(contentsOf: storedURL), liveData)
+
+        try? fileManager.removeItem(at: tempDir)
+    }
+
     func testPerAssetLimitEnforced() async throws {
         let fileManager = FileManager.default
         let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)

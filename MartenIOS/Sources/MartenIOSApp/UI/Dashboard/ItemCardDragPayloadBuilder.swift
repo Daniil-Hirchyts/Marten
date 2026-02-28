@@ -63,9 +63,12 @@ struct ItemCardDragPayloadBuilder {
             }
         }
 
-        if let assetRef = rep.assetRef {
-            let imageURL = AssetStore.shared.urlForAsset(assetRef, fileExtension: rep.fileExtension)
-            guard FileManager.default.fileExists(atPath: imageURL.path) else { return }
+        if let assetRef = rep.assetRef,
+            let imageURL = AssetStore.shared.existingURLForAsset(
+                assetRef,
+                fileExtension: rep.fileExtension
+            )
+        {
             provider.registerDataRepresentation(forTypeIdentifier: utType.identifier, visibility: .all) { completion in
                 DispatchQueue.global(qos: .userInitiated).async {
                     if let data = try? Data(contentsOf: imageURL) {

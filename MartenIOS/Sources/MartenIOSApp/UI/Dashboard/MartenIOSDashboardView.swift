@@ -17,90 +17,92 @@ struct MartenIOSDashboardView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            Group {
-                if viewModel.isSelectedPinboardAwaitingUnlock(
-                    selectedPinboardID: container.selectedPinboardID,
-                    lockStateStore: container.lockStateStore
-                ) {
-                    DashboardLockedPinboardView(
-                        title: selectedPinboardTitle,
-                        isAuthenticating: container.lockStateStore.isAuthenticating,
-                        onUnlock: {
-                            guard let pinboard = selectedPinboard else { return }
-                            viewModel.requestPinboardUnlock(
-                                pinboard,
-                                lockStateStore: container.lockStateStore
-                            ) {
-                                withAnimation(MartenAnimation.quick) {
-                                    container.setSelectedPinboardID(pinboard.id)
+            ZStack {
+                Group {
+                    if viewModel.isSelectedPinboardAwaitingUnlock(
+                        selectedPinboardID: container.selectedPinboardID,
+                        lockStateStore: container.lockStateStore
+                    ) {
+                        DashboardLockedPinboardView(
+                            title: selectedPinboardTitle,
+                            isAuthenticating: container.lockStateStore.isAuthenticating,
+                            onUnlock: {
+                                guard let pinboard = selectedPinboard else { return }
+                                viewModel.requestPinboardUnlock(
+                                    pinboard,
+                                    lockStateStore: container.lockStateStore
+                                ) {
+                                    withAnimation(MartenAnimation.quick) {
+                                        container.setSelectedPinboardID(pinboard.id)
+                                    }
+                                }
+                            },
+                            onSwipe: { offset in
+                                viewModel.advancePinboardSelection(by: offset, container: container, customPinboards: customPinboards)
+                            }
+                        )
+                    } else if let searchModel = viewModel.searchModel, searchModel.isSearchActive {
+                        searchResultsContent(searchModel: searchModel)
+                    } else {
+                        DashboardItemsSection(
+                            selectedPinboardID: container.selectedPinboardID,
+                            isItemVisible: { item in
+                                viewModel.isItemVisible(
+                                    item,
+                                    selectedPinboardID: container.selectedPinboardID,
+                                    lockStateStore: container.lockStateStore
+                                )
+                            },
+                            selectionModel: viewModel.selectionModel,
+                            onTapItem: { item in
+                                viewModel.handleItemTap(item, container: container)
+                            },
+                            onCopyItem: { item in
+                                viewModel.copyItems([item.objectID], container: container)
+                            },
+                            onCopyPlainTextItem: { item in
+                                viewModel.copyItemsPlainText([item.objectID], container: container)
+                            },
+                            onPreviewItem: { item in
+                                viewModel.handleItemPreview(item, container: container)
+                            },
+                            onEditItem: { item in
+                                viewModel.handleItemEdit(item, container: container)
+                            },
+                            onConvertTypeItem: { item, type in
+                                viewModel.convertItemType(item, to: type, container: container)
+                            },
+                            onTogglePinItem: { item in
+                                viewModel.togglePin(item, container: container)
+                            },
+                            onShareItem: { item in
+                                viewModel.shareItems([item.objectID], container: container)
+                            },
+                            onMoveItem: { item in
+                                viewModel.prepareMove([item.objectID])
+                            },
+                            onDeleteItem: { item in
+                                viewModel.prepareDelete([item.objectID])
+                            },
+                            onReorderItems: { objectIDs in
+                                viewModel.reorderItems(objectIDs, container: container)
+                            },
+                            onSwipeToNextPinboard: {
+                                viewModel.advancePinboardSelection(by: 1, container: container, customPinboards: customPinboards)
+                            },
+                            onSwipeToPreviousPinboard: {
+                                viewModel.advancePinboardSelection(by: -1, container: container, customPinboards: customPinboards)
+                            },
+                            onVisibleObjectIDsChanged: { visibleIDs in
+                                if viewModel.selectionModel.isSelectionMode {
+                                    viewModel.selectionModel.selectedObjectIDs =
+                                        viewModel.selectionModel.selectedObjectIDs.intersection(visibleIDs)
                                 }
                             }
-                        },
-                        onSwipe: { offset in
-                            viewModel.advancePinboardSelection(by: offset, container: container, customPinboards: customPinboards)
-                        }
-                    )
-                } else if let searchModel = viewModel.searchModel, searchModel.isSearchActive {
-                    searchResultsContent(searchModel: searchModel)
-                } else {
-                    DashboardItemsSection(
-                        selectedPinboardID: container.selectedPinboardID,
-                        isItemVisible: { item in
-                            viewModel.isItemVisible(
-                                item,
-                                selectedPinboardID: container.selectedPinboardID,
-                                lockStateStore: container.lockStateStore
-                            )
-                        },
-                        selectionModel: viewModel.selectionModel,
-                        onTapItem: { item in
-                            viewModel.handleItemTap(item, container: container)
-                        },
-                        onCopyItem: { item in
-                            viewModel.copyItems([item.objectID], container: container)
-                        },
-                        onCopyPlainTextItem: { item in
-                            viewModel.copyItemsPlainText([item.objectID], container: container)
-                        },
-                        onPreviewItem: { item in
-                            viewModel.handleItemPreview(item, container: container)
-                        },
-                        onEditItem: { item in
-                            viewModel.handleItemEdit(item, container: container)
-                        },
-                        onConvertTypeItem: { item, type in
-                            viewModel.convertItemType(item, to: type, container: container)
-                        },
-                        onTogglePinItem: { item in
-                            viewModel.togglePin(item, container: container)
-                        },
-                        onShareItem: { item in
-                            viewModel.shareItems([item.objectID], container: container)
-                        },
-                        onMoveItem: { item in
-                            viewModel.prepareMove([item.objectID])
-                        },
-                        onDeleteItem: { item in
-                            viewModel.prepareDelete([item.objectID])
-                        },
-                        onReorderItems: { objectIDs in
-                            viewModel.reorderItems(objectIDs, container: container)
-                        },
-                        onSwipeToNextPinboard: {
-                            viewModel.advancePinboardSelection(by: 1, container: container, customPinboards: customPinboards)
-                        },
-                        onSwipeToPreviousPinboard: {
-                            viewModel.advancePinboardSelection(by: -1, container: container, customPinboards: customPinboards)
-                        },
-                        onVisibleObjectIDsChanged: { visibleIDs in
-                            if viewModel.selectionModel.isSelectionMode {
-                                viewModel.selectionModel.selectedObjectIDs =
-                                    viewModel.selectionModel.selectedObjectIDs.intersection(visibleIDs)
-                            }
-                        }
-                    )
-                    .id(dashboardItemsSectionID)
-                    .transition(.displaceDistortion(direction: viewModel.swipeDirection))
+                        )
+                        .id(dashboardItemsSectionID)
+                        .transition(.displaceDistortion(direction: viewModel.swipeDirection))
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

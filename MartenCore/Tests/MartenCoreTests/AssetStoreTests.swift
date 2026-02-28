@@ -19,4 +19,23 @@ final class AssetStoreTests: XCTestCase {
 
         try? fileManager.removeItem(at: tempDir)
     }
+
+    func testLoadFindsAssetWhenExtensionMetadataIsMissing() throws {
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
+
+        let assetStore = AssetStore(baseURL: tempDir)
+        let payload = Data("ImageData".utf8)
+        let assetRef = try assetStore.store(data: payload, fileExtension: "png")
+
+        let loaded = try assetStore.load(assetRef: assetRef, fileExtension: nil)
+        XCTAssertEqual(loaded, payload)
+        XCTAssertEqual(
+            assetStore.existingURLForAsset(assetRef, fileExtension: nil)?.pathExtension,
+            "png"
+        )
+
+        try? fileManager.removeItem(at: tempDir)
+    }
 }

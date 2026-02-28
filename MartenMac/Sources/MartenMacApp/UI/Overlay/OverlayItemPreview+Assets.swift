@@ -101,11 +101,13 @@ extension OverlayItemPreview {
                 continue
             }
 
-            if let assetRef = rep.assetRef {
-                return AssetStore.shared.urlForAsset(
+            if let assetRef = rep.assetRef,
+                let fileURL = AssetStore.shared.existingURLForAsset(
                     assetRef,
                     fileExtension: rep.fileExtension
-                ).path
+                )
+            {
+                return fileURL.path
             }
         }
 

@@ -6,11 +6,20 @@ final class ClipItemDeduplicationService {
         primaryText: String?,
         representations: [ClipRepresentationPayload]
     ) throws -> String {
+        let sortedRepresentations = representations.sorted { $0.displayOrder < $1.displayOrder }
+
+        // Prefer binary payloads when present so placeholder labels like "Image"
+        // do not collapse distinct media items onto the same hash.
+        for representation in sortedRepresentations
+        where representation.kind != .fileURL {
+            if let data = representation.data, !data.isEmpty {
+                return data.sha256Hex()
+            }
+        }
+
         if let primaryText, !primaryText.isEmpty {
             return Data(primaryText.utf8).sha256Hex()
         }
-
-        let sortedRepresentations = representations.sorted { $0.displayOrder < $1.displayOrder }
 
         for representation in sortedRepresentations {
             if let text = representation.text, !text.isEmpty {

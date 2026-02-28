@@ -266,13 +266,21 @@ extension ItemCard {
             }
             lastLoadedThumbnailPath = normalizedPath
 
+            let representationSnapshots = (item.representations ?? []).map {
+                ThumbnailRepresentationSnapshot(
+                    kind: $0.kindValue,
+                    binaryData: $0.binaryData,
+                    assetRef: $0.assetRef,
+                    fileExtension: $0.fileExtension,
+                    textData: $0.textData
+                )
+            }
+
             DispatchQueue.global(qos: .userInitiated).async {
-                let image: NSImage?
-                if let data = try? Data(contentsOf: URL(fileURLWithPath: normalizedPath)) {
-                    image = NSImage(data: data)
-                } else {
-                    image = nil
-                }
+                let image = ThumbnailImageResolver.resolve(
+                    thumbnailPath: normalizedPath,
+                    snapshots: representationSnapshots
+                )
 
                 DispatchQueue.main.async {
                     if let image {
@@ -292,6 +300,8 @@ extension ItemCard {
             ThumbnailRepresentationSnapshot(
                 kind: $0.kindValue,
                 binaryData: $0.binaryData,
+                assetRef: $0.assetRef,
+                fileExtension: $0.fileExtension,
                 textData: $0.textData
             )
         }
@@ -317,9 +327,11 @@ extension ItemCard {
         }
     }
 
-    private struct ThumbnailRepresentationSnapshot {
+    struct ThumbnailRepresentationSnapshot {
         let kind: RepresentationKind
         let binaryData: Data?
+        let assetRef: UUID?
+        let fileExtension: String?
         let textData: Data?
     }
 
@@ -328,27 +340,22 @@ extension ItemCard {
             return "thumbnail.path.\(thumbnailPath)"
         }
         let version = Int64(item.modifiedAt.timeIntervalSince1970 * 1000)
-        return "thumbnail.item.\(item.id.uuidString).\(version)"
+        let assetSignature = (item.representations ?? [])
+            .map { representation in
+                let assetRef = representation.assetRef?.uuidString ?? "none"
+                let fileExtension = representation.fileExtension?.lowercased() ?? "none"
+                return "\(assetRef).\(fileExtension)"
+            }
+            .sorted()
+            .joined(separator: ",")
+        return "thumbnail.item.\(item.id.uuidString).\(version).\(assetSignature)"
     }
 
     private func loadThumbnailImage(from snapshots: [ThumbnailRepresentationSnapshot]) -> NSImage? {
-        for snapshot in snapshots where snapshot.kind == .png || snapshot.kind == .jpeg || snapshot.kind == .tiff {
-            if let data = snapshot.binaryData, let image = NSImage(data: data) {
-                return image
-            }
-        }
-
-        if let fileRef = snapshots.first(where: { $0.kind == .fileURL }),
-            let data = fileRef.textData,
-            let path = String(data: data, encoding: .utf8)
-        {
-            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                return NSImage(contentsOfFile: trimmed)
-            }
-        }
-
-        return nil
+        ThumbnailImageResolver.resolve(
+            thumbnailPath: nil,
+            snapshots: snapshots
+        )
     }
 
     func refreshFileIcon() {
@@ -364,6 +371,47 @@ extension ItemCard {
             return nil
         }
         return resolvedURL.path
+    }
+}
+
+struct ThumbnailImageResolver {
+    static func resolve(
+        thumbnailPath: String?,
+        snapshots: [ItemCard.ThumbnailRepresentationSnapshot]
+    ) -> NSImage? {
+        if let thumbnailPath,
+           let data = try? Data(contentsOf: URL(fileURLWithPath: thumbnailPath)),
+           let image = NSImage(data: data) {
+            return image
+        }
+
+        for snapshot in snapshots where snapshot.kind == .png || snapshot.kind == .jpeg || snapshot.kind == .tiff {
+            if let data = snapshot.binaryData, let image = NSImage(data: data) {
+                return image
+            }
+
+            if let assetRef = snapshot.assetRef,
+                let data = try? AssetStore.shared.load(
+                    assetRef: assetRef,
+                    fileExtension: snapshot.fileExtension
+                ),
+                let image = NSImage(data: data)
+            {
+                return image
+            }
+        }
+
+        if let fileRef = snapshots.first(where: { $0.kind == .fileURL }),
+            let data = fileRef.textData,
+            let path = String(data: data, encoding: .utf8)
+        {
+            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return NSImage(contentsOfFile: trimmed)
+            }
+        }
+
+        return nil
     }
 }
 
@@ -384,14 +432,14 @@ struct ImageResolutionResolver {
                 return resolution
             }
 
-            if let assetRef = source.assetRef {
-                let path = AssetStore.shared.urlForAsset(
-                    assetRef,
+            if let assetRef = source.assetRef,
+                let data = try? AssetStore.shared.load(
+                    assetRef: assetRef,
                     fileExtension: source.fileExtension
-                ).path
-                if let resolution = resolution(fromFileAtPath: path) {
-                    return resolution
-                }
+                ),
+                let resolution = resolution(from: data)
+            {
+                return resolution
             }
         }
 

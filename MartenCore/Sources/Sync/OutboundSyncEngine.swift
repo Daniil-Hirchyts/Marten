@@ -346,10 +346,27 @@ public final class OutboundSyncEngine: @unchecked Sendable {
         var objectIDs: [NSManagedObjectID] = []
 
         context.performAndWait {
-            let request = NSFetchRequest<NSManagedObjectID>(entityName: "ClipItem")
-            request.resultType = .managedObjectIDResultType
-            request.predicate = NSPredicate(format: "modifiedAt >= %@", date as NSDate)
-            objectIDs = (try? context.fetch(request)) ?? []
+            // Fetch modified items and their associated representations/previews
+            let itemRequest = NSFetchRequest<ClipItem>(entityName: "ClipItem")
+            itemRequest.predicate = NSPredicate(format: "modifiedAt >= %@", date as NSDate)
+            if let items = try? context.fetch(itemRequest) {
+                for item in items {
+                    objectIDs.append(item.objectID)
+                    if let representations = item.representations {
+                        objectIDs.append(contentsOf: representations.map(\.objectID))
+                    }
+                    if let preview = item.linkPreview {
+                        objectIDs.append(preview.objectID)
+                    }
+                }
+            }
+
+            // Fetch newly created pinboards
+            let pinboardRequest = NSFetchRequest<Pinboard>(entityName: "Pinboard")
+            pinboardRequest.predicate = NSPredicate(format: "createdAt >= %@", date as NSDate)
+            if let pinboards = try? context.fetch(pinboardRequest) {
+                objectIDs.append(contentsOf: pinboards.map(\.objectID))
+            }
         }
 
         guard !objectIDs.isEmpty else { return }
@@ -781,8 +798,8 @@ public final class OutboundSyncEngine: @unchecked Sendable {
             return
         }
 
-        let saveChunks = work.saveRecordsByID.values.chunked(
-            maxSize: configuration.maxRecordsPerBatch)
+        let orderedSaveRecords = CloudRecordUploadOrdering.sortedForUpload(work.saveRecordsByID.values)
+        let saveChunks = orderedSaveRecords.chunked(maxSize: configuration.maxRecordsPerBatch)
         let deleteChunks = Array(work.deleteIDs).chunked(maxSize: configuration.maxRecordsPerBatch)
 
         var failedSaves: [CKRecord.ID: Error] = [:]

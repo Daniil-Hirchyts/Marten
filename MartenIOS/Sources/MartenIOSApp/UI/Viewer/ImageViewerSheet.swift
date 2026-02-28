@@ -225,28 +225,30 @@ struct ImageViewerSheet: View {
         HStack(spacing: 0) {
             Spacer(minLength: 0)
 
-            MartenGlassSurface(cornerRadius: 100, padding: 0, isInteractive: true) {
-                HStack(spacing: 0) {
+            HStack(spacing: 16) {
+                MartenGlassSurface(cornerRadius: 100, padding: 0, isInteractive: true) {
                     editActionButton(
                         systemImage: "rotate.left",
                         accessibilityLabel: "Rotate Left"
                     ) {
                         rotateImage(clockwise: false)
                     }
+                }
+                .fixedSize()
+                .clipShape(Circle())
 
-                    Divider()
-                        .frame(height: 24)
-
+                MartenGlassSurface(cornerRadius: 100, padding: 0, isInteractive: true) {
                     editActionButton(
                         systemImage: "rotate.right",
                         accessibilityLabel: "Rotate Right"
                     ) {
                         rotateImage(clockwise: true)
                     }
+                }
+                .fixedSize()
+                .clipShape(Circle())
 
-                    Divider()
-                        .frame(height: 24)
-
+                MartenGlassSurface(cornerRadius: 100, padding: 0, isInteractive: true) {
                     editActionButton(
                         systemImage: "arrow.counterclockwise",
                         accessibilityLabel: "Reset",
@@ -256,9 +258,9 @@ struct ImageViewerSheet: View {
                         resetImageEdits()
                     }
                 }
-                .clipShape(Capsule())
+                .fixedSize()
+                .clipShape(Circle())
             }
-            .fixedSize()
 
             Spacer(minLength: 0)
         }

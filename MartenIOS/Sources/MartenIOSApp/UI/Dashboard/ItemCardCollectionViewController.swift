@@ -136,6 +136,7 @@ final class ItemCardCollectionViewController: UIViewController {
                 .allowsHitTesting(false)
             }
             .margins(.all, 0)
+            .background(Color.clear)
         }
 
         return UICollectionViewDiffableDataSource(collectionView: collectionView) {
@@ -231,8 +232,12 @@ final class ItemCardCollectionViewController: UIViewController {
             needsSnapshotApply = true
         }
 
+        let isInitialLoad = lastSnapshotIDs.isEmpty
+        let isMajorReload = !lastSnapshotIDs.isEmpty && Set(lastSnapshotIDs).isDisjoint(with: Set(incomingIDs))
+        let shouldAnimate = needsSnapshotApply && !isInitialLoad && !isMajorReload
+
         if needsSnapshotApply || lastSnapshotIDs != orderedIDs {
-            applySnapshot(animated: needsSnapshotApply)
+            applySnapshot(animated: shouldAnimate)
         } else {
             if previousIsSelectionMode != isSelectionMode {
                 reconfigureItems(orderedIDs)
@@ -432,6 +437,7 @@ final class ItemCardCollectionViewController: UIViewController {
             .allowsHitTesting(false)
         }
         .margins(.all, 0)
+        .background(Color.clear)
     }
 
     private func configureCellAppearance(_ cell: UICollectionViewCell) {

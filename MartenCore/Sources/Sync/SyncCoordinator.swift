@@ -231,9 +231,14 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
     )
     private static let membershipBackfillCompletedKey = "com.hirchyts.marten.sync.membershipBackfill.completed"
     private static let deviceAttributionBackfillCompletedKey = "com.hirchyts.marten.deviceAttribution.backfillCompleted"
+    private static let binaryContentHashBackfillCompletedKey = "com.hirchyts.marten.binaryContentHash.backfillCompleted"
     private static let representationAssetBackfillCompletedKey = "com.hirchyts.marten.sync.representationAssetBackfill.completed"
+    private static let imageFileURLBackfillCompletedKey =
+        "com.hirchyts.marten.sync.imageFileURLBackfill.completed"
+    private static let missingRepresentationRecoveryCompletedKey =
+        "com.hirchyts.marten.sync.missingRepresentationRecovery.completed.v2"
     private static let representationAssetReuploadBackfillCompletedKey =
-        "com.hirchyts.marten.sync.representationAssetReuploadBackfill.completed"
+        "com.hirchyts.marten.sync.representationAssetReuploadBackfill.completed.v2"
 
     // MARK: - Initialization
 
@@ -320,7 +325,10 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
 
             await performMembershipBackfillIfNeeded()
             performDeviceAttributionBackfillIfNeeded()
+            performBinaryContentHashBackfillIfNeeded()
             performRepresentationAssetBackfillIfNeeded()
+            performImageFileURLBackfillIfNeeded()
+            performMissingRepresentationRecoveryIfNeeded()
             await performRepresentationAssetReuploadBackfillIfNeeded()
 
             // Start shared sync engines when feature flag is enabled
@@ -719,6 +727,26 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
         }
     }
 
+    private func performBinaryContentHashBackfillIfNeeded() {
+        guard userDefaults.bool(forKey: Self.binaryContentHashBackfillCompletedKey) == false else {
+            return
+        }
+
+        let repository = ClipItemRepository(persistence: persistenceController)
+        do {
+            let count = try repository.backfillBinaryContentHashes()
+            userDefaults.set(true, forKey: Self.binaryContentHashBackfillCompletedKey)
+
+            if count > 0 {
+                log("Binary content hash backfill: updated \(count) items")
+            } else {
+                log("Binary content hash backfill: no items needed updating")
+            }
+        } catch {
+            log("Binary content hash backfill failed: \(error.localizedDescription)")
+        }
+    }
+
     private func performRepresentationAssetBackfillIfNeeded() {
         guard userDefaults.bool(forKey: Self.representationAssetBackfillCompletedKey) == false else {
             return
@@ -736,6 +764,56 @@ public final class SyncCoordinator: ObservableObject, SyncCoordinating {
             }
         } catch {
             log("Representation asset backfill failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func performImageFileURLBackfillIfNeeded() {
+        guard userDefaults.bool(forKey: Self.imageFileURLBackfillCompletedKey) == false else {
+            return
+        }
+
+        let repository = ClipItemRepository(persistence: persistenceController)
+        do {
+            let repairedCount = try repository.backfillImageFileURLRepresentations()
+            userDefaults.set(true, forKey: Self.imageFileURLBackfillCompletedKey)
+
+            if repairedCount > 0 {
+                log("Image file URL backfill repaired \(repairedCount) image representations")
+            } else {
+                log("Image file URL backfill: no migration needed")
+            }
+        } catch {
+            log("Image file URL backfill failed: \(error.localizedDescription)")
+        }
+
+        do {
+            let extensionRepairCount = try repository.repairInvalidFileExtensions()
+            if extensionRepairCount > 0 {
+                log("Repaired \(extensionRepairCount) invalid file extensions")
+            }
+        } catch {
+            log("Invalid file extension repair failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func performMissingRepresentationRecoveryIfNeeded() {
+        guard userDefaults.bool(forKey: Self.missingRepresentationRecoveryCompletedKey) == false
+        else { return }
+
+        let repository = ClipItemRepository(persistence: persistenceController)
+        do {
+            let missingCount = try repository.countItemsMissingRepresentations()
+            if missingCount > 0 {
+                try cloudKitManager.clearZoneChangeToken()
+                log(
+                    "Missing representation recovery detected \(missingCount) items, cleared sync token for full re-sync"
+                )
+            } else {
+                log("Missing representation recovery: no repair needed")
+            }
+            userDefaults.set(true, forKey: Self.missingRepresentationRecoveryCompletedKey)
+        } catch {
+            log("Missing representation recovery failed: \(error.localizedDescription)")
         }
     }
 

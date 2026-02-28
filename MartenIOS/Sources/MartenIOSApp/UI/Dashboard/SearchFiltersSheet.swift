@@ -93,12 +93,18 @@ struct SearchFiltersSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                if searchModel.hasActiveFilters {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Clear") {
-                            searchModel.clearAllFilters()
+                ToolbarItem(placement: .cancellationAction) {
+                    Group {
+                        if searchModel.hasActiveFilters {
+                            Button("Clear") {
+                                withAnimation(MartenAnimation.quick) {
+                                    searchModel.clearAllFilters()
+                                }
+                            }
+                            .transition(.opacity)
                         }
                     }
+                    .animation(MartenAnimation.quick, value: searchModel.hasActiveFilters)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
@@ -213,14 +219,15 @@ private struct FilterChipButtonStyle: ButtonStyle {
     @ViewBuilder
     private func border(isPressed: Bool) -> some View {
         let baseColor = colorScheme == .dark ? Color.white : Color.black
-        let strokeColor = baseColor.opacity(isSelected ? 0.25 : 0.12)
+        let strokeColor = isSelected ? Color.accentColor : baseColor.opacity(0.12)
+        let lineWidth: CGFloat = isSelected ? 1.5 : 1
 
         switch style {
         case .capsule:
-            Capsule().strokeBorder(strokeColor, lineWidth: 1)
+            Capsule().strokeBorder(strokeColor, lineWidth: lineWidth)
         case .roundedRect(let cornerRadius):
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(strokeColor, lineWidth: 1)
+                .strokeBorder(strokeColor, lineWidth: lineWidth)
         }
     }
 }
@@ -273,7 +280,7 @@ private struct AppFilterChipButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                SourceAppIconBadge(bundleID: option.bundleID, appName: option.name, iconData: option.iconData, size: 20)
+                SourceAppIconBadge(bundleID: option.bundleID, appName: option.name, iconData: option.iconData, size: 20, showBackground: false)
 
                 Text(option.name)
                     .font(.footnote.weight(.medium))
@@ -291,6 +298,6 @@ private struct AppFilterChipButton: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
         }
-        .buttonStyle(FilterChipButtonStyle(isSelected: isSelected, style: .roundedRect(cornerRadius: 14)))
+        .buttonStyle(FilterChipButtonStyle(isSelected: isSelected, style: .capsule))
     }
 }

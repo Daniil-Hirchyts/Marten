@@ -205,8 +205,15 @@ struct ItemCardView: View {
         }
         .background(
             ZStack(alignment: .top) {
-                RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                    .fill(.ultraThinMaterial)
+                Group {
+                    if #available(iOS 26, macOS 26, *) {
+                        Color.clear
+                            .glassEffect(.regular, in: .rect(cornerRadius: cardCornerRadius))
+                    } else {
+                        RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                    }
+                }
                 
                 // Subtle color background
                 RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
@@ -328,7 +335,11 @@ struct ItemCardView: View {
         // Include assetRef state so the image task re-fires when an asset arrives via
         // inbound sync even if the item's modifiedAt hasn't changed.
         let assetSig = (item.representations ?? [])
-            .compactMap { $0.assetRef?.uuidString }
+            .map { representation in
+                let assetRef = representation.assetRef?.uuidString ?? "none"
+                let fileExtension = representation.fileExtension?.lowercased() ?? "none"
+                return "\(assetRef).\(fileExtension)"
+            }
             .sorted()
             .joined(separator: ",")
         return "\(item.objectID.uriRepresentation().absoluteString)-\(item.modifiedAt.timeIntervalSince1970)-\(linkPreviewID)-\(linkPreviewTimestamp)-\(assetSig)"

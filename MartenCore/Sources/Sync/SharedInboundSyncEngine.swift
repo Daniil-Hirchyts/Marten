@@ -64,6 +64,7 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
         var pendingDeletions: [(CKRecord.ID, String)] = []
         var deferredRecords: [CKRecord] = []
         var deferredMemberships: [CKRecord] = []
+        var preloadedAssets: [CKRecord.ID: AssetSyncManager.PreloadedAsset] = [:]
 
         var fetchedCount = 0
         var deletedCount = 0
@@ -90,6 +91,7 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
                     deletions: deletionsToApply,
                     deferredRecords: &deferredRecords,
                     deferredMemberships: &deferredMemberships,
+                    preloadedAssets: preloadedAssets,
                     in: context
                 )
                 try removeOrphanedLinkPreviews(in: context)
@@ -104,6 +106,17 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
                 zoneID: zoneID,
                 previousServerChangeTokenData: previousTokenData,
                 recordChanged: { record in
+                    if record.cloudRecordType == .clipRepresentation,
+                       let asset = record.asset(for: ClipRepresentationField.asset.rawValue),
+                       let fileURL = asset.fileURL,
+                       let data = try? Data(contentsOf: fileURL)
+                    {
+                        let ext = fileURL.pathExtension
+                        preloadedAssets[record.recordID] = AssetSyncManager.PreloadedAsset(
+                            data: data,
+                            fileExtension: ext.isEmpty ? nil : ext
+                        )
+                    }
                     pendingRecords.append(record)
                     fetchedCount += 1
                     try applyPendingIfNeeded(force: false)
@@ -124,6 +137,7 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
                     try applyDeferredRecords(
                         records: &deferredRecords,
                         memberships: &deferredMemberships,
+                        preloadedAssets: preloadedAssets,
                         in: context
                     )
                     try removeOrphanedLinkPreviews(in: context)
@@ -133,7 +147,10 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
                 }
             }
 
-            if let tokenToPersist = finalToken ?? lastUpdatedTokenData {
+            let hasUnresolvedDeferredRecords = !deferredRecords.isEmpty || !deferredMemberships.isEmpty
+
+            if !hasUnresolvedDeferredRecords,
+               let tokenToPersist = finalToken ?? lastUpdatedTokenData {
                 try tokenStore.save(tokenToPersist)
             }
         } catch let error as CKError {
@@ -163,6 +180,7 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
         deletions: [(CKRecord.ID, String)],
         deferredRecords: inout [CKRecord],
         deferredMemberships: inout [CKRecord],
+        preloadedAssets: [CKRecord.ID: AssetSyncManager.PreloadedAsset],
         in context: NSManagedObjectContext
     ) throws {
         var cache = buildCache(for: records, deletions: deletions, in: context)
@@ -178,7 +196,7 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
         }
 
         for record in classified.children {
-            if try applyChildRecord(record, cache: &cache, in: context) == false {
+            if try applyChildRecord(record, cache: &cache, preloadedAssets: preloadedAssets, in: context) == false {
                 deferredRecords.append(record)
             }
         }
@@ -193,12 +211,13 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
     private func applyDeferredRecords(
         records: inout [CKRecord],
         memberships: inout [CKRecord],
+        preloadedAssets: [CKRecord.ID: AssetSyncManager.PreloadedAsset],
         in context: NSManagedObjectContext
     ) throws {
         if !records.isEmpty {
             var stillDeferred: [CKRecord] = []
             for record in records {
-                if try applyDeferredChildRecord(record, in: context) == false {
+                if try applyDeferredChildRecord(record, preloadedAssets: preloadedAssets, in: context) == false {
                     stillDeferred.append(record)
                 }
             }
@@ -317,7 +336,12 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
 
     // MARK: - Child Record Handlers
 
-    private func applyChildRecord(_ record: CKRecord, cache: inout EntityCache, in context: NSManagedObjectContext) throws -> Bool {
+    private func applyChildRecord(
+        _ record: CKRecord,
+        cache: inout EntityCache,
+        preloadedAssets: [CKRecord.ID: AssetSyncManager.PreloadedAsset],
+        in context: NSManagedObjectContext
+    ) throws -> Bool {
         guard let type = record.cloudRecordType else { return true }
 
         switch type {
@@ -328,15 +352,16 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
             }
             guard let id = record.uuid(for: ClipRepresentationField.id.rawValue) else { return true }
 
+            let preloaded = preloadedAssets[record.recordID]
             if let existing = cache.clipRepresentations[id] {
                 try recordMapper.updateEntity(existing, from: record)
                 existing.clipItem = parent
-                try assetSyncManager.applyDownloadedAssetIfPresentSync(from: record, to: existing)
+                try assetSyncManager.applyDownloadedAssetIfPresentSync(from: record, to: existing, preloadedAssetData: preloaded)
             } else {
                 let rep = try recordMapper.createClipRepresentation(from: record, in: context)
                 rep.clipItem = parent
                 parent.addToRepresentations(rep)
-                try assetSyncManager.applyDownloadedAssetIfPresentSync(from: record, to: rep)
+                try assetSyncManager.applyDownloadedAssetIfPresentSync(from: record, to: rep, preloadedAssetData: preloaded)
                 cache.insert(rep)
             }
             return true
@@ -365,7 +390,11 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
         }
     }
 
-    private func applyDeferredChildRecord(_ record: CKRecord, in context: NSManagedObjectContext) throws -> Bool {
+    private func applyDeferredChildRecord(
+        _ record: CKRecord,
+        preloadedAssets: [CKRecord.ID: AssetSyncManager.PreloadedAsset],
+        in context: NSManagedObjectContext
+    ) throws -> Bool {
         guard let type = record.cloudRecordType else { return true }
 
         switch type {
@@ -376,15 +405,16 @@ public final class SharedInboundSyncEngine: @unchecked Sendable {
             }
             guard let id = record.uuid(for: ClipRepresentationField.id.rawValue) else { return true }
 
+            let preloaded = preloadedAssets[record.recordID]
             if let existing = fetchClipRepresentation(id: id, in: context) {
                 try recordMapper.updateEntity(existing, from: record)
                 existing.clipItem = parent
-                try assetSyncManager.applyDownloadedAssetIfPresentSync(from: record, to: existing)
+                try assetSyncManager.applyDownloadedAssetIfPresentSync(from: record, to: existing, preloadedAssetData: preloaded)
             } else {
                 let rep = try recordMapper.createClipRepresentation(from: record, in: context)
                 rep.clipItem = parent
                 parent.addToRepresentations(rep)
-                try assetSyncManager.applyDownloadedAssetIfPresentSync(from: record, to: rep)
+                try assetSyncManager.applyDownloadedAssetIfPresentSync(from: record, to: rep, preloadedAssetData: preloaded)
             }
             return true
 

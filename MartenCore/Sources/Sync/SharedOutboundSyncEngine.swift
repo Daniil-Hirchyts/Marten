@@ -547,7 +547,7 @@ public final class SharedOutboundSyncEngine: @unchecked Sendable {
         var retryShared: [CKRecordZone.ID: PendingZoneBatch] = [:]
 
         for (zoneID, batch) in privateBatches {
-            let records = Array(batch.savesByID.values)
+            let records = CloudRecordUploadOrdering.sortedForUpload(batch.savesByID.values)
             let deletions = Array(batch.deletes)
             let result = await privateDatabase.modifyRecords(saving: records, deleting: deletions)
             collectRetryWork(
@@ -558,7 +558,7 @@ public final class SharedOutboundSyncEngine: @unchecked Sendable {
         }
 
         for (zoneID, batch) in sharedBatches {
-            let records = Array(batch.savesByID.values)
+            let records = CloudRecordUploadOrdering.sortedForUpload(batch.savesByID.values)
             let deletions = Array(batch.deletes)
             let result = await sharedDatabase.modifyRecords(saving: records, deleting: deletions)
             collectRetryWork(

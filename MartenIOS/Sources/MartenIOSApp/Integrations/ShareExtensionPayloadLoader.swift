@@ -64,6 +64,17 @@ public struct ShareExtensionPayloadLoader {
     private func loadCandidate(from provider: NSItemProvider) async -> ShareExtensionPayloadCandidate? {
         var candidate = ShareExtensionPayloadCandidate()
 
+        let imageTypes: [UTType] = [.png, .jpeg, .tiff, .heic, .heif]
+        for imageType in imageTypes {
+            if provider.hasItemConformingToTypeIdentifier(imageType.identifier),
+                let imageData = await loadData(from: provider, typeIdentifier: imageType.identifier)
+            {
+                candidate.imageData = imageData
+                candidate.imageUTType = imageType
+                return candidate
+            }
+        }
+
         if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier),
             let url = await loadURL(from: provider, typeIdentifier: UTType.fileURL.identifier)
         {
@@ -76,17 +87,6 @@ public struct ShareExtensionPayloadLoader {
         {
             candidate.webURL = url
             return candidate
-        }
-
-        let imageTypes: [UTType] = [.png, .jpeg, .tiff, .heic, .heif]
-        for imageType in imageTypes {
-            if provider.hasItemConformingToTypeIdentifier(imageType.identifier),
-                let imageData = await loadData(from: provider, typeIdentifier: imageType.identifier)
-            {
-                candidate.imageData = imageData
-                candidate.imageUTType = imageType
-                return candidate
-            }
         }
 
         if provider.hasItemConformingToTypeIdentifier(UTType.rtf.identifier) {

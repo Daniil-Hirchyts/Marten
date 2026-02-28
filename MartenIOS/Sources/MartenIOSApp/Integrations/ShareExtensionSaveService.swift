@@ -51,6 +51,16 @@ public actor ShareExtensionSaveService {
             savedCount += 1
         }
 
+        if savedCount > 0 {
+            CFNotificationCenterPostNotification(
+                CFNotificationCenterGetDarwinNotifyCenter(),
+                CFNotificationName("com.hirchyts.marten.extension.saved" as CFString),
+                nil,
+                nil,
+                true
+            )
+        }
+
         return savedCount
     }
 

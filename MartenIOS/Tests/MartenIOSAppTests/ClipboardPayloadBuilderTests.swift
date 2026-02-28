@@ -38,6 +38,24 @@ final class ClipboardPayloadBuilderTests: XCTestCase {
         XCTAssertEqual(payload?.representations.first?.kind, .jpeg)
     }
 
+    func testImageFileURLBuildsImagePayloadInsteadOfFilePayload() throws {
+        let imageURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("png")
+        try pngFixtureData.write(to: imageURL)
+        defer { try? FileManager.default.removeItem(at: imageURL) }
+
+        var content = ClipboardContent()
+        content.fileURL = imageURL
+
+        let payload = builder.buildPayload(from: content)
+
+        XCTAssertEqual(payload?.itemType, .image)
+        XCTAssertEqual(payload?.representations.first?.kind, .png)
+        XCTAssertEqual(payload?.representations.first?.fileExtension, "png")
+        XCTAssertEqual(payload?.representations.first?.data, pngFixtureData)
+    }
+
     func testHexTextClassifiesAsColor() {
         var content = ClipboardContent()
         content.plainText = "#FFAA00"
@@ -59,5 +77,11 @@ final class ClipboardPayloadBuilderTests: XCTestCase {
         let payload = builder.buildPayload(from: content)
 
         XCTAssertEqual(payload?.itemType, .code)
+    }
+
+    private var pngFixtureData: Data {
+        Data(
+            base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yF9sAAAAASUVORK5CYII="
+        )!
     }
 }

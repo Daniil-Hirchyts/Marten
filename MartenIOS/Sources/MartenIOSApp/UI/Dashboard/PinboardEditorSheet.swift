@@ -142,8 +142,8 @@ struct PinboardEditorSheet: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white)
                 } else {
-                    Text(iconName)
-                        .font(.system(size: 14))
+                    Text(verbatim: iconName)
+                        .font(.system(size: 16))
                 }
             }
         }
@@ -256,8 +256,8 @@ struct PinboardEditorSheet: View {
                                     .font(.system(size: 15, weight: .semibold))
                                     .foregroundStyle(isSelected ? selectedColor : .primary)
                             } else {
-                                Text(option.token)
-                                    .font(.system(size: 20))
+                                Text(verbatim: option.token)
+                                    .font(.system(size: 22))
                             }
                         }
                         .frame(height: 44)

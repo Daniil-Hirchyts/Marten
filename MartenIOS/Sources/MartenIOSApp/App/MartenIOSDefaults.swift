@@ -15,6 +15,7 @@ public enum MartenIOSDefaults {
     public static let keyboardLastMutationAtKey = "marten.keyboard.lastMutationAt"
     public static let shareExtensionLastSuccessAtKey = "marten.shareExtension.lastSuccessAt"
     public static let showIntegrationsOnboardingKey = "marten.ios.integrations.showOnboarding"
+    public static let lastPasteboardChangeCountKey = "marten.ios.pasteboard.lastChangeCount"
 
     public static func registerDefaults(_ userDefaults: UserDefaults = .standard) {
         userDefaults.register(defaults: [
@@ -30,6 +31,7 @@ public enum MartenIOSDefaults {
             keyboardLastMutationAtKey: 0.0,
             shareExtensionLastSuccessAtKey: 0.0,
             showIntegrationsOnboardingKey: true,
+            lastPasteboardChangeCountKey: 0,
         ])
         SharedPinboardsFeatureFlag.registerDefaults(userDefaults)
     }

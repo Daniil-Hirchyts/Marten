@@ -17,16 +17,9 @@ struct DisplaceDistortionModifier: ViewModifier {
     func body(content: Content) -> some View {
         let progress = abs(offset) / dashboardScreenWidth
         content
-            // Elements move and displace with a 3D rotation
             .offset(x: offset)
-            .scaleEffect(1 - (progress * 0.15))
-            .blur(radius: progress * 12)
+            .scaleEffect(1 - (progress * 0.10))
             .opacity(1 - progress)
-            .rotation3DEffect(
-                .degrees(Double(offset / 15)), 
-                axis: (x: 0, y: 1.0, z: 0.2), 
-                perspective: 0.6
-            )
     }
 }
 

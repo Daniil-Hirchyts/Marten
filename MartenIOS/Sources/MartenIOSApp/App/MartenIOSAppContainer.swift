@@ -248,6 +248,7 @@ public final class MartenIOSAppContainer {
             reconcileLockStateForShareMembership()
             await refreshPendingLinkPreviews()
             refreshDashboardStateFromShareExtensionIfNeeded()
+            await autoSaveFromClipboardIfNeeded()
         case .background:
             syncCoordinator?.handleAppWillResignActive()
         default:
@@ -367,6 +368,26 @@ public final class MartenIOSAppContainer {
         } catch {
             lastOperationErrorMessage = error.localizedDescription
         }
+    }
+
+    private func autoSaveFromClipboardIfNeeded() async {
+        #if canImport(UIKit)
+        let pasteboard = UIPasteboard.general
+        let currentChangeCount = pasteboard.changeCount
+        let lastChangeCount = userDefaults.integer(forKey: MartenIOSDefaults.lastPasteboardChangeCountKey)
+        
+        guard currentChangeCount != lastChangeCount else {
+            return
+        }
+        
+        // Update the stored count so we don't prompt again unnecessarily
+        userDefaults.set(currentChangeCount, forKey: MartenIOSDefaults.lastPasteboardChangeCountKey)
+        
+        // Only attempt to read and save if something meaningful is there
+        if pasteboard.hasStrings || pasteboard.hasImages || pasteboard.hasURLs {
+            await createItemFromClipboard()
+        }
+        #endif
     }
 
     public func createScannedPages(_ pageJPEGData: [Data]) async {
@@ -910,3 +931,4 @@ public final class MartenIOSAppContainer {
         }
     }
 }
+

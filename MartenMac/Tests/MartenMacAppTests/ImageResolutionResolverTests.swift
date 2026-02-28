@@ -59,6 +59,64 @@ final class ImageResolutionResolverTests: XCTestCase {
         )
     }
 
+    func testResolveUsesAssetStoreWhenFileExtensionMetadataIsMissing() throws {
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempDir) }
+
+        let previousStore = AssetStore.shared
+        AssetStore.shared = AssetStore(baseURL: tempDir)
+        defer { AssetStore.shared = previousStore }
+
+        let originalData = try makePNGData(width: 640, height: 360)
+        let assetRef = try AssetStore.shared.store(data: originalData, fileExtension: "png")
+
+        let sources: [ImageResolutionResolver.Source] = [
+            .init(
+                kind: .png,
+                binaryData: nil,
+                assetRef: assetRef,
+                fileExtension: nil,
+                textData: nil
+            )
+        ]
+
+        XCTAssertEqual(
+            ImageResolutionResolver.resolve(from: sources, thumbnailPath: nil),
+            "640×360"
+        )
+    }
+
+    func testThumbnailResolverFallsBackToAssetWhenThumbnailPathIsStale() throws {
+        let fileManager = FileManager.default
+        let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: tempDir) }
+
+        let previousStore = AssetStore.shared
+        AssetStore.shared = AssetStore(baseURL: tempDir)
+        defer { AssetStore.shared = previousStore }
+
+        let imageData = try makePNGData(width: 240, height: 180)
+        let assetRef = try AssetStore.shared.store(data: imageData, fileExtension: "png")
+
+        let resolved = ThumbnailImageResolver.resolve(
+            thumbnailPath: "/tmp/does-not-exist-\(UUID().uuidString).png",
+            snapshots: [
+                ItemCard.ThumbnailRepresentationSnapshot(
+                    kind: .png,
+                    binaryData: nil,
+                    assetRef: assetRef,
+                    fileExtension: nil,
+                    textData: nil
+                )
+            ]
+        )
+
+        XCTAssertNotNil(resolved)
+    }
+
     private func makePNGData(width: Int, height: Int) throws -> Data {
         guard
             let bitmap = NSBitmapImageRep(

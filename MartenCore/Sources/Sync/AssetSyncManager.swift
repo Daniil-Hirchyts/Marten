@@ -2,6 +2,7 @@ import CloudKit
 import Combine
 import CryptoKit
 import Foundation
+import UniformTypeIdentifiers
 
 public enum AssetSyncError: Error, Equatable {
     case missingLocalAsset
@@ -30,6 +31,16 @@ extension CKDatabase: CloudKitRecordsModifying {}
 extension CKDatabase: CloudKitRecordsFetching {}
 
 public final class AssetSyncManager {
+    public struct PreloadedAsset: Sendable {
+        public let data: Data
+        public let fileExtension: String?
+
+        public init(data: Data, fileExtension: String?) {
+            self.data = data
+            self.fileExtension = fileExtension
+        }
+    }
+
     public struct Configuration: Sendable {
         public var perAssetLimitBytes: Int64
         public var totalLimitBytes: Int64
@@ -141,18 +152,25 @@ public final class AssetSyncManager {
         let fileURL: URL
 
         if let assetRef = representation.assetRef {
-            let url = assetStore.urlForAsset(assetRef, fileExtension: representation.fileExtension)
-            guard fileManager.fileExists(atPath: url.path) else {
+            guard
+                let url = assetStore.existingURLForAsset(
+                    assetRef,
+                    fileExtension: representation.fileExtension
+                )
+            else {
                 throw AssetSyncError.missingLocalAsset
             }
+            applyResolvedFileExtension(from: url, to: representation)
             fileURL = url
         } else if let data = representation.binaryData, !data.isEmpty {
             // binaryData is a local-only field with no CloudKit mapping.
             // Migrate it to AssetStore so it can be uploaded as a CKAsset and
             // received correctly on other platforms.
-            let newRef = try assetStore.store(data: data, fileExtension: representation.fileExtension)
+            let fileExtension = normalizedFileExtension(representation.fileExtension)
+            let newRef = try assetStore.store(data: data, fileExtension: fileExtension)
             representation.assetRef = newRef
-            fileURL = assetStore.urlForAsset(newRef, fileExtension: representation.fileExtension)
+            representation.fileExtension = fileExtension
+            fileURL = assetStore.urlForAsset(newRef, fileExtension: fileExtension)
         } else {
             return
         }
@@ -179,18 +197,25 @@ public final class AssetSyncManager {
         let fileURL: URL
 
         if let assetRef = representation.assetRef {
-            let url = assetStore.urlForAsset(assetRef, fileExtension: representation.fileExtension)
-            guard fileManager.fileExists(atPath: url.path) else {
+            guard
+                let url = assetStore.existingURLForAsset(
+                    assetRef,
+                    fileExtension: representation.fileExtension
+                )
+            else {
                 throw AssetSyncError.missingLocalAsset
             }
+            applyResolvedFileExtension(from: url, to: representation)
             fileURL = url
         } else if let data = representation.binaryData, !data.isEmpty {
             // binaryData is a local-only field with no CloudKit mapping.
             // Migrate it to AssetStore so it can be uploaded as a CKAsset and
             // received correctly on other platforms.
-            let newRef = try assetStore.store(data: data, fileExtension: representation.fileExtension)
+            let fileExtension = normalizedFileExtension(representation.fileExtension)
+            let newRef = try assetStore.store(data: data, fileExtension: fileExtension)
             representation.assetRef = newRef
-            fileURL = assetStore.urlForAsset(newRef, fileExtension: representation.fileExtension)
+            representation.fileExtension = fileExtension
+            fileURL = assetStore.urlForAsset(newRef, fileExtension: fileExtension)
         } else {
             return
         }
@@ -244,8 +269,13 @@ public final class AssetSyncManager {
         fieldKey: String = ClipRepresentationField.asset.rawValue
     ) async throws {
         if let existingRef = representation.assetRef {
-            let existingURL = assetStore.urlForAsset(existingRef, fileExtension: representation.fileExtension)
-            if fileManager.fileExists(atPath: existingURL.path) { return }
+            if let existingURL = assetStore.existingURLForAsset(
+                existingRef,
+                fileExtension: representation.fileExtension
+            ) {
+                applyResolvedFileExtension(from: existingURL, to: representation)
+                return
+            }
             // File is missing despite assetRef being set — fall through to re-download.
         }
 
@@ -254,41 +284,63 @@ public final class AssetSyncManager {
         }
 
         let recordID = record.recordID
+        let inferredExtension = inferredFileExtension(
+            existingFileExtension: representation.fileExtension,
+            assetFileURL: fileURL,
+            uti: representation.uti
+        )
         let storedRef = try await storeAsset(
             assetFileURL: fileURL,
             remoteRecordID: recordID,
             fieldKey: fieldKey,
-            suggestedFileExtension: representation.fileExtension
+            suggestedFileExtension: inferredExtension
         )
         representation.assetRef = storedRef
+        representation.fileExtension = inferredExtension
     }
 
     /// Synchronous variant used from Core Data `performAndWait` call sites.
+    ///
+    /// - Parameter preloadedAssetData: Asset data eagerly read during the CloudKit fetch
+    ///   callback, used as fallback when the CKAsset temp file is no longer available.
     public func applyDownloadedAssetIfPresentSync(
         from record: CKRecord,
         to representation: ClipRepresentation,
-        fieldKey: String = ClipRepresentationField.asset.rawValue
+        fieldKey: String = ClipRepresentationField.asset.rawValue,
+        preloadedAssetData: PreloadedAsset? = nil
     ) throws {
         if let existingRef = representation.assetRef {
-            let existingURL = assetStore.urlForAsset(existingRef, fileExtension: representation.fileExtension)
-            if fileManager.fileExists(atPath: existingURL.path) { return }
+            if let existingURL = assetStore.existingURLForAsset(
+                existingRef,
+                fileExtension: representation.fileExtension
+            ) {
+                applyResolvedFileExtension(from: existingURL, to: representation)
+                return
+            }
             // File is missing despite assetRef being set — fall through to re-download.
         }
 
-        guard let asset = record.asset(for: fieldKey), let fileURL = asset.fileURL else {
+        let data: Data
+        let inferredExtension: String?
+
+        if let asset = record.asset(for: fieldKey), let fileURL = asset.fileURL,
+           let fileData = try? Data(contentsOf: fileURL)
+        {
+            data = fileData
+            inferredExtension = inferredFileExtension(
+                existingFileExtension: representation.fileExtension,
+                assetFileURL: fileURL
+            )
+        } else if let preloaded = preloadedAssetData {
+            data = preloaded.data
+            inferredExtension = preloaded.fileExtension
+                ?? normalizedFileExtension(representation.fileExtension)
+        } else {
             return
         }
 
-        let data = try Data(contentsOf: fileURL)
-        let inferredExtension: String? = {
-            if let fileExtension = representation.fileExtension, !fileExtension.isEmpty {
-                return fileExtension
-            }
-            let ext = fileURL.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
-            return ext.isEmpty ? nil : ext
-        }()
-
         representation.assetRef = try assetStore.store(data: data, fileExtension: inferredExtension)
+        representation.fileExtension = inferredExtension
     }
 
     public func cleanupOrphanedAssets(
@@ -453,6 +505,44 @@ public final class AssetSyncManager {
         return Int64(values.fileSize ?? 0)
     }
 
+    private func normalizedFileExtension(_ fileExtension: String?) -> String? {
+        guard let fileExtension else { return nil }
+        let normalized = fileExtension.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private func inferredFileExtension(
+        existingFileExtension: String?,
+        assetFileURL: URL,
+        uti: String? = nil
+    ) -> String? {
+        if let normalized = normalizedFileExtension(existingFileExtension), normalized.count < 10 {
+            return normalized
+        }
+
+        if let uti = uti, let utType = UTType(uti), let ext = utType.preferredFilenameExtension {
+            return ext
+        }
+
+        let pathExt = normalizedFileExtension(assetFileURL.pathExtension)
+        if let pathExt = pathExt, pathExt.count < 10 {
+            return pathExt
+        }
+
+        return nil
+    }
+
+    private func applyResolvedFileExtension(from fileURL: URL, to representation: ClipRepresentation) {
+        let resolvedExtension = inferredFileExtension(
+            existingFileExtension: representation.fileExtension,
+            assetFileURL: fileURL
+        )
+
+        if representation.fileExtension != resolvedExtension {
+            representation.fileExtension = resolvedExtension
+        }
+    }
+
     private func parseAssetFilename(_ filename: String) throws -> (UUID, String?) {
         let name = (filename as NSString).deletingPathExtension
         let ext = (filename as NSString).pathExtension
@@ -493,9 +583,12 @@ extension CKDatabase {
             recordsToSave: records,
             recordIDsToDelete: recordIDs
         )
+        let continuationState = CloudKitOperationContinuation<[CKRecord]>()
+
         return try await withTaskCancellationHandler(
             operation: {
                 try await withCheckedThrowingContinuation { continuation in
+                    continuationState.install(continuation)
                     modifyOperation.savePolicy = savePolicy
                     var savedRecords: [CKRecord] = []
 
@@ -514,10 +607,16 @@ extension CKDatabase {
                     modifyOperation.modifyRecordsResultBlock = { result in
                         switch result {
                         case .success:
-                            continuation.resume(returning: savedRecords)
+                            continuationState.resume(with: .success(savedRecords))
                         case .failure(let error):
-                            continuation.resume(throwing: error)
+                            continuationState.resume(with: .failure(error))
                         }
+                    }
+
+                    if Task.isCancelled {
+                        modifyOperation.cancel()
+                        continuationState.resume(with: .failure(CancellationError()))
+                        return
                     }
 
                     self.add(modifyOperation)
@@ -525,6 +624,7 @@ extension CKDatabase {
             },
             onCancel: {
                 modifyOperation.cancel()
+                continuationState.resume(with: .failure(CancellationError()))
             })
     }
 
@@ -532,10 +632,13 @@ extension CKDatabase {
         -> CKRecord
     {
         let fetchOperation = CKFetchRecordsOperation(recordIDs: [recordID])
+        let continuationState = CloudKitOperationContinuation<CKRecord>()
+
         return try await withTaskCancellationHandler(
             operation: {
                 try await withCheckedThrowingContinuation {
                     (continuation: CheckedContinuation<CKRecord, Error>) in
+                    continuationState.install(continuation)
                     fetchOperation.desiredKeys = desiredKeys
 
                     var fetchedRecord: CKRecord?
@@ -553,17 +656,23 @@ extension CKDatabase {
                         switch result {
                         case .success:
                             if let perRecordError {
-                                continuation.resume(throwing: perRecordError)
+                                continuationState.resume(with: .failure(perRecordError))
                                 return
                             }
                             guard let fetchedRecord else {
-                                continuation.resume(throwing: CKError(.unknownItem))
+                                continuationState.resume(with: .failure(CKError(.unknownItem)))
                                 return
                             }
-                            continuation.resume(returning: fetchedRecord)
+                            continuationState.resume(with: .success(fetchedRecord))
                         case .failure(let error):
-                            continuation.resume(throwing: error)
+                            continuationState.resume(with: .failure(error))
                         }
+                    }
+
+                    if Task.isCancelled {
+                        fetchOperation.cancel()
+                        continuationState.resume(with: .failure(CancellationError()))
+                        return
                     }
 
                     self.add(fetchOperation)
@@ -571,6 +680,7 @@ extension CKDatabase {
             },
             onCancel: {
                 fetchOperation.cancel()
+                continuationState.resume(with: .failure(CancellationError()))
             })
     }
 }

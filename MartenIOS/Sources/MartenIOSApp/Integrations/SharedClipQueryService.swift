@@ -122,14 +122,12 @@ public actor SharedClipQueryService {
         for representation in representations {
             switch representation.kindValue {
             case .png, .jpeg, .tiff, .pdf:
-                if let assetRef = representation.assetRef {
-                    let fileURL = AssetStore.shared.urlForAsset(
+                if let assetRef = representation.assetRef,
+                    let fileURL = AssetStore.shared.existingURLForAsset(
                         assetRef,
                         fileExtension: representation.fileExtension
-                    )
-                    if FileManager.default.fileExists(atPath: fileURL.path) {
-                        return fileURL.path
-                    }
+                    ) {
+                    return fileURL.path
                 }
 
                 if let data = representation.binaryData,
