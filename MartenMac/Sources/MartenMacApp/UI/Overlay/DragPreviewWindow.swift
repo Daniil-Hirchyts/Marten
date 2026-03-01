@@ -436,6 +436,41 @@ struct ItemCompactRowDragPreview: View {
                     : Color(.sRGB, white: 0.96, opacity: 0.9))
             Rectangle()
                 .fill(sideBarColor)
+                .overlay(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(colorScheme == .dark ? 0.1 : 0.25),
+                            Color.white.opacity(0.0)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(alignment: .trailing) {
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(colorScheme == .dark ? 0.25 : 0.08),
+                            Color.clear
+                        ],
+                        startPoint: .trailing,
+                        endPoint: .leading
+                    )
+                    .frame(width: 4)
+                }
+                .overlay(
+                    Rectangle()
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(colorScheme == .dark ? 0.15 : 0.3),
+                                    Color.clear,
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.5
+                        )
+                )
                 .frame(width: sideBarWidth)
         }
     }

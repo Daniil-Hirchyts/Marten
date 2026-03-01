@@ -94,7 +94,7 @@ extension ItemCard {
         refreshThumbnailImage()
         refreshImageResolution()
         refreshFileIcon()
-        refreshURLBannerImage()
+        refreshLinkPreview()
     }
 
     func refreshStyledPreviewText() {
@@ -106,84 +106,50 @@ extension ItemCard {
         styledPreviewText = (try? AttributedString(styled, including: \.appKit))
     }
 
-    func refreshURLBannerImage() {
+    func refreshLinkPreview() {
         guard item.itemTypeValue == .url else {
-            urlBannerImage = nil
-            lastLoadedURLBannerPath = nil
-            lastFetchedURLBannerURLString = nil
+            linkPreviewResult = nil
+            lastLoadedLinkPreviewKey = nil
             return
         }
 
-        guard let linkPreview = item.linkPreview else {
-            lastLoadedURLBannerPath = nil
-            return
-        }
-
-        let currentPath = linkPreview.imagePath?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let currentURL = linkPreview.imageURL?.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Check if we've already loaded this exact preview
-        let cacheKey = "\(currentPath ?? "")|\(currentURL ?? "")"
-        if lastLoadedURLBannerPath == cacheKey {
-            return
-        }
-        lastLoadedURLBannerPath = cacheKey
-
-        Task {
-            // Try loading from disk first
-            if let path = currentPath, !path.isEmpty {
-                let image = await loadURLBannerFromDisk(path: path)
-                await MainActor.run {
-                    if let image {
-                        urlBannerImage = image
-                    }
-                }
-                if urlBannerImage != nil {
-                    return
-                }
+        if let linkPreview = item.linkPreview {
+            let currentPath = linkPreview.imagePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let currentURL = linkPreview.imageURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cacheKey = "\(linkPreview.id.uuidString)|\(currentPath ?? "")|\(currentURL ?? "")"
+            if lastLoadedLinkPreviewKey == cacheKey {
+                return
             }
-            
-            // Fall back to downloading from URL
-            if let urlString = currentURL, !urlString.isEmpty, let url = URL(string: urlString) {
-                let image = await downloadURLBanner(from: url)
-                await MainActor.run {
-                    if let image {
-                        urlBannerImage = image
-                    }
-                }
+            lastLoadedLinkPreviewKey = cacheKey
+
+            Task {
+                let result = await LinkPreviewImageLoader.shared.loadImage(for: linkPreview)
+                linkPreviewResult = result
+            }
+        } else {
+            // No LinkPreview entity yet — try favicon from the raw URL
+            let rawURL = item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let cacheKey = "no-lp|\(rawURL)"
+            if lastLoadedLinkPreviewKey == cacheKey {
+                return
+            }
+            lastLoadedLinkPreviewKey = cacheKey
+
+            guard !rawURL.isEmpty else { return }
+
+            Task {
+                let result = await LinkPreviewImageLoader.shared.loadFaviconOnly(urlString: rawURL)
+                linkPreviewResult = result
             }
         }
     }
-    
-    private func loadURLBannerFromDisk(path: String) async -> NSImage? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                continuation.resume(returning: NSImage(contentsOfFile: path))
-            }
-        }
-    }
-    
-    private func downloadURLBanner(from url: URL) async -> NSImage? {
-        var request = URLRequest(url: url)
-        request.cachePolicy = .returnCacheDataElseLoad
-        request.timeoutInterval = 10
-        
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            return nil
-        }
-        
-        return NSImage(data: data)
+
+    func resetLinkPreviewState() {
+        linkPreviewResult = nil
+        lastLoadedLinkPreviewKey = nil
     }
 
-    func resetURLBannerState() {
-        urlBannerImage = nil
-        lastLoadedURLBannerPath = nil
-        lastFetchedURLBannerURLString = nil
-    }
-
-    var urlBannerTaskID: String {
+    var linkPreviewTaskID: String {
         let url =
             normalizedPrimaryURL?.absoluteString
             ?? (item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")

@@ -12,7 +12,6 @@ extension OverlayShellView {
         searchModel.updateAppOptions(from: allItemsVisibleInAllPinboard)
         lastFilterInputHash = filterInputHash
         cachedFilteredItems = computeFilteredItems()
-        viewModel.ensureDefaultSelection(in: filteredItems)
         dragCoordinator.ensurePreviewWindow()
         dragCoordinator.ensurePinboardPreviewWindow()
         installKeyboardHandlers()
@@ -89,7 +88,7 @@ extension OverlayShellView {
     }
 
     func handleFilteredItemsChange(_ oldValue: [URL], _ newValue: [URL]) {
-        viewModel.ensureDefaultSelection(in: filteredItems)
+        viewModel.ensureDefaultSelection(in: filteredItems)  // prunes stale selections only
     }
 
     func handleSelectionChange(_ oldValue: Set<NSManagedObjectID>, _ newValue: Set<NSManagedObjectID>) {
@@ -108,7 +107,6 @@ extension OverlayShellView {
     func handleBroadcasterEvent(_ event: MartenEvent) {
         if event == .overlayDidShow {
             searchFocused = true
-            viewModel.ensureDefaultSelection(in: filteredItems)
             announceOverlayItemCount()
         }
     }

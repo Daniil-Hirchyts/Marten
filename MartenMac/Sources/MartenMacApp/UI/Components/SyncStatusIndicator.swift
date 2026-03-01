@@ -182,7 +182,11 @@ public struct SyncStatusIndicator<Coordinator: SyncCoordinating & ObservableObje
 
     private var lastSyncText: String? {
         guard let lastSync = coordinator.lastSyncDate else { return nil }
-        return RelativeTimeFormatter.format(lastSync)
+        let formatted = RelativeTimeFormatter.format(lastSync)
+        if formatted == "Just now" || formatted == "Yesterday" {
+            return "Last synced: \(formatted.lowercased())"
+        }
+        return "Last synced: \(formatted)"
     }
 }
 

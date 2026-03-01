@@ -32,7 +32,7 @@ private struct SettingsAnimatedBackdrop: View {
             )
 
             Circle()
-                .fill(Color.cyan.opacity(colorScheme == .dark ? 0.08 : 0.12))
+                .fill(Color.cyan.opacity(colorScheme == .dark ? 0.03 : 0.04))
                 .frame(width: 320, height: 320)
                 .blur(radius: 52)
                 .offset(
@@ -41,7 +41,7 @@ private struct SettingsAnimatedBackdrop: View {
                 )
 
             Circle()
-                .fill(Color.blue.opacity(colorScheme == .dark ? 0.1 : 0.1))
+                .fill(Color.blue.opacity(colorScheme == .dark ? 0.04 : 0.04))
                 .frame(width: 280, height: 280)
                 .blur(radius: 48)
                 .offset(
@@ -117,7 +117,7 @@ struct SettingsView: View {
                 ForEach(SettingsTab.allCases) { tab in
                     Label {
                         Text(tab.title)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
                     } icon: {
                         Image(systemName: tab.icon)
                     }

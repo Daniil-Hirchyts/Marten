@@ -47,6 +47,18 @@ extension PinboardTabBar {
                 }
             }
         }
+        .background(
+            GeometryReader { proxy in
+                if !isMeasuring {
+                    Color.clear.preference(
+                        key: PinboardContentWidthKey.self,
+                        value: proxy.size.width
+                    )
+                } else {
+                    Color.clear
+                }
+            }
+        )
     }
 
     @ViewBuilder

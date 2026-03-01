@@ -40,7 +40,6 @@ struct ItemCompactRow: View {
 
     @State private var lastTapTime: Date?
     @State private var editTitle = ""
-    @StateObject private var appColorLoader = AppIconColorLoader()
     @FocusState private var isFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
 
@@ -90,12 +89,6 @@ struct ItemCompactRow: View {
         .overlay(selectionBorder)
         .onTapGesture {
             handleTap()
-        }
-        .onAppear {
-            appColorLoader.load(bundleID: item.sourceAppBundleID, appName: item.sourceAppName)
-        }
-        .onChange(of: sourceIdentitySignature) { _, _ in
-            appColorLoader.load(bundleID: item.sourceAppBundleID, appName: item.sourceAppName)
         }
         .popover(isPresented: isPreviewPresented, arrowEdge: .trailing) {
             OverlayItemPreview(
@@ -279,14 +272,47 @@ struct ItemCompactRow: View {
         ZStack(alignment: .leading) {
             cardShape
                 .fill(
-                    isSelected
-                        ? Color(nsColor: .controlAccentColor).opacity(colorScheme == .dark ? 0.23 : 0.16)
-                        : (colorScheme == .dark
-                            ? Color(.sRGB, white: 0.04, opacity: 0.72)
-                            : Color(.sRGB, white: 0.96, opacity: 0.9))
+                    colorScheme == .dark
+                        ? Color(.sRGB, white: 0.04, opacity: 0.72)
+                        : Color(.sRGB, white: 0.96, opacity: 0.9)
                 )
             Rectangle()
                 .fill(sideBarColor)
+                .overlay(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(colorScheme == .dark ? 0.1 : 0.25),
+                            Color.white.opacity(0.0)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(alignment: .trailing) {
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(colorScheme == .dark ? 0.25 : 0.08),
+                            Color.clear
+                        ],
+                        startPoint: .trailing,
+                        endPoint: .leading
+                    )
+                    .frame(width: 4)
+                }
+                .overlay(
+                    Rectangle()
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(colorScheme == .dark ? 0.15 : 0.3),
+                                    Color.clear,
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.5
+                        )
+                )
                 .frame(width: sideBarWidth)
         }
     }
@@ -298,9 +324,6 @@ struct ItemCompactRow: View {
     private var sideBarColor: Color {
         if let pinboardColor {
             return pinboardColor
-        }
-        if let appColor = appColorLoader.color {
-            return Color(nsColor: appColor).opacity(0.96)
         }
         return colorScheme == .dark
             ? Color.white.opacity(0.24)
@@ -326,9 +349,6 @@ struct ItemCompactRow: View {
     private var sideBarNSColor: NSColor {
         if let pinboard = primaryAssignedPinboard {
             return NSColor(hex: pinboard.colorHex)
-        }
-        if let appColor = appColorLoader.color {
-            return appColor
         }
         return colorScheme == .dark
             ? NSColor.white.withAlphaComponent(0.24)
@@ -379,18 +399,6 @@ struct ItemCompactRow: View {
             return bundleID
         }
         return nil
-    }
-
-    private var sourceIdentitySignature: SourceIdentitySignature {
-        SourceIdentitySignature(
-            bundleID: item.sourceAppBundleID ?? "",
-            appName: item.sourceAppName ?? ""
-        )
-    }
-
-    private struct SourceIdentitySignature: Equatable {
-        let bundleID: String
-        let appName: String
     }
 
     private var timeAgoShort: String {

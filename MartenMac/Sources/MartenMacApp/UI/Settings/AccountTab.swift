@@ -3,7 +3,6 @@ import SwiftUI
 
 struct AccountSettingsContent: View {
     @State private var showDisableSyncWarning = false
-    @State private var isSyncInProgress = false
     @State private var syncError: Error?
     @State private var authManager = AppleAuthManager()
     @State private var signInError: String?
@@ -49,37 +48,6 @@ struct AccountSettingsContent: View {
                                     .background(Color.primary.opacity(0.1))
 
                                 SyncStatusIndicator(coordinator: syncCoordinator, displayMode: .expanded)
-
-                                Divider()
-                                    .background(Color.primary.opacity(0.1))
-
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Manual Sync")
-                                            .font(.system(size: 13, weight: .medium))
-                                        Text("Force sync with iCloud")
-                                            .font(.system(size: 11))
-                                            .foregroundStyle(.tertiary)
-                                    }
-
-                                    Spacer()
-
-                                    Button {
-                                        performManualSync()
-                                    } label: {
-                                        HStack(spacing: 6) {
-                                            if isSyncInProgress {
-                                                ProgressView()
-                                                    .controlSize(.small)
-                                            }
-                                            Text(isSyncInProgress ? "Syncing..." : "Sync Now")
-                                                .font(.system(size: 12, weight: .medium))
-                                        }
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .disabled(isSyncInProgress || syncCoordinator.status == .syncing)
-                                    .accessibilityIdentifier("settings.button.syncNow")
-                                }
                             }
 
                             Divider()
@@ -167,22 +135,6 @@ struct AccountSettingsContent: View {
         } message: {
             if let error = syncError {
                 Text(error.localizedDescription)
-            }
-        }
-    }
-
-    private func performManualSync() {
-        isSyncInProgress = true
-
-        Task {
-            do {
-                try await syncCoordinator.triggerSyncNow()
-            } catch {
-                syncError = error
-            }
-
-            await MainActor.run {
-                isSyncInProgress = false
             }
         }
     }

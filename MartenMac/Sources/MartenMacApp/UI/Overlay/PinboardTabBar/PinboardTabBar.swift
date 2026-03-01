@@ -251,6 +251,13 @@ struct PinboardTabBar<CreatePopoverContent: View>: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
+        .onPreferenceChange(PinboardContentWidthKey.self) { width in
+            DispatchQueue.main.async {
+                if let width {
+                    frameManager.setContentWidth(width)
+                }
+            }
+        }
         .onPreferenceChange(PinboardLayoutInfoKey.self) { layout in
             DispatchQueue.main.async {
                 frameManager.suppressUpdates = (dragState != nil || isGlobalDragActive)

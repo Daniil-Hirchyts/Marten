@@ -88,17 +88,13 @@ final class OverlayViewModel: ObservableObject {
             return
         }
 
+        // Only prune selections that are no longer visible; never auto-select.
         let visibleIDs = Set(orderedItems.map(\.objectID))
         let validSelection = selectedItemIDs.intersection(visibleIDs)
 
-        if !validSelection.isEmpty {
-            if validSelection != selectedItemIDs {
-                selectedItemIDs = validSelection
-            }
-            return
+        if validSelection != selectedItemIDs {
+            selectedItemIDs = validSelection
         }
-
-        selectedItemIDs = [orderedItems[0].objectID]
     }
 
     @MainActor

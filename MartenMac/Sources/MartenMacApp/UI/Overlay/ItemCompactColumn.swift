@@ -683,7 +683,7 @@ struct ItemCompactColumn: View {
         let draggedItems = dragState.itemIDs.compactMap { id in
             items.first { $0.objectID == id }
         }
-        let previewSize: CGFloat = min(220, max(150, (window?.frame.width ?? 220) - 40))
+        let previewSize = rowFrames[dragState.primaryItemID]?.width ?? min(220, max(150, (window?.frame.width ?? 220) - 40))
         let previewPosition = CGPoint(
             x: dragState.baseCenter.x + dragState.translation.width + columnFrame.minX,
             y: dragState.baseCenter.y + dragState.translation.height + columnFrame.minY

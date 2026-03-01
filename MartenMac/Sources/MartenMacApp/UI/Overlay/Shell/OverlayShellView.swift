@@ -143,7 +143,7 @@ struct OverlayShellView: View {
                 if newHash != lastFilterInputHash {
                     lastFilterInputHash = newHash
                     cachedFilteredItems = computeFilteredItems()
-                    viewModel.ensureDefaultSelection(in: cachedFilteredItems)
+                    viewModel.ensureDefaultSelection(in: cachedFilteredItems)  // prunes stale selections only
                 }
             }
             .onChange(of: viewModel.selectedItemIDs) { handleSelectionChange($0, $1) }

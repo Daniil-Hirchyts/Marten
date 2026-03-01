@@ -35,13 +35,11 @@ struct ItemCard: View {
     @State private var lastTapTime: Date?
     @State var editTitle: String = ""
     @State var cachedProps: CachedItemProperties?
-    @StateObject var appColorLoader = AppIconColorLoader()
     @State var thumbnailImage: NSImage?
     @State var fileIconImage: NSImage?
-    @State var urlBannerImage: NSImage?
+    @State var linkPreviewResult: LinkPreviewImageResult?
     @State var lastLoadedThumbnailPath: String?
-    @State var lastLoadedURLBannerPath: String?
-    @State var lastFetchedURLBannerURLString: String?
+    @State var lastLoadedLinkPreviewKey: String?
     @State var styledPreviewText: AttributedString?
     @State var originalImageResolution: String?
     @State var imageResolutionRequestID: UUID = UUID()
@@ -97,7 +95,6 @@ struct ItemCard: View {
                 }
                 .onAppear {
                     cachedProps = CachedItemProperties(item: item)
-                    appColorLoader.load(bundleID: item.sourceAppBundleID, appName: item.sourceAppName)
                     lastKnownModifiedAt = item.modifiedAt
                     refreshPreviewAssets()
                     refreshStyledPreviewText()
@@ -113,16 +110,8 @@ struct ItemCard: View {
                     cachedProps = CachedItemProperties(item: item)
                     lastKnownModifiedAt = newValue.modifiedAt
 
-                    if oldValue.sourceAppBundleID != newValue.sourceAppBundleID
-                        || oldValue.sourceAppName != newValue.sourceAppName {
-                        appColorLoader.load(
-                            bundleID: newValue.sourceAppBundleID,
-                            appName: newValue.sourceAppName
-                        )
-                    }
-
                     if oldValue.primaryText != newValue.primaryText {
-                        resetURLBannerState()
+                        resetLinkPreviewState()
                     }
 
                     if oldValue.thumbnailPath != newValue.thumbnailPath {
@@ -138,7 +127,7 @@ struct ItemCard: View {
                     if oldValue.linkPreviewImagePath != newValue.linkPreviewImagePath
                         || oldValue.primaryText != newValue.primaryText
                     {
-                        refreshURLBannerImage()
+                        refreshLinkPreview()
                     }
 
                     if oldValue.modifiedAt != newValue.modifiedAt || oldValue.itemType != newValue.itemType {
@@ -227,8 +216,6 @@ private struct ContentSignature: Equatable {
     let representationAssetSignature: String
     let customTitle: String?
     let linkPreviewImagePath: String?
-    let sourceAppBundleID: String?
-    let sourceAppName: String?
     let modifiedAt: Date
     let itemType: ItemType
     let pinboardAssignmentSignature: Int
@@ -246,8 +233,6 @@ private struct ContentSignature: Equatable {
             .joined(separator: ",")
         customTitle = item.customTitle
         linkPreviewImagePath = item.linkPreview?.imagePath
-        sourceAppBundleID = item.sourceAppBundleID
-        sourceAppName = item.sourceAppName
         modifiedAt = item.modifiedAt
         itemType = item.itemTypeValue
 

@@ -3,14 +3,53 @@ import MartenCore
 import SwiftUI
 
 extension ItemCard {
+    @ViewBuilder
     var cardBackground: some View {
-        cardShape
-            .fill(
-                colorItemBackground
-                    ?? (colorScheme == .dark
-                        ? Color(.sRGB, white: 0.04, opacity: 0.72)
-                        : Color(.sRGB, white: 0.96, opacity: 0.9))
-            )
+        ZStack {
+            if let colorBg = colorItemBackground {
+                cardShape.fill(colorBg)
+            } else {
+                // Solid base to prevent transparency behind content
+                cardShape.fill(
+                    colorScheme == .dark
+                        ? Color(.sRGB, white: 0.15, opacity: 1.0)
+                        : Color(.sRGB, white: 0.95, opacity: 1.0)
+                )
+
+                // Subtle color background (pinboard tint or neutral)
+                cardShape.fill(cardBackgroundFill)
+
+                // Ambient inner gradient
+                if cached.primaryPinboardColor != nil {
+                    cardShape
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    glowColor.opacity(colorScheme == .dark ? 0.12 : 0.06),
+                                    glowColor.opacity(0.0)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+            }
+        }
+    }
+
+    private var cardBackgroundFill: Color {
+        if colorScheme == .light, cached.primaryPinboardColor != nil {
+            return glowColor.opacity(0.1)
+        } else if colorScheme == .dark, cached.primaryPinboardColor != nil {
+            return glowColor.opacity(0.15)
+        }
+        return colorScheme == .dark
+            ? Color(.sRGB, white: 0.15, opacity: 0.9)
+            : Color(.sRGB, white: 0.95, opacity: 0.95)
+    }
+
+    private var glowColor: Color {
+        cached.primaryPinboardColor ?? .clear
     }
 
     var cardShape: RoundedRectangle {
@@ -21,7 +60,20 @@ extension ItemCard {
     var selectionBorder: some View {
         if isSelected {
             cardShape
-                .strokeBorder(Color(nsColor: .controlAccentColor), lineWidth: 4)
+                .strokeBorder(Color(nsColor: .controlAccentColor), lineWidth: 2.5)
+        } else if colorScheme == .light, cached.primaryPinboardColor != nil {
+            cardShape
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            glowColor.opacity(0.8),
+                            glowColor.opacity(0.2)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         }
     }
 
@@ -38,9 +90,15 @@ extension ItemCard {
     }
 
     var headerBackground: some View {
-        headerBackgroundShape
-            .inset(by: headerBackgroundInset)
-            .fill(headerBackgroundColor)
+        ZStack {
+            headerBackgroundShape
+                .inset(by: headerBackgroundInset)
+                .fill(.ultraThinMaterial)
+
+            headerBackgroundShape
+                .inset(by: headerBackgroundInset)
+                .fill(headerBackgroundColor)
+        }
     }
 
     var headerMinHeight: CGFloat {
@@ -53,10 +111,7 @@ extension ItemCard {
 
     var headerBackgroundColor: Color {
         if let pinboardColor = cached.primaryPinboardColor {
-            return pinboardColor.opacity(0.96)
-        }
-        if let appColor = appColorLoader.color {
-            return Color(nsColor: appColor).opacity(0.96)
+            return pinboardColor.opacity(colorScheme == .dark ? 0.85 : 0.96)
         }
         return colorScheme == .dark
             ? Color(.sRGB, white: 0.2, opacity: 0.6)
@@ -64,7 +119,7 @@ extension ItemCard {
     }
 
     var headerTextColor: Color {
-        if cached.primaryPinboardColor != nil || appColorLoader.color != nil {
+        if cached.primaryPinboardColor != nil {
             return Color.white
         }
         return colorScheme == .dark ? Color.white : Color.black

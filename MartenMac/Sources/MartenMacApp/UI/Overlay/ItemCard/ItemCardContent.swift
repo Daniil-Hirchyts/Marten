@@ -357,7 +357,7 @@ extension ItemCard {
                 .layoutPriority(1)
             } else if item.itemTypeValue == .url {
                 URLBannerPreview(
-                    image: urlBannerImage,
+                    linkPreviewResult: linkPreviewResult,
                     host: urlHost,
                     path: urlPath,
                     isCompact: isCompactSize
@@ -366,8 +366,8 @@ extension ItemCard {
                 .frame(height: urlBannerHeight)
                 .clipped()
                 .layoutPriority(1)
-                .task(id: urlBannerTaskID) {
-                    refreshURLBannerImage()
+                .task(id: linkPreviewTaskID) {
+                    refreshLinkPreview()
                 }
             } else if item.itemTypeValue == .file {
                 VStack(spacing: isCompactSize ? 2 : 4) {

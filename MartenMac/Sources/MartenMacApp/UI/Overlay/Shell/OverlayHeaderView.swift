@@ -119,31 +119,49 @@ extension OverlayShellView {
     }
 
     var verticalToolbarRow: some View {
-        HStack(spacing: 8) {
-            OverlaySearchBarView(
-                isSearchExpanded: $isSearchExpanded,
-                isFilterPopoverPresented: $isFilterPopoverPresented,
-                searchText: $searchModel.searchText,
-                searchFocused: $searchFocused,
-                dateFilter: $searchModel.dateFilter,
-                typeFilters: $searchModel.typeFilters,
-                appFilters: $searchModel.appFilters,
-                appOptions: searchModel.appOptions,
-                hasActiveFilters: searchModel.hasActiveFilters,
-                headerButtonSize: headerButtonSize,
-                headerButtonIconSize: headerButtonIconSize,
-                searchCollapsedWidth: searchCollapsedWidth,
-                searchExpandedWidth: min(searchExpandedWidth, 260),
-                overlayCoordinateSpaceName: overlayCoordinateSpaceName,
-                onSearchButtonTap: handleSearchButtonTap,
-                onSearchClear: handleSearchClear,
-                onClearFilters: searchModel.clearFilters
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
+        GeometryReader { geo in
+            let availableWidth = geo.size.width
+            let spacing: CGFloat = 8
+            let settingsWidth: CGFloat = headerButtonSize
+            
+            // Calculate how much space the search bar (toggle + text field + filter) can take.
+            let searchBarAvailableWidth = availableWidth - spacing - settingsWidth
+            
+            // Calculate the text field part width by subtracting toggle and filter buttons.
+            let maxSearchTextFieldWidth = max(80, searchBarAvailableWidth - searchCollapsedWidth - headerButtonSize - 1)
+            let effectiveSearchExpandedWidth = maxSearchTextFieldWidth
 
-            settingsButton
+            HStack(spacing: spacing) {
+                OverlaySearchBarView(
+                    isSearchExpanded: $isSearchExpanded,
+                    isFilterPopoverPresented: $isFilterPopoverPresented,
+                    searchText: $searchModel.searchText,
+                    searchFocused: $searchFocused,
+                    dateFilter: $searchModel.dateFilter,
+                    typeFilters: $searchModel.typeFilters,
+                    appFilters: $searchModel.appFilters,
+                    appOptions: searchModel.appOptions,
+                    hasActiveFilters: searchModel.hasActiveFilters,
+                    headerButtonSize: headerButtonSize,
+                    headerButtonIconSize: headerButtonIconSize,
+                    searchCollapsedWidth: searchCollapsedWidth,
+                    searchExpandedWidth: effectiveSearchExpandedWidth,
+                    overlayCoordinateSpaceName: overlayCoordinateSpaceName,
+                    onSearchButtonTap: handleSearchButtonTap,
+                    onSearchClear: handleSearchClear,
+                    onClearFilters: searchModel.clearFilters
+                )
+                .frame(width: isSearchExpanded ? searchBarAvailableWidth : searchCollapsedWidth + headerButtonSize + 1, alignment: .leading)
+
+                if !isSearchExpanded {
+                    Spacer()
+                }
+
+                settingsButton
+            }
         }
         .padding(.horizontal, 14)
+        .frame(height: headerButtonSize)
         .onPreferenceChange(SearchFieldFrameKey.self) { frame in
             dragCoordinator.updateSearchFieldFrame(frame)
         }
