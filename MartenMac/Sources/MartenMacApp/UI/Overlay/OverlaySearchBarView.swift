@@ -112,7 +112,7 @@ struct OverlaySearchBarView: View {
 
                     Image(systemName: "line.3.horizontal.decrease.circle")
                         .font(.system(size: headerButtonIconSize, weight: .semibold))
-                        .foregroundStyle(hasActiveFilters ? .primary : .secondary)
+                        .foregroundStyle(hasActiveFilters ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
 
                     if hasActiveFilters {
                         Circle()

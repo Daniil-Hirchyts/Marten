@@ -113,6 +113,9 @@ final class OCRCaptureCoordinator {
     private let noTextFeedback: @MainActor () -> Void
     private let staticSnapshotProvider: (@MainActor () -> [CGDirectDisplayID: CGImage])?
     private let soundPlayer: SoundEffectPlayer?
+    private var activeCaptureID: UInt64 = 0
+    private var isSessionActive = false
+    private var isSelectionUIActive = false
 
     init(
         permissionChecker: any OCRPermissionChecking,
@@ -150,6 +153,11 @@ final class OCRCaptureCoordinator {
     }
 
     func startCapture(modeOverride: OCRCaptureMode? = nil) {
+        guard !isSessionActive else {
+            Logger.ocr.warning("Ignoring OCR start while another session is active")
+            return
+        }
+
         guard permissionChecker.checkScreenRecording(prompt: false) else {
             permissionGuide.showScreenRecordingPermissionGuidance { [weak self] in
                 self?.permissionChecker.requestScreenRecordingSettings()
@@ -167,10 +175,16 @@ final class OCRCaptureCoordinator {
             return
         }
 
+        let captureID = beginSession()
+        isSelectionUIActive = true
         var didHandleSelectionResult = false
         selectionPresenter.beginSelection(mode: mode, staticSnapshots: staticSnapshots) {
             [weak self] result in
             guard let self else { return }
+            guard self.isCurrentSession(captureID) else {
+                Logger.ocr.warning("Ignoring stale OCR selection result")
+                return
+            }
             guard !didHandleSelectionResult else {
                 Logger.ocr.warning("Ignoring duplicate OCR selection result")
                 return
@@ -179,15 +193,22 @@ final class OCRCaptureCoordinator {
 
             switch result {
             case .cancelled:
-                break
+                self.finishSession(sessionID: captureID)
             case .selected(let selection):
-                self.processSelection(selection, mode: mode, staticSnapshots: staticSnapshots)
+                self.closeSelectionUI()
+                self.processSelection(
+                    selection,
+                    mode: mode,
+                    staticSnapshots: staticSnapshots,
+                    sessionID: captureID
+                )
             }
         }
     }
 
     func stop() {
-        selectionPresenter.cancelSelection()
+        invalidateSession()
+        closeSelectionUI()
     }
 
     private func prepareStaticSnapshotsIfNeeded(mode: OCRCaptureMode)
@@ -215,7 +236,8 @@ final class OCRCaptureCoordinator {
     private func processSelection(
         _ selection: OCRSelection,
         mode: OCRCaptureMode,
-        staticSnapshots: [CGDirectDisplayID: CGImage]
+        staticSnapshots: [CGDirectDisplayID: CGImage],
+        sessionID: UInt64
     ) {
         let preferredLanguage = ocrSettings.preferredLanguageCode
         let textRecognizer = self.textRecognizer
@@ -235,7 +257,8 @@ final class OCRCaptureCoordinator {
             ) else {
                 Logger.ocr.error("OCR capture failed to produce image")
                 Task { @MainActor [weak self] in
-                    guard let self else { return }
+                    guard let self, self.isCurrentSession(sessionID) else { return }
+                    self.finishSession(sessionID: sessionID)
                     self.noTextFeedback()
                     self.resultIndicator.showFailure(message: "Capture Failed")
                 }
@@ -255,23 +278,28 @@ final class OCRCaptureCoordinator {
                 )
 
                 Task { @MainActor [weak self] in
-                    guard let self else { return }
+                    guard let self, self.isCurrentSession(sessionID) else { return }
                     if text.isEmpty {
+                        self.finishSession(sessionID: sessionID)
                         self.noTextFeedback()
                         self.resultIndicator.showFailure(message: "No Text Found")
                         return
                     }
 
                     do {
-                        try await self.saveRecognizedText(text)
+                        try await self.saveRecognizedText(text, sessionID: sessionID)
+                        guard self.isCurrentSession(sessionID) else { return }
+                        self.finishSession(sessionID: sessionID)
                         if self.ocrSettings.showCaptureNotification {
                             self.resultIndicator.showSuccess()
                             self.soundPlayer?.play(.capture)
                         }
                     } catch {
+                        guard self.isCurrentSession(sessionID) else { return }
                         Logger.ocr.error(
                             "OCR save failed: \(error.localizedDescription, privacy: .private)"
                         )
+                        self.finishSession(sessionID: sessionID)
                         self.noTextFeedback()
                         self.resultIndicator.showFailure(message: "Save Failed")
                     }
@@ -279,7 +307,8 @@ final class OCRCaptureCoordinator {
             } catch {
                 Logger.ocr.error("OCR recognition failed: \(error.localizedDescription, privacy: .private)")
                 Task { @MainActor [weak self] in
-                    guard let self else { return }
+                    guard let self, self.isCurrentSession(sessionID) else { return }
+                    self.finishSession(sessionID: sessionID)
                     self.noTextFeedback()
                     self.resultIndicator.showFailure(message: "Recognition Failed")
                 }
@@ -316,7 +345,11 @@ final class OCRCaptureCoordinator {
     }
 
     @MainActor
-    private func saveRecognizedText(_ text: String) async throws {
+    private func saveRecognizedText(_ text: String, sessionID: UInt64) async throws {
+        guard isCurrentSession(sessionID) else {
+            throw CancellationError()
+        }
+
         do {
             try historyStore.storeRecognizedText(text)
         } catch {
@@ -324,9 +357,43 @@ final class OCRCaptureCoordinator {
                 "OCR history save failed on first attempt, retrying: \(error.localizedDescription, privacy: .private)"
             )
             try await Task.sleep(nanoseconds: 40_000_000)
+            guard isCurrentSession(sessionID) else {
+                throw CancellationError()
+            }
             try historyStore.storeRecognizedText(text)
         }
 
+        guard isCurrentSession(sessionID) else {
+            throw CancellationError()
+        }
         try await pasteEngine.copyPlainTextToMarten(text)
+    }
+
+    private func beginSession() -> UInt64 {
+        activeCaptureID &+= 1
+        isSessionActive = true
+        return activeCaptureID
+    }
+
+    private func finishSession(sessionID: UInt64) {
+        guard isCurrentSession(sessionID) else { return }
+        isSessionActive = false
+        closeSelectionUI()
+    }
+
+    private func invalidateSession() {
+        guard isSessionActive else { return }
+        isSessionActive = false
+        activeCaptureID &+= 1
+    }
+
+    private func isCurrentSession(_ sessionID: UInt64) -> Bool {
+        isSessionActive && activeCaptureID == sessionID
+    }
+
+    private func closeSelectionUI() {
+        guard isSelectionUIActive else { return }
+        isSelectionUIActive = false
+        selectionPresenter.endSession()
     }
 }

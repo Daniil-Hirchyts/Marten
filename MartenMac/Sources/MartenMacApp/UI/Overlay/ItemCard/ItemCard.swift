@@ -64,10 +64,12 @@ struct ItemCard: View {
                                     .padding(.top, isCompactSize ? 8 : 10)
                             }
                             Spacer(minLength: 0)
-                            footerView
-                                .padding(.horizontal, cardPadding)
-                                .padding(.bottom, cardPadding)
-                                .padding(.top, isCompactSize ? 6 : 8)
+                            if !isMicroSize {
+                                footerView
+                                    .padding(.horizontal, cardPadding)
+                                    .padding(.bottom, cardPadding)
+                                    .padding(.top, isCompactSize ? 6 : 8)
+                            }
                         }
                     }
                     .frame(width: cardSize, height: cardSize, alignment: .topLeading)

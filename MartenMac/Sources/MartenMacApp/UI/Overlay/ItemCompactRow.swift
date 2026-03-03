@@ -38,13 +38,17 @@ struct ItemCompactRow: View {
     @Binding var previewItemID: NSManagedObjectID?
     @Binding var isPreviewPopoverPresented: Bool
 
+    @State var thumbnailImage: NSImage?
+    @State var linkPreviewResult: LinkPreviewImageResult?
+    @State var lastLoadedThumbnailPath: String?
+    @State var lastLoadedLinkPreviewKey: String?
     @State private var lastTapTime: Date?
     @State private var editTitle = ""
     @FocusState private var isFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
 
-    var body: some View {
-        let isPreviewPresented = Binding(
+    private var isPreviewPresentedBinding: Binding<Bool> {
+        Binding(
             get: { isPreviewPopoverPresented && previewItemID == item.objectID },
             set: { newValue in
                 if !newValue {
@@ -55,18 +59,94 @@ struct ItemCompactRow: View {
                 }
             }
         )
+    }
 
+    private var cardShadowColor: Color {
+        Color.black.opacity(colorScheme == .dark ? 0.2 : 0.1)
+    }
+
+    private var cardShadowRadius: CGFloat {
+        isSelected ? 5 : 3
+    }
+
+    private var cardShadowY: CGFloat {
+        isSelected ? 2 : 1
+    }
+
+    var body: some View {
+
+        mainRowContent
+            .padding(.trailing, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
+            .background(rowBackground)
+            .clipShape(cardShape)
+            .shadow(
+                color: cardShadowColor,
+                radius: cardShadowRadius,
+                x: 0,
+                y: cardShadowY
+            )
+            .contentShape(cardShape)
+            .overlay(selectionBorder)
+            .onTapGesture {
+                handleTap()
+            }
+            .onAppear {
+                refreshPreviewAssets()
+            }
+            .onChange(of: contentSignature) { oldValue, newValue in
+                handleContentSignatureChange(oldValue: oldValue, newValue: newValue)
+            }
+            .popover(isPresented: isPreviewPresentedBinding, arrowEdge: .trailing) {
+                popoverContent
+            }
+            .contextMenu {
+                contextMenuContent
+            }
+            .accessibilityElement(children: isEditing ? .contain : .ignore)
+            .accessibilityIdentifier("overlay.itemCompact.\(item.id.uuidString)")
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityHint("Single click to select, double click to paste")
+            .accessibilityAddTraits(.isButton)
+    }
+
+    private func handleContentSignatureChange(oldValue: ContentSignature, newValue: ContentSignature) {
+        if item.isDeleted || item.managedObjectContext == nil { return }
+        
+        if oldValue.primaryText != newValue.primaryText {
+            DispatchQueue.main.async {
+                linkPreviewResult = nil
+                lastLoadedLinkPreviewKey = nil
+            }
+        }
+
+        if oldValue.thumbnailPath != newValue.thumbnailPath {
+            refreshThumbnailImage()
+        }
+
+        if oldValue.representationAssetSignature != newValue.representationAssetSignature {
+            refreshThumbnailImage()
+        }
+
+        if oldValue.linkPreviewImagePath != newValue.linkPreviewImagePath
+            || oldValue.primaryText != newValue.primaryText
+        {
+            refreshLinkPreview()
+        }
+
+        if oldValue.modifiedAt != newValue.modifiedAt || oldValue.itemType != newValue.itemType {
+            refreshPreviewAssets()
+        }
+    }
+
+    private var mainRowContent: some View {
         HStack(spacing: 10) {
             leadingVisual
 
-            VStack(alignment: .leading, spacing: 3) {
-                titleView
-
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+            if !hasBannerLayer {
+                VStack(alignment: .leading, spacing: 3) {
+                    titleView
                 }
             }
 
@@ -74,98 +154,79 @@ struct ItemCompactRow: View {
 
             rightInfoColumn
         }
-        .padding(.trailing, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
-        .background(rowBackground)
-        .clipShape(cardShape)
-        .shadow(
-            color: Color.black.opacity(colorScheme == .dark ? 0.2 : 0.1),
-            radius: isSelected ? 5 : 3,
-            x: 0,
-            y: isSelected ? 2 : 1
+    }
+
+    private var popoverContent: some View {
+        OverlayItemPreview(
+            item: item,
+            allowPinning: allowPinning,
+            pinboards: pinboards,
+            lockedPinboardIDs: lockedPinboardIDs,
+            clipItemEditor: clipItemEditor,
+            onEdit: { editedItem in
+                previewItemID = nil
+                isPreviewPopoverPresented = false
+                onEdit(editedItem)
+            },
+            onPaste: { pastedItem in
+                onPaste(pastedItem)
+                previewItemID = nil
+                isPreviewPopoverPresented = false
+            },
+            onPastePlainText: { pastedItem in
+                onPastePlainText(pastedItem)
+                previewItemID = nil
+                isPreviewPopoverPresented = false
+            },
+            onCopy: { copiedItem in
+                onCopy(copiedItem)
+                previewItemID = nil
+                isPreviewPopoverPresented = false
+            },
+            onTogglePin: { toggledItem in
+                onTogglePin(toggledItem)
+            },
+            onMoveToPinboard: { movedItem, pinboard in
+                onMoveToPinboard(movedItem, pinboard)
+            },
+            onCreatePinboard: { sourceItem in
+                previewItemID = nil
+                isPreviewPopoverPresented = false
+                onCreatePinboard(sourceItem)
+            },
+            onDelete: { deletedItem in
+                onDelete(deletedItem)
+                previewItemID = nil
+                isPreviewPopoverPresented = false
+            }
         )
-        .contentShape(cardShape)
-        .overlay(selectionBorder)
-        .onTapGesture {
-            handleTap()
-        }
-        .popover(isPresented: isPreviewPresented, arrowEdge: .trailing) {
-            OverlayItemPreview(
-                item: item,
-                allowPinning: allowPinning,
-                pinboards: pinboards,
-                lockedPinboardIDs: lockedPinboardIDs,
-                clipItemEditor: clipItemEditor,
-                onEdit: { editedItem in
-                    previewItemID = nil
-                    isPreviewPopoverPresented = false
-                    onEdit(editedItem)
-                },
-                onPaste: { pastedItem in
-                    onPaste(pastedItem)
-                    previewItemID = nil
-                    isPreviewPopoverPresented = false
-                },
-                onPastePlainText: { pastedItem in
-                    onPastePlainText(pastedItem)
-                    previewItemID = nil
-                    isPreviewPopoverPresented = false
-                },
-                onCopy: { copiedItem in
-                    onCopy(copiedItem)
-                    previewItemID = nil
-                    isPreviewPopoverPresented = false
-                },
-                onTogglePin: { toggledItem in
-                    onTogglePin(toggledItem)
-                },
-                onMoveToPinboard: { movedItem, pinboard in
-                    onMoveToPinboard(movedItem, pinboard)
-                },
-                onCreatePinboard: { sourceItem in
-                    previewItemID = nil
-                    isPreviewPopoverPresented = false
-                    onCreatePinboard(sourceItem)
-                },
-                onDelete: { deletedItem in
-                    onDelete(deletedItem)
-                    previewItemID = nil
-                    isPreviewPopoverPresented = false
-                }
-            )
-            .frame(
-                width: item.shouldUseLargePreviewPopover ? 920 : 560,
-                height: item.shouldUseLargePreviewPopover ? 640 : 380
-            )
-        }
-        .contextMenu {
-            CardContextMenu(
-                item: item,
-                itemID: item.id,
-                isPinned: item.isPinned,
-                allowPinning: allowPinning,
-                readOnly: readOnly,
-                assignedPinboardIDs: assignedPinboardIDs,
-                pinboards: pinboards,
-                lockedPinboardIDs: lockedPinboardIDs,
-                onPaste: onPaste,
-                onPastePlainText: onPastePlainText,
-                onTogglePin: onTogglePin,
-                onCopy: onCopy,
-                onConvertType: onConvertType,
-                onMoveToPinboard: onMoveToPinboard,
-                onCreatePinboard: onCreatePinboard,
-                onEdit: onEdit,
-                onRename: onRename,
-                onDelete: onDelete
-            )
-        }
-        .accessibilityElement(children: isEditing ? .contain : .ignore)
-        .accessibilityIdentifier("overlay.itemCompact.\(item.id.uuidString)")
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("Single click to select, double click to paste")
-        .accessibilityAddTraits(.isButton)
+        .frame(
+            width: item.shouldUseLargePreviewPopover ? 920 : 560,
+            height: item.shouldUseLargePreviewPopover ? 640 : 380
+        )
+    }
+
+    private var contextMenuContent: some View {
+        CardContextMenu(
+            item: item,
+            itemID: item.id,
+            isPinned: item.isPinned,
+            allowPinning: allowPinning,
+            readOnly: readOnly,
+            assignedPinboardIDs: assignedPinboardIDs,
+            pinboards: pinboards,
+            lockedPinboardIDs: lockedPinboardIDs,
+            onPaste: onPaste,
+            onPastePlainText: onPastePlainText,
+            onTogglePin: onTogglePin,
+            onCopy: onCopy,
+            onConvertType: onConvertType,
+            onMoveToPinboard: onMoveToPinboard,
+            onCreatePinboard: onCreatePinboard,
+            onEdit: onEdit,
+            onRename: onRename,
+            onDelete: onDelete
+        )
     }
 
     private var rightInfoColumn: some View {
@@ -173,29 +234,17 @@ struct ItemCompactRow: View {
             HStack(spacing: 4) {
                 if item.isPinned && allowPinning {
                     Image(systemName: "pin.fill")
-                        .font(.system(size: 8, weight: .bold))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.yellow)
                 }
 
-                Image(systemName: typeIcon)
-                    .font(.system(size: 8, weight: .semibold))
-                Text(typeCompactLabel)
-                    .font(.system(size: 9, weight: .semibold))
+                Text(rightSideMetric)
             }
+            .font(.system(size: 10, weight: .medium))
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(
-                        colorScheme == .dark
-                            ? Color.white.opacity(0.08)
-                            : Color.black.opacity(0.06)
-                    )
-            )
 
             HStack(spacing: 5) {
-                Text(rightSideMetric)
+                Image(systemName: typeIcon)
                 Circle()
                     .fill(Color.secondary.opacity(0.45))
                     .frame(width: 3, height: 3)
@@ -224,6 +273,7 @@ struct ItemCompactRow: View {
         }
         .frame(width: sideBarWidth, alignment: .center)
         .frame(maxHeight: .infinity)
+        .zIndex(10) // Ensure sidebar is above background banner
     }
 
     @ViewBuilder
@@ -251,7 +301,7 @@ struct ItemCompactRow: View {
             if isEditing {
                 TextField("", text: $editTitle)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12, weight: .regular))
                     .focused($isFocused)
                     .onSubmit {
                         onCommitRename(item, editTitle)
@@ -262,8 +312,10 @@ struct ItemCompactRow: View {
                     }
             } else {
                 Text(titleText)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundStyle(textPrimaryColor)
+                    .lineLimit(3)
+                    .shadow(color: textShadowColor, radius: 2, x: 0, y: 1)
             }
         }
     }
@@ -276,6 +328,29 @@ struct ItemCompactRow: View {
                         ? Color(.sRGB, white: 0.04, opacity: 0.72)
                         : Color(.sRGB, white: 0.96, opacity: 0.9)
                 )
+            
+            // Ambient inner gradient on the content part
+            if let pinboardColor {
+                contentBackgroundShape
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: pinboardColor.opacity(colorScheme == .dark ? 0.35 : 0.25), location: 0),
+                                .init(color: pinboardColor.opacity(colorScheme == .dark ? 0.15 : 0.10), location: 0.5),
+                                .init(color: pinboardColor.opacity(0.02), location: 1.0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .padding(.leading, sideBarWidth)
+            }
+            
+            // Image / URL / Color Banner layer
+            if hasBannerLayer {
+                bannerLayer
+            }
+
             Rectangle()
                 .fill(sideBarColor)
                 .overlay(
@@ -319,6 +394,97 @@ struct ItemCompactRow: View {
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+    }
+
+    private var contentBackgroundShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            cornerRadii: .init(
+                topLeading: 0,
+                bottomLeading: 0,
+                bottomTrailing: cardCornerRadius,
+                topTrailing: cardCornerRadius
+            ),
+            style: .continuous
+        )
+    }
+
+    private var hasBannerLayer: Bool {
+        item.itemTypeValue == .image || item.itemTypeValue == .url || item.itemTypeValue == .color
+    }
+
+    private var textPrimaryColor: Color {
+        hasBannerLayer ? .white : .primary
+    }
+
+    private var textSecondaryColor: Color {
+        hasBannerLayer ? .white.opacity(0.8) : .secondary
+    }
+
+    private var textShadowColor: Color {
+        hasBannerLayer ? .black.opacity(0.8) : .clear
+    }
+
+    @ViewBuilder
+    private var bannerLayer: some View {
+        Group {
+            if item.itemTypeValue == .image, let image = thumbnailImage {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else if item.itemTypeValue == .url {
+                URLBannerPreview(
+                    linkPreviewResult: linkPreviewResult,
+                    host: urlHost,
+                    path: urlPath,
+                    isCompact: true
+                )
+                .task(id: linkPreviewTaskID) {
+                    refreshLinkPreview()
+                }
+            } else if item.itemTypeValue == .color, let color = colorItemBackground {
+                ZStack(alignment: .leading) {
+                    color
+                    if let hex = normalizedColorHex, let foreground = colorItemForeground {
+                        Text(hex.uppercased())
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(foreground)
+                            .lineLimit(1)
+                            .padding(.leading, 12) // ensure it's not sticking strictly to the sidebar left bound
+                    }
+                }
+            }
+        }
+        .frame(width: 120, alignment: .leading) // Fixed width for banner
+        .frame(maxHeight: .infinity)
+        // Offset by sidebar width to place it exactly after the color strip
+        .offset(x: sideBarWidth)
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .black, location: 0),
+                    .init(color: .black, location: 0.6), // delay gradient fade
+                    .init(color: .clear, location: 1.0)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .offset(x: sideBarWidth)
+        )
+    }
+    
+    var linkPreviewTaskID: String {
+        let url =
+            normalizedPrimaryURL?.absoluteString
+            ?? (item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
+        let bannerPath =
+            item.linkPreview?.imagePath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let bannerURL =
+            item.linkPreview?.imageURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return "\(url)|\(bannerPath)|\(bannerURL)"
+    }
+
+    private var contentSignature: ContentSignature {
+        ContentSignature(item: item)
     }
 
     private var sideBarColor: Color {
@@ -380,6 +546,21 @@ struct ItemCompactRow: View {
         return Set(assigned.map(\.id))
     }
 
+    var normalizedColorHex: String? {
+        guard item.itemTypeValue == .color, let text = item.primaryText else { return nil }
+        return MartenHexColor.normalizedHex(from: text)
+    }
+
+    var colorItemBackground: Color? {
+        guard let hex = normalizedColorHex else { return nil }
+        return Color(hex: hex, fallback: .gray)
+    }
+
+    var colorItemForeground: Color? {
+        guard let hex = normalizedColorHex else { return nil }
+        return MartenHexColor.foregroundColor(forNormalizedHex: hex)
+    }
+
     private var titleText: String {
         if let customTitle = item.customTitle, !customTitle.isEmpty {
             return customTitle
@@ -403,6 +584,8 @@ struct ItemCompactRow: View {
 
     private var timeAgoShort: String {
         Self.compactTimeFormatter.localizedString(for: item.createdAt, relativeTo: Date())
+            .replacingOccurrences(of: " ago", with: "")
+            .replacingOccurrences(of: "in ", with: "")
     }
 
     private var typeLabel: String {
@@ -436,6 +619,22 @@ struct ItemCompactRow: View {
             return "\(count) ch"
         case .color:
             return "Color"
+        case .url:
+            let content = urlHost.isEmpty ? (item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") : urlHost
+            var displayUrl = content
+                .replacingOccurrences(of: "https://", with: "")
+                .replacingOccurrences(of: "http://", with: "")
+                .replacingOccurrences(of: "www.", with: "")
+            
+            // Remove trailing slash if present
+            if displayUrl.hasSuffix("/") {
+                displayUrl.removeLast()
+            }
+                
+            if displayUrl.count > 30 {
+                displayUrl = String(displayUrl.prefix(30)) + "..."
+            }
+            return displayUrl
         default:
             if item.byteCount > 0 {
                 return ByteCountFormatter.string(fromByteCount: item.byteCount, countStyle: .file)
@@ -468,3 +667,31 @@ struct ItemCompactRow: View {
         }
     }
 }
+
+private struct ContentSignature: Equatable {
+    let primaryText: String?
+    let thumbnailPath: String?
+    let representationAssetSignature: String
+    let customTitle: String?
+    let linkPreviewImagePath: String?
+    let modifiedAt: Date
+    let itemType: ItemType
+
+    init(item: ClipItem) {
+        primaryText = item.primaryText
+        thumbnailPath = item.thumbnailPath
+        representationAssetSignature = (item.representations ?? [])
+            .map { representation in
+                let assetRef = representation.assetRef?.uuidString ?? "none"
+                let fileExtension = representation.fileExtension?.lowercased() ?? "none"
+                return "\(assetRef).\(fileExtension)"
+            }
+            .sorted()
+            .joined(separator: ",")
+        customTitle = item.customTitle
+        linkPreviewImagePath = item.linkPreview?.imagePath
+        modifiedAt = item.modifiedAt
+        itemType = item.itemTypeValue
+    }
+}
+

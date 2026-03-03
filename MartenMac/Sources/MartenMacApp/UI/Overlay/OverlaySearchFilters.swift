@@ -330,10 +330,10 @@ private struct FilterChip: View {
     }
 
     private var borderColor: Color {
-        let baseColor: Color = colorScheme == .dark ? .white : .black
         if isSelected {
-            return baseColor.opacity(DesignTokens.Opacity.borderMedium)
+            return .accentColor
         } else {
+            let baseColor: Color = colorScheme == .dark ? .white : .black
             return baseColor.opacity(DesignTokens.Opacity.borderSubtle)
         }
     }
@@ -361,12 +361,12 @@ private struct AppFilterChip: View {
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .adaptiveGlassBackground(
-                shape: .roundedRectangle(cornerRadius: 10),
+                shape: .capsule,
                 isSelected: isSelected,
                 isHovering: isHovering
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                Capsule()
                     .strokeBorder(borderColor, lineWidth: 1)
             )
         }
@@ -387,10 +387,10 @@ private struct AppFilterChip: View {
     }
 
     private var borderColor: Color {
-        let baseColor: Color = colorScheme == .dark ? .white : .black
         if isSelected {
-            return baseColor.opacity(DesignTokens.Opacity.borderMedium)
+            return .accentColor
         } else {
+            let baseColor: Color = colorScheme == .dark ? .white : .black
             return baseColor.opacity(DesignTokens.Opacity.borderSubtle)
         }
     }

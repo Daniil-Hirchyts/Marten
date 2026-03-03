@@ -275,14 +275,14 @@ extension ItemCard {
                 PinboardIndicator(
                     colorHex: primaryColorHex,
                     sign: primarySign,
-                    size: 30
+                    size: headerIconSize
                 )
             } else if cached.primaryPinboardColor == nil {
                 AppIconView(
                     bundleID: item.sourceAppBundleID,
                     appName: item.sourceAppName,
                     iconData: item.sourceAppIconData,
-                    size: 30
+                    size: headerIconSize
                 )
             }
 
@@ -362,8 +362,7 @@ extension ItemCard {
                     path: urlPath,
                     isCompact: isCompactSize
                 )
-                .frame(maxWidth: .infinity)
-                .frame(height: urlBannerHeight)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
                 .layoutPriority(1)
                 .task(id: linkPreviewTaskID) {
@@ -428,18 +427,7 @@ extension ItemCard {
         }
     }
 
-    var urlBannerHeight: CGFloat {
-        let preferredHeight: CGFloat = isCompactSize ? 110 : 140
-        let contentTopPadding: CGFloat = isCompactSize ? 8 : 10
-        let footerReserve: CGFloat = isCompactSize ? 28 : 32
-        let availableHeight =
-            cardSize
-            - headerMinHeight
-            - contentTopPadding
-            - footerReserve
 
-        return max(32, min(preferredHeight, max(0, availableHeight)))
-    }
 
     var textDetailStack: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -477,13 +465,13 @@ extension ItemCard {
     var footerView: some View {
         HStack(alignment: .center, spacing: 8) {
             Text(timeAgo)
-                .font(.system(size: 10))
+                .font(.system(size: isCompactSize ? 9 : 10))
                 .foregroundStyle(tertiaryTextColor)
 
             Spacer()
 
             Text(footerRightLabel)
-                .font(.system(size: 10))
+                .font(.system(size: isCompactSize ? 9 : 10))
                 .foregroundStyle(tertiaryTextColor)
                 .lineLimit(1)
         }

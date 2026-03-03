@@ -1,0 +1,771 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild build -scheme Marten -workspace Marten.xcworkspace -destination platform=macOS
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  MartenMac: /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac @ local
+  MartenIOS: /Users/hirchytsdaniil/Developer/Work/Marten/MartenIOS @ local
+  MartenCore: /Users/hirchytsdaniil/Developer/Work/Marten/MartenCore @ local
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00006000-0012156A1198801E, name:My Mac }
+{ platform:macOS, arch:x86_64, id:00006000-0012156A1198801E, name:My Mac }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (7 targets)
+    Target 'Marten' in project 'MartenMacWrapper'
+        ➜ Explicit dependency on target 'MartenMacServices' in project 'MartenMac'
+    Target 'MartenMacServices' in project 'MartenMac'
+        ➜ Explicit dependency on target 'MartenMacServices' in project 'MartenMac'
+        ➜ Explicit dependency on target 'MartenMac_MartenMacServices' in project 'MartenMac'
+        ➜ Explicit dependency on target 'MartenCore' in project 'MartenCore'
+    Target 'MartenMacServices' in project 'MartenMac'
+        ➜ Explicit dependency on target 'MartenMac_MartenMacServices' in project 'MartenMac'
+        ➜ Explicit dependency on target 'MartenCore' in project 'MartenCore'
+    Target 'MartenCore' in project 'MartenCore'
+        ➜ Explicit dependency on target 'MartenCore' in project 'MartenCore'
+        ➜ Explicit dependency on target 'MartenCore_MartenCore' in project 'MartenCore'
+    Target 'MartenCore' in project 'MartenCore'
+        ➜ Explicit dependency on target 'MartenCore_MartenCore' in project 'MartenCore'
+    Target 'MartenCore_MartenCore' in project 'MartenCore' (no dependencies)
+    Target 'MartenMac_MartenMacServices' in project 'MartenMac' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+Build description signature: a7308e30e1131a45981c26c52063da66
+Build description path: /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/XCBuildData/a7308e30e1131a45981c26c52063da66.xcbuilddata
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.2-25C58-00fa09913b459cbbc988d1f6730289ae.sdkstatcache
+    cd /Users/hirchytsdaniil/Developer/Work/Marten
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.2-25C58-00fa09913b459cbbc988d1f6730289ae.sdkstatcache
+
+ProcessInfoPlistFile /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/MartenMac_MartenMacServices.bundle/Contents/Info.plist /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMac.build/Debug/MartenMac_MartenMacServices.build/empty-MartenMac_MartenMacServices.plist (in target 'MartenMac_MartenMacServices' from project 'MartenMac')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac
+    builtin-infoPlistUtility /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMac.build/Debug/MartenMac_MartenMacServices.build/empty-MartenMac_MartenMacServices.plist -producttype com.apple.product-type.bundle -expandbuildsettings -platform macosx -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/MartenMac_MartenMacServices.bundle/Contents/Info.plist
+
+ProcessInfoPlistFile /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/MartenCore_MartenCore.bundle/Contents/Info.plist /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenCore.build/Debug/MartenCore_MartenCore.build/empty-MartenCore_MartenCore.plist (in target 'MartenCore_MartenCore' from project 'MartenCore')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenCore
+    builtin-infoPlistUtility /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenCore.build/Debug/MartenCore_MartenCore.build/empty-MartenCore_MartenCore.plist -producttype com.apple.product-type.bundle -expandbuildsettings -platform macosx -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/MartenCore_MartenCore.bundle/Contents/Info.plist
+
+warning: Skipping duplicate build file in Compile Sources build phase: /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCompactColumn.swift (in target 'Marten' from project 'MartenMacWrapper')
+warning: Skipping duplicate build file in Compile Sources build phase: /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditorWindow.swift (in target 'Marten' from project 'MartenMacWrapper')
+warning: Skipping duplicate build file in Compile Sources build phase: /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCard.swift (in target 'Marten' from project 'MartenMacWrapper')
+warning: Skipping duplicate build file in Compile Sources build phase: /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/AppCoordinator.swift (in target 'Marten' from project 'MartenMacWrapper')
+warning: Skipping duplicate build file in Compile Sources build phase: /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBarSection.swift (in target 'Marten' from project 'MartenMacWrapper')
+warning: Skipping duplicate build file in Compile Sources build phase: /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/VisualEffectView.swift (in target 'Marten' from project 'MartenMacWrapper')
+ProcessProductPackaging /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper/MartenMacWrapper/MartenMacWrapper.entitlements /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten.app.xcent (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+    Entitlements:
+    
+    {
+    "com.apple.application-identifier" = "89NA3C53R8.com.hirchyts.marten";
+    "com.apple.developer.applesignin" =     (
+        Default
+    );
+    "com.apple.developer.icloud-container-environment" = Development;
+    "com.apple.developer.icloud-container-identifiers" =     (
+        "iCloud.com.hirchyts.marten"
+    );
+    "com.apple.developer.icloud-services" =     (
+        CloudKit
+    );
+    "com.apple.developer.team-identifier" = 89NA3C53R8;
+    "com.apple.developer.ubiquity-container-identifiers" =     (
+        "iCloud.com.hirchyts.marten"
+    );
+    "com.apple.developer.ubiquity-kvstore-identifier" = "89NA3C53R8.com.hirchyts.marten";
+    "com.apple.security.app-sandbox" = 1;
+    "com.apple.security.automation.apple-events" = 1;
+    "com.apple.security.files.user-selected.read-write" = 1;
+    "com.apple.security.get-task-allow" = 1;
+    "com.apple.security.network.client" = 1;
+}
+    
+    builtin-productPackagingUtility /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper/MartenMacWrapper/MartenMacWrapper.entitlements -entitlements -format xml -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten.app.xcent
+
+ProcessProductPackagingDER /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten.app.xcent /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten.app.xcent.der (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    /usr/bin/derq query -f xml -i /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten.app.xcent -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten.app.xcent.der --raw
+
+Copy /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/Marten.app/Contents/Resources/MartenCore_MartenCore.bundle /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/MartenCore_MartenCore.bundle (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -strip-unsigned-binaries -strip-deterministic -strip-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip -resolve-src-symlinks /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/MartenCore_MartenCore.bundle /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/Marten.app/Contents/Resources
+
+Copy /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/Marten.app/Contents/Resources/MartenMac_MartenMacServices.bundle /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/MartenMac_MartenMacServices.bundle (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -strip-unsigned-binaries -strip-deterministic -strip-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip -resolve-src-symlinks /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/MartenMac_MartenMacServices.bundle /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/Marten.app/Contents/Resources
+
+SwiftDriver Marten normal arm64 com.apple.xcode.tools.swift.compiler (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name Marten -Onone -enforce-exclusivity\=checked @/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/Marten.SwiftFileList -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -target arm64-apple-macos26.0 -g -module-cache-path /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Index.noindex/DataStore -swift-version 5 -I /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug -F /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/PackageFrameworks -F /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/PackageFrameworks -F /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.2-25C58-00fa09913b459cbbc988d1f6730289ae.sdkstatcache -output-file-map /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/Marten-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/Marten.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/Marten_const_extract_protocols.json -Xcc -iquote -Xcc /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten-generated-files.hmap -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten-own-target-headers.hmap -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/MartenMacWrapper-cbf14cb766f9bd6f08000b9153eb9088-VFS/all-product-headers.yaml -Xcc -iquote -Xcc /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten-project-headers.hmap -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/include -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/DerivedSources-normal/arm64 -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/DerivedSources/arm64 -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/Marten-Swift.h -working-directory /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper -experimental-emit-module-separately -disable-cmo
+
+ProcessInfoPlistFile /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/Marten.app/Contents/Info.plist /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper/MartenMacWrapper/Info.plist (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    builtin-infoPlistUtility /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper/MartenMacWrapper/Info.plist -producttype com.apple.product-type.application -genpkginfo /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/Marten.app/Contents/PkgInfo -expandbuildsettings -platform macosx -additionalcontentfile /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/assetcatalog_generated_info.plist -scanforprivacyfile /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/Marten.app/Contents/Resources/MartenCore_MartenCore.bundle -scanforprivacyfile /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/Marten.app/Contents/Resources/MartenMac_MartenMacServices.bundle -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/Marten.app/Contents/Info.plist
+
+SwiftCompile normal arm64 Compiling\ OverlayItemActions.swift,\ PinboardTabBarTabs.swift,\ OverlayDragDropHandlers.swift,\ OverlayPinboardPicker.swift,\ OverlaySearchHandlers.swift,\ OverlayHeaderView.swift,\ ModifierKeyMonitor.swift,\ OverlayMode.swift,\ CaptureCoordinator.swift,\ OverlayItemPreview+Assets.swift,\ ItemEditorRichTextEditor.swift,\ ItemEditorSupportViews.swift,\ OverlayItemPreview+Content.swift,\ PinboardIndicator.swift,\ PinboardSignPicker.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayItemActions.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBar/PinboardTabBarTabs.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayDragDropHandlers.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayPinboardPicker.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlaySearchHandlers.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayHeaderView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ModifierKeyMonitor.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayMode.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Coordinators/CaptureCoordinator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayItemPreview+Assets.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditorRichTextEditor.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditorSupportViews.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayItemPreview+Content.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/PinboardIndicator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/PinboardSignPicker.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayItemActions.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBar/PinboardTabBarTabs.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayDragDropHandlers.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayPinboardPicker.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlaySearchHandlers.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayHeaderView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ModifierKeyMonitor.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayMode.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Coordinators/CaptureCoordinator.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayItemPreview+Assets.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditorRichTextEditor.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditorSupportViews.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayItemPreview+Content.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/PinboardIndicator.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/PinboardSignPicker.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 Compiling\ OCRSelectionOverlayController.swift,\ ItemCompactColumn.swift,\ OverlayFrameCalculator.swift,\ OCRCaptureResultIndicatorController.swift,\ UTType+Extensions.swift,\ MenuBarView.swift,\ FileDocumentPreview.swift,\ OnboardingFlow.swift,\ OnboardingScreens.swift,\ AppIconCache.swift,\ CodePreview.swift,\ ClipItemEditing.swift,\ FileURLAccessResolver.swift,\ FilePreview.swift,\ ImagePreview.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/OCR/OCRSelectionOverlayController.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCompactColumn.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayFrameCalculator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/OCR/OCRCaptureResultIndicatorController.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/UTType+Extensions.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/MenuBar/MenuBarView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/FileDocumentPreview.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Onboarding/OnboardingFlow.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Onboarding/OnboardingScreens.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/AppIconCache.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/CodePreview.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ClipItemEditing.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/FileURLAccessResolver.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/FilePreview.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/ImagePreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/OCR/OCRSelectionOverlayController.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCompactColumn.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayFrameCalculator.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/OCR/OCRCaptureResultIndicatorController.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/UTType+Extensions.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/MenuBar/MenuBarView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/FileDocumentPreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Onboarding/OnboardingFlow.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Onboarding/OnboardingScreens.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/AppIconCache.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/CodePreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ClipItemEditing.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/FileURLAccessResolver.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/FilePreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/ImagePreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ Marten (in target 'Marten' from project 'MartenMacWrapper')
+
+EmitSwiftModule normal arm64 (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 Compiling\ AppDelegate.swift,\ AppServiceContainer.swift,\ MartenMacApp.swift,\ NativeDragSource.swift,\ HotkeyPreferences.swift,\ MenuBarController.swift,\ Color+Hex.swift,\ ContextMenus.swift,\ AppSettingsKeys.swift,\ PinboardTab.swift,\ SyncStatusIndicator.swift,\ ItemEditorAITextEditing.swift,\ ItemCompactRow.swift,\ URLInternalBrowserPreview.swift,\ OverlayLayoutSettings.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/AppDelegate.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/AppServiceContainer.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/MartenMacApp.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/NativeDragSource.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/HotkeyPreferences.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/MenuBarController.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/Color+Hex.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/ContextMenus.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/AppSettingsKeys.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/PinboardTab.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/SyncStatusIndicator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditorAITextEditing.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCompactRow.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/URLInternalBrowserPreview.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayLayoutSettings.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/AppDelegate.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/AppServiceContainer.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/MartenMacApp.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/NativeDragSource.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/HotkeyPreferences.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/MenuBarController.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/Color+Hex.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/ContextMenus.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/AppSettingsKeys.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/PinboardTab.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/SyncStatusIndicator.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditorAITextEditing.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCompactRow.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/URLInternalBrowserPreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayLayoutSettings.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 Compiling\ OverlaySearchBarView.swift,\ SearchFieldFrameKey.swift,\ WindowAccessor.swift,\ OverlayPinboardLockHandler.swift,\ ItemGridSection.swift,\ OverlayActionHandlers.swift,\ OverlayPreviewCoordinator.swift,\ AccountTab.swift,\ FlowLayout.swift,\ GeneralTab.swift,\ HotkeyRecorder.swift,\ IgnoredAppsViewModel.swift,\ PrivacyTab.swift,\ PurchaseTab.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySearchBarView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/SearchFieldFrameKey.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/WindowAccessor.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPinboardLockHandler.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemGridSection.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayActionHandlers.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPreviewCoordinator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/AccountTab.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Utilities/FlowLayout.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/GeneralTab.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/HotkeyRecorder.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/IgnoredAppsViewModel.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/PrivacyTab.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/PurchaseTab.swift (in target 'Marten' from project 'MartenMacWrapper')
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySearchBarView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+/Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySearchBarView.swift:40:25: error: the compiler is unable to type-check this expression in reasonable time; try breaking up the expression into distinct sub-expressions
+    var body: some View {
+                        ^
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/SearchFieldFrameKey.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/WindowAccessor.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPinboardLockHandler.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemGridSection.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayActionHandlers.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPreviewCoordinator.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/AccountTab.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Utilities/FlowLayout.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/GeneralTab.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/HotkeyRecorder.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/IgnoredAppsViewModel.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/PrivacyTab.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/PurchaseTab.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+Failed frontend command:
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -c -filelist /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/sources-1 -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySearchBarView.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/SearchFieldFrameKey.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/WindowAccessor.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPinboardLockHandler.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemGridSection.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayActionHandlers.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPreviewCoordinator.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/AccountTab.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Utilities/FlowLayout.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/GeneralTab.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/HotkeyRecorder.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/IgnoredAppsViewModel.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/PrivacyTab.swift -primary-file /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/PurchaseTab.swift -supplementary-output-file-map /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/supplementaryOutputs-9 -target arm64-apple-macos26.0 -module-can-import-version DeveloperToolsSupport 23.0.4 23.0.4 -disable-cross-import-overlay-search -swift-module-cross-import CoreData /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/CoreData.framework/Modules/CoreData.swiftcrossimport/CloudKit.swiftoverlay -swift-module-cross-import CoreData /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/System/Library/Frameworks/CoreData.framework/Modules/CoreData.swiftcrossimport/CloudKit.swiftoverlay -swift-module-cross-import LocalAuthentication /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/LocalAuthentication.framework/Modules/LocalAuthentication.swiftcrossimport/SwiftUI.swiftoverlay -swift-module-cross-import LocalAuthentication /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/System/Library/Frameworks/LocalAuthentication.framework/Modules/LocalAuthentication.swiftcrossimport/SwiftUI.swiftoverlay -swift-module-cross-import WebKit /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Cryptexes/OS/System/Library/Frameworks/WebKit.framework/Modules/WebKit.swiftcrossimport/SwiftUI.swiftoverlay -swift-module-cross-import WebKit /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/System/Library/Frameworks/WebKit.framework/Modules/WebKit.swiftcrossimport/SwiftUI.swiftoverlay -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libFoundationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#FoundationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libFoundationModelsMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#FoundationModelsMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libObservationMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#ObservationMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libPreviewsMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#PreviewsMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftMacros -load-resolved-plugin /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib\#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server\#SwiftUIMacros -disable-implicit-swift-modules -Xcc -fno-implicit-modules -Xcc -fno-implicit-module-maps -explicit-swift-module-map-file /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/Marten-dependencies-1.json -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -I /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug -F /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/PackageFrameworks -F /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/PackageFrameworks -F /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug -no-color-diagnostics -Xcc -fno-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=5 -module-cache-path /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -swift-version 5 -enforce-exclusivity\=checked -Onone -serialize-debugging-options -const-gather-protocols-file /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/Marten_const_extract_protocols.json -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper -enable-anonymous-context-mangled-names -file-compilation-dir /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper -Xcc -ivfsstatcache -Xcc /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/macosx26.2-25C58-00fa09913b459cbbc988d1f6730289ae.sdkstatcache -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/swift-overrides.hmap -Xcc -iquote -Xcc /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten-generated-files.hmap -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten-own-target-headers.hmap -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/MartenMacWrapper-cbf14cb766f9bd6f08000b9153eb9088-VFS/all-product-headers.yaml -Xcc -iquote -Xcc /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Marten-project-headers.hmap -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Products/Debug/include -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/DerivedSources-normal/arm64 -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/DerivedSources/arm64 -Xcc -I/Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/DerivedSources -no-auto-bridging-header-chaining -module-name Marten -frontend-parseable-output -disable-clang-spi -target-sdk-version 26.2 -target-sdk-name macosx26.2 -clang-target arm64-apple-macos26.2 -in-process-plugin-server-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/OverlaySearchBarView.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/SearchFieldFrameKey.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/WindowAccessor.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/OverlayPinboardLockHandler.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/ItemGridSection.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/OverlayActionHandlers.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/OverlayPreviewCoordinator.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/AccountTab.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/FlowLayout.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/GeneralTab.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/HotkeyRecorder.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/IgnoredAppsViewModel.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/PrivacyTab.o -o /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/PurchaseTab.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/OverlaySearchBarView.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/SearchFieldFrameKey.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/WindowAccessor.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/OverlayPinboardLockHandler.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/ItemGridSection.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/OverlayActionHandlers.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/OverlayPreviewCoordinator.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/AccountTab.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/FlowLayout.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/GeneralTab.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/HotkeyRecorder.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/IgnoredAppsViewModel.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/PrivacyTab.o -index-unit-output-path /MartenMacWrapper.build/Debug/Marten.build/Objects-normal/arm64/PurchaseTab.o -index-store-path /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Index.noindex/DataStore -index-system-modules
+SwiftCompile normal arm64 Compiling\ PinboardLockController.swift,\ TransparencyGrid.swift,\ ColorPreview.swift,\ OverlayRootViewSupportViews.swift,\ EditPinboardPopover.swift,\ PinboardTabBar.swift,\ PinboardTabDragHandler.swift,\ CreatePinboardSheet.swift,\ OverlayAssociatedObjectKeys.swift,\ ShareSettingsViewModel.swift,\ ShareSettingsSheet.swift,\ OverlayRootView+Computed.swift,\ OCRCaptureCoordinator.swift,\ TextPreview.swift,\ URLPreview.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardLockController.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/TransparencyGrid.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/ColorPreview.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayRootViewSupportViews.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBar/EditPinboardPopover.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBar/PinboardTabBar.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBar/PinboardTabDragHandler.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBar/CreatePinboardSheet.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayAssociatedObjectKeys.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Sharing/ShareSettingsViewModel.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Sharing/ShareSettingsSheet.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayRootView+Computed.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Coordinators/OCRCaptureCoordinator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/TextPreview.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/URLPreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardLockController.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/TransparencyGrid.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/ColorPreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayRootViewSupportViews.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBar/EditPinboardPopover.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBar/PinboardTabBar.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBar/PinboardTabDragHandler.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBar/CreatePinboardSheet.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayAssociatedObjectKeys.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Sharing/ShareSettingsViewModel.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Sharing/ShareSettingsSheet.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayRootView+Computed.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Coordinators/OCRCaptureCoordinator.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/TextPreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/URLPreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 Compiling\ ItemEditorContentView.swift,\ TextEditorView.swift,\ ItemEditorActions.swift,\ ItemEditorHelpers.swift,\ AppCoordinator.swift,\ ScreenSharingProtectionCoordinator.swift,\ ItemEditorKeyboardHandlers.swift,\ ItemEditorSaveHandlers.swift,\ ItemEditorDerivedState.swift,\ RichTextToolbar.swift,\ FileInfoView.swift,\ ItemEditorAppleIntelligence.swift,\ ImageEditorView.swift,\ OverlayWindow.swift,\ PasteStackManager.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorContentView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/TextEditorView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorActions.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorHelpers.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/AppCoordinator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/ScreenSharingProtectionCoordinator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorKeyboardHandlers.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorSaveHandlers.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorDerivedState.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/RichTextToolbar.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/FileInfoView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorAppleIntelligence.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ImageEditorView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayWindow.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PasteStackManager.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorContentView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/TextEditorView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorActions.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorHelpers.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/AppCoordinator.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/ScreenSharingProtectionCoordinator.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorKeyboardHandlers.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorSaveHandlers.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorDerivedState.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/RichTextToolbar.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/FileInfoView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ItemEditorAppleIntelligence.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditor/ImageEditorView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayWindow.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PasteStackManager.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 Compiling\ SettingsView.swift,\ ShortcutsTab.swift,\ DangerZoneView.swift,\ DragTypes.swift,\ CGRectComparison.swift,\ MartenEventBroadcasterEnvironment.swift,\ OverlayAnimationConstants.swift,\ OverlaySettingsButton14.swift,\ RenameOverlayView.swift,\ ResizeHandleCursorView.swift,\ ResizeHandleView.swift,\ ReturnKeyHandler.swift,\ LinkPreviewImageLoader.swift,\ GeneratedAssetSymbols.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/SettingsView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/ShortcutsTab.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/DangerZoneView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/DragTypes.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Utilities/CGRectComparison.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Utilities/MartenEventBroadcasterEnvironment.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayAnimationConstants.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySettingsButton14.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/RenameOverlayView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ResizeHandleCursorView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ResizeHandleView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ReturnKeyHandler.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/LinkPreviewImageLoader.swift /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/SettingsView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/ShortcutsTab.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/DangerZoneView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/DragTypes.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Utilities/CGRectComparison.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Utilities/MartenEventBroadcasterEnvironment.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayAnimationConstants.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySettingsButton14.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/RenameOverlayView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ResizeHandleCursorView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ResizeHandleView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ReturnKeyHandler.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/LinkPreviewImageLoader.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Library/Developer/Xcode/DerivedData/Marten-goaaxqbdmsqcdrhfrgjxgpgerxmd/Build/Intermediates.noindex/MartenMacWrapper.build/Debug/Marten.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 Compiling\ OverlayItemPreview+Actions.swift,\ HotkeyCoordinator.swift,\ OnboardingCoordinator.swift,\ IntegrityCheckService.swift,\ OverlayRootView.swift,\ OverlayItemPreview.swift,\ ItemCard.swift,\ OverlayItemEditor.swift,\ OverlaySearchFilters.swift,\ SyncConfigurationProviding.swift,\ OverlaySearchViewModel.swift,\ ItemEditorWindow.swift,\ SettingsOpening.swift,\ OverlayViewModel.swift,\ OverlayPreviewPopoverSizing.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayItemPreview+Actions.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Coordinators/HotkeyCoordinator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Coordinators/OnboardingCoordinator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Coordinators/IntegrityCheckService.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayRootView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayItemPreview.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCard.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayItemEditor.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySearchFilters.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/SyncConfigurationProviding.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySearchViewModel.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditorWindow.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Protocols/SettingsOpening.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayViewModel.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPreviewPopoverSizing.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayItemPreview+Actions.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Coordinators/HotkeyCoordinator.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Coordinators/OnboardingCoordinator.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Coordinators/IntegrityCheckService.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayRootView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayItemPreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCard.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayItemEditor.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySearchFilters.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/SyncConfigurationProviding.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySearchViewModel.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemEditorWindow.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Protocols/SettingsOpening.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayViewModel.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPreviewPopoverSizing.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 Compiling\ FirstLaunchContentSeeder.swift,\ URLBannerPreview.swift,\ ThumbnailImageCache.swift,\ PinboardTabBarSection.swift,\ DragCoordinator.swift,\ DragPreviewWindow.swift,\ FrameCoordinator.swift,\ ItemCardRow.swift,\ ItemOperationsHandler.swift,\ ItemSelectionHandler.swift,\ OverlayPinboardActions.swift,\ OverlayShellHelpers.swift,\ OverlayKeyboardHandlers.swift,\ OverlayLifecycleHandlers.swift,\ OverlayShellView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Coordinators/FirstLaunchContentSeeder.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/URLBannerPreview.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ThumbnailImageCache.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBarSection.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/DragCoordinator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/DragPreviewWindow.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/FrameCoordinator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCardRow.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemOperationsHandler.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemSelectionHandler.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayPinboardActions.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayShellHelpers.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayKeyboardHandlers.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayLifecycleHandlers.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayShellView.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/Coordinators/FirstLaunchContentSeeder.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/URLBannerPreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ThumbnailImageCache.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardTabBarSection.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/DragCoordinator.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/DragPreviewWindow.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/FrameCoordinator.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCardRow.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemOperationsHandler.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemSelectionHandler.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayPinboardActions.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayShellHelpers.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayKeyboardHandlers.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayLifecycleHandlers.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/Shell/OverlayShellView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 Compiling\ OverlayDependencies.swift,\ PinboardDragHandler.swift,\ FileQuickLookPreview.swift,\ PinboardSecuritySettings.swift,\ VisualEffectView.swift,\ ItemCardDragSource.swift,\ ItemCardContent.swift,\ ItemCardThumbnail.swift,\ ItemCardSelection.swift,\ ItemCardContextMenu.swift,\ PinboardFrameStorage.swift,\ PinboardLayoutInfo.swift,\ PinboardManager.swift,\ GlassStyles.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayDependencies.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardDragHandler.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/FileQuickLookPreview.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/PinboardSecuritySettings.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/VisualEffectView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCardDragSource.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCardContent.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCardThumbnail.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCardSelection.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCardContextMenu.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardFrameStorage.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardLayoutInfo.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardManager.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/GlassStyles.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayDependencies.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardDragHandler.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/CardPreviews/FileQuickLookPreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/App/PinboardSecuritySettings.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/VisualEffectView.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCardDragSource.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCardContent.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCardThumbnail.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCardSelection.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemCard/ItemCardContextMenu.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardFrameStorage.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardLayoutInfo.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/PinboardManager.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Components/GlassStyles.swift (in target 'Marten' from project 'MartenMacWrapper')
+    cd /Users/hirchytsdaniil/Developer/Work/Marten/MartenMacWrapper
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling AppDelegate.swift, AppServiceContainer.swift, MartenMacApp.swift, NativeDragSource.swift, HotkeyPreferences.swift, MenuBarController.swift, Color+Hex.swift, ContextMenus.swift, AppSettingsKeys.swift, PinboardTab.swift, SyncStatusIndicator.swift, ItemEditorAITextEditing.swift, ItemCompactRow.swift, URLInternalBrowserPreview.swift, OverlayLayoutSettings.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftDriverJobDiscovery normal arm64 Compiling ItemEditorContentView.swift, TextEditorView.swift, ItemEditorActions.swift, ItemEditorHelpers.swift, AppCoordinator.swift, ScreenSharingProtectionCoordinator.swift, ItemEditorKeyboardHandlers.swift, ItemEditorSaveHandlers.swift, ItemEditorDerivedState.swift, RichTextToolbar.swift, FileInfoView.swift, ItemEditorAppleIntelligence.swift, ImageEditorView.swift, OverlayWindow.swift, PasteStackManager.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftDriverJobDiscovery normal arm64 Compiling OCRSelectionOverlayController.swift, ItemCompactColumn.swift, OverlayFrameCalculator.swift, OCRCaptureResultIndicatorController.swift, UTType+Extensions.swift, MenuBarView.swift, FileDocumentPreview.swift, OnboardingFlow.swift, OnboardingScreens.swift, AppIconCache.swift, CodePreview.swift, ClipItemEditing.swift, FileURLAccessResolver.swift, FilePreview.swift, ImagePreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftDriverJobDiscovery normal arm64 Compiling OverlayItemPreview+Actions.swift, HotkeyCoordinator.swift, OnboardingCoordinator.swift, IntegrityCheckService.swift, OverlayRootView.swift, OverlayItemPreview.swift, ItemCard.swift, OverlayItemEditor.swift, OverlaySearchFilters.swift, SyncConfigurationProviding.swift, OverlaySearchViewModel.swift, ItemEditorWindow.swift, SettingsOpening.swift, OverlayViewModel.swift, OverlayPreviewPopoverSizing.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftDriverJobDiscovery normal arm64 Compiling OverlayDependencies.swift, PinboardDragHandler.swift, FileQuickLookPreview.swift, PinboardSecuritySettings.swift, VisualEffectView.swift, ItemCardDragSource.swift, ItemCardContent.swift, ItemCardThumbnail.swift, ItemCardSelection.swift, ItemCardContextMenu.swift, PinboardFrameStorage.swift, PinboardLayoutInfo.swift, PinboardManager.swift, GlassStyles.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftDriverJobDiscovery normal arm64 Compiling FirstLaunchContentSeeder.swift, URLBannerPreview.swift, ThumbnailImageCache.swift, PinboardTabBarSection.swift, DragCoordinator.swift, DragPreviewWindow.swift, FrameCoordinator.swift, ItemCardRow.swift, ItemOperationsHandler.swift, ItemSelectionHandler.swift, OverlayPinboardActions.swift, OverlayShellHelpers.swift, OverlayKeyboardHandlers.swift, OverlayLifecycleHandlers.swift, OverlayShellView.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftDriverJobDiscovery normal arm64 Compiling OverlayItemActions.swift, PinboardTabBarTabs.swift, OverlayDragDropHandlers.swift, OverlayPinboardPicker.swift, OverlaySearchHandlers.swift, OverlayHeaderView.swift, ModifierKeyMonitor.swift, OverlayMode.swift, CaptureCoordinator.swift, OverlayItemPreview+Assets.swift, ItemEditorRichTextEditor.swift, ItemEditorSupportViews.swift, OverlayItemPreview+Content.swift, PinboardIndicator.swift, PinboardSignPicker.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftDriverJobDiscovery normal arm64 Compiling PinboardLockController.swift, TransparencyGrid.swift, ColorPreview.swift, OverlayRootViewSupportViews.swift, EditPinboardPopover.swift, PinboardTabBar.swift, PinboardTabDragHandler.swift, CreatePinboardSheet.swift, OverlayAssociatedObjectKeys.swift, ShareSettingsViewModel.swift, ShareSettingsSheet.swift, OverlayRootView+Computed.swift, OCRCaptureCoordinator.swift, TextPreview.swift, URLPreview.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+SwiftDriverJobDiscovery normal arm64 Compiling SettingsView.swift, ShortcutsTab.swift, DangerZoneView.swift, DragTypes.swift, CGRectComparison.swift, MartenEventBroadcasterEnvironment.swift, OverlayAnimationConstants.swift, OverlaySettingsButton14.swift, RenameOverlayView.swift, ResizeHandleCursorView.swift, ResizeHandleView.swift, ReturnKeyHandler.swift, LinkPreviewImageLoader.swift, GeneratedAssetSymbols.swift (in target 'Marten' from project 'MartenMacWrapper')
+
+** BUILD FAILED **
+
+
+The following build commands failed:
+	SwiftCompile normal arm64 /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySearchBarView.swift (in target 'Marten' from project 'MartenMacWrapper')
+	SwiftCompile normal arm64 Compiling\ OverlaySearchBarView.swift,\ SearchFieldFrameKey.swift,\ WindowAccessor.swift,\ OverlayPinboardLockHandler.swift,\ ItemGridSection.swift,\ OverlayActionHandlers.swift,\ OverlayPreviewCoordinator.swift,\ AccountTab.swift,\ FlowLayout.swift,\ GeneralTab.swift,\ HotkeyRecorder.swift,\ IgnoredAppsViewModel.swift,\ PrivacyTab.swift,\ PurchaseTab.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlaySearchBarView.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/SearchFieldFrameKey.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/WindowAccessor.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPinboardLockHandler.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/ItemGridSection.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayActionHandlers.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Overlay/OverlayPreviewCoordinator.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/AccountTab.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Utilities/FlowLayout.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/GeneralTab.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/HotkeyRecorder.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/IgnoredAppsViewModel.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/PrivacyTab.swift /Users/hirchytsdaniil/Developer/Work/Marten/MartenMac/Sources/MartenMacApp/UI/Settings/PurchaseTab.swift (in target 'Marten' from project 'MartenMacWrapper')
+	Building workspace Marten with scheme Marten
+(3 failures)

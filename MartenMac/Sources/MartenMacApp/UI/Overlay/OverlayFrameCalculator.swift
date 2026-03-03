@@ -4,6 +4,7 @@ import Foundation
 struct OverlayFrameCalculationResult {
     let frame: CGRect
     let persistedSize: CGFloat
+    let clampedFrame: CGRect
 }
 
 enum OverlayFrameCalculator {
@@ -12,7 +13,7 @@ enum OverlayFrameCalculator {
     static let minimumHorizontalHeight: CGFloat = 220
     static let maximumHorizontalHeight: CGFloat = 400
     static let minimumVerticalWidth: CGFloat = 280
-    static let maximumVerticalWidth: CGFloat = 620
+    static let maximumVerticalWidth: CGFloat = 380
 
     static func frame(
         visibleFrame: CGRect,
@@ -107,6 +108,17 @@ enum OverlayFrameCalculator {
         }
     }
 
+    private static func applyRubberBanding(value: CGFloat, min: CGFloat, max: CGFloat) -> CGFloat {
+        if value < min {
+            let diff = min - value
+            return min - sqrt(diff) * 1.5
+        } else if value > max {
+            let diff = value - max
+            return max + sqrt(diff) * 1.5
+        }
+        return value
+    }
+
     static func resizedFrame(
         from anchorFrame: CGRect,
         visibleFrame: CGRect,
@@ -122,10 +134,18 @@ enum OverlayFrameCalculator {
                 visibleFrame: visibleFrame
             )
             let clampedTop = min(max(minTop, proposedEdgePosition), maxTop)
-            let height = clampedTop - anchorFrame.minY
+            let rubberTop = applyRubberBanding(value: proposedEdgePosition, min: minTop, max: maxTop)
+            
+            let clampedHeight = clampedTop - anchorFrame.minY
+            var clampedFrame = anchorFrame
+            clampedFrame.size.height = clampedHeight
+            
+            let height = rubberTop - anchorFrame.minY
             var frame = anchorFrame
             frame.size.height = height
-            return OverlayFrameCalculationResult(frame: frame, persistedSize: height)
+            
+            return OverlayFrameCalculationResult(frame: frame, persistedSize: clampedHeight, clampedFrame: clampedFrame)
+            
         case .top:
             let maxBottom = anchorFrame.maxY - minimumHorizontalHeight
             let minBottom = anchorFrame.maxY - clampedSize(
@@ -134,14 +154,25 @@ enum OverlayFrameCalculator {
                 visibleFrame: visibleFrame
             )
             let clampedBottom = min(max(minBottom, proposedEdgePosition), maxBottom)
-            let height = anchorFrame.maxY - clampedBottom
-            let frame = CGRect(
+            let rubberBottom = applyRubberBanding(value: proposedEdgePosition, min: minBottom, max: maxBottom)
+            
+            let clampedHeight = anchorFrame.maxY - clampedBottom
+            let clampedFrame = CGRect(
                 x: anchorFrame.minX,
                 y: clampedBottom,
                 width: anchorFrame.width,
+                height: clampedHeight
+            )
+            
+            let height = anchorFrame.maxY - rubberBottom
+            let frame = CGRect(
+                x: anchorFrame.minX,
+                y: rubberBottom,
+                width: anchorFrame.width,
                 height: height
             )
-            return OverlayFrameCalculationResult(frame: frame, persistedSize: height)
+            return OverlayFrameCalculationResult(frame: frame, persistedSize: clampedHeight, clampedFrame: clampedFrame)
+            
         case .left:
             let minRight = anchorFrame.minX + minimumVerticalWidth
             let maxRight = anchorFrame.minX + clampedSize(
@@ -150,10 +181,18 @@ enum OverlayFrameCalculator {
                 visibleFrame: visibleFrame
             )
             let clampedRight = min(max(minRight, proposedEdgePosition), maxRight)
-            let width = clampedRight - anchorFrame.minX
+            let rubberRight = applyRubberBanding(value: proposedEdgePosition, min: minRight, max: maxRight)
+            
+            let clampedWidth = clampedRight - anchorFrame.minX
+            var clampedFrame = anchorFrame
+            clampedFrame.size.width = clampedWidth
+            
+            let width = rubberRight - anchorFrame.minX
             var frame = anchorFrame
             frame.size.width = width
-            return OverlayFrameCalculationResult(frame: frame, persistedSize: width)
+            
+            return OverlayFrameCalculationResult(frame: frame, persistedSize: clampedWidth, clampedFrame: clampedFrame)
+            
         case .right:
             let maxLeft = anchorFrame.maxX - minimumVerticalWidth
             let minLeft = anchorFrame.maxX - clampedSize(
@@ -162,14 +201,24 @@ enum OverlayFrameCalculator {
                 visibleFrame: visibleFrame
             )
             let clampedLeft = min(max(minLeft, proposedEdgePosition), maxLeft)
-            let width = anchorFrame.maxX - clampedLeft
-            let frame = CGRect(
+            let rubberLeft = applyRubberBanding(value: proposedEdgePosition, min: minLeft, max: maxLeft)
+            
+            let clampedWidth = anchorFrame.maxX - clampedLeft
+            let clampedFrame = CGRect(
                 x: clampedLeft,
+                y: anchorFrame.minY,
+                width: clampedWidth,
+                height: anchorFrame.height
+            )
+            
+            let width = anchorFrame.maxX - rubberLeft
+            let frame = CGRect(
+                x: rubberLeft,
                 y: anchorFrame.minY,
                 width: width,
                 height: anchorFrame.height
             )
-            return OverlayFrameCalculationResult(frame: frame, persistedSize: width)
+            return OverlayFrameCalculationResult(frame: frame, persistedSize: clampedWidth, clampedFrame: clampedFrame)
         }
     }
 }

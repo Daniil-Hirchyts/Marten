@@ -102,7 +102,7 @@ extension ItemCard {
     }
 
     var headerMinHeight: CGFloat {
-        50
+        isMicroSize ? 28 : (isCompactSize ? 36 : 50)
     }
 
     var headerBackgroundInset: CGFloat {
@@ -157,8 +157,18 @@ extension ItemCard {
         cardSize < 280
     }
 
+    var isMicroSize: Bool {
+        cardSize <= 130
+    }
+
+    var headerIconSize: CGFloat {
+        if isMicroSize { return 18 }
+        if isCompactSize { return 24 }
+        return 32
+    }
+
     var cardPadding: CGFloat {
-        isCompactSize ? 10 : 12
+        isCompactSize ? 8 : 12
     }
 
     var isEdgeToEdgeContent: Bool {
@@ -167,7 +177,7 @@ extension ItemCard {
     }
 
     var titleFontSize: CGFloat {
-        isCompactSize ? 13 : 14
+        isCompactSize ? 12 : 14
     }
 
     var subtitleFontSize: CGFloat {

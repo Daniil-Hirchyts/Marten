@@ -1,7 +1,7 @@
 import AppKit
-import MartenMacServices
 import CoreGraphics
 import Foundation
+import MartenMacServices
 
 struct OCRSelection {
     let displayID: CGDirectDisplayID
@@ -30,7 +30,8 @@ protocol OCRSelectionPresenting: AnyObject {
         staticSnapshots: [CGDirectDisplayID: CGImage],
         completion: @escaping (OCRSelectionOverlayController.Result) -> Void
     )
-    func cancelSelection()
+    func showProcessingState()
+    func endSession()
 }
 
 @MainActor
@@ -42,20 +43,21 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
 
     private var windows: [OCRSelectionWindow] = []
     private var completion: ((Result) -> Void)?
-    private var didFinish = false
+    private var didEndSession = true
     private var sessionID: UInt64 = 0
     private var keyDownMonitor: Any?
+    private var didHideSystemCursor = false
 
     func beginSelection(
         mode: OCRCaptureMode,
         staticSnapshots: [CGDirectDisplayID: CGImage],
         completion: @escaping (Result) -> Void
     ) {
-        cancelSelection()
+        endSession()
         sessionID &+= 1
         let currentSessionID = sessionID
         self.completion = completion
-        didFinish = false
+        didEndSession = false
         OCRSelectionSessionState.setActive(true)
 
         let screens = NSScreen.screens.compactMap { screen -> (NSScreen, CGDirectDisplayID)? in
@@ -63,7 +65,7 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
             return (screen, displayID)
         }
         guard !screens.isEmpty else {
-            finish(.cancelled)
+            finish(result: .cancelled, notifyCompletion: true)
             return
         }
 
@@ -85,6 +87,7 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
             window.hasShadow = false
             window.acceptsMouseMovedEvents = true
             window.ignoresMouseEvents = false
+            window.sharingType = .none
 
             let view = OCRSelectionOverlayView(
                 frame: CGRect(origin: .zero, size: screen.frame.size),
@@ -96,18 +99,18 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
             )
 
             view.onSelection = { [weak self] selection in
-                self?.finish(.selected(selection), sessionID: currentSessionID)
+                self?.finish(result: .selected(selection), notifyCompletion: true, sessionID: currentSessionID)
             }
             view.onCancel = { [weak self] in
-                self?.finish(.cancelled, sessionID: currentSessionID)
+                self?.finish(result: .cancelled, notifyCompletion: true, sessionID: currentSessionID)
             }
 
             window.contentView = view
             window.onEscape = { [weak self] in
-                self?.finish(.cancelled, sessionID: currentSessionID)
+                self?.finish(result: .cancelled, notifyCompletion: true, sessionID: currentSessionID)
             }
             window.onRightClick = { [weak self] in
-                self?.finish(.cancelled, sessionID: currentSessionID)
+                self?.finish(result: .cancelled, notifyCompletion: true, sessionID: currentSessionID)
             }
 
             window.contentView?.needsDisplay = true
@@ -117,10 +120,13 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
 
         windows = createdWindows
         let currentMouseLocation = NSEvent.mouseLocation
+        hideSystemCursor()
         for window in createdWindows {
             window.orderFrontRegardless()
             if let view = window.contentView as? OCRSelectionOverlayView {
                 view.primePointerLocation(using: currentMouseLocation)
+                view.needsDisplay = true
+                window.displayIfNeeded()
             }
         }
         let keyWindow = createdWindows.first { $0.frame.contains(currentMouseLocation) }
@@ -132,18 +138,26 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
         installKeyDownMonitor(for: currentSessionID)
     }
 
-    func cancelSelection() {
-        finish(.cancelled, force: true)
+    func showProcessingState() {}
+
+    func endSession() {
+        finish(notifyCompletion: false)
     }
 
-    private func finish(_ result: Result, force: Bool = false, sessionID expectedSessionID: UInt64? = nil) {
+    private func finish(
+        result: Result? = nil,
+        notifyCompletion: Bool,
+        sessionID expectedSessionID: UInt64? = nil
+    ) {
         if let expectedSessionID, expectedSessionID != sessionID {
             return
         }
-        guard !didFinish || force else { return }
-        didFinish = true
+        guard !didEndSession else { return }
+
+        didEndSession = true
         OCRSelectionSessionState.setActive(false)
         removeKeyDownMonitor()
+        unhideSystemCursor()
 
         for window in windows {
             window.orderOut(nil)
@@ -152,7 +166,7 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
 
         let callback = completion
         completion = nil
-        if !force {
+        if notifyCompletion, let result {
             callback?(result)
         }
     }
@@ -162,7 +176,7 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
         keyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
             guard event.keyCode == 53 else { return event }
-            self.finish(.cancelled, sessionID: sessionID)
+            self.finish(result: .cancelled, notifyCompletion: true, sessionID: sessionID)
             return nil
         }
     }
@@ -172,6 +186,18 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
             NSEvent.removeMonitor(keyDownMonitor)
             self.keyDownMonitor = nil
         }
+    }
+
+    private func hideSystemCursor() {
+        guard !didHideSystemCursor else { return }
+        NSCursor.hide()
+        didHideSystemCursor = true
+    }
+
+    private func unhideSystemCursor() {
+        guard didHideSystemCursor else { return }
+        NSCursor.unhide()
+        didHideSystemCursor = false
     }
 }
 
@@ -203,9 +229,10 @@ private final class OCRSelectionOverlayView: NSView {
     var onSelection: ((OCRSelection) -> Void)?
     var onCancel: (() -> Void)?
 
+    let representedDisplayID: CGDirectDisplayID
+
     private let mode: OCRCaptureMode
     private let staticSnapshot: CGImage?
-    private let displayID: CGDirectDisplayID
     private let displaySizeInPoints: CGSize
     private let backingScaleFactor: CGFloat
 
@@ -229,7 +256,7 @@ private final class OCRSelectionOverlayView: NSView {
     ) {
         self.mode = mode
         self.staticSnapshot = staticSnapshot
-        self.displayID = displayID
+        self.representedDisplayID = displayID
         self.displaySizeInPoints = displaySizeInPoints
         self.backingScaleFactor = backingScaleFactor
         super.init(frame: frameRect)
@@ -262,8 +289,13 @@ private final class OCRSelectionOverlayView: NSView {
         primePointerLocation(using: NSEvent.mouseLocation)
     }
 
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+    }
+
     func primePointerLocation(using globalMouseLocation: CGPoint) {
         guard let window else { return }
+
         let localPoint = CGPoint(
             x: globalMouseLocation.x - window.frame.minX,
             y: globalMouseLocation.y - window.frame.minY
@@ -280,7 +312,7 @@ private final class OCRSelectionOverlayView: NSView {
             bounds.fill()
         }
 
-        NSColor.black.withAlphaComponent(0.5).setFill()
+        NSColor.black.withAlphaComponent(0.35).setFill()
         bounds.fill()
 
         if let selectionRect {
@@ -311,6 +343,7 @@ private final class OCRSelectionOverlayView: NSView {
         }
 
         if let pointer = currentPoint {
+            drawOCRCursor(at: pointer)
             drawCoordinateBadge(at: pointer)
         }
     }
@@ -342,6 +375,7 @@ private final class OCRSelectionOverlayView: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         guard let dragStartPoint else { return }
+
         currentPoint = clampedPoint(convert(event.locationInWindow, from: nil))
         let step = hapticStep(for: currentPoint ?? dragStartPoint, from: dragStartPoint)
         if let previousStep = lastHapticStep, step != previousStep, (step.width > 0 || step.height > 0) {
@@ -356,10 +390,7 @@ private final class OCRSelectionOverlayView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard
-            let dragStartPoint,
-            let currentPoint = currentPoint
-        else {
+        guard let dragStartPoint, let currentPoint else {
             onCancel?()
             return
         }
@@ -383,7 +414,7 @@ private final class OCRSelectionOverlayView: NSView {
         }
 
         let selection = OCRSelection(
-            displayID: displayID,
+            displayID: representedDisplayID,
             rectInDisplayPoints: rect,
             displaySizeInPoints: displaySizeInPoints,
             backingScaleFactor: backingScaleFactor
@@ -457,6 +488,75 @@ private final class OCRSelectionOverlayView: NSView {
             y: badgeRect.minY + padding.bottom
         )
         (text as NSString).draw(at: textOrigin, withAttributes: textAttributes)
+    }
+
+    private func drawOCRCursor(at point: CGPoint) {
+        let outerColor = NSColor.black.withAlphaComponent(0.85)
+        let innerColor = NSColor.white.withAlphaComponent(0.98)
+        let lineLength: CGFloat = 8
+        let centerGap: CGFloat = 2
+        let centerRadius: CGFloat = 1.25
+
+        drawOCRCursorLines(
+            at: point,
+            lineLength: lineLength,
+            centerGap: centerGap,
+            lineWidth: 4,
+            color: outerColor
+        )
+        drawOCRCursorLines(
+            at: point,
+            lineLength: lineLength,
+            centerGap: centerGap,
+            lineWidth: 2,
+            color: innerColor
+        )
+
+        let outerDotRect = CGRect(
+            x: point.x - centerRadius - 1,
+            y: point.y - centerRadius - 1,
+            width: (centerRadius + 1) * 2,
+            height: (centerRadius + 1) * 2
+        )
+        outerColor.setFill()
+        NSBezierPath(ovalIn: outerDotRect).fill()
+
+        let innerDotRect = CGRect(
+            x: point.x - centerRadius,
+            y: point.y - centerRadius,
+            width: centerRadius * 2,
+            height: centerRadius * 2
+        )
+        innerColor.setFill()
+        NSBezierPath(ovalIn: innerDotRect).fill()
+    }
+
+    private func drawOCRCursorLines(
+        at point: CGPoint,
+        lineLength: CGFloat,
+        centerGap: CGFloat,
+        lineWidth: CGFloat,
+        color: NSColor
+    ) {
+        color.setStroke()
+
+        let path = NSBezierPath()
+        path.lineCapStyle = .round
+        path.lineWidth = lineWidth
+
+        path.move(to: CGPoint(x: point.x - centerGap - lineLength, y: point.y))
+        path.line(to: CGPoint(x: point.x - centerGap, y: point.y))
+
+        path.move(to: CGPoint(x: point.x + centerGap, y: point.y))
+        path.line(to: CGPoint(x: point.x + centerGap + lineLength, y: point.y))
+
+        path.move(to: CGPoint(x: point.x, y: point.y - centerGap - lineLength))
+        path.line(to: CGPoint(x: point.x, y: point.y - centerGap))
+
+        path.move(to: CGPoint(x: point.x, y: point.y + centerGap))
+        path.line(to: CGPoint(x: point.x, y: point.y + centerGap + lineLength))
+
+        path.stroke()
     }
 
     private func hapticStep(for point: CGPoint, from origin: CGPoint) -> (width: Int, height: Int) {

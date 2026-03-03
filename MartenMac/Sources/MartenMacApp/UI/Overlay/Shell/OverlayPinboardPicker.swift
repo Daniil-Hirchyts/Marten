@@ -300,6 +300,19 @@ extension OverlayShellView {
                 .foregroundStyle(.secondary)
                 .keyboardShortcut(.cancelAction)
 
+                Button("Delete") {
+                    verticalPinboardEditState.isPresented = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        if let selectedCustomPinboard {
+                            handleDeletePinboard(selectedCustomPinboard)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundStyle(.red)
+                .padding(.leading, 8)
+
                 Spacer()
 
                 Button("Save") {

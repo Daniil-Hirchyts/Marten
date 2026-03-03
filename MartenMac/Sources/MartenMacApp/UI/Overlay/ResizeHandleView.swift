@@ -92,10 +92,27 @@ struct ResizeHandleView: View {
             .onEnded { _ in
                 isDragging = false
                 guard let window else { return }
+                
+                let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+                let proposedPosition = proposedEdgePosition(for: edge, pointerOffset: clickOffset)
+                let result = OverlayFrameCalculator.resizedFrame(
+                    from: anchorFrame,
+                    visibleFrame: visibleFrame,
+                    edge: edge,
+                    proposedEdgePosition: proposedPosition
+                )
+                
                 let axis = edge.layoutAxis
-                let size = axis == .horizontal ? window.frame.height : window.frame.width
+                let size = result.persistedSize
                 OverlayLayoutSettings().setPersistedSize(size, for: axis)
                 Logger.ui.info("Saved overlay size: \(size, privacy: .public) axis=\(axis.rawValue, privacy: .public)")
+
+                if !rectsApproximatelyEqual(window.frame, result.clampedFrame, tolerance: 0.5) {
+                    NSAnimationContext.runAnimationGroup { context in
+                        context.duration = 0.25
+                        window.animator().setFrame(result.clampedFrame, display: true)
+                    }
+                }
             }
     }
 

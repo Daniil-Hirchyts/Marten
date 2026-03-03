@@ -75,7 +75,7 @@ struct ItemCardRow: View {
     var body: some View {
         // Keep card size stable from cached container dimensions to avoid per-frame geometry reads.
         let verticalPadding: CGFloat = 12
-        let cardSize = max(120, rowContainerSize.height - (verticalPadding * 2))
+        let cardSize = max(60, rowContainerSize.height - (verticalPadding * 2))
         let sideMargin: CGFloat = 14
         let placeholderInset = sideMargin + (placeholderWidth / 2)
         let paginationEnabled = ItemCardRowPagination.isEnabled(
