@@ -900,22 +900,9 @@ final class ClipItemRepository {
                 throw ClipItemStoreError.missingItem
             }
 
-            if item.itemTypeValue == .file, let oldPath = item.primaryText {
-                let oldURL = URL(fileURLWithPath: oldPath)
-                let newURL = oldURL.deletingLastPathComponent().appendingPathComponent(newFileName)
-
-                if FileManager.default.fileExists(atPath: oldPath) {
-                    try? FileManager.default.moveItem(atPath: oldPath, toPath: newURL.path)
-                }
-
-                item.primaryText = newURL.path
-
-                if let representations = item.representations {
-                    for rep in representations where rep.kindValue == .fileURL {
-                        rep.textData = Data(newURL.path.utf8)
-                        rep.byteCount = Int64(newURL.path.utf8.count)
-                    }
-                }
+            if item.itemTypeValue == .file {
+                item.primaryText = ManagedFileAccess.normalizedStoredFileName(newFileName) ?? newFileName
+                item.searchableText = item.primaryText?.normalizedForSearch()
             }
 
             let now = Date()

@@ -22,8 +22,14 @@ public final class PasteboardExtractor {
             return nil
         }
 
+        let itemType = itemTypeClassifier.classify(
+            representations: extraction.representations,
+            primaryText: extraction.primaryText,
+            textLooksLikeCode: extraction.textLooksLikeCode
+        )
+
         let filterResult = contentFilter.evaluate(
-            text: extraction.primaryText,
+            text: itemType == .file ? nil : extraction.primaryText,
             types: extraction.typesForFiltering,
             dataSize: extraction.dataSize
         )
@@ -32,11 +38,6 @@ public final class PasteboardExtractor {
             return nil
         }
 
-        let itemType = itemTypeClassifier.classify(
-            representations: extraction.representations,
-            primaryText: extraction.primaryText,
-            textLooksLikeCode: extraction.textLooksLikeCode
-        )
         return ClipItemPayload(
             representations: extraction.representations,
             primaryText: extraction.primaryText,

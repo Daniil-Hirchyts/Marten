@@ -592,6 +592,57 @@ final class OutboundSyncEngineTests: XCTestCase {
         let savedRecords = await db.calls.flatMap(\.saved)
         XCTAssertTrue(savedRecords.contains(where: { $0.recordID == representationRecordID }))
     }
+
+    func testManagedFileRepresentationUploadsAsCKAsset() async throws {
+        let db = MockOutboundCloudDatabase()
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: tempDirectory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let assetStore = AssetStore(baseURL: tempDirectory)
+        let payload = Data("outbound-file".utf8)
+        let assetRef = try assetStore.store(data: payload, fileExtension: "txt")
+        let assetSyncManager = AssetSyncManager(assetStore: assetStore)
+
+        let engine = OutboundSyncEngine(
+            persistenceController: persistence,
+            database: db,
+            zoneID: zoneID,
+            configuration: .init(
+                debounceInterval: 0.01,
+                retryBackoff: 0.01,
+                maxRetries: 2
+            ),
+            assetSyncManager: assetSyncManager
+        )
+
+        engine.start()
+        defer { engine.stop() }
+
+        let context = persistence.viewContext
+        let item = makeClipItem(in: context, text: "notes.txt")
+        item.itemTypeValue = .file
+        let representation = makeRepresentation(for: item, in: context)
+        representation.kindValue = .custom
+        representation.uti = "public.plain-text"
+        representation.fileExtension = "txt"
+        representation.assetRef = assetRef
+        representation.textData = nil
+        representation.byteCount = Int64(payload.count)
+        let representationRecordID = CKRecord.ID.clipRepresentationID(representation.id, zoneID: zoneID)
+        try context.save()
+
+        try await Task.sleep(nanoseconds: 250_000_000)
+        let savedRecords = await db.calls.flatMap(\.saved)
+        let uploadedRepresentation = try XCTUnwrap(
+            savedRecords.first(where: { $0.recordID == representationRecordID })
+        )
+        XCTAssertNotNil(uploadedRepresentation.asset(for: ClipRepresentationField.asset.rawValue))
+    }
 }
 
 private func makeClipItem(in context: NSManagedObjectContext, id: UUID = UUID(), text: String)

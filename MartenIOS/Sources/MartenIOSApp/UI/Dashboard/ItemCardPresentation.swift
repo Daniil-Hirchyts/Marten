@@ -197,18 +197,7 @@ struct ItemCardPresentation: Identifiable {
     }
 
     private static func fileName(for item: ClipItem) -> String? {
-        guard let representations = item.representations else { return nil }
-
-        if let fileRep = representations.first(where: { $0.kindValue == .fileURL }),
-            let textData = fileRep.textData,
-            let path = String(data: textData, encoding: .utf8),
-            !path.isEmpty
-        {
-            return URL(fileURLWithPath: path).lastPathComponent
-        }
-
-        guard let primary = item.primaryText, !primary.isEmpty else { return nil }
-        return URL(fileURLWithPath: primary).lastPathComponent
+        item.managedFileDisplayName
     }
 
     private static func statsLabel(for item: ClipItem) -> String {

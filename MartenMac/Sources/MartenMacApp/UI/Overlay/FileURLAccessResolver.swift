@@ -4,6 +4,15 @@ import CoreData
 
 enum FileURLAccessResolver {
     static func resolvedFileURL(from item: ClipItem) -> URL? {
+        if item.itemTypeValue == .file,
+           let reference = ManagedFileAccess.previewReference(for: item) {
+            if reference.source == .legacyFileURL {
+                SecurityScopedFileAccessRegistry.shared.startAccessIfNeeded(for: reference.url)
+            }
+
+            return reference.url
+        }
+
         guard let representations = item.representations else { return nil }
         return resolvedFileURL(from: representations)
     }
@@ -17,63 +26,10 @@ enum FileURLAccessResolver {
     }
 
     static func resolvedFileURL(from representation: ClipRepresentation) -> URL? {
-        if let bookmarkData = representation.binaryData,
-            let bookmarkedURL = resolveBookmarkedFileURL(from: bookmarkData)
-        {
+        if let bookmarkedURL = ManagedFileAccess.legacyFileURL(for: representation) {
             SecurityScopedFileAccessRegistry.shared.startAccessIfNeeded(for: bookmarkedURL)
             return bookmarkedURL
         }
-
-        guard let textData = representation.textData,
-            let raw = String(data: textData, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-            !raw.isEmpty
-        else {
-            return nil
-        }
-
-        let fallbackURL: URL
-        if let parsed = URL(string: raw), parsed.isFileURL {
-            fallbackURL = parsed
-        } else {
-            fallbackURL = URL(fileURLWithPath: raw)
-        }
-
-        if representation.binaryData == nil,
-            let bookmarkData = try? fallbackURL.bookmarkData(
-                options: [.withSecurityScope],
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            )
-        {
-            persistBookmarkDataIfNeeded(bookmarkData, for: representation)
-        }
-
-        SecurityScopedFileAccessRegistry.shared.startAccessIfNeeded(for: fallbackURL)
-        return fallbackURL
-    }
-
-    private static func resolveBookmarkedFileURL(from data: Data) -> URL? {
-        var isStale = false
-
-        if let url = try? URL(
-            resolvingBookmarkData: data,
-            options: [.withSecurityScope, .withoutUI],
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        ), url.isFileURL {
-            return url
-        }
-
-        if let url = try? URL(
-            resolvingBookmarkData: data,
-            options: [.withoutUI],
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        ), url.isFileURL {
-            return url
-        }
-
         return nil
     }
 

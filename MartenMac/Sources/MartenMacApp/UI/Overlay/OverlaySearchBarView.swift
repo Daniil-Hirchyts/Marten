@@ -106,21 +106,13 @@ struct OverlaySearchBarView: View {
             Button {
                 isFilterPopoverPresented.toggle()
             } label: {
-                ZStack {
-                    Color.clear
-                        .frame(width: headerButtonSize, height: headerButtonSize)
-
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .font(.system(size: headerButtonIconSize, weight: .semibold))
-                        .foregroundStyle(hasActiveFilters ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
-
-                    if hasActiveFilters {
-                        Circle()
-                            .fill(Color.white.opacity(0.9))
-                            .frame(width: 6, height: 6)
-                            .offset(x: 8, y: -8)
+                Color.clear
+                    .frame(width: headerButtonSize, height: headerButtonSize)
+                    .overlay {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                            .font(.system(size: headerButtonIconSize, weight: .semibold))
+                            .foregroundStyle(hasActiveFilters ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
                     }
-                }
             }
             .buttonStyle(.plain)
             .contentShape(Rectangle())

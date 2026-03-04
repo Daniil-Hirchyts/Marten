@@ -75,11 +75,7 @@ struct CachedItemProperties {
         let text = item.primaryText ?? "Untitled"
         switch itemType {
         case .file:
-            let fileURL = URL(fileURLWithPath: text)
-            if fileURL.isFileURL {
-                return fileURL.lastPathComponent
-            }
-            return text.isEmpty ? "File" : text
+            return item.managedFileDisplayName ?? (text.isEmpty ? "File" : text)
         case .url:
             if let previewTitle = item.linkPreview?.title, !previewTitle.isEmpty {
                 return previewTitle

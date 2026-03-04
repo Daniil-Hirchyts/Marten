@@ -4,15 +4,25 @@ import XCTest
 final class ClipboardPayloadBuilderTests: XCTestCase {
     private let builder = ClipboardPayloadBuilder()
 
-    func testFileURLTakesPrecedenceOverWebURL() {
+    func testFileURLTakesPrecedenceOverWebURLAndCreatesManagedFilePayload() throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("txt")
+        let fileData = Data("hello file".utf8)
+        try fileData.write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
         var content = ClipboardContent()
-        content.fileURL = URL(fileURLWithPath: "/tmp/test.txt")
+        content.fileURL = fileURL
         content.webURL = URL(string: "https://example.com")
 
         let payload = builder.buildPayload(from: content)
 
         XCTAssertEqual(payload?.itemType, .file)
-        XCTAssertEqual(payload?.representations.first?.kind, .fileURL)
+        XCTAssertEqual(payload?.primaryText, fileURL.lastPathComponent)
+        XCTAssertEqual(payload?.representations.first?.kind, .custom)
+        XCTAssertEqual(payload?.representations.first?.fileExtension, "txt")
+        XCTAssertEqual(payload?.representations.first?.data, fileData)
     }
 
     func testWebURLCreatesLinkPreviewTarget() {

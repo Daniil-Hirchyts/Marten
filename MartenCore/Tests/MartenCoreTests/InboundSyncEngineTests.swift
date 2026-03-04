@@ -406,4 +406,84 @@ final class InboundSyncEngineTests: XCTestCase {
         let pinboards = try context.fetch(request)
         XCTAssertTrue(pinboards.isEmpty)
     }
+
+    func testInboundSyncRestoresAssetBackedFileRepresentation() async throws {
+        let zoneID = CKRecordZone.ID(zoneName: "Test", ownerName: CKCurrentUserDefaultName)
+        let persistence = PersistenceController(inMemory: true)
+        let mapper = CloudRecordMapper(zoneID: zoneID)
+        let tokenStore = InMemoryZoneTokenStore()
+        let fetcher = MockZoneChangesFetcher()
+
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let assetStore = AssetStore(baseURL: tempRoot.appendingPathComponent("assets", isDirectory: true))
+        let assetSyncManager = AssetSyncManager(assetStore: assetStore)
+
+        let itemID = UUID()
+        let representationID = UUID()
+        let fileData = Data("synced managed file".utf8)
+        let remoteTempFile = tempRoot.appendingPathComponent("remote.txt")
+        try fileData.write(to: remoteTempFile)
+
+        let itemRecord = CKRecord.clipItem(id: itemID, zoneID: zoneID)
+        itemRecord.setUUID(itemID, for: ClipItemField.id.rawValue)
+        itemRecord.setDate(Date(), for: ClipItemField.createdAt.rawValue)
+        itemRecord.setDate(Date(), for: ClipItemField.modifiedAt.rawValue)
+        itemRecord.setString("synced.txt", for: ClipItemField.primaryText.rawValue)
+        itemRecord.setString(fileData.sha256Hex(), for: ClipItemField.contentHash.rawValue)
+        itemRecord.setItemType(.file, for: ClipItemField.itemType.rawValue)
+        itemRecord.setInt64(Int64(fileData.count), for: ClipItemField.byteCount.rawValue)
+
+        let representationRecord = CKRecord.clipRepresentation(id: representationID, zoneID: zoneID)
+        representationRecord.setUUID(representationID, for: ClipRepresentationField.id.rawValue)
+        representationRecord.setUUID(itemID, for: ClipRepresentationField.clipItemID.rawValue)
+        representationRecord.setParentReference(
+            to: .clipItemID(itemID, zoneID: zoneID),
+            for: ClipRepresentationField.clipItemRef.rawValue
+        )
+        representationRecord.setString("public.plain-text", for: ClipRepresentationField.uti.rawValue)
+        representationRecord.setRepresentationKind(.custom, for: ClipRepresentationField.kind.rawValue)
+        representationRecord.setInt16(0, for: ClipRepresentationField.displayOrder.rawValue)
+        representationRecord.setInt64(Int64(fileData.count), for: ClipRepresentationField.byteCount.rawValue)
+        representationRecord.setAsset(
+            CKAsset(fileURL: remoteTempFile),
+            for: ClipRepresentationField.asset.rawValue
+        )
+
+        fetcher.plans = [
+            .success(events: [.changed(itemRecord), .changed(representationRecord)], finalToken: nil)
+        ]
+
+        let engine = InboundSyncEngine(
+            zoneID: zoneID,
+            changesFetcher: fetcher,
+            tokenStore: tokenStore,
+            persistenceController: persistence,
+            recordMapper: mapper,
+            assetSyncManager: assetSyncManager
+        )
+
+        _ = try await engine.syncInbound()
+
+        let request = ClipItem.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", itemID as CVarArg)
+        request.fetchLimit = 1
+        let item = try XCTUnwrap(persistence.viewContext.fetch(request).first)
+        let representation = try XCTUnwrap(item.representations?.first)
+
+        XCTAssertEqual(item.itemTypeValue, .file)
+        XCTAssertEqual(item.primaryText, "synced.txt")
+        XCTAssertEqual(representation.kindValue, .custom)
+        XCTAssertNotNil(representation.assetRef)
+        XCTAssertEqual(
+            try assetStore.load(
+                assetRef: try XCTUnwrap(representation.assetRef),
+                fileExtension: representation.fileExtension
+            ),
+            fileData
+        )
+    }
 }

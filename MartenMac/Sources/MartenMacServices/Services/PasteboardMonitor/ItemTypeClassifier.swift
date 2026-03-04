@@ -34,10 +34,10 @@ final class ItemTypeClassifier {
                 hasImage = true
             case .fileURL:
                 hasFile = true
+            case .custom:
+                hasFile = true
             case .url:
                 hasURL = true
-            case .custom:
-                break
             }
         }
 

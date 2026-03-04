@@ -8,6 +8,10 @@ final class ClipItemStoreTests: XCTestCase {
         )!
     }
 
+    private var textFixtureData: Data {
+        Data("managed-file-payload".utf8)
+    }
+
     func testCreateTextItemInsertsClipItem() throws {
         let persistence = PersistenceController(inMemory: true)
         let store = ClipItemStore(persistence: persistence)
@@ -193,6 +197,76 @@ final class ClipItemStoreTests: XCTestCase {
             try assetStore.load(assetRef: repairedAssetRef, fileExtension: repairedRepresentation.fileExtension),
             pngFixtureData
         )
+    }
+
+    func testCreateManagedFileItemStoresAssetBackedCopyAndExportSurvivesSourceDeletion() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let assetRoot = tempRoot.appendingPathComponent("assets", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let sourceURL = tempRoot.appendingPathComponent("report.txt")
+        try textFixtureData.write(to: sourceURL)
+
+        let assetStore = AssetStore(baseURL: assetRoot)
+        let store = ClipItemStore(persistence: persistence, assetStore: assetStore)
+        let payload = try XCTUnwrap(ManagedFileImportService.payload(from: sourceURL))
+
+        let item = try store.createItem(payload: payload, isUserCreated: true)
+        let representation = try XCTUnwrap(item.representations?.first)
+
+        XCTAssertEqual(item.itemTypeValue, .file)
+        XCTAssertEqual(item.primaryText, "report.txt")
+        XCTAssertEqual(item.contentHash, textFixtureData.sha256Hex())
+        XCTAssertEqual(representation.kindValue, .custom)
+        XCTAssertNotNil(representation.assetRef)
+        XCTAssertNil(representation.binaryData)
+
+        try FileManager.default.removeItem(at: sourceURL)
+
+        let previewURL = try XCTUnwrap(ManagedFileAccess.previewURL(for: item, assetStore: assetStore))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: previewURL.path))
+        XCTAssertEqual(try Data(contentsOf: previewURL), textFixtureData)
+
+        let exportURL = try ManagedFileAccess.exportURL(for: item, assetStore: assetStore)
+        XCTAssertEqual(exportURL.lastPathComponent, "report.txt")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: exportURL.path))
+        XCTAssertEqual(try Data(contentsOf: exportURL), textFixtureData)
+    }
+
+    func testUpdateFileNameChangesMetadataOnlyForManagedFileItems() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let assetRoot = tempRoot.appendingPathComponent("assets", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let sourceURL = tempRoot.appendingPathComponent("draft.txt")
+        try textFixtureData.write(to: sourceURL)
+
+        let assetStore = AssetStore(baseURL: assetRoot)
+        let store = ClipItemStore(persistence: persistence, assetStore: assetStore)
+        let payload = try XCTUnwrap(ManagedFileImportService.payload(from: sourceURL))
+        let item = try store.createItem(payload: payload, isUserCreated: true)
+
+        let originalHash = item.contentHash
+        let originalAssetRef = item.representations?.first?.assetRef
+
+        try store.updateFileName(objectID: item.objectID, newFileName: "renamed.txt")
+
+        let renamed = try XCTUnwrap(store.fetchRecentItems(limit: 1).first)
+        XCTAssertEqual(renamed.primaryText, "renamed.txt")
+        XCTAssertEqual(renamed.searchableText, "renamed.txt")
+        XCTAssertEqual(renamed.contentHash, originalHash)
+        XCTAssertEqual(renamed.representations?.first?.assetRef, originalAssetRef)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceURL.path))
+
+        let exportURL = try ManagedFileAccess.exportURL(for: renamed, assetStore: assetStore)
+        XCTAssertEqual(exportURL.lastPathComponent, "renamed.txt")
+        XCTAssertEqual(try Data(contentsOf: exportURL), textFixtureData)
     }
 
     func testCountItemsMissingRepresentationsDetectsCorruptItems() throws {

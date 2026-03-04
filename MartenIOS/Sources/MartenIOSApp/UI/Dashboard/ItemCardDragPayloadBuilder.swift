@@ -24,6 +24,9 @@ struct ItemCardDragPayloadBuilder {
            item.itemTypeValue == .url,
            let url = URL(string: urlString) {
             provider.registerObject(url as NSURL, visibility: .all)
+        } else if item.itemTypeValue == .file,
+                  let fileURL = try? ManagedFileAccess.exportURL(for: item) {
+            provider.registerObject(fileURL as NSURL, visibility: .all)
         } else if item.itemTypeValue == .image {
             registerImageData(for: item, into: provider)
         } else if let text = item.plainTextContent, !text.isEmpty {

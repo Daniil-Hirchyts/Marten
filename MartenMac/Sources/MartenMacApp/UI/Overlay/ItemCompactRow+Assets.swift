@@ -6,8 +6,7 @@ import SwiftUI
 extension ItemCompactRow {
     var fileNameOnly: String? {
         guard item.itemTypeValue == .file else { return nil }
-        let url = URL(fileURLWithPath: item.primaryText ?? "")
-        return url.lastPathComponent
+        return item.managedFileDisplayName
     }
 
     var imageFileName: String? {

@@ -34,13 +34,8 @@ struct DashboardSharePayloadBuilder {
     }
 
     func shareURL(for item: ClipItem) -> URL? {
-        if item.itemTypeValue == .file,
-           let path = item.primaryText,
-           !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            let fileURL = URL(fileURLWithPath: path)
-            guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
-            return fileURL
+        if item.itemTypeValue == .file {
+            return try? ManagedFileAccess.exportURL(for: item)
         }
 
         if item.itemTypeValue == .url,
@@ -90,4 +85,3 @@ struct DashboardSharePayloadBuilder {
         return payloads
     }
 }
-

@@ -115,12 +115,19 @@ final class PasteboardExtractorTests: XCTestCase {
 
         let filePasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
         filePasteboard.clearContents()
-        let fileURL = URL(fileURLWithPath: "/tmp/sample.txt")
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("txt")
+        let fileData = Data("hello mac file".utf8)
+        try? fileData.write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
         filePasteboard.writeObjects([fileURL as NSURL])
         let filePayload = extractor.extract(from: filePasteboard)
         XCTAssertEqual(filePayload?.itemType, .file)
+        XCTAssertEqual(filePayload?.primaryText, fileURL.lastPathComponent)
         XCTAssertTrue(
-            filePayload?.representations.contains(where: { $0.kind == .fileURL }) ?? false)
+            filePayload?.representations.contains(where: { $0.kind == .custom }) ?? false)
+        XCTAssertEqual(filePayload?.representations.first?.data, fileData)
     }
 
     func testFiltersConfidentialContentWhenEnabled() {

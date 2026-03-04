@@ -53,7 +53,17 @@ final class DashboardRefactorTests: XCTestCase {
 
     func testSharePayloadBuilderBuildsURLsAndImagePayloads() throws {
         let persistence = PersistenceController(inMemory: true)
-        let store = ClipItemStore(persistence: persistence)
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let previousShared = AssetStore.shared
+        let assetStore = AssetStore(baseURL: tempDirectory.appendingPathComponent("assets", isDirectory: true))
+        AssetStore.shared = assetStore
+        defer { AssetStore.shared = previousShared }
+
+        let store = ClipItemStore(persistence: persistence, assetStore: assetStore)
 
         let existingFilePath = (NSTemporaryDirectory() as NSString).appendingPathComponent("marten-test-file.txt")
         try "hello".data(using: .utf8)?.write(to: URL(fileURLWithPath: existingFilePath))
@@ -61,8 +71,15 @@ final class DashboardRefactorTests: XCTestCase {
 
         let fileItem = try store.createItem(
             payload: ClipItemPayload(
-                representations: [.plainText(existingFilePath)],
-                primaryText: existingFilePath,
+                representations: [
+                    ClipRepresentationPayload(
+                        kind: .custom,
+                        uti: "public.plain-text",
+                        data: Data("hello".utf8),
+                        fileExtension: "txt"
+                    )
+                ],
+                primaryText: "marten-test-file.txt",
                 itemType: .file
             ),
             isUserCreated: true
@@ -107,7 +124,7 @@ final class DashboardRefactorTests: XCTestCase {
 
         let payloads = builder.payloads(for: [fileItem, urlItem, imageItem])
 
-        XCTAssertTrue(payloads.contains(where: { ($0 as? URL)?.path == existingFilePath }))
+        XCTAssertTrue(payloads.contains(where: { ($0 as? URL)?.lastPathComponent == "marten-test-file.txt" }))
         XCTAssertTrue(payloads.contains(where: { ($0 as? URL)?.absoluteString == "https://example.com" }))
         XCTAssertTrue(payloads.contains(where: { ($0 as? NSObject) === sentinel }))
         XCTAssertTrue(payloads.contains(where: { ($0 as? String) == "Caption" }))

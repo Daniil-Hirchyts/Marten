@@ -155,19 +155,7 @@ public actor SharedClipQueryService {
 
     private func fileName(for item: ClipItem) -> String? {
         guard item.itemTypeValue == .file else { return nil }
-        guard let representations = item.representations else {
-            return normalizedText(item.primaryText).map { URL(fileURLWithPath: $0).lastPathComponent }
-        }
-
-        if let fileRep = representations.first(where: { $0.kindValue == .fileURL }),
-           let textData = fileRep.textData,
-           let path = String(data: textData, encoding: .utf8)?
-               .trimmingCharacters(in: .whitespacesAndNewlines),
-           !path.isEmpty {
-            return URL(fileURLWithPath: path).lastPathComponent
-        }
-
-        return normalizedText(item.primaryText).map { URL(fileURLWithPath: $0).lastPathComponent }
+        return item.managedFileDisplayName
     }
 
     private func colorHex(for item: ClipItem) -> String? {

@@ -43,8 +43,8 @@ extension OverlayItemPreview {
 
         switch item.itemTypeValue {
         case .file:
-            if let filePath {
-                items.append(URL(fileURLWithPath: filePath))
+            if let exportURL = try? ManagedFileAccess.exportURL(for: item) {
+                items.append(exportURL)
             }
         case .url:
             if let normalizedPrimaryURL {
@@ -186,12 +186,10 @@ extension OverlayItemPreview {
     }
 
     func saveFileAs() {
-        guard let sourcePath = filePath else {
+        guard let sourceURL = try? ManagedFileAccess.exportURL(for: item) else {
             NSSound.beep()
             return
         }
-
-        let sourceURL = URL(fileURLWithPath: sourcePath)
 
         let savePanel = NSSavePanel()
         savePanel.title = "Save File"

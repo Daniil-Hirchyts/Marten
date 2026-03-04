@@ -6,8 +6,7 @@ import SwiftUI
 extension ItemCard {
     var fileNameOnly: String? {
         guard item.itemTypeValue == .file else { return nil }
-        let url = URL(fileURLWithPath: cached.primaryTitle)
-        return url.lastPathComponent
+        return item.managedFileDisplayName
     }
 
     var imageFileName: String? {

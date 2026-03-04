@@ -68,8 +68,8 @@ struct ItemEditorContentView: View {
                 initialValue: initialRichText?.string ?? item.plainTextContent ?? item.primaryText ?? ""
             )
 
-            if item.itemTypeValue == .file, let filePath = item.primaryText {
-                _fileName = State(initialValue: URL(fileURLWithPath: filePath).lastPathComponent)
+            if item.itemTypeValue == .file {
+                _fileName = State(initialValue: item.managedFileDisplayName ?? "File")
             } else if item.itemTypeValue == .image {
                 if let customTitle = item.customTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
                     !customTitle.isEmpty
@@ -92,95 +92,182 @@ struct ItemEditorContentView: View {
     }
 
     var body: some View {
-        editorBody
-            .onAppear { handleAppear() }
-            .onDisappear { handleDisappear() }
-            .onReceive(NotificationCenter.default.publisher(for: .textFormattingDidChange)) { notification in
-                if let isBoldValue = notification.userInfo?["isBold"] as? Bool {
-                    isBold = isBoldValue
-                }
-                if let isItalicValue = notification.userInfo?["isItalic"] as? Bool {
-                    isItalic = isItalicValue
-                }
-                if let isUnderlineValue = notification.userInfo?["isUnderline"] as? Bool {
-                    isUnderline = isUnderlineValue
-                }
-                if let isStrikethroughValue = notification.userInfo?["isStrikethrough"] as? Bool {
-                    isStrikethrough = isStrikethroughValue
-                }
+        VStack(spacing: 0) {
+            contentView
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            footer
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+        }
+        .toolbar { toolbarContent }
+        .onAppear { handleAppear() }
+        .onDisappear { handleDisappear() }
+        .onReceive(NotificationCenter.default.publisher(for: .textFormattingDidChange)) { notification in
+            if let isBoldValue = notification.userInfo?["isBold"] as? Bool {
+                isBold = isBoldValue
             }
-            .sheet(item: $appleIntelligencePreview) { preview in
-                appleIntelligencePreviewSheet(for: preview)
+            if let isItalicValue = notification.userInfo?["isItalic"] as? Bool {
+                isItalic = isItalicValue
             }
-    }
-
-    // MARK: - Composed Views
-
-    private var editorBody: AnyView {
-        AnyView(
-            ZStack {
-            VStack(spacing: 0) {
-                dragHandle
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
-
-                VStack(spacing: 16) {
-                    RichTextToolbar(
-                        title: titleText,
-                        saveTitle: saveTitle,
-                        canSave: canSave,
-                        showsFormattingControls: showsFormattingControls,
-                        showsTextModifierButtons: showsTextModifierButtons,
-                        showsAppleIntelligenceControl: shouldShowAppleIntelligenceControl,
-                        appleIntelligenceError: appleIntelligenceError,
-                        isBold: isBold,
-                        isItalic: isItalic,
-                        isUnderline: isUnderline,
-                        isStrikethrough: isStrikethrough,
-                        onCancel: { onCancel() },
-                        onSave: { handleSave() },
-                        onCopyPlainText: supportsCopyButton ? { copyPlainTextToMarten() } : nil,
-                        onToggleBold: { toggleFormatting(.bold) },
-                        onToggleItalic: { toggleFormatting(.italic) },
-                        onToggleUnderline: { toggleFormatting(.underline) },
-                        onToggleStrikethrough: { toggleFormatting(.strikethrough) },
-                        onClearFormatting: { toggleFormatting(.clearFormatting) },
-                        appleIntelligenceControl: AnyView(appleIntelligenceMenu)
-                    )
-
-                    editorSurface
-                    footer
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
+            if let isUnderlineValue = notification.userInfo?["isUnderline"] as? Bool {
+                isUnderline = isUnderlineValue
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Color.primary.opacity(0.30))
-                        .padding(12)
-                }
+            if let isStrikethroughValue = notification.userInfo?["isStrikethrough"] as? Bool {
+                isStrikethrough = isStrikethroughValue
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background { backgroundView }
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+        .sheet(item: $appleIntelligencePreview) { preview in
+            appleIntelligencePreviewSheet(for: preview)
         }
-        )
     }
 
-    private var editorSurface: some View {
-        contentView
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+
+        // Center: type-specific controls
+        if supportsTextEditing {
+            ToolbarItemGroup(placement: .principal) {
+                textFormattingControls
+            }
+        }
+
+        if let item, item.itemTypeValue == .color {
+            ToolbarItemGroup(placement: .principal) {
+                colorControls
+            }
+        }
+
+        if let item, item.itemTypeValue == .image {
+            ToolbarItemGroup(placement: .principal) {
+                imageControls
+            }
+        }
+
+        if let item, item.itemTypeValue == .file {
+            ToolbarItemGroup(placement: .principal) {
+                fileControls
+            }
+        }
     }
+
+    private var textFormattingControls: some View {
+        HStack(spacing: 2) {
+            // Bold/Italic/Underline/Strikethrough only for text, richText, url, color — NOT for code
+            if showsTextModifierButtons {
+                toolbarButton(icon: "bold", isActive: isBold) { applyFormatting(.bold) }
+                toolbarButton(icon: "italic", isActive: isItalic) { applyFormatting(.italic) }
+                toolbarButton(icon: "underline", isActive: isUnderline) { applyFormatting(.underline) }
+                toolbarButton(icon: "strikethrough", isActive: isStrikethrough) { applyFormatting(.strikethrough) }
+
+                Divider()
+                    .frame(height: 18)
+                    .padding(.horizontal, 4)
+
+                toolbarButton(icon: "textformat", isActive: false) { applyFormatting(.clearFormatting) }
+                    .help("Clear Formatting")
+            }
+
+            // Apple Intelligence — shown for all text/code types when available
+            if shouldShowAppleIntelligenceControl {
+                if showsTextModifierButtons {
+                    Divider()
+                        .frame(height: 18)
+                        .padding(.horizontal, 4)
+                }
+                appleIntelligenceMenu
+            }
+
+            // Copy button — shown for all text types including code
+            Divider()
+                .frame(height: 18)
+                .padding(.horizontal, 4)
+
+            Button(action: { copyPlainTextToMarten() }) {
+                Image(systemName: "doc.on.doc")
+            }
+            .help("Copy")
+        }
+    }
+
+    private var imageControls: some View {
+        HStack(spacing: 2) {
+            Button(action: { rotateImage(direction: .left) }) {
+                Image(systemName: "rotate.left")
+            }
+            .help("Rotate Left")
+
+            Button(action: { rotateImage(direction: .right) }) {
+                Image(systemName: "rotate.right")
+            }
+            .help("Rotate Right")
+
+            Divider()
+                .frame(height: 18)
+                .padding(.horizontal, 4)
+
+            Button(action: { copyImageToMarten() }) {
+                Image(systemName: "doc.on.doc")
+            }
+            .help("Copy Image")
+
+            Button(action: { saveImageToFile() }) {
+                Image(systemName: "square.and.arrow.down")
+            }
+            .help("Save As…")
+        }
+    }
+
+    private var fileControls: some View {
+        HStack(spacing: 2) {
+            Button(action: { revealInFinder() }) {
+                Image(systemName: "folder")
+            }
+            .help("Show in Finder")
+
+            Button(action: { openFile() }) {
+                Image(systemName: "arrow.up.forward.app")
+            }
+            .help("Open")
+
+            Divider()
+                .frame(height: 18)
+                .padding(.horizontal, 4)
+
+            Button(action: { copyFilePath() }) {
+                Image(systemName: "doc.on.doc")
+            }
+            .help("Copy Path")
+        }
+    }
+
+    private var colorControls: some View {
+        HStack(spacing: 2) {
+            Button(action: {
+                let hex = ColorEditorView.normalizeHex(draftText) ?? draftText
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(hex, forType: .string)
+            }) {
+                Image(systemName: "doc.on.doc")
+            }
+            .help("Copy Hex Value")
+        }
+    }
+
+    private func toolbarButton(
+        icon: String,
+        isActive: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .foregroundStyle(isActive ? Color.accentColor : .primary)
+        }
+    }
+
+    // MARK: - Content
 
     @ViewBuilder
     private var contentView: some View {
@@ -189,24 +276,16 @@ struct ItemEditorContentView: View {
             case .file:
                 FileInfoView(
                     byteCount: item.byteCount,
-                    filePath: item.primaryText,
                     fileIcon: loadedFileIcon,
-                    onRevealInFinder: { revealInFinder() },
-                    onOpen: { openFile() },
-                    onCopyPath: { copyFilePath() },
                     fileName: $fileName
                 )
             case .image:
                 ImageEditorView(
-                    byteCount: item.byteCount,
                     image: loadedImage,
-                    rotationAngle: rotationAngle,
-                    onRotateLeft: { rotateImage(direction: .left) },
-                    onRotateRight: { rotateImage(direction: .right) },
-                    onCopy: { copyImageToMarten() },
-                    onSaveAs: { saveImageToFile() },
-                    fileName: $fileName
+                    rotationAngle: rotationAngle
                 )
+            case .color:
+                ColorEditorView(hexText: $draftText)
             default:
                 TextEditorView(
                     itemType: item.itemTypeValue,
@@ -245,16 +324,33 @@ struct ItemEditorContentView: View {
         }
     }
 
+    // MARK: - Footer
+
     private var footer: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 8) {
             footerLeft
-            Spacer(minLength: 0)
-            HStack(spacing: 12) {
-                ItemEditorKeyboardHint(key: "⎋", label: "Cancel")
-                if supportsEditing {
-                    ItemEditorKeyboardHint(key: "⌘↩", label: "Save")
-                }
+            
+            if appleIntelligenceError != nil {
+                Text(appleIntelligenceError!)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.red.opacity(0.85))
             }
+            
+            Spacer(minLength: 0)
+            
+            footerRight
+        }
+    }
+
+    private var footerRight: some View {
+        HStack(spacing: 8) {
+            Button("Cancel") { onCancel() }
+                .keyboardShortcut(.cancelAction)
+            
+            Button("Save") { handleSave() }
+                .keyboardShortcut(.return, modifiers: .command)
+                .buttonStyle(.borderedProminent)
+                .disabled(!canSave)
         }
     }
 
@@ -263,64 +359,160 @@ struct ItemEditorContentView: View {
         if let item {
             switch item.itemTypeValue {
             case .text, .richText, .code, .url, .color:
-                HStack(spacing: 6) {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 11, weight: .medium))
-                    Text(ItemEditorTextStats(text: draftText).label)
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundStyle(Color.primary.opacity(0.60))
-            case .file:
-                HStack(spacing: 6) {
-                    Image(systemName: "doc.fill")
-                        .font(.system(size: 11, weight: .medium))
-                    Text("File Editor")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundStyle(Color.primary.opacity(0.60))
+                Text(ItemEditorTextStats(text: draftText).label)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
             case .image:
-                HStack(spacing: 6) {
-                    Image(systemName: "photo")
-                        .font(.system(size: 11, weight: .medium))
-                    Text("Image Viewer")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundStyle(Color.primary.opacity(0.60))
+                imageFooter
+            case .file:
+                fileFooter
             default:
                 EmptyView()
             }
         } else {
-            HStack(spacing: 6) {
-                Image(systemName: "doc.text")
+            Text(ItemEditorTextStats(text: draftText).label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var imageFooter: some View {
+        HStack(spacing: 12) {
+            if let image = loadedImage {
+                Text("\(Int(image.size.width))×\(Int(image.size.height))")
                     .font(.system(size: 11, weight: .medium))
-                Text(ItemEditorTextStats(text: draftText).label)
-                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
-            .foregroundStyle(Color.primary.opacity(0.60))
+            if let item, item.byteCount > 0 {
+                Text(ItemEditorHelpers.formatFileSize(item.byteCount))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
-    // MARK: - Shell
-
-    private var backgroundView: AnyView {
-        if #available(macOS 26.0, *) {
-            return AnyView(
-                Rectangle()
-                    .fill(Color.clear)
-                    .glassEffect(.regular, in: .rect(cornerRadius: 20, style: .continuous))
-            )
-        } else {
-            // Use SwiftUI material for better blending
-            return AnyView(
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-            )
+    private var fileFooter: some View {
+        HStack(spacing: 12) {
+            if let item, item.byteCount > 0 {
+                Text(ItemEditorHelpers.formatFileSize(item.byteCount))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
-    private var dragHandle: some View {
-        RoundedRectangle(cornerRadius: 3, style: .continuous)
-            .fill(Color.primary.opacity(0.25))
-            .frame(width: 36, height: 5)
+    // MARK: - Derived State
+
+    var titleText: String {
+        mode == .createNew ? "New Text Item" : editorTitle
+    }
+
+    var supportsCopyButton: Bool {
+        guard let item else { return true }
+        return item.itemTypeValue != .code
+    }
+
+    var showsTextModifierButtons: Bool {
+        guard let item else { return true }
+        return item.itemTypeValue != .code
+    }
+
+    var canSave: Bool {
+        guard let item else {
+            return !draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        switch item.itemTypeValue {
+        case .file, .image:
+            return !fileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        default:
+            return supportsTextEditing
+        }
+    }
+
+    var editorTitle: String {
+        guard let item else { return "New Text Item" }
+        switch item.itemTypeValue {
+        case .code: return "Edit Code"
+        case .url: return "Edit URL"
+        case .color: return "Edit Color"
+        case .image: return "Edit Image"
+        case .file: return "Edit File"
+        default: return "Edit Text"
+        }
+    }
+
+    var supportsTextEditing: Bool {
+        guard let item else { return true }
+        switch item.itemTypeValue {
+        case .text, .richText, .code, .url:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var supportsEditing: Bool {
+        guard let item else { return true }
+        switch item.itemTypeValue {
+        case .text, .richText, .code, .url, .color, .file, .image:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var editorFont: Font {
+        if let item {
+            return item.itemTypeValue == .code
+                ? .system(size: 16, weight: .regular, design: .monospaced)
+                : .system(size: 16)
+        }
+        return .system(size: 16)
+    }
+
+    var originalFileName: String {
+        guard let item else { return "Untitled" }
+        if item.itemTypeValue == .file {
+            return item.managedFileDisplayName ?? "File"
+        } else if item.itemTypeValue == .image {
+            if let customTitle = item.customTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+                !customTitle.isEmpty
+            {
+                return customTitle
+            } else if let path = ItemEditorHelpers.fileURLPath(from: item) {
+                return URL(fileURLWithPath: path).lastPathComponent
+            } else {
+                return "image.png"
+            }
+        }
+        return "Untitled"
+    }
+
+    // MARK: - Formatting
+
+    func applyFormatting(_ type: TextFormattingType) {
+        NotificationCenter.default.post(
+            name: .applyTextFormatting,
+            object: nil,
+            userInfo: ["type": type]
+        )
+    }
+}
+
+// MARK: - Text Stats
+
+struct ItemEditorTextStats: Equatable {
+    let characters: Int
+    let words: Int
+    let lines: Int
+
+    init(text: String) {
+        characters = text.count
+        words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        lines = max(1, text.split(separator: "\n", omittingEmptySubsequences: false).count)
+    }
+
+    var label: String {
+        "\(characters) chars  •  \(words) words  •  \(lines) line\(lines == 1 ? "" : "s")"
     }
 }

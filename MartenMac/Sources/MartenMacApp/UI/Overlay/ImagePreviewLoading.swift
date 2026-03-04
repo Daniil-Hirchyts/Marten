@@ -3,7 +3,7 @@ import CoreData
 import Foundation
 import ImageIO
 import MartenCore
-
+    
 struct ImagePreviewSourceSnapshot: Equatable, Sendable {
     let kind: RepresentationKind
     let binaryData: Data?

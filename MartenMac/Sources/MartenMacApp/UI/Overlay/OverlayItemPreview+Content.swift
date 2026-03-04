@@ -375,19 +375,7 @@ extension OverlayItemPreview {
     }
 
     var fileDisplayName: String {
-        if let previewableFileURL {
-            return previewableFileURL.lastPathComponent
-        }
-        if let path = filePath {
-            if let parsedURL = URL(string: path), parsedURL.isFileURL {
-                return parsedURL.lastPathComponent
-            }
-            return URL(fileURLWithPath: path).lastPathComponent
-        }
-        if let text = nonEmptyText(item.primaryText) {
-            return text
-        }
-        return "File"
+        item.managedFileDisplayName ?? "File"
     }
 
     var fileSizeText: String? {

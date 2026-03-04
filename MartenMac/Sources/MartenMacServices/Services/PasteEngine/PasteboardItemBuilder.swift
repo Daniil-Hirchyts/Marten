@@ -1,5 +1,6 @@
 import AppKit
 import MartenCore
+import UniformTypeIdentifiers
 
 /// Builds `NSPasteboardItem` instances from `ClipItem` data.
 ///
@@ -14,6 +15,16 @@ public final class PasteboardItemBuilder {
 
     /// Build an `NSPasteboardItem` preserving all original representations.
     public func buildPasteboardItem(from item: ClipItem) throws -> NSPasteboardItem {
+        if item.itemTypeValue == .file,
+           let exportURL = try? ManagedFileAccess.exportURL(for: item, assetStore: assetStore) {
+            let pasteboardItem = NSPasteboardItem()
+            pasteboardItem.setString(
+                exportURL.absoluteString,
+                forType: NSPasteboard.PasteboardType(UTType.fileURL.identifier)
+            )
+            return pasteboardItem
+        }
+
         let pasteboardItem = NSPasteboardItem()
         let sorted = item.representations?.sorted { $0.displayOrder < $1.displayOrder } ?? []
         for rep in sorted {

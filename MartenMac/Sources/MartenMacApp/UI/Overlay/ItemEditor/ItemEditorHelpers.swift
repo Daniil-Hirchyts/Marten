@@ -52,6 +52,10 @@ enum ItemEditorHelpers {
         FileURLAccessResolver.resolvedFileURL(from: item)?.path
     }
 
+    static func exportedFileURL(from item: ClipItem) -> URL? {
+        try? ManagedFileAccess.exportURL(for: item)
+    }
+
     static func imageFromRepresentations(for item: ClipItem) -> NSImage? {
         let representations = (item.representations ?? []).sorted { $0.displayOrder < $1.displayOrder }
 

@@ -49,25 +49,22 @@ struct URLExtractor: PasteboardTypeExtractor {
         }
     }
     
-    private func extractFileURL(_ url: URL, displayOrder: Int16) -> ExtractionResult {
-        let fileName = url.lastPathComponent
-        let bookmarkData = try? url.bookmarkData(
-            options: [.withSecurityScope],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
-        let representation = ClipRepresentationPayload(
-            kind: .fileURL,
-            uti: UTType.fileURL.identifier,
-            text: url.path,
-            data: bookmarkData,
-            fileExtension: url.pathExtension.isEmpty ? nil : url.pathExtension,
-            displayOrder: displayOrder
-        )
-        
+    private func extractFileURL(_ url: URL, displayOrder: Int16) -> ExtractionResult? {
+        guard let payload = ManagedFileImportService.payload(from: url),
+              let representation = payload.representations.first else {
+            return nil
+        }
+
         return ExtractionResult(
-            representation: representation,
-            primaryText: fileName
+            representation: ClipRepresentationPayload(
+                kind: representation.kind,
+                uti: representation.uti,
+                text: representation.text,
+                data: representation.data,
+                fileExtension: representation.fileExtension,
+                displayOrder: displayOrder
+            ),
+            primaryText: payload.primaryText
         )
     }
     

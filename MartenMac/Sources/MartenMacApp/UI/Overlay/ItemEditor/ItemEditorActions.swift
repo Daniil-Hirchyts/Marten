@@ -56,18 +56,18 @@ extension ItemEditorContentView {
     }
 
     func revealInFinder() {
-        guard let filePath = item?.primaryText else { return }
-        NSWorkspace.shared.selectFile(filePath, inFileViewerRootedAtPath: "")
+        guard let item, let url = ItemEditorHelpers.exportedFileURL(from: item) else { return }
+        NSWorkspace.shared.selectFile(url.path, inFileViewerRootedAtPath: "")
     }
 
     func openFile() {
-        guard let filePath = item?.primaryText else { return }
-        NSWorkspace.shared.open(URL(fileURLWithPath: filePath))
+        guard let item, let url = ItemEditorHelpers.exportedFileURL(from: item) else { return }
+        NSWorkspace.shared.open(url)
     }
 
     func copyFilePath() {
         guard let item else { return }
-        if let path = ItemEditorHelpers.fileURLPath(from: item) {
+        if let path = ItemEditorHelpers.exportedFileURL(from: item)?.path {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(path, forType: .string)

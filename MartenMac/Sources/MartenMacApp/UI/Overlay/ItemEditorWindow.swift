@@ -4,8 +4,8 @@ import MartenMacServices
 import SwiftUI
 
 @MainActor
-final class ItemEditorWindowController {
-    private let panel: NSPanel
+final class ItemEditorWindowController: NSObject {
+    private let window: NSWindow
     private var isVisible = false
     private var onSave: ((String) -> Void)?
     private var onClose: (() -> Void)?
@@ -19,29 +19,24 @@ final class ItemEditorWindowController {
         self.clipItemEditor = clipItemEditor
         self.appleIntelligence = appleIntelligence
         let initialFrame = NSRect(x: 0, y: 0, width: 720, height: 520)
-        panel = ItemEditorPanel(
+        window = ItemEditorWindow(
             contentRect: initialFrame,
-            styleMask: [.borderless, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
 
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = false
-        panel.isReleasedWhenClosed = false
-        panel.hidesOnDeactivate = false
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.isMovableByWindowBackground = true
-        panel.isMovable = true
-        panel.becomesKeyOnlyIfNeeded = false
-        panel.ignoresMouseEvents = false
-        panel.acceptsMouseMovedEvents = true
-        panel.minSize = NSSize(width: 480, height: 360)
-        panel.maxSize = NSSize(width: 1200, height: 900)
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
+        window.isMovableByWindowBackground = true
+        window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 480, height: 360)
+        window.maxSize = NSSize(width: 1200, height: 900)
+        window.backgroundColor = .windowBackgroundColor
+        window.level = .popUpMenu
+        
+        super.init()
+        window.delegate = self
     }
 
     func show(item: ClipItem, onSave: @escaping (String) -> Void, onClose: @escaping () -> Void) {
@@ -63,33 +58,10 @@ final class ItemEditorWindowController {
                 self?.hide()
             }
         )
-        .ignoresSafeArea()
 
-        let hostingView = NSHostingView(rootView: contentView)
-        hostingView.autoresizingMask = [.width, .height]
-        // Make hosting view fully transparent - no background
-        hostingView.layer?.backgroundColor = .clear
-        panel.contentView = hostingView
-
-        if let screen = NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let windowFrame = panel.frame
-            let x = screenFrame.midX - windowFrame.width / 2
-            let y = screenFrame.midY - windowFrame.height / 2
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
-        }
-
-        panel.alphaValue = 0
-        panel.orderFrontRegardless()
-        panel.makeKey()
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.2
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().alphaValue = 1
-        }
-
-        isVisible = true
+        window.title = Self.windowTitle(for: item)
+        installContent(contentView)
+        present()
     }
 
     func showNewTextItem(onSave: @escaping (String) -> Void, onClose: @escaping () -> Void) {
@@ -111,33 +83,10 @@ final class ItemEditorWindowController {
                 self?.hide()
             }
         )
-        .ignoresSafeArea()
 
-        let hostingView = NSHostingView(rootView: contentView)
-        hostingView.autoresizingMask = [.width, .height]
-        // Make hosting view fully transparent - no background
-        hostingView.layer?.backgroundColor = .clear
-        panel.contentView = hostingView
-
-        if let screen = NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let windowFrame = panel.frame
-            let x = screenFrame.midX - windowFrame.width / 2
-            let y = screenFrame.midY - windowFrame.height / 2
-            panel.setFrameOrigin(NSPoint(x: x, y: y))
-        }
-
-        panel.alphaValue = 0
-        panel.orderFrontRegardless()
-        panel.makeKey()
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.2
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().alphaValue = 1
-        }
-
-        isVisible = true
+        window.title = "New Text Item"
+        installContent(contentView)
+        present()
     }
 
     func hide() {
@@ -147,10 +96,10 @@ final class ItemEditorWindowController {
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.15
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            panel.animator().alphaValue = 0
+            window.animator().alphaValue = 0
         } completionHandler: { [weak self] in
             guard let self else { return }
-            self.panel.orderOut(nil)
+            self.window.orderOut(nil)
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.onClose?()
@@ -159,31 +108,90 @@ final class ItemEditorWindowController {
             }
         }
     }
-}
 
-private final class ItemEditorPanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-    override var acceptsFirstResponder: Bool { true }
+    // MARK: - Private
 
-    override func becomeKey() {
-        super.becomeKey()
-        makeFirstResponder(contentView)
+    private func installContent(_ contentView: some View) {
+        let hostingView = NSHostingView(rootView: contentView)
+        hostingView.autoresizingMask = [.width, .height]
+        window.contentView = hostingView
+        window.center()
     }
 
+    private func present() {
+        if let screen = NSScreen.main {
+            let screenFrame = screen.visibleFrame
+            let windowFrame = window.frame
+            let x = screenFrame.midX - windowFrame.width / 2
+            let y = screenFrame.midY - windowFrame.height / 2
+            window.setFrameOrigin(NSPoint(x: x, y: y))
+        }
+
+        window.alphaValue = 0
+        window.makeKeyAndOrderFront(nil)
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            window.animator().alphaValue = 1
+        }
+
+        isVisible = true
+    }
+
+    private static func windowTitle(for item: ClipItem) -> String {
+        switch item.itemTypeValue {
+        case .image:
+            if let customTitle = item.customTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+                !customTitle.isEmpty
+            {
+                return customTitle
+            }
+            if let primaryText = item.primaryText?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !primaryText.isEmpty {
+                return primaryText
+            }
+            if let path = ItemEditorHelpers.fileURLPath(from: item) {
+                return URL(fileURLWithPath: path).lastPathComponent
+            }
+            return "Image"
+        case .file:
+            return item.managedFileDisplayName ?? "File"
+        case .code:
+            return "Code"
+        case .url:
+            return "URL"
+        case .color:
+            return "Color"
+        case .richText:
+            return "Rich Text"
+        case .text:
+            return "Text"
+        case .mixed:
+            return "Mixed Content"
+        }
+    }
+}
+
+extension ItemEditorWindowController: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        isVisible = false
+        onClose?()
+        onSave = nil
+        onClose = nil
+    }
+}
+
+private final class ItemEditorWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+
     override func keyDown(with event: NSEvent) {
+        // Escape to close
         if event.keyCode == 53 {
             close()
             return
         }
-
         super.keyDown(with: event)
-    }
-
-    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
-        super.setFrame(frameRect, display: flag)
-        if let contentView = contentView {
-            contentView.frame = NSRect(x: 0, y: 0, width: frameRect.width, height: frameRect.height)
-        }
     }
 }

@@ -22,14 +22,13 @@ struct ClipboardContent {
 struct ClipboardPayloadBuilder {
     func buildPayload(from content: ClipboardContent) -> ClipItemPayload? {
         if let fileURL = content.fileURL {
-            if let imagePayload = buildImagePayloadIfNeeded(
+            if let payload = ManagedFileImportService.payload(
                 from: fileURL,
                 imageData: content.imageData,
                 preferredType: content.imageUTType
             ) {
-                return imagePayload
+                return payload
             }
-            return buildFilePayload(fileURL)
         }
 
         if let webURL = content.webURL {
@@ -55,83 +54,6 @@ struct ClipboardPayloadBuilder {
         }
 
         return nil
-    }
-
-    private func buildFilePayload(_ fileURL: URL) -> ClipItemPayload {
-        let pathExt = fileURL.pathExtension
-        let extensionName = (pathExt.isEmpty || pathExt.count > 10) ? nil : pathExt
-        let bookmarkData = try? fileURL.bookmarkData(
-            options: [.minimalBookmark],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
-
-        let representation = ClipRepresentationPayload(
-            kind: .fileURL,
-            uti: UTType.fileURL.identifier,
-            text: fileURL.path,
-            data: bookmarkData,
-            fileExtension: extensionName,
-            displayOrder: 0
-        )
-
-        let imageExtensions = Set([
-            "png", "jpg", "jpeg", "gif", "tif", "tiff", "bmp", "heic", "heif", "webp",
-        ])
-
-        let itemType: ItemType = imageExtensions.contains(fileURL.pathExtension.lowercased()) ? .image : .file
-
-        return ClipItemPayload(
-            representations: [representation],
-            primaryText: fileURL.lastPathComponent,
-            itemType: itemType
-        )
-    }
-
-    private func buildImagePayloadIfNeeded(
-        from fileURL: URL,
-        imageData: Data?,
-        preferredType: UTType?
-    ) -> ClipItemPayload? {
-        let inferredType = preferredType ?? inferredImageType(for: fileURL)
-        let isImageFile =
-            inferredType?.conforms(to: .image) == true
-            || imageFileExtensions.contains(fileURL.pathExtension.lowercased())
-
-        guard isImageFile else { return nil }
-        let payloadData = imageData ?? loadImageData(from: fileURL)
-        guard let payloadData, !payloadData.isEmpty else { return nil }
-
-        return buildImagePayload(data: payloadData, type: inferredType)
-    }
-
-    private func inferredImageType(for fileURL: URL) -> UTType? {
-        if let type = UTType(filenameExtension: fileURL.pathExtension) {
-            return type
-        }
-
-        if let contentType = try? fileURL.resourceValues(forKeys: [.contentTypeKey]).contentType {
-            return contentType
-        }
-
-        return nil
-    }
-
-    private var imageFileExtensions: Set<String> {
-        [
-            "png", "jpg", "jpeg", "gif", "tif", "tiff", "bmp", "heic", "heif", "webp",
-        ]
-    }
-
-    private func loadImageData(from fileURL: URL) -> Data? {
-        let didStart = fileURL.startAccessingSecurityScopedResource()
-        defer {
-            if didStart {
-                fileURL.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        return try? Data(contentsOf: fileURL)
     }
 
     private func buildWebURLPayload(_ url: URL) -> ClipItemPayload {
