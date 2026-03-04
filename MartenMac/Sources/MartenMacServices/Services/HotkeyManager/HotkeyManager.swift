@@ -166,10 +166,25 @@ public final class HotkeyManager {
         let normalizedFlags = flags.intersection(.deviceIndependentFlagsMask)
         for (action, hotkey) in hotkeys where hotkey.keyCode == keyCode {
             if normalizedFlags == hotkey.modifiers {
-                Logger.hotkey.info("Hotkey '\(action)' triggered")
+                Logger.hotkey.info("Hotkey '\(action)' triggered (test)")
                 DispatchQueue.main.async {
                     self.handlers[action]?(normalizedFlags)
                 }
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Synchronous handler dispatch used by the real event tap.
+    /// The tap runs on the main run loop, so no async hop is needed.
+    @discardableResult
+    private func fireHandler(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Bool {
+        let normalizedFlags = flags.intersection(.deviceIndependentFlagsMask)
+        for (action, hotkey) in hotkeys where hotkey.keyCode == keyCode {
+            if normalizedFlags == hotkey.modifiers {
+                Logger.hotkey.info("Hotkey '\(action)' triggered")
+                handlers[action]?(normalizedFlags)
                 return true
             }
         }
@@ -204,7 +219,7 @@ public final class HotkeyManager {
         let flags = NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
             .intersection(.deviceIndependentFlagsMask)
 
-        if handleKeyDownForTesting(keyCode: keyCode, flags: flags) {
+        if fireHandler(keyCode: keyCode, flags: flags) {
             return nil
         }
 

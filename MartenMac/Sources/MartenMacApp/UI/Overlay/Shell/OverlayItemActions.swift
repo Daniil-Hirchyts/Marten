@@ -68,11 +68,15 @@ extension OverlayShellView {
         closeSearchIfEmpty()
         // During an active drag, force toggle behavior so clicking adds/removes from the drag group
         let forceToggle = dragCoordinator.dragPreviewData != nil
+        // Read modifier state live from NSEvent.modifierFlags rather than the cached ModifierKeyMonitor
+        // value, which can get stuck as `true` if a key-release flagsChanged event fires while the
+        // overlay is not the key window (e.g. right after dismissing a context menu).
+        let flags = NSEvent.modifierFlags
         viewModel.selectItem(
             item,
             in: filteredItems,
-            isShiftPressed: modifierMonitor.isShiftPressed,
-            isCommandPressed: forceToggle || modifierMonitor.isCommandPressed
+            isShiftPressed: flags.contains(.shift),
+            isCommandPressed: forceToggle || flags.contains(.command)
         )
     }
 
@@ -80,7 +84,7 @@ extension OverlayShellView {
         // Prevent paste during an active drag
         guard dragCoordinator.dragPreviewData == nil else { return }
         closeSearchIfEmpty()
-        viewModel.paste(item: item, plainText: modifierMonitor.isShiftPressed)
+        viewModel.paste(item: item, plainText: NSEvent.modifierFlags.contains(.shift))
     }
 
     func handleReorderItems(_ draggedIDs: [NSManagedObjectID], _ target: ClipItem, insertBefore: Bool) {

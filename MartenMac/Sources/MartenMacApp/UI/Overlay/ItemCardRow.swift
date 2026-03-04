@@ -100,8 +100,10 @@ struct ItemCardRow: View {
                             value: visibleItemsOrderSignature(visibleItems)
                         )
                         .onChange(of: pinboardSelectionKey) { _, _ in
-                            if let firstID = visibleItems.first?.objectID {
-                                proxy.scrollTo(firstID, anchor: .leading)
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                if let firstID = visibleItems.first?.objectID {
+                                    proxy.scrollTo(firstID, anchor: .leading)
+                                }
                             }
                         }
                     }
@@ -122,8 +124,10 @@ struct ItemCardRow: View {
                         )
                         .padding(.horizontal, placeholderInset)
                         .onChange(of: pinboardSelectionKey) { _, _ in
-                            if let firstID = visibleItems.first?.objectID {
-                                proxy.scrollTo(firstID, anchor: .leading)
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                if let firstID = visibleItems.first?.objectID {
+                                    proxy.scrollTo(firstID, anchor: .leading)
+                                }
                             }
                         }
                     }

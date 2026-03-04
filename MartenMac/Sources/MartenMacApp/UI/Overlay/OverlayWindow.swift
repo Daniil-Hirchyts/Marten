@@ -12,11 +12,11 @@ final class OverlayWindowController {
     }
 
     private enum AnimationConstants {
-        static let showDuration: TimeInterval = 0.35
-        static let showTimingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
-        static let hideDuration: TimeInterval = 0.18
-        static let hideTimingFunction = CAMediaTimingFunction(controlPoints: 0.7, 0, 0.84, 0)
-        static let activationObserverStartDelay: TimeInterval = 0.02
+        static let showDuration: TimeInterval = 0.18
+        static let showTimingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0, 0.4, 1)
+        static let hideDuration: TimeInterval = 0.12
+        static let hideTimingFunction = CAMediaTimingFunction(controlPoints: 0.4, 0, 0.6, 1)
+        static let activationObserverStartDelay: TimeInterval = 0.01
     }
 
     private let panel: NSPanel

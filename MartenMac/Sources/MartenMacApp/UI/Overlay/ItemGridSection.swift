@@ -176,10 +176,12 @@ struct ItemGridSection: View {
                         )
                     }
                 }
+                .id(pinboardSelectionKey)
                 .frame(maxHeight: .infinity, alignment: .topLeading)
                 .transition(.opacity)
             }
         }
+        .animation(OverlayAnimation.cardSpring, value: pinboardSelectionKey)
         .animation(OverlayAnimation.standardTransition, value: isSelectedPinboardAwaitingUnlock)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .overlay(alignment: .topLeading) {

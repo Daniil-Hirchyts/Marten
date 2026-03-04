@@ -6,39 +6,54 @@ private let compactBarCoordinateSpaceName = "CompactBarLocalSpace"
 
 extension OverlayShellView {
     var compactPinboardBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                compactAllItemsPill
-                ForEach(Array(visiblePinboards.enumerated()), id: \.element.objectID) { index, pinboard in
-                    compactPinboardPill(for: pinboard, index: index)
+        ScrollViewReader { scrollProxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    compactAllItemsPill
+                        .id("all")
+                    ForEach(Array(visiblePinboards.enumerated()), id: \.element.objectID) { index, pinboard in
+                        compactPinboardPill(for: pinboard, index: index)
+                            .id(pinboard.id)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+            }
+            .coordinateSpace(name: compactBarCoordinateSpaceName)
+            .scrollClipDisabled()
+            .frame(height: 44)
+            .overlay(alignment: .topLeading) {
+                compactPlaceholderView()
+            }
+            .overlay(alignment: .topLeading) {
+                compactDragPreviewView()
+            }
+            .onPreferenceChange(PinboardLayoutInfoKey.self) { layout in
+                handlePinboardLayoutChange(layout)
+                // Also track pill frames for drag-reorder
+                if !layout.tabFrames.isEmpty {
+                    for (id, frame) in layout.tabFrames {
+                        compactPillFrames[id] = frame
+                    }
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-        }
-        .coordinateSpace(name: compactBarCoordinateSpaceName)
-        .scrollClipDisabled()
-        .frame(height: 44)
-        .overlay(alignment: .topLeading) {
-            compactPlaceholderView()
-        }
-        .overlay(alignment: .topLeading) {
-            compactDragPreviewView()
-        }
-        .onPreferenceChange(PinboardLayoutInfoKey.self) { layout in
-            handlePinboardLayoutChange(layout)
-            // Also track pill frames for drag-reorder
-            if !layout.tabFrames.isEmpty {
-                for (id, frame) in layout.tabFrames {
-                    compactPillFrames[id] = frame
+            .popover(isPresented: $verticalPinboardCreateState.isPresented, arrowEdge: .bottom) {
+                verticalPinboardCreatePopover
+            }
+            .popover(isPresented: $verticalPinboardEditState.isPresented, arrowEdge: .bottom) {
+                verticalPinboardEditPopover
+            }
+            .onChange(of: searchModel.selectedPinboardID) { _, newValue in
+                DispatchQueue.main.async {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                        if let newValue {
+                            scrollProxy.scrollTo(newValue, anchor: .center)
+                        } else {
+                            scrollProxy.scrollTo("all", anchor: .center)
+                        }
+                    }
                 }
             }
-        }
-        .popover(isPresented: $verticalPinboardCreateState.isPresented, arrowEdge: .bottom) {
-            verticalPinboardCreatePopover
-        }
-        .popover(isPresented: $verticalPinboardEditState.isPresented, arrowEdge: .bottom) {
-            verticalPinboardEditPopover
         }
     }
 

@@ -188,7 +188,9 @@ struct ItemCompactColumn: View {
                 .padding(.bottom, layoutAxis == .compact ? 44 : 10)
             }
             .onChange(of: pinboardSelectionKey) { _, _ in
-                proxy.scrollTo(topAnchorID, anchor: .top)
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    proxy.scrollTo(topAnchorID, anchor: .top)
+                }
             }
         }
         .coordinateSpace(name: scrollCoordinateSpaceName)
