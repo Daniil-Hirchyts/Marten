@@ -11,7 +11,7 @@ extension OverlayShellView {
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 6)
     }
 
     var verticalPinboardPickerMenu: some View {

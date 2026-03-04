@@ -8,7 +8,7 @@ struct ItemCardRow: View {
     private let cardSpacing: CGFloat = 12
     private let placeholderWidth: CGFloat = 3
     private let localCoordinateSpaceName = "ItemRowLocalSpace"
-
+    private let sideMargin: CGFloat = 12
     let items: [ClipItem]
     let pinboardSelectionKey: String
     let pinboards: [Pinboard]

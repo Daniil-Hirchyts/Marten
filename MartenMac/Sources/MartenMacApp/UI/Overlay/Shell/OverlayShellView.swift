@@ -194,7 +194,7 @@ struct OverlayShellView: View {
         )
         .background(WindowAccessor(window: $window))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: overlayLayoutAxis == .compact ? 20 : 34, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: overlayLayoutAxis == .horizontal ? 24 : 18, style: .continuous))
         .onChange(of: dragCoordinator.dragPreviewData) { newData, _ in
             dragCoordinator.updateDragPreviewWindow(newData, parentWindow: window)
         }
@@ -230,7 +230,7 @@ struct OverlayShellView: View {
                 // Pinboard bar floating at top
                 VStack(spacing: 0) {
                     compactPinboardBar
-                        .padding(.top, 10)
+                        .padding(.top, 6)
                         .padding(.bottom, 6)
 
                     Spacer(minLength: 0)
@@ -238,30 +238,35 @@ struct OverlayShellView: View {
                     // Toolbar floating at bottom
                     verticalToolbarRow
                         .padding(.top, 6)
-                        .padding(.bottom, 10)
+                        .padding(.bottom, 6)
                 }
             }
         } else if overlayLayoutAxis == .horizontal {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 horizontalHeaderBar
                 itemGridSection
                 Spacer(minLength: 0)
             }
-            .padding(.top, 14)
+            .padding(.top, 12)
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 verticalToolbarRow
-                verticalPinboardPickerRow
-                itemGridSection
-                    .mask(
-                        VStack(spacing: 0) {
-                            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                                .frame(height: 26)
-                            Color.black
-                        }
-                    )
+
+                ZStack(alignment: .top) {
+                    itemGridSection
+                        .mask(
+                            VStack(spacing: 0) {
+                                Color.clear.frame(height: 8)
+                                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                                    .frame(height: 20)
+                                Color.black
+                            }
+                        )
+
+                    verticalPinboardPickerRow
+                }
             }
-            .padding(.top, 10)
+            .padding(.top, 6)
         }
     }
 

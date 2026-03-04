@@ -183,8 +183,8 @@ struct ItemCompactColumn: View {
                         }
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.top, layoutAxis == .compact ? 54 : 10)
+                .padding(.horizontal, 6)
+                .padding(.top, layoutAxis == .compact ? 44 : 38)
                 .padding(.bottom, layoutAxis == .compact ? 44 : 10)
             }
             .onChange(of: pinboardSelectionKey) { _, _ in

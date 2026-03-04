@@ -14,8 +14,8 @@ enum OverlayFrameCalculator {
     static let maximumHorizontalHeight: CGFloat = 400
     static let minimumVerticalWidth: CGFloat = 280
     static let maximumVerticalWidth: CGFloat = 380
-    static let cursorModeWidth: CGFloat = 320
-    static let cursorModeHeight: CGFloat = 480
+    static let cursorModeWidth: CGFloat = 280
+    static let cursorModeHeight: CGFloat = 440
     static let cursorOffset: CGFloat = 16
 
     static func cursorFrame(cursorLocation: CGPoint, visibleFrame: CGRect) -> CGRect {
