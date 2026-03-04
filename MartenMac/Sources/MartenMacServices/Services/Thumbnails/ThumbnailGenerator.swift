@@ -26,15 +26,45 @@ public enum ThumbnailError: Error, CustomStringConvertible {
 public final class ThumbnailGenerator {
     private let maxPixelSize: CGFloat
 
-    public init(maxPixelSize: CGFloat = 240) {
+    public init(maxPixelSize: CGFloat = 1024) {
         self.maxPixelSize = maxPixelSize
     }
 
     public func generateThumbnail(from data: Data) -> Result<Data, ThumbnailError> {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+        guard
+            let source = CGImageSourceCreateWithData(
+                data as CFData,
+                [kCGImageSourceShouldCache: false] as CFDictionary
+            )
+        else {
             Logger.thumbnails.warning(
                 "Thumbnail generation failed: \(ThumbnailError.cgImageSourceFailed.description)")
             return .failure(.cgImageSourceFailed)
+        }
+
+        return generateThumbnail(from: source)
+    }
+
+    public func generateThumbnail(fromFileURL url: URL) -> Result<Data, ThumbnailError> {
+        guard
+            let source = CGImageSourceCreateWithURL(
+                url as CFURL,
+                [kCGImageSourceShouldCache: false] as CFDictionary
+            )
+        else {
+            Logger.thumbnails.warning(
+                "Thumbnail generation failed: \(ThumbnailError.cgImageSourceFailed.description)")
+            return .failure(.cgImageSourceFailed)
+        }
+
+        return generateThumbnail(from: source)
+    }
+
+    private func generateThumbnail(from source: CGImageSource) -> Result<Data, ThumbnailError> {
+        guard CGImageSourceGetCount(source) > 0 else {
+            Logger.thumbnails.warning(
+                "Thumbnail generation failed: \(ThumbnailError.invalidImageData.description)")
+            return .failure(.invalidImageData)
         }
 
         let options: [CFString: Any] = [

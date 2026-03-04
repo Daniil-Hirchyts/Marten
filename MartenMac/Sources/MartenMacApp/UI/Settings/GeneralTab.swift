@@ -130,7 +130,7 @@ struct GeneralSettingsContent: View {
                         }
 
                         Text(
-                            "Top and Bottom keep the current horizontal layout. Left and Right use a compact vertical layout."
+                            "Top and Bottom keep the current horizontal layout. Left and Right use a compact vertical layout. Cursor shows a compact popup near your mouse."
                         )
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
@@ -511,6 +511,7 @@ private struct OverlayEdgeOptionView: View {
         case .top: return "OverlayEdgeTop"
         case .left: return "OverlayEdgeLeft"
         case .right: return "OverlayEdgeRight"
+        case .cursor: return "OverlayEdgeCursor"
         }
     }
 }

@@ -29,7 +29,9 @@
       "WebFetch(domain:keyboardkit.com)",
       "WebFetch(domain:gist.github.com)",
       "WebFetch(domain:github.com)",
-      "Bash(DB=~/Library/Containers/com.hirchyts.marten/Data/Library/Application Support/Marten/MartenCore.sqlite:*)"
+      "Bash(DB=~/Library/Containers/com.hirchyts.marten/Data/Library/Application Support/Marten/MartenCore.sqlite:*)",
+      "Bash(sips:*)",
+      "Bash(python3:*)"
     ]
   }
 }

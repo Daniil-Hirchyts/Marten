@@ -3,6 +3,102 @@ import CoreGraphics
 import Foundation
 import MartenMacServices
 
+@MainActor
+private enum OCRSelectionCursorAsset {
+    private static let cursorDirectory =
+        "/System/Library/Frameworks/ApplicationServices.framework/Frameworks/HIServices.framework/Versions/A/Resources/cursors/screenshotselection"
+    private static let defaultHotSpot = CGPoint(x: 15, y: 15)
+    private static let accentPadding: CGFloat = 4
+    private static let accentBlurRadius: CGFloat = 2
+    private static let accentColor = NSColor.white
+
+    private static let cursorImageAndHotSpot: (image: NSImage, hotSpot: CGPoint) = {
+        let imagePath = (cursorDirectory as NSString).appendingPathComponent("cursor.pdf")
+        guard let image = NSImage(contentsOfFile: imagePath) else {
+            return (NSImage(size: .zero), defaultHotSpot)
+        }
+
+        if image.size == .zero {
+            image.size = CGSize(width: 32, height: 32)
+        }
+
+        let infoPath = (cursorDirectory as NSString).appendingPathComponent("info.plist")
+        let hotSpot = cursorHotSpot(at: infoPath)
+        let cursorImage = imageWithAccent(from: image)
+        let adjustedHotSpot = CGPoint(
+            x: hotSpot.x + accentPadding,
+            y: hotSpot.y + accentPadding
+        )
+        return (cursorImage, adjustedHotSpot)
+    }()
+
+    static let selectionCursor: NSCursor = {
+        let asset = cursorImageAndHotSpot
+        guard asset.image.size != .zero else { return .crosshair }
+        return NSCursor(image: asset.image, hotSpot: asset.hotSpot)
+    }()
+
+    static let selectionCursorImage: NSImage? = {
+        let asset = cursorImageAndHotSpot
+        return asset.image.size == .zero ? nil : asset.image
+    }()
+
+    static let selectionCursorHotSpot: CGPoint = cursorImageAndHotSpot.hotSpot
+
+    private static func cursorHotSpot(at infoPath: String) -> CGPoint {
+        guard
+            let info = NSDictionary(contentsOfFile: infoPath) as? [String: Any]
+        else {
+            return defaultHotSpot
+        }
+
+        let hotX = (info["hotx-scaled"] as? NSNumber)?.doubleValue
+            ?? (info["hotx"] as? NSNumber)?.doubleValue
+        let hotY = (info["hoty-scaled"] as? NSNumber)?.doubleValue
+            ?? (info["hoty"] as? NSNumber)?.doubleValue
+
+        guard let hotX, let hotY else {
+            return defaultHotSpot
+        }
+        return CGPoint(x: hotX, y: hotY)
+    }
+
+    private static func imageWithAccent(from sourceImage: NSImage) -> NSImage {
+        let paddedSize = CGSize(
+            width: sourceImage.size.width + (accentPadding * 2),
+            height: sourceImage.size.height + (accentPadding * 2)
+        )
+        let drawRect = CGRect(
+            x: accentPadding,
+            y: accentPadding,
+            width: sourceImage.size.width,
+            height: sourceImage.size.height
+        )
+        let sourceRect = CGRect(origin: .zero, size: sourceImage.size)
+
+        let image = NSImage(size: paddedSize)
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        NSColor.clear.setFill()
+        CGRect(origin: .zero, size: paddedSize).fill()
+
+        let accent = NSShadow()
+        accent.shadowBlurRadius = accentBlurRadius
+        accent.shadowOffset = .zero
+        accent.shadowColor = accentColor
+
+        NSGraphicsContext.saveGraphicsState()
+        accent.set()
+        sourceImage.draw(in: drawRect, from: sourceRect, operation: .sourceOver, fraction: 1)
+        NSGraphicsContext.restoreGraphicsState()
+
+        sourceImage.draw(in: drawRect, from: sourceRect, operation: .sourceOver, fraction: 1)
+
+        return image
+    }
+}
+
 struct OCRSelection {
     let displayID: CGDirectDisplayID
     let rectInDisplayPoints: CGRect
@@ -91,8 +187,6 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
 
             let view = OCRSelectionOverlayView(
                 frame: CGRect(origin: .zero, size: screen.frame.size),
-                mode: mode,
-                staticSnapshot: staticSnapshots[displayID],
                 displayID: displayID,
                 displaySizeInPoints: screen.frame.size,
                 backingScaleFactor: screen.backingScaleFactor
@@ -125,8 +219,6 @@ final class OCRSelectionOverlayController: OCRSelectionPresenting {
             window.orderFrontRegardless()
             if let view = window.contentView as? OCRSelectionOverlayView {
                 view.primePointerLocation(using: currentMouseLocation)
-                view.needsDisplay = true
-                window.displayIfNeeded()
             }
         }
         let keyWindow = createdWindows.first { $0.frame.contains(currentMouseLocation) }
@@ -231,8 +323,6 @@ private final class OCRSelectionOverlayView: NSView {
 
     let representedDisplayID: CGDirectDisplayID
 
-    private let mode: OCRCaptureMode
-    private let staticSnapshot: CGImage?
     private let displaySizeInPoints: CGSize
     private let backingScaleFactor: CGFloat
 
@@ -248,14 +338,10 @@ private final class OCRSelectionOverlayView: NSView {
 
     init(
         frame frameRect: CGRect,
-        mode: OCRCaptureMode,
-        staticSnapshot: CGImage?,
         displayID: CGDirectDisplayID,
         displaySizeInPoints: CGSize,
         backingScaleFactor: CGFloat
     ) {
-        self.mode = mode
-        self.staticSnapshot = staticSnapshot
         self.representedDisplayID = displayID
         self.displaySizeInPoints = displaySizeInPoints
         self.backingScaleFactor = backingScaleFactor
@@ -268,29 +354,9 @@ private final class OCRSelectionOverlayView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingArea {
-            removeTrackingArea(trackingArea)
-        }
-
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        )
-        addTrackingArea(area)
-        trackingArea = area
-    }
-
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         primePointerLocation(using: NSEvent.mouseLocation)
-    }
-
-    override func setFrameSize(_ newSize: NSSize) {
-        super.setFrameSize(newSize)
     }
 
     func primePointerLocation(using globalMouseLocation: CGPoint) {
@@ -305,37 +371,20 @@ private final class OCRSelectionOverlayView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        if mode == .staticSnapshot, let staticSnapshot {
-            drawSnapshot(staticSnapshot, in: bounds)
-        } else {
-            NSColor.clear.setFill()
-            bounds.fill()
-        }
-
-        NSColor.black.withAlphaComponent(0.35).setFill()
+        NSColor.clear.setFill()
         bounds.fill()
 
         if let selectionRect {
-            if mode == .liveScreen, let context = NSGraphicsContext.current?.cgContext {
-                context.saveGState()
-                context.setBlendMode(.clear)
-                context.fill(selectionRect)
-                context.restoreGState()
-            } else if mode == .staticSnapshot, let staticSnapshot,
-                let context = NSGraphicsContext.current?.cgContext
-            {
-                context.saveGState()
-                context.clip(to: selectionRect)
-                drawSnapshot(staticSnapshot, in: bounds)
-                context.restoreGState()
-            }
+            let selectionPath = NSBezierPath(roundedRect: selectionRect, xRadius: 4, yRadius: 4)
+            NSColor.white.withAlphaComponent(0.08).setFill()
+            selectionPath.fill()
 
-            let outline = NSBezierPath(rect: selectionRect)
+            let outline = NSBezierPath(roundedRect: selectionRect, xRadius: 4, yRadius: 4)
             NSColor.white.withAlphaComponent(0.95).setStroke()
             outline.lineWidth = 2
             outline.stroke()
 
-            let dash = NSBezierPath(rect: selectionRect)
+            let dash = NSBezierPath(roundedRect: selectionRect, xRadius: 4, yRadius: 4)
             dash.setLineDash([6, 4], count: 2, phase: 0)
             NSColor.black.withAlphaComponent(0.45).setStroke()
             dash.lineWidth = 1
@@ -343,7 +392,7 @@ private final class OCRSelectionOverlayView: NSView {
         }
 
         if let pointer = currentPoint {
-            drawOCRCursor(at: pointer)
+            drawSelectionCursor(at: pointer)
             drawCoordinateBadge(at: pointer)
         }
     }
@@ -437,7 +486,7 @@ private final class OCRSelectionOverlayView: NSView {
             width: abs(dragStartPoint.x - currentPoint.x),
             height: abs(dragStartPoint.y - currentPoint.y)
         )
-        return rect.width > 0 && rect.height > 0 ? rect : nil
+        return rect.width > 0 && rect.height > 0 ? rect.integral : nil
     }
 
     private func clampedPoint(_ point: CGPoint) -> CGPoint {
@@ -447,6 +496,18 @@ private final class OCRSelectionOverlayView: NSView {
         )
     }
 
+    private func drawSelectionCursor(at point: CGPoint) {
+        guard let cursorImage = OCRSelectionCursorAsset.selectionCursorImage else { return }
+        let hotSpot = OCRSelectionCursorAsset.selectionCursorHotSpot
+        let drawRect = CGRect(
+            x: point.x - hotSpot.x,
+            y: point.y - hotSpot.y,
+            width: cursorImage.size.width,
+            height: cursorImage.size.height
+        )
+        cursorImage.draw(in: drawRect)
+    }
+
     private func drawCoordinateBadge(at localPoint: CGPoint) {
         guard let window else { return }
 
@@ -454,33 +515,34 @@ private final class OCRSelectionOverlayView: NSView {
         if let dragStart = dragStartPoint {
             let w = abs(dragStart.x - localPoint.x)
             let h = abs(dragStart.y - localPoint.y)
-            text = "W:\(Int(w))  H:\(Int(h))"
+            text = "\(Int(w))x\(Int(h))"
         } else {
             let globalPoint = CGPoint(
                 x: window.frame.origin.x + localPoint.x,
                 y: window.frame.origin.y + localPoint.y
             )
-            text = "x:\(Int(globalPoint.x))  y:\(Int(globalPoint.y))"
+            text = "\(Int(globalPoint.x)),\(Int(globalPoint.y))"
         }
         let textAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor.white,
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
         ]
         let size = (text as NSString).size(withAttributes: textAttributes)
-        let padding = NSEdgeInsets(top: 5, left: 8, bottom: 5, right: 8)
+        let padding = NSEdgeInsets(top: 3, left: 6, bottom: 3, right: 6)
         let badgeSize = CGSize(
             width: size.width + padding.left + padding.right,
             height: size.height + padding.top + padding.bottom
         )
 
-        var origin = CGPoint(x: localPoint.x + 8, y: localPoint.y + 8)
-        origin.x = min(origin.x, bounds.width - badgeSize.width - 8)
-        origin.y = min(origin.y, bounds.height - badgeSize.height - 8)
-        origin.x = max(origin.x, 8)
-        origin.y = max(origin.y, 8)
+        var origin = CGPoint(x: localPoint.x + 6, y: localPoint.y + 6)
+        origin.x = min(origin.x, bounds.width - badgeSize.width - 6)
+        origin.y = min(origin.y, bounds.height - badgeSize.height - 6)
+        origin.x = max(origin.x, 6)
+        origin.y = max(origin.y, 6)
 
         let badgeRect = CGRect(origin: origin, size: badgeSize)
-        let badgePath = NSBezierPath(roundedRect: badgeRect, xRadius: 6, yRadius: 6)
-        NSColor.black.setFill()
+        let badgePath = NSBezierPath(roundedRect: badgeRect, xRadius: 4, yRadius: 4)
+        NSColor.black.withAlphaComponent(0.82).setFill()
         badgePath.fill()
 
         let textOrigin = CGPoint(
@@ -488,75 +550,6 @@ private final class OCRSelectionOverlayView: NSView {
             y: badgeRect.minY + padding.bottom
         )
         (text as NSString).draw(at: textOrigin, withAttributes: textAttributes)
-    }
-
-    private func drawOCRCursor(at point: CGPoint) {
-        let outerColor = NSColor.black.withAlphaComponent(0.85)
-        let innerColor = NSColor.white.withAlphaComponent(0.98)
-        let lineLength: CGFloat = 8
-        let centerGap: CGFloat = 2
-        let centerRadius: CGFloat = 1.25
-
-        drawOCRCursorLines(
-            at: point,
-            lineLength: lineLength,
-            centerGap: centerGap,
-            lineWidth: 4,
-            color: outerColor
-        )
-        drawOCRCursorLines(
-            at: point,
-            lineLength: lineLength,
-            centerGap: centerGap,
-            lineWidth: 2,
-            color: innerColor
-        )
-
-        let outerDotRect = CGRect(
-            x: point.x - centerRadius - 1,
-            y: point.y - centerRadius - 1,
-            width: (centerRadius + 1) * 2,
-            height: (centerRadius + 1) * 2
-        )
-        outerColor.setFill()
-        NSBezierPath(ovalIn: outerDotRect).fill()
-
-        let innerDotRect = CGRect(
-            x: point.x - centerRadius,
-            y: point.y - centerRadius,
-            width: centerRadius * 2,
-            height: centerRadius * 2
-        )
-        innerColor.setFill()
-        NSBezierPath(ovalIn: innerDotRect).fill()
-    }
-
-    private func drawOCRCursorLines(
-        at point: CGPoint,
-        lineLength: CGFloat,
-        centerGap: CGFloat,
-        lineWidth: CGFloat,
-        color: NSColor
-    ) {
-        color.setStroke()
-
-        let path = NSBezierPath()
-        path.lineCapStyle = .round
-        path.lineWidth = lineWidth
-
-        path.move(to: CGPoint(x: point.x - centerGap - lineLength, y: point.y))
-        path.line(to: CGPoint(x: point.x - centerGap, y: point.y))
-
-        path.move(to: CGPoint(x: point.x + centerGap, y: point.y))
-        path.line(to: CGPoint(x: point.x + centerGap + lineLength, y: point.y))
-
-        path.move(to: CGPoint(x: point.x, y: point.y - centerGap - lineLength))
-        path.line(to: CGPoint(x: point.x, y: point.y - centerGap))
-
-        path.move(to: CGPoint(x: point.x, y: point.y + centerGap))
-        path.line(to: CGPoint(x: point.x, y: point.y + centerGap + lineLength))
-
-        path.stroke()
     }
 
     private func hapticStep(for point: CGPoint, from origin: CGPoint) -> (width: Int, height: Int) {
@@ -567,14 +560,6 @@ private final class OCRSelectionOverlayView: NSView {
 
     private func playHaptic() {
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
-    }
-
-    private func drawSnapshot(_ snapshot: CGImage, in rect: CGRect) {
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
-        context.saveGState()
-        context.interpolationQuality = .high
-        context.draw(snapshot, in: rect)
-        context.restoreGState()
     }
 }
 

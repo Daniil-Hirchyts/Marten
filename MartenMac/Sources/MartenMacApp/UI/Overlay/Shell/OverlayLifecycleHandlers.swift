@@ -98,10 +98,11 @@ extension OverlayShellView {
     }
 
     func handleOverlayLayoutAxisChange(_ oldValue: OverlayLayoutAxis, _ newValue: OverlayLayoutAxis) {
-        if newValue == .vertical {
+        if newValue == .vertical || newValue == .compact {
             frameCoordinator.clearCapturedPinboardLayout()
             dragCoordinator.clearPinboardLayoutState()
         }
+        window?.close()
     }
 
     func handleBroadcasterEvent(_ event: MartenEvent) {

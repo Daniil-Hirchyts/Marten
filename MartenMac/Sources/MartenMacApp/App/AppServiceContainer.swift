@@ -9,7 +9,6 @@ public protocol CaptureServicesProviding: AnyObject {
     var clipItemStore: ClipItemStore { get }
     var pasteboardMonitor: PasteboardMonitor { get }
     var pasteboardExtractor: PasteboardExtractor { get }
-    var thumbnailGenerator: ThumbnailGenerator { get }
     var eventBroadcaster: any MartenEventBroadcaster { get }
 }
 
@@ -58,7 +57,6 @@ final class AppServiceContainer: AppServiceProviding {
     let persistence: PersistenceController
     let pasteboardMonitor: PasteboardMonitor
     let pasteboardExtractor: PasteboardExtractor
-    let thumbnailGenerator: ThumbnailGenerator
     let hotkeyManager: HotkeyManager
     let permissionManagerImpl: PermissionManager
     var permissionManager: any AccessibilityPermissionChecking { permissionManagerImpl }
@@ -89,7 +87,6 @@ final class AppServiceContainer: AppServiceProviding {
         pasteboardExtractor: PasteboardExtractor = PasteboardExtractor(
             settings: UserDefaultsCaptureSettingsProvider()
         ),
-        thumbnailGenerator: ThumbnailGenerator = ThumbnailGenerator(),
         hotkeyManager: HotkeyManager = HotkeyManager(),
         permissionManager: PermissionManager = PermissionManager(),
         activeAppTracker: ActiveAppTracker = ActiveAppTracker(),
@@ -107,7 +104,6 @@ final class AppServiceContainer: AppServiceProviding {
         self.persistence = persistence
         self.pasteboardMonitor = pasteboardMonitor ?? PasteboardMonitor(activeAppTracker: activeAppTracker)
         self.pasteboardExtractor = pasteboardExtractor
-        self.thumbnailGenerator = thumbnailGenerator
         self.hotkeyManager = hotkeyManager
         self.permissionManagerImpl = permissionManager
         self.activeAppTracker = activeAppTracker

@@ -4,6 +4,7 @@ import Foundation
 enum OverlayLayoutAxis: String {
     case horizontal
     case vertical
+    case compact
 }
 
 enum OverlayScreenEdge: String, CaseIterable, Identifiable {
@@ -11,6 +12,7 @@ enum OverlayScreenEdge: String, CaseIterable, Identifiable {
     case top
     case left
     case right
+    case cursor
 
     var id: String { rawValue }
 
@@ -20,6 +22,8 @@ enum OverlayScreenEdge: String, CaseIterable, Identifiable {
             return .horizontal
         case .left, .right:
             return .vertical
+        case .cursor:
+            return .compact
         }
     }
 
@@ -33,6 +37,8 @@ enum OverlayScreenEdge: String, CaseIterable, Identifiable {
             return "Left"
         case .right:
             return "Right"
+        case .cursor:
+            return "Cursor"
         }
     }
 }
@@ -85,6 +91,8 @@ struct OverlayLayoutSettings {
             return horizontalSize
         case .vertical:
             return verticalSize
+        case .compact:
+            return OverlayFrameCalculator.cursorModeWidth
         }
     }
 
@@ -94,6 +102,8 @@ struct OverlayLayoutSettings {
             userDefaults.set(size, forKey: Keys.overlayHeight)
         case .vertical:
             userDefaults.set(size, forKey: Keys.overlayWidth)
+        case .compact:
+            break // Fixed size, no persistence
         }
     }
 }

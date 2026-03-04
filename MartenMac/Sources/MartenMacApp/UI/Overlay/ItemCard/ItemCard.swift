@@ -38,7 +38,7 @@ struct ItemCard: View {
     @State var thumbnailImage: NSImage?
     @State var fileIconImage: NSImage?
     @State var linkPreviewResult: LinkPreviewImageResult?
-    @State var lastLoadedThumbnailPath: String?
+    @State var lastLoadedImageRequestKey: String?
     @State var lastLoadedLinkPreviewKey: String?
     @State var styledPreviewText: AttributedString?
     @State var originalImageResolution: String?
@@ -46,6 +46,7 @@ struct ItemCard: View {
     @State var lastKnownModifiedAt: Date = Date()
     @FocusState var isFocused: Bool
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.displayScale) var displayScale
 
     var body: some View {
         Group {
@@ -101,6 +102,9 @@ struct ItemCard: View {
                     refreshPreviewAssets()
                     refreshStyledPreviewText()
                 }
+                .onChange(of: imagePreviewRequestPixelSize) { _, _ in
+                    refreshThumbnailImage()
+                }
                 .onChange(of: contentSignature) { oldValue, newValue in
                     if item.isDeleted || item.managedObjectContext == nil { return }
 
@@ -114,11 +118,6 @@ struct ItemCard: View {
 
                     if oldValue.primaryText != newValue.primaryText {
                         resetLinkPreviewState()
-                    }
-
-                    if oldValue.thumbnailPath != newValue.thumbnailPath {
-                        refreshThumbnailImage()
-                        refreshImageResolution()
                     }
 
                     if oldValue.representationAssetSignature != newValue.representationAssetSignature {
@@ -214,7 +213,6 @@ struct ItemCard: View {
 
 private struct ContentSignature: Equatable {
     let primaryText: String?
-    let thumbnailPath: String?
     let representationAssetSignature: String
     let customTitle: String?
     let linkPreviewImagePath: String?
@@ -224,7 +222,6 @@ private struct ContentSignature: Equatable {
 
     init(item: ClipItem) {
         primaryText = item.primaryText
-        thumbnailPath = item.thumbnailPath
         representationAssetSignature = (item.representations ?? [])
             .map { representation in
                 let assetRef = representation.assetRef?.uuidString ?? "none"

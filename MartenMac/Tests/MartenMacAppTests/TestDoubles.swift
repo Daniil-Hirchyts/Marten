@@ -87,7 +87,6 @@ final class TestAppServices: AppServiceProviding {
 
     let pasteboardMonitor: PasteboardMonitor
     let pasteboardExtractor: PasteboardExtractor
-    let thumbnailGenerator: ThumbnailGenerator
 
     let hotkeyManager: HotkeyManager
     let permissionManager: any AccessibilityPermissionChecking
@@ -114,7 +113,6 @@ final class TestAppServices: AppServiceProviding {
         self.clipItemStore = clipItemStore
         self.pasteboardMonitor = PasteboardMonitor()
         self.pasteboardExtractor = PasteboardExtractor()
-        self.thumbnailGenerator = ThumbnailGenerator()
         self.hotkeyManager = HotkeyManager()
         self.permissionManager = permissionManager
         self.activeAppTracker = activeAppTracker

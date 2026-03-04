@@ -11,7 +11,6 @@ final class CaptureCoordinator {
     private let pasteboardMonitor: PasteboardMonitor
     private let pasteboardExtractor: PasteboardExtractor
     private let clipItemStore: ClipItemStore
-    private let thumbnailGenerator: ThumbnailGenerator
     private let eventBroadcaster: any MartenEventBroadcaster
     private let captureQueue: DispatchQueue
     private let soundPlayer: SoundEffectPlayer
@@ -25,7 +24,6 @@ final class CaptureCoordinator {
         pasteboardMonitor: PasteboardMonitor,
         pasteboardExtractor: PasteboardExtractor,
         clipItemStore: ClipItemStore,
-        thumbnailGenerator: ThumbnailGenerator,
         eventBroadcaster: any MartenEventBroadcaster,
         captureQueue: DispatchQueue,
         soundPlayer: SoundEffectPlayer,
@@ -35,7 +33,6 @@ final class CaptureCoordinator {
         self.pasteboardMonitor = pasteboardMonitor
         self.pasteboardExtractor = pasteboardExtractor
         self.clipItemStore = clipItemStore
-        self.thumbnailGenerator = thumbnailGenerator
         self.eventBroadcaster = eventBroadcaster
         self.captureQueue = captureQueue
         self.soundPlayer = soundPlayer
@@ -104,16 +101,10 @@ final class CaptureCoordinator {
         let payloadHash = Self.computePayloadHash(payload)
 
         let clipItemStore = clipItemStore
-        let thumbnailGenerator = thumbnailGenerator
         captureQueue.async { [weak self] in
             do {
                 let item = try clipItemStore.createItem(payload: payload, sourceApp: source)
                 let itemID = item.objectID
-                if let thumbnailData = Self.thumbnailData(
-                    from: payload, thumbnailGenerator: thumbnailGenerator)
-                {
-                    try? clipItemStore.updateThumbnail(objectID: itemID, data: thumbnailData)
-                }
 
                 DispatchQueue.main.async { [weak self] in
                     self?.lastCapturedHash = payloadHash
@@ -211,19 +202,6 @@ final class CaptureCoordinator {
         )
 
         return bitmap.representation(using: .png, properties: [:])
-    }
-
-    nonisolated private static func thumbnailData(
-        from payload: ClipItemPayload,
-        thumbnailGenerator: ThumbnailGenerator
-    ) -> Data? {
-        let imageKinds: Set<RepresentationKind> = [.png, .jpeg, .tiff, .pdf]
-        guard let imageRep = payload.representations.first(where: { imageKinds.contains($0.kind) }),
-            let data = imageRep.data
-        else {
-            return nil
-        }
-        return try? thumbnailGenerator.generateThumbnail(from: data).get()
     }
 
     /// Mirrors the hash logic in ClipItemDeduplicationService so that CaptureCoordinator

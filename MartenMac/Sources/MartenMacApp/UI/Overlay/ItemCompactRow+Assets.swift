@@ -133,130 +133,49 @@ extension ItemCompactRow {
 
     func refreshThumbnailImage() {
         guard item.itemTypeValue == .image else {
-            DispatchQueue.main.async {
-                thumbnailImage = nil
-                lastLoadedThumbnailPath = nil
-            }
+            thumbnailImage = nil
+            lastLoadedImageRequestKey = nil
             return
         }
 
-        let thumbnailPath = item.thumbnailPath?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedPath: String? = {
-            guard let thumbnailPath, !thumbnailPath.isEmpty else { return nil }
-            return thumbnailPath
-        }()
-        let cacheKey = thumbnailCacheKey(thumbnailPath: normalizedPath)
-
-        if let cached = ThumbnailImageCache.shared.cachedImage(forKey: cacheKey) {
-            DispatchQueue.main.async {
-                thumbnailImage = cached
-                lastLoadedThumbnailPath = normalizedPath
-            }
-            return
-        }
-
-        if ThumbnailImageCache.shared.hasMissing(forKey: cacheKey) {
-            DispatchQueue.main.async {
-                thumbnailImage = nil
-                lastLoadedThumbnailPath = normalizedPath
-            }
-            return
-        }
-
-        if let normalizedPath {
-            if lastLoadedThumbnailPath == normalizedPath, thumbnailImage != nil {
-                return
-            }
-            DispatchQueue.main.async {
-                lastLoadedThumbnailPath = normalizedPath
-            }
-
-            let representationSnapshots = (item.representations ?? []).map {
-                ItemCard.ThumbnailRepresentationSnapshot(
-                    kind: $0.kindValue,
-                    binaryData: $0.binaryData,
-                    assetRef: $0.assetRef,
-                    fileExtension: $0.fileExtension,
-                    textData: $0.textData
-                )
-            }
-
-            DispatchQueue.global(qos: .userInitiated).async {
-                let image = ThumbnailImageResolver.resolve(
-                    thumbnailPath: normalizedPath,
-                    snapshots: representationSnapshots
-                )
-
-                DispatchQueue.main.async {
-                    if let image {
-                        ThumbnailImageCache.shared.setImage(image, forKey: cacheKey)
-                        thumbnailImage = image
-                    } else {
-                        ThumbnailImageCache.shared.setMissing(forKey: cacheKey)
-                        thumbnailImage = nil
-                    }
-                }
-            }
-            return
-        }
-
-        DispatchQueue.main.async {
-            lastLoadedThumbnailPath = nil
-        }
-        let representationSnapshots = (item.representations ?? []).map {
-            ItemCard.ThumbnailRepresentationSnapshot(
-                kind: $0.kindValue,
-                binaryData: $0.binaryData,
-                assetRef: $0.assetRef,
-                fileExtension: $0.fileExtension,
-                textData: $0.textData
+        guard
+            let request = ImagePreviewRequest(
+                item: item,
+                requestedPixelSize: imagePreviewRequestPixelSize
             )
-        }
-
-        guard !representationSnapshots.isEmpty else {
-            ThumbnailImageCache.shared.setMissing(forKey: cacheKey)
-            DispatchQueue.main.async {
-                thumbnailImage = nil
-            }
+        else {
+            thumbnailImage = nil
+            lastLoadedImageRequestKey = nil
             return
         }
+
+        let requestKey = request.cacheKey
+        if lastLoadedImageRequestKey == requestKey, thumbnailImage != nil {
+            return
+        }
+
+        lastLoadedImageRequestKey = requestKey
+        let previewItemID = item.objectID
 
         DispatchQueue.global(qos: .userInitiated).async {
-            let image = loadThumbnailImage(from: representationSnapshots)
+            let result = CardImagePreviewLoader.shared.loadPreview(for: request)
 
             DispatchQueue.main.async {
-                if let image {
-                    ThumbnailImageCache.shared.setImage(image, forKey: cacheKey)
-                    thumbnailImage = image
+                guard item.objectID == previewItemID else { return }
+                guard lastLoadedImageRequestKey == requestKey else { return }
+
+                if let result {
+                    thumbnailImage = result.image
                 } else {
-                    ThumbnailImageCache.shared.setMissing(forKey: cacheKey)
                     thumbnailImage = nil
                 }
             }
         }
     }
 
-    private func loadThumbnailImage(from snapshots: [ItemCard.ThumbnailRepresentationSnapshot]) -> NSImage? {
-        ThumbnailImageResolver.resolve(
-            thumbnailPath: nil,
-            snapshots: snapshots
-        )
-    }
-
-    private func thumbnailCacheKey(thumbnailPath: String?) -> String {
-        if let thumbnailPath {
-            return "thumbnail.path.\(thumbnailPath)"
-        }
-        let version = Int64(item.modifiedAt.timeIntervalSince1970 * 1000)
-        let assetSignature = (item.representations ?? [])
-            .map { representation in
-                let assetRef = representation.assetRef?.uuidString ?? "none"
-                let fileExtension = representation.fileExtension?.lowercased() ?? "none"
-                return "\(assetRef).\(fileExtension)"
-            }
-            .sorted()
-            .joined(separator: ",")
-        return "thumbnail.item.\(item.id.uuidString).\(version).\(assetSignature)"
+    var imagePreviewRequestPixelSize: Int {
+        let requestedPixelSize = Int((CGFloat(120) * displayScale).rounded(.up))
+        return ImagePreviewRequest.bucketedPixelSize(for: requestedPixelSize)
     }
 
     func filePathFromRepresentations() -> String? {

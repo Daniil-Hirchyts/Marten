@@ -7,8 +7,6 @@ import XCTest
 final class ImageResolutionResolverTests: XCTestCase {
     func testResolveUsesOriginalImageDataBeforeThumbnail() throws {
         let originalData = try makePNGData(width: 300, height: 200)
-        let thumbnailPath = try writeTemporaryImage(data: makePNGData(width: 96, height: 64))
-        defer { try? FileManager.default.removeItem(atPath: thumbnailPath) }
 
         let sources: [ImageResolutionResolver.Source] = [
             .init(
@@ -21,7 +19,7 @@ final class ImageResolutionResolverTests: XCTestCase {
         ]
 
         XCTAssertEqual(
-            ImageResolutionResolver.resolve(from: sources, thumbnailPath: thumbnailPath),
+            ImageResolutionResolver.resolve(from: sources),
             "300×200"
         )
     }
@@ -29,9 +27,6 @@ final class ImageResolutionResolverTests: XCTestCase {
     func testResolveUsesFileURLRepresentationWhenImageDataMissing() throws {
         let originalPath = try writeTemporaryImage(data: makePNGData(width: 512, height: 128))
         defer { try? FileManager.default.removeItem(atPath: originalPath) }
-
-        let thumbnailPath = try writeTemporaryImage(data: makePNGData(width: 80, height: 20))
-        defer { try? FileManager.default.removeItem(atPath: thumbnailPath) }
 
         let sources: [ImageResolutionResolver.Source] = [
             .init(
@@ -44,19 +39,13 @@ final class ImageResolutionResolverTests: XCTestCase {
         ]
 
         XCTAssertEqual(
-            ImageResolutionResolver.resolve(from: sources, thumbnailPath: thumbnailPath),
+            ImageResolutionResolver.resolve(from: sources),
             "512×128"
         )
     }
 
-    func testResolveFallsBackToThumbnailWhenNoOriginalSourceExists() throws {
-        let thumbnailPath = try writeTemporaryImage(data: makePNGData(width: 120, height: 90))
-        defer { try? FileManager.default.removeItem(atPath: thumbnailPath) }
-
-        XCTAssertEqual(
-            ImageResolutionResolver.resolve(from: [], thumbnailPath: thumbnailPath),
-            "120×90"
-        )
+    func testResolveReturnsNilWhenNoOriginalSourceExists() {
+        XCTAssertNil(ImageResolutionResolver.resolve(from: []))
     }
 
     func testResolveUsesAssetStoreWhenFileExtensionMetadataIsMissing() throws {
@@ -83,12 +72,12 @@ final class ImageResolutionResolverTests: XCTestCase {
         ]
 
         XCTAssertEqual(
-            ImageResolutionResolver.resolve(from: sources, thumbnailPath: nil),
+            ImageResolutionResolver.resolve(from: sources),
             "640×360"
         )
     }
 
-    func testThumbnailResolverFallsBackToAssetWhenThumbnailPathIsStale() throws {
+    func testCardImagePreviewLoaderFallsBackToAssetWhenThumbnailPathIsStale() throws {
         let fileManager = FileManager.default
         let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -100,18 +89,26 @@ final class ImageResolutionResolverTests: XCTestCase {
 
         let imageData = try makePNGData(width: 240, height: 180)
         let assetRef = try AssetStore.shared.store(data: imageData, fileExtension: "png")
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence, assetStore: AssetStore.shared)
+        let placeholderItem = try store.createTextItem(text: "preview")
 
-        let resolved = ThumbnailImageResolver.resolve(
-            thumbnailPath: "/tmp/does-not-exist-\(UUID().uuidString).png",
-            snapshots: [
-                ItemCard.ThumbnailRepresentationSnapshot(
-                    kind: .png,
-                    binaryData: nil,
-                    assetRef: assetRef,
-                    fileExtension: nil,
-                    textData: nil
-                )
-            ]
+        let resolved = CardImagePreviewLoader.resolvePreview(
+            for: ImagePreviewRequest(
+                itemID: UUID(),
+                objectID: placeholderItem.objectID,
+                modifiedAt: Date(),
+                sources: [
+                    ImagePreviewSourceSnapshot(
+                        kind: .png,
+                        binaryData: nil,
+                        assetRef: assetRef,
+                        fileExtension: nil,
+                        textData: nil
+                    )
+                ],
+                requestedPixelSize: 320
+            )
         )
 
         XCTAssertNotNil(resolved)

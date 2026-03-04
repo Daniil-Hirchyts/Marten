@@ -147,8 +147,17 @@ final class OverlayWindowController {
         guard !isVisible else { return }
         guard screenSharingManager.shouldShowOverlay else { return }
         guard let screen = preferredScreen() else { return }
-        let targetFrame = frame(for: screen)
-        let showOffset = OverlayFrameCalculator.showOffset(for: layoutSettings.overlayScreenEdge)
+        let edge = layoutSettings.overlayScreenEdge
+        let targetFrame: NSRect
+        if edge == .cursor {
+            targetFrame = OverlayFrameCalculator.cursorFrame(
+                cursorLocation: NSEvent.mouseLocation,
+                visibleFrame: screen.visibleFrame
+            )
+        } else {
+            targetFrame = frame(for: screen)
+        }
+        let showOffset = OverlayFrameCalculator.showOffset(for: edge)
         let startFrame = targetFrame.offsetBy(dx: showOffset.width, dy: showOffset.height)
 
         panel.setFrame(startFrame, display: true)
@@ -226,11 +235,13 @@ final class OverlayWindowController {
 
     private func handleLayoutSettingsChange() {
         guard isVisible else { return }
+        guard layoutSettings.overlayScreenEdge != .cursor else { return }
         updateVisibleFrame(animated: true)
     }
 
     private func handleScreenParametersChange() {
         guard isVisible else { return }
+        guard layoutSettings.overlayScreenEdge != .cursor else { return }
         updateVisibleFrame(animated: true)
     }
 

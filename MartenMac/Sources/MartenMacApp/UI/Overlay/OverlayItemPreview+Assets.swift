@@ -40,7 +40,6 @@ extension OverlayItemPreview {
                 return (rep.binaryData, rep.assetRef, rep.fileExtension)
             }
         let imageFilePath = filePathFromRepresentations()
-        let thumbnailPath = nonEmptyText(item.thumbnailPath)
 
         DispatchQueue.global(qos: .userInitiated).async {
             for source in fullResolutionImageSources {
@@ -68,14 +67,6 @@ extension OverlayItemPreview {
             }
 
             if let imageFilePath, let img = NSImage(contentsOfFile: imageFilePath) {
-                DispatchQueue.main.async {
-                    guard item.objectID == previewItemID else { return }
-                    image = img
-                }
-                return
-            }
-
-            if let thumbnailPath, let img = NSImage(contentsOfFile: thumbnailPath) {
                 DispatchQueue.main.async {
                     guard item.objectID == previewItemID else { return }
                     image = img

@@ -9,7 +9,8 @@ final class ThumbnailImageCache {
     private let lock = NSLock()
 
     private init() {
-        cache.countLimit = 400
+        cache.countLimit = 200
+        cache.totalCostLimit = 96 * 1024 * 1024
     }
 
     func cachedImage(forKey key: String) -> NSImage? {
@@ -22,8 +23,8 @@ final class ThumbnailImageCache {
         return missingKeys.contains(key)
     }
 
-    func setImage(_ image: NSImage, forKey key: String) {
-        cache.setObject(image, forKey: key as NSString)
+    func setImage(_ image: NSImage, forKey key: String, cost: Int = 0) {
+        cache.setObject(image, forKey: key as NSString, cost: max(0, cost))
         lock.lock()
         missingKeys.remove(key)
         lock.unlock()

@@ -14,6 +14,42 @@ enum OverlayFrameCalculator {
     static let maximumHorizontalHeight: CGFloat = 400
     static let minimumVerticalWidth: CGFloat = 280
     static let maximumVerticalWidth: CGFloat = 380
+    static let cursorModeWidth: CGFloat = 320
+    static let cursorModeHeight: CGFloat = 480
+    static let cursorOffset: CGFloat = 16
+
+    static func cursorFrame(cursorLocation: CGPoint, visibleFrame: CGRect) -> CGRect {
+        let w = cursorModeWidth
+        let h = cursorModeHeight
+
+        // Try right+below cursor first
+        var x = cursorLocation.x + cursorOffset
+        var y = cursorLocation.y - h - cursorOffset
+
+        // Flip horizontally if it overflows right edge
+        if x + w > visibleFrame.maxX {
+            x = cursorLocation.x - w - cursorOffset
+        }
+        // If still off-screen left, center horizontally on cursor
+        if x < visibleFrame.minX {
+            x = cursorLocation.x - w / 2
+        }
+
+        // Flip vertically if it overflows below (macOS: lower y = bottom)
+        if y < visibleFrame.minY {
+            y = cursorLocation.y + cursorOffset
+        }
+        // If still off-screen top, center vertically on cursor
+        if y + h > visibleFrame.maxY {
+            y = cursorLocation.y - h / 2
+        }
+
+        // Final clamp to screen bounds
+        x = min(max(x, visibleFrame.minX), visibleFrame.maxX - w)
+        y = min(max(y, visibleFrame.minY), visibleFrame.maxY - h)
+
+        return CGRect(x: x, y: y, width: w, height: h)
+    }
 
     static func frame(
         visibleFrame: CGRect,
@@ -22,6 +58,11 @@ enum OverlayFrameCalculator {
         preferredVerticalSize: CGFloat
     ) -> CGRect {
         switch edge.layoutAxis {
+        case .compact:
+            return cursorFrame(cursorLocation: CGPoint(
+                x: visibleFrame.midX,
+                y: visibleFrame.midY
+            ), visibleFrame: visibleFrame)
         case .horizontal:
             let width = max(visibleFrame.width - (contentMargin * 2), 320)
             let height = clampedSize(
@@ -36,7 +77,7 @@ enum OverlayFrameCalculator {
                 y = visibleFrame.minY + contentMargin
             case .top:
                 y = visibleFrame.maxY - contentMargin - height
-            case .left, .right:
+            case .left, .right, .cursor:
                 y = visibleFrame.minY + contentMargin
             }
             return CGRect(x: x, y: y, width: width, height: height)
@@ -54,7 +95,7 @@ enum OverlayFrameCalculator {
                 x = visibleFrame.minX + contentMargin
             case .right:
                 x = visibleFrame.maxX - contentMargin - width
-            case .bottom, .top:
+            case .bottom, .top, .cursor:
                 x = visibleFrame.minX + contentMargin
             }
             return CGRect(x: x, y: y, width: width, height: height)
@@ -71,6 +112,8 @@ enum OverlayFrameCalculator {
             return CGSize(width: -24, height: 0)
         case .right:
             return CGSize(width: 24, height: 0)
+        case .cursor:
+            return CGSize(width: 0, height: 0)
         }
     }
 
@@ -84,6 +127,8 @@ enum OverlayFrameCalculator {
             return CGSize(width: -12, height: 0)
         case .right:
             return CGSize(width: 12, height: 0)
+        case .cursor:
+            return CGSize(width: 0, height: -8)
         }
     }
 
@@ -105,6 +150,8 @@ enum OverlayFrameCalculator {
                 maximumVerticalWidth
             )
             return min(max(minimumVerticalWidth, preferred), maxAllowed)
+        case .compact:
+            return cursorModeWidth
         }
     }
 
@@ -126,6 +173,12 @@ enum OverlayFrameCalculator {
         proposedEdgePosition: CGFloat
     ) -> OverlayFrameCalculationResult {
         switch edge {
+        case .cursor:
+            return OverlayFrameCalculationResult(
+                frame: anchorFrame,
+                persistedSize: cursorModeWidth,
+                clampedFrame: anchorFrame
+            )
         case .bottom:
             let minTop = anchorFrame.minY + minimumHorizontalHeight
             let maxTop = anchorFrame.minY + clampedSize(

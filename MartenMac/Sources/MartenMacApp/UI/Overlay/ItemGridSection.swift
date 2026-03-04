@@ -85,6 +85,7 @@ struct ItemGridSection: View {
             } else {
                 Group {
                     if layoutAxis == .horizontal {
+                        // .vertical and .compact both use ItemCompactColumn (handled by else)
                         ItemCardRow(
                             items: filteredItems,
                             pinboardSelectionKey: pinboardSelectionKey,
@@ -139,6 +140,7 @@ struct ItemGridSection: View {
                             editingItemID: editingItemID,
                             allowPinning: allowPinning,
                             readOnly: readOnly,
+                            layoutAxis: layoutAxis,
                             clipItemEditor: clipItemEditor,
                             isDragEnabled: isDragEnabled,
                             isReorderingEnabled: isReorderingEnabled,

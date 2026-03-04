@@ -38,6 +38,8 @@ struct ResizeHandleView: View {
                     verticalHandle
                     Spacer(minLength: 0)
                 }
+            case .cursor:
+                EmptyView()
             }
         }
     }
@@ -127,13 +129,15 @@ struct ResizeHandleView: View {
             return frame.maxX - location.x
         case .right:
             return frame.minX - location.x
+        case .cursor:
+            return 0
         }
     }
 
     private func proposedEdgePosition(for edge: OverlayScreenEdge, pointerOffset: CGFloat) -> CGFloat {
         let location = NSEvent.mouseLocation
         switch edge {
-        case .bottom, .top:
+        case .bottom, .top, .cursor:
             return location.y + pointerOffset
         case .left, .right:
             return location.x + pointerOffset

@@ -73,6 +73,13 @@ struct OverlayShellView: View {
     @State var window: NSWindow?
     @State var itemDragPinboardDropTargetID: NSManagedObjectID?
 
+    // Compact pinboard bar drag-reorder state
+    @State var compactDragState: PinboardTabDragState?
+    @State var compactDropTarget: PinboardTabDropTarget?
+    @State var compactDragOpacity: Double = 0
+    @State var compactPillFrames: [NSManagedObjectID: CGRect] = [:]
+    @State var compactCachedOrderedFrames: [(item: Pinboard, frame: CGRect)]?
+
     let itemOperationsHandler: any ItemOperating
     let pinboardManager: any PinboardManaging
     let sharingRepository: (any PinboardSharingRepositoryProtocol)?
@@ -187,7 +194,7 @@ struct OverlayShellView: View {
         )
         .background(WindowAccessor(window: $window))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: overlayLayoutAxis == .compact ? 20 : 34, style: .continuous))
         .onChange(of: dragCoordinator.dragPreviewData) { newData, _ in
             dragCoordinator.updateDragPreviewWindow(newData, parentWindow: window)
         }
@@ -202,7 +209,39 @@ struct OverlayShellView: View {
 
     @ViewBuilder
     private var layoutContent: some View {
-        if overlayLayoutAxis == .horizontal {
+        if overlayLayoutAxis == .compact {
+            ZStack(alignment: .top) {
+                // Items fill entire area, edge-to-edge
+                itemGridSection
+                    .mask(
+                        VStack(spacing: 0) {
+                            Color.clear
+                                .frame(height: 22)
+                            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                                .frame(height: 22)
+                            Color.black
+                            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                                .frame(height: 22)
+                            Color.clear
+                                .frame(height: 22)
+                        }
+                    )
+
+                // Pinboard bar floating at top
+                VStack(spacing: 0) {
+                    compactPinboardBar
+                        .padding(.top, 10)
+                        .padding(.bottom, 6)
+
+                    Spacer(minLength: 0)
+
+                    // Toolbar floating at bottom
+                    verticalToolbarRow
+                        .padding(.top, 6)
+                        .padding(.bottom, 10)
+                }
+            }
+        } else if overlayLayoutAxis == .horizontal {
             VStack(alignment: .leading, spacing: 14) {
                 horizontalHeaderBar
                 itemGridSection
@@ -214,6 +253,13 @@ struct OverlayShellView: View {
                 verticalToolbarRow
                 verticalPinboardPickerRow
                 itemGridSection
+                    .mask(
+                        VStack(spacing: 0) {
+                            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                                .frame(height: 26)
+                            Color.black
+                        }
+                    )
             }
             .padding(.top, 10)
         }

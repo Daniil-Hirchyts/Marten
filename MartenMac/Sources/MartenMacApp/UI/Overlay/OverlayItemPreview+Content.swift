@@ -428,13 +428,7 @@ extension OverlayItemPreview {
                 textData: $0.textData
             )
         }
-        let thumbnailPath = item.thumbnailPath?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedThumbnailPath: String? = {
-            guard let thumbnailPath, !thumbnailPath.isEmpty else { return nil }
-            return thumbnailPath
-        }()
-
-        return ImageResolutionResolver.resolve(from: sources, thumbnailPath: normalizedThumbnailPath)
+        return ImageResolutionResolver.resolve(from: sources)
     }
 
     var mixedRepresentationLabels: [String] {

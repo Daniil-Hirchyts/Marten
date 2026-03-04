@@ -129,9 +129,7 @@ final class AssetManagementService {
                 try? FileManager.default.removeItem(atPath: existingPath)
             }
 
-            let assetRef = try assetStore.store(data: imageData, fileExtension: "png")
-            let url = assetStore.urlForAsset(assetRef, fileExtension: "png")
-            item.thumbnailPath = url.path
+            item.thumbnailPath = nil
 
             let now = Date()
             item.byteCount = Int64(imageData.count)

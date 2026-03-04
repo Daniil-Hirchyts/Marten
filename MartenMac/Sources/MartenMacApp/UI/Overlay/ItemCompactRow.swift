@@ -40,12 +40,13 @@ struct ItemCompactRow: View {
 
     @State var thumbnailImage: NSImage?
     @State var linkPreviewResult: LinkPreviewImageResult?
-    @State var lastLoadedThumbnailPath: String?
+    @State var lastLoadedImageRequestKey: String?
     @State var lastLoadedLinkPreviewKey: String?
     @State private var lastTapTime: Date?
     @State private var editTitle = ""
     @FocusState private var isFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) var displayScale
 
     private var isPreviewPresentedBinding: Binding<Bool> {
         Binding(
@@ -95,6 +96,9 @@ struct ItemCompactRow: View {
             .onAppear {
                 refreshPreviewAssets()
             }
+            .onChange(of: imagePreviewRequestPixelSize) { _, _ in
+                refreshThumbnailImage()
+            }
             .onChange(of: contentSignature) { oldValue, newValue in
                 handleContentSignatureChange(oldValue: oldValue, newValue: newValue)
             }
@@ -119,10 +123,6 @@ struct ItemCompactRow: View {
                 linkPreviewResult = nil
                 lastLoadedLinkPreviewKey = nil
             }
-        }
-
-        if oldValue.thumbnailPath != newValue.thumbnailPath {
-            refreshThumbnailImage()
         }
 
         if oldValue.representationAssetSignature != newValue.representationAssetSignature {
@@ -670,7 +670,6 @@ struct ItemCompactRow: View {
 
 private struct ContentSignature: Equatable {
     let primaryText: String?
-    let thumbnailPath: String?
     let representationAssetSignature: String
     let customTitle: String?
     let linkPreviewImagePath: String?
@@ -679,7 +678,6 @@ private struct ContentSignature: Equatable {
 
     init(item: ClipItem) {
         primaryText = item.primaryText
-        thumbnailPath = item.thumbnailPath
         representationAssetSignature = (item.representations ?? [])
             .map { representation in
                 let assetRef = representation.assetRef?.uuidString ?? "none"
@@ -694,4 +692,3 @@ private struct ContentSignature: Equatable {
         itemType = item.itemTypeValue
     }
 }
-

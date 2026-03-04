@@ -18,6 +18,7 @@ struct ItemCompactColumn: View {
     let editingItemID: NSManagedObjectID?
     let allowPinning: Bool
     let readOnly: Bool
+    let layoutAxis: OverlayLayoutAxis
     let clipItemEditor: any ClipItemEditing
     let isDragEnabled: Bool
     let isReorderingEnabled: Bool
@@ -182,18 +183,15 @@ struct ItemCompactColumn: View {
                         }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 16)
+                .padding(.horizontal, 8)
+                .padding(.top, layoutAxis == .compact ? 54 : 10)
+                .padding(.bottom, layoutAxis == .compact ? 44 : 10)
             }
             .onChange(of: pinboardSelectionKey) { _, _ in
                 proxy.scrollTo(topAnchorID, anchor: .top)
             }
         }
         .coordinateSpace(name: scrollCoordinateSpaceName)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            scrollTopDivider
-        }
         .coordinateSpace(name: localCoordinateSpaceName)
         .background(
             GeometryReader { proxy in
@@ -410,7 +408,7 @@ struct ItemCompactColumn: View {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
         }
 
-        // Propagate pinboard drop target to tab bar for visual highlight
+        // Propagate pinboard drop target to tab bar for visual highlight + cursor
         if pinboardDropTarget != previousPinboardDropTarget {
             let targetID: NSManagedObjectID? = {
                 switch pinboardDropTarget {
@@ -420,6 +418,13 @@ struct ItemCompactColumn: View {
                 }
             }()
             onPinboardDropTargetChanged?(targetID)
+
+            // Show copy cursor when hovering pinboard drop target
+            if pinboardDropTarget != nil && previousPinboardDropTarget == nil {
+                NSCursor.dragCopy.push()
+            } else if pinboardDropTarget == nil && previousPinboardDropTarget != nil {
+                NSCursor.pop()
+            }
         }
 
         // Transition to native drag when mouse leaves the overlay window
@@ -427,6 +432,7 @@ struct ItemCompactColumn: View {
             let mouseLocation = NSEvent.mouseLocation
             if !window.frame.contains(mouseLocation) {
                 if let onBeginNativeDrag, onBeginNativeDrag(dragState.itemIDs) {
+                    if pinboardDropTarget != nil { NSCursor.pop() }
                     dropTarget = nil
                     pinboardDropTarget = nil
                     dragOpacity = 0
@@ -492,6 +498,11 @@ struct ItemCompactColumn: View {
     }
 
     private func endDrag(for itemID: NSManagedObjectID) {
+        // Pop copy cursor if it was pushed during pinboard hover
+        if pinboardDropTarget != nil {
+            NSCursor.pop()
+        }
+
         dropTarget = nil
         pinboardDropTarget = nil
         dragOpacity = 0
@@ -696,6 +707,7 @@ struct ItemCompactColumn: View {
             position: previewPosition,
             opacity: dragOpacity,
             isCompactLayout: true,
+            scale: pinboardDropTarget != nil ? 0.7 : 1.0,
             snapshotImage: dragSnapshotImage
         )
 

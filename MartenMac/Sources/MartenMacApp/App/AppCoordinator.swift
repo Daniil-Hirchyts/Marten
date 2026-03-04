@@ -33,7 +33,6 @@ public final class AppCoordinator: SettingsOpening {
     private var clipItemStore: ClipItemStore { services.clipItemStore }
     private var pasteboardMonitor: PasteboardMonitor { services.pasteboardMonitor }
     private var pasteboardExtractor: PasteboardExtractor { services.pasteboardExtractor }
-    private var thumbnailGenerator: ThumbnailGenerator { services.thumbnailGenerator }
     private var hotkeyManager: HotkeyManager { services.hotkeyManager }
     private var pasteEngine: any PasteEngineProtocol { services.pasteEngine }
     private var screenSharingManager: ScreenSharingManager { services.screenSharingManager }
@@ -125,7 +124,6 @@ public final class AppCoordinator: SettingsOpening {
             pasteboardMonitor: pasteboardMonitor,
             pasteboardExtractor: pasteboardExtractor,
             clipItemStore: clipItemStore,
-            thumbnailGenerator: thumbnailGenerator,
             eventBroadcaster: eventBroadcaster,
             captureQueue: captureQueue,
             soundPlayer: services.soundPlayer,

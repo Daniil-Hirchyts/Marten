@@ -558,7 +558,7 @@ struct ItemCardRow: View {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
         }
 
-        // Propagate pinboard drop target to tab bar for visual highlight
+        // Propagate pinboard drop target to tab bar for visual highlight + cursor
         if pinboardDropTarget != previousPinboardDropTarget {
             let targetID: NSManagedObjectID? = {
                 switch pinboardDropTarget {
@@ -568,6 +568,13 @@ struct ItemCardRow: View {
                 }
             }()
             onPinboardDropTargetChanged?(targetID)
+
+            // Show copy cursor when hovering pinboard drop target
+            if pinboardDropTarget != nil && previousPinboardDropTarget == nil {
+                NSCursor.dragCopy.push()
+            } else if pinboardDropTarget == nil && previousPinboardDropTarget != nil {
+                NSCursor.pop()
+            }
         }
 
         // Transition to native drag when mouse leaves the overlay window
@@ -578,6 +585,7 @@ struct ItemCardRow: View {
                     centeringTimer?.invalidate()
                     centeringTimer = nil
                     frameCoordinator.setDragCenteringOffset(.zero)
+                    if pinboardDropTarget != nil { NSCursor.pop() }
                     dropTarget = nil
                     pinboardDropTarget = nil
                     dragOpacity = 0
@@ -661,6 +669,11 @@ struct ItemCardRow: View {
         centeringTimer?.invalidate()
         centeringTimer = nil
         frameCoordinator.setDragCenteringOffset(.zero)
+
+        // Pop copy cursor if it was pushed during pinboard hover
+        if pinboardDropTarget != nil {
+            NSCursor.pop()
+        }
 
         dropTarget = nil
         pinboardDropTarget = nil
@@ -902,6 +915,7 @@ struct ItemCardRow: View {
             cardSize: cardSize,
             position: previewPosition,
             opacity: dragOpacity,
+            scale: pinboardDropTarget != nil ? 0.7 : 1.0,
             snapshotImage: dragSnapshotImage
         )
 
@@ -973,16 +987,19 @@ struct DragPreviewData: Equatable {
     let position: CGPoint
     let opacity: Double
     let isCompactLayout: Bool
+    /// Scale factor for the preview (e.g. shrinks when hovering a pinboard drop target).
+    var scale: Double
     /// Card snapshot captured from the overlay for instant AppKit display.
     var snapshotImage: NSImage?
 
-    init(items: [ClipItem], pinboards: [Pinboard], cardSize: CGFloat, position: CGPoint, opacity: Double, isCompactLayout: Bool = false, snapshotImage: NSImage? = nil) {
+    init(items: [ClipItem], pinboards: [Pinboard], cardSize: CGFloat, position: CGPoint, opacity: Double, isCompactLayout: Bool = false, scale: Double = 1.0, snapshotImage: NSImage? = nil) {
         self.items = items
         self.pinboards = pinboards
         self.cardSize = cardSize
         self.position = position
         self.opacity = opacity
         self.isCompactLayout = isCompactLayout
+        self.scale = scale
         self.snapshotImage = snapshotImage
     }
 
@@ -994,6 +1011,7 @@ struct DragPreviewData: Equatable {
             && lhs.pinboards.map { $0.objectID } == rhs.pinboards.map { $0.objectID }
             && lhs.cardSize == rhs.cardSize && lhs.position == rhs.position
             && lhs.opacity == rhs.opacity && lhs.isCompactLayout == rhs.isCompactLayout
+            && lhs.scale == rhs.scale
     }
 }
 

@@ -188,6 +188,8 @@ private struct DragPreviewWindowContent: View {
                         }
                     }
                 }
+                .scaleEffect(data.scale)
+                .animation(.easeInOut(duration: 0.15), value: data.scale)
             }
         }
         .frame(width: 600, height: 600)
@@ -483,13 +485,6 @@ struct ItemCompactRowDragPreview: View {
         if let pinboard = primaryAssignedPinboard {
             return Color(hex: pinboard.colorHex, fallback: .gray)
         }
-        if let bundleID = SourceAppIdentityResolver.resolvedBundleID(
-            bundleID: item.sourceAppBundleID,
-            appName: item.sourceAppName
-        ),
-           let appColor = AppIconCache.shared.cachedColor(bundleID: bundleID) {
-            return Color(nsColor: appColor).opacity(0.96)
-        }
         return colorScheme == .dark
             ? Color.white.opacity(0.24)
             : Color.black.opacity(0.24)
@@ -514,13 +509,6 @@ struct ItemCompactRowDragPreview: View {
     private var sideBarNSColor: NSColor {
         if let pinboard = primaryAssignedPinboard {
             return NSColor(hex: pinboard.colorHex)
-        }
-        if let bundleID = SourceAppIdentityResolver.resolvedBundleID(
-            bundleID: item.sourceAppBundleID,
-            appName: item.sourceAppName
-        ),
-           let appColor = AppIconCache.shared.cachedColor(bundleID: bundleID) {
-            return appColor
         }
         return colorScheme == .dark
             ? NSColor.white.withAlphaComponent(0.24)

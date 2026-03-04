@@ -38,15 +38,6 @@ extension ItemEditorContentView {
     }
 
     func loadImageAsync(item: ClipItem) {
-        if let thumbnailPath = item.thumbnailPath?.trimmingCharacters(in: .whitespacesAndNewlines),
-            !thumbnailPath.isEmpty,
-            let image = NSImage(contentsOfFile: thumbnailPath)
-        {
-            loadedImage = image
-            originalImage = image
-            return
-        }
-
         Task.detached(priority: .userInitiated) {
             let image = ItemEditorHelpers.imageFromRepresentations(for: item)
             await MainActor.run {
@@ -130,4 +121,3 @@ extension ItemEditorContentView {
         }
     }
 }
-

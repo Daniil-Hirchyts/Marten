@@ -152,6 +152,7 @@ struct PinboardTabBar<CreatePopoverContent: View>: View {
                             .fixedSize(horizontal: true, vertical: false)
                             .padding(.horizontal, scrollContentPadding)
                     }
+                    .scrollClipDisabled()
                     .scrollDisabled(shouldDisableScroll(parentWidth: proxy.size.width))
                     .coordinateSpace(name: scrollSpaceName)
                     .frame(width: scrollViewWidth(parentWidth: proxy.size.width))

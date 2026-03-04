@@ -160,7 +160,7 @@ extension OverlayShellView {
                 settingsButton
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 8)
         .frame(height: headerButtonSize)
         .onPreferenceChange(SearchFieldFrameKey.self) { frame in
             dragCoordinator.updateSearchFieldFrame(frame)

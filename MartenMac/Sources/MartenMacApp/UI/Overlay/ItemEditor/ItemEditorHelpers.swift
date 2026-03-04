@@ -53,12 +53,40 @@ enum ItemEditorHelpers {
     }
 
     static func imageFromRepresentations(for item: ClipItem) -> NSImage? {
-        guard let representations = item.representations else { return nil }
+        let representations = (item.representations ?? []).sorted { $0.displayOrder < $1.displayOrder }
 
         for rep in representations {
             let kind = rep.kindValue
-            if kind == .png || kind == .jpeg || kind == .tiff {
+            if kind == .png || kind == .jpeg || kind == .tiff || kind == .pdf {
+                if let assetRef = rep.assetRef,
+                    let url = AssetStore.shared.existingURLForAsset(
+                        assetRef,
+                        fileExtension: rep.fileExtension
+                    ),
+                    let image = NSImage(contentsOf: url)
+                {
+                    return image
+                }
+
                 if let data = rep.binaryData, let image = NSImage(data: data) {
+                    return image
+                }
+            }
+
+            if kind == .fileURL,
+                let textData = rep.textData,
+                let rawPath = String(data: textData, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                rawPath.isEmpty == false
+            {
+                let url: URL
+                if let resolvedURL = URL(string: rawPath), resolvedURL.isFileURL {
+                    url = resolvedURL
+                } else {
+                    url = URL(fileURLWithPath: rawPath)
+                }
+
+                if let image = NSImage(contentsOf: url) {
                     return image
                 }
             }
