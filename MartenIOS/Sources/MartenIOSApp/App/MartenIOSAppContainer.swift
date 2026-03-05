@@ -1,10 +1,37 @@
 import CloudKit
+import Combine
 import CoreData
 import Foundation
 import MartenCore
 import SwiftUI
+
+@MainActor
+protocol WatchSyncSignaling {
+    func notifySyncCompleted()
+    func pushLockState(_ lockedIDs: Set<UUID>)
+}
+
+private struct NoOpWatchSyncSignaler: WatchSyncSignaling {
+    func notifySyncCompleted() {}
+    func pushLockState(_ lockedIDs: Set<UUID>) {}
+}
+
 #if os(iOS)
-private let watchBridge = WatchConnectivityBridge.shared
+private struct IOSWatchSyncSignaler: WatchSyncSignaling {
+    private let bridge: WatchConnectivityBridge
+
+    init(bridge: WatchConnectivityBridge) {
+        self.bridge = bridge
+    }
+
+    func notifySyncCompleted() {
+        bridge.notifyWatchSyncCompleted()
+    }
+
+    func pushLockState(_ lockedIDs: Set<UUID>) {
+        bridge.pushLockState(lockedIDs)
+    }
+}
 #endif
 
 @MainActor
@@ -62,10 +89,12 @@ public final class MartenIOSAppContainer {
     private let clipboardReader: any ClipboardReading
     private let clipboardPayloadBuilder: ClipboardPayloadBuilder
     private let syncConfigurationProvider: any MartenIOSSyncConfigurationProviding
+    private let watchSyncSignaler: any WatchSyncSignaling
 
     private var hasStarted = false
     private var lastSeenShareExtensionSuccessAt: Double
     private var lastSeenKeyboardMutationAt: Double
+    private var cancellables = Set<AnyCancellable>()
 
     public convenience init(
         persistenceController: PersistenceController = .shared,
@@ -94,6 +123,7 @@ public final class MartenIOSAppContainer {
         syncConfigurationProvider: any MartenIOSSyncConfigurationProviding =
             MartenIOSSyncConfigurationProvider(),
         sharingRepository: (any PinboardSharingRepositoryProtocol)? = nil,
+        watchSyncSignaler: (any WatchSyncSignaling)? = nil,
         appleIntelligence: any AppleIntelligenceTextTransforming = AppleIntelligenceTextService()
     ) {
         self.persistenceController = persistenceController
@@ -104,6 +134,7 @@ public final class MartenIOSAppContainer {
         self.appleIntelligence = appleIntelligence
 
         MartenIOSDefaults.registerDefaults(userDefaults)
+        Self.runSyncAutoEnableMigrationIfNeeded(userDefaults)
         if let appGroupDefaults = UserDefaults(suiteName: "group.com.hirchyts.marten") {
             SharedPinboardsFeatureFlag.registerDefaults(appGroupDefaults)
         }
@@ -123,6 +154,12 @@ public final class MartenIOSAppContainer {
         )
         let resolvedLockStateStore = PinboardLockStateStore(userDefaults: userDefaults)
         self.lockStateStore = resolvedLockStateStore
+
+        #if os(iOS)
+        self.watchSyncSignaler = watchSyncSignaler ?? IOSWatchSyncSignaler(bridge: .shared)
+        #else
+        self.watchSyncSignaler = watchSyncSignaler ?? NoOpWatchSyncSignaler()
+        #endif
 
         let appearanceRawValue = userDefaults.string(forKey: MartenIOSDefaults.appearanceKey) ?? ""
         self.appearance = MartenIOSAppearance(rawValue: appearanceRawValue) ?? .system
@@ -155,6 +192,8 @@ public final class MartenIOSAppContainer {
                     resolvedLockStateStore.isLocked(pinboardID)
                 }
             )
+
+        bindSyncCoordinatorSignals()
     }
 
     public func start() async {
@@ -211,21 +250,25 @@ public final class MartenIOSAppContainer {
     public func setPinboardLock(_ enabled: Bool, for pinboard: Pinboard) {
         if enabled && pinboard.isShared {
             lockStateStore.setLock(false, for: pinboard.id)
+            publishWatchSyncState()
             lastOperationErrorMessage = PinboardSharingError.cannotLockSharedPinboard.localizedDescription
             return
         }
 
         lockStateStore.setLock(enabled, for: pinboard.id)
+        publishWatchSyncState()
     }
 
     public func lockPinboardNow(_ pinboard: Pinboard) {
         guard !pinboard.isShared else {
             lockStateStore.setLock(false, for: pinboard.id)
+            publishWatchSyncState()
             lastOperationErrorMessage = PinboardSharingError.cannotLockSharedPinboard.localizedDescription
             return
         }
 
         lockStateStore.lockNow(pinboardID: pinboard.id)
+        publishWatchSyncState()
     }
 
     public func openIntegrationsSettings() {
@@ -295,10 +338,6 @@ public final class MartenIOSAppContainer {
 
         await syncCoordinator.handlePushNotification()
         await refreshPendingLinkPreviews()
-        #if os(iOS)
-        watchBridge.notifyWatchSyncCompleted()
-        watchBridge.pushLockState(lockStateStore.lockedPinboardIDs)
-        #endif
     }
 
     public func refreshPendingLinkPreviews() async {
@@ -762,6 +801,17 @@ public final class MartenIOSAppContainer {
         }
     }
 
+    private func bindSyncCoordinatorSignals() {
+        guard let syncCoordinator else { return }
+
+        syncCoordinator.syncCompletedPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.publishWatchSyncState(syncCompleted: true)
+            }
+            .store(in: &cancellables)
+    }
+
     private func refreshDashboardStateFromShareExtensionIfNeeded() {
         let latestShareExtensionSuccessAt = userDefaults.double(
             forKey: MartenIOSDefaults.shareExtensionLastSuccessAtKey
@@ -809,6 +859,7 @@ public final class MartenIOSAppContainer {
             lockableIDs = Set(pinboards.map(\.id))
         }
         lockStateStore.reconcile(validPinboardIDs: lockableIDs)
+        publishWatchSyncState()
     }
 
     private func reconcileShareMetadataFromTokens() async {
@@ -826,6 +877,24 @@ public final class MartenIOSAppContainer {
 
     private func sourceAppInfo() -> SourceAppInfo {
         MartenSourceIdentity.sourceAppInfo()
+    }
+
+    private static func runSyncAutoEnableMigrationIfNeeded(_ userDefaults: UserDefaults) {
+        guard
+            userDefaults.bool(forKey: MartenIOSDefaults.syncAutoEnableMigrationCompletedKey) == false
+        else {
+            return
+        }
+
+        userDefaults.set(true, forKey: MartenIOSDefaults.syncEnabledKey)
+        userDefaults.set(true, forKey: MartenIOSDefaults.syncAutoEnableMigrationCompletedKey)
+    }
+
+    private func publishWatchSyncState(syncCompleted: Bool = false) {
+        if syncCompleted {
+            watchSyncSignaler.notifySyncCompleted()
+        }
+        watchSyncSignaler.pushLockState(lockStateStore.lockedPinboardIDs)
     }
 
     private func forceCloudConvergenceAfterPinboardMutation() async {
@@ -931,4 +1000,3 @@ public final class MartenIOSAppContainer {
         }
     }
 }
-

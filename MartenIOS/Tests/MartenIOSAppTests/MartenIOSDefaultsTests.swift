@@ -20,7 +20,10 @@ final class MartenIOSDefaultsTests: XCTestCase {
     func testRegisterDefaultsSetsExpectedKeys() {
         MartenIOSDefaults.registerDefaults(userDefaults)
 
-        XCTAssertFalse(userDefaults.bool(forKey: MartenIOSDefaults.syncEnabledKey))
+        XCTAssertTrue(userDefaults.bool(forKey: MartenIOSDefaults.syncEnabledKey))
+        XCTAssertFalse(
+            userDefaults.bool(forKey: MartenIOSDefaults.syncAutoEnableMigrationCompletedKey)
+        )
         XCTAssertEqual(
             userDefaults.string(forKey: MartenIOSDefaults.appearanceKey),
             MartenIOSAppearance.system.rawValue

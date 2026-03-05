@@ -4,6 +4,7 @@ import SwiftUI
 
 public enum MartenIOSDefaults {
     public static let syncEnabledKey = "com.hirchyts.marten.syncEnabled"
+    public static let syncAutoEnableMigrationCompletedKey = "marten.ios.syncAutoEnableMigrationCompleted"
     public static let appearanceKey = "marten.ios.appearance"
     public static let lockHookPinboardIDsKey = "marten.ios.pinboard.lockedIDs"
     public static let selectedPinboardIDKey = "marten.ios.dashboard.selectedPinboardID"
@@ -19,7 +20,8 @@ public enum MartenIOSDefaults {
 
     public static func registerDefaults(_ userDefaults: UserDefaults = .standard) {
         userDefaults.register(defaults: [
-            syncEnabledKey: false,
+            syncEnabledKey: true,
+            syncAutoEnableMigrationCompletedKey: false,
             appearanceKey: MartenIOSAppearance.system.rawValue,
             lockHookPinboardIDsKey: [String](),
             selectedPinboardIDKey: "",

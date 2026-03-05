@@ -46,6 +46,42 @@ final class MartenIOSAppContainerTests: XCTestCase {
         XCTAssertEqual(reloaded.appearance, .dark)
     }
 
+    func testInitAutoEnablesSyncOnceForExistingUsersWhenMigrationPending() {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+
+        userDefaults.set(false, forKey: MartenIOSDefaults.syncEnabledKey)
+        userDefaults.set(false, forKey: MartenIOSDefaults.syncAutoEnableMigrationCompletedKey)
+
+        _ = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider()
+        )
+
+        XCTAssertTrue(userDefaults.bool(forKey: MartenIOSDefaults.syncEnabledKey))
+        XCTAssertTrue(userDefaults.bool(forKey: MartenIOSDefaults.syncAutoEnableMigrationCompletedKey))
+    }
+
+    func testInitPreservesSyncPreferenceAfterMigrationCompleted() {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+
+        userDefaults.set(false, forKey: MartenIOSDefaults.syncEnabledKey)
+        userDefaults.set(true, forKey: MartenIOSDefaults.syncAutoEnableMigrationCompletedKey)
+
+        _ = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider()
+        )
+
+        XCTAssertFalse(userDefaults.bool(forKey: MartenIOSDefaults.syncEnabledKey))
+        XCTAssertTrue(userDefaults.bool(forKey: MartenIOSDefaults.syncAutoEnableMigrationCompletedKey))
+    }
+
     func testCreateTextItemStoresContent() async throws {
         let persistence = PersistenceController(inMemory: true)
         let store = ClipItemStore(persistence: persistence)
@@ -169,7 +205,7 @@ final class MartenIOSAppContainerTests: XCTestCase {
             syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider()
         )
 
-        // With sync disabled (our default), background should be a no-op
+        // With sync unavailable in this test configuration, background should be a no-op.
         await container.handleScenePhase(.background)
 
         // No crash, no error
@@ -302,6 +338,27 @@ final class MartenIOSAppContainerTests: XCTestCase {
         XCTAssertEqual(systemPinboards.first?.id, first.id)
         XCTAssertNil(container.selectedPinboardID)
     }
+
+    func testSetPinboardLockBroadcastsLockStateToWatchSignaler() {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let pinboard = try! store.createPinboard(name: "Lock Target", colorHex: "#334455")
+        let signaler = SpyWatchSyncSignaler()
+
+        let container = MartenIOSAppContainer(
+            persistenceController: persistence,
+            clipItemStore: store,
+            userDefaults: userDefaults,
+            syncConfigurationProvider: AlwaysDisabledSyncConfigurationProvider(),
+            watchSyncSignaler: signaler
+        )
+
+        container.setPinboardLock(true, for: pinboard)
+        XCTAssertEqual(signaler.lockStateUpdates.last, Set([pinboard.id]))
+
+        container.setPinboardLock(false, for: pinboard)
+        XCTAssertEqual(signaler.lockStateUpdates.last, Set<UUID>())
+    }
 }
 
 private struct AlwaysDisabledSyncConfigurationProvider: MartenIOSSyncConfigurationProviding {
@@ -311,5 +368,19 @@ private struct AlwaysDisabledSyncConfigurationProvider: MartenIOSSyncConfigurati
 
     func isSyncEnabled(_ userDefaults: UserDefaults) -> Bool {
         false
+    }
+}
+
+@MainActor
+private final class SpyWatchSyncSignaler: WatchSyncSignaling {
+    private(set) var syncCompletedCount = 0
+    private(set) var lockStateUpdates: [Set<UUID>] = []
+
+    func notifySyncCompleted() {
+        syncCompletedCount += 1
+    }
+
+    func pushLockState(_ lockedIDs: Set<UUID>) {
+        lockStateUpdates.append(lockedIDs)
     }
 }
