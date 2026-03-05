@@ -125,4 +125,50 @@ final class PasteStackManagerTests: XCTestCase {
         spinRunLoop(for: 0.2)
         XCTAssertEqual(viewModel.calls, [.paste(a.objectID.uriRepresentation(), plainText: false)])
     }
+
+    func testPasteOutsidePreservesDraggedIDOrder() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let a = try store.createTextItem(text: "a")
+        let b = try store.createTextItem(text: "b")
+        let c = try store.createTextItem(text: "c")
+
+        let viewModel = SpyOverlayViewModel()
+        let manager = PasteStackManager()
+        manager.pasteOutside(
+            itemIDs: [c.objectID, a.objectID],
+            plainText: false,
+            orderedItems: [a, b, c],
+            viewModel: viewModel
+        )
+
+        spinRunLoop(for: 0.2)
+        XCTAssertEqual(viewModel.calls, [.pasteMultiple(itemCount: 2, plainText: false)])
+        XCTAssertEqual(
+            viewModel.lastPastedItems.map { $0.objectID.uriRepresentation() },
+            [c.objectID.uriRepresentation(), a.objectID.uriRepresentation()]
+        )
+    }
+
+    func testPasteOutsidePastesAvailableItemsWhenListDiffersFromCurrentFilterView() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let available = try store.createTextItem(text: "available")
+        let missing = try store.createTextItem(text: "missing")
+
+        let viewModel = SpyOverlayViewModel()
+        let manager = PasteStackManager()
+        manager.pasteOutside(
+            itemIDs: [missing.objectID, available.objectID],
+            plainText: true,
+            orderedItems: [available],
+            viewModel: viewModel
+        )
+
+        spinRunLoop(for: 0.2)
+        XCTAssertEqual(
+            viewModel.calls,
+            [.paste(available.objectID.uriRepresentation(), plainText: true)]
+        )
+    }
 }

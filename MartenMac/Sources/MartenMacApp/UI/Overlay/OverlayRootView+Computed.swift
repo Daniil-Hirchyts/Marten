@@ -110,7 +110,7 @@ extension OverlayShellView {
     }
 
     var isDragEnabled: Bool {
-        !isSearchActive && !selectedPinboardIsReadOnly
+        !selectedPinboardIsReadOnly
     }
 
     var isReorderingEnabled: Bool {

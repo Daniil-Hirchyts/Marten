@@ -40,6 +40,7 @@ struct OverlayShellView: View {
 
     @EnvironmentObject var viewModel: OverlayViewModel
     @Environment(\.clipboardEventBroadcaster) var eventBroadcaster
+    @Environment(\.colorScheme) var colorScheme
     @StateObject var modifierMonitor = ModifierKeyMonitor()
     @StateObject var searchModel: OverlaySearchViewModel
     @StateObject var frameCoordinator = FrameCoordinator()
@@ -64,7 +65,6 @@ struct OverlayShellView: View {
     @FocusState var verticalPinboardNameFocused: Bool
     @FocusState var verticalPinboardEditNameFocused: Bool
     @State var isSearchExpanded = false
-    @State var pinboardTabsContentWidth: CGFloat = 0
     @State var isFilterPopoverPresented = false
     @State var cachedFilteredItems: [ClipItem] = []
     @State var lastFilterInputHash: Int = 0
@@ -144,6 +144,14 @@ struct OverlayShellView: View {
         }
     }
 
+    private var overlayCornerRadius: CGFloat {
+        overlayLayoutAxis == .horizontal ? 24 : 18
+    }
+
+    private var overlayBorderColor: Color {
+        (colorScheme == .dark ? Color.white : Color.black).opacity(0.14)
+    }
+
     var body: some View {
         lifecycleModifiedContent
             .onChange(of: filterInputHash) { _, newHash in
@@ -194,7 +202,11 @@ struct OverlayShellView: View {
         )
         .background(WindowAccessor(window: $window))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: overlayLayoutAxis == .horizontal ? 24 : 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: overlayCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: overlayCornerRadius, style: .continuous)
+                .strokeBorder(overlayBorderColor, lineWidth: 1)
+        }
         .onChange(of: dragCoordinator.dragPreviewData) { newData, _ in
             dragCoordinator.updateDragPreviewWindow(newData, parentWindow: window)
         }

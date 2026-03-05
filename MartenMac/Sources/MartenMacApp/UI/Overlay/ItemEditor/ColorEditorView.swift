@@ -24,29 +24,6 @@ struct ColorEditorView: View {
                 .padding(.bottom, 20)
 
             VStack(spacing: 12) {
-                // SwiftUI ColorPicker
-                HStack {
-                    Image(systemName: "paintpalette")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Text("Color Picker")
-                        .font(.system(size: 13, weight: .medium))
-                    Spacer()
-                    ColorPicker("", selection: $pickerColor, supportsOpacity: false)
-                        .labelsHidden()
-                        .onChange(of: pickerColor) { _, newColor in
-                            if let hex = newColor.hexStringMac {
-                                editingHex = hex
-                                hexText = hex
-                            }
-                        }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.primary.opacity(0.05))
-                )
 
                 // Hex text field
                 HStack(spacing: 8) {
@@ -79,6 +56,13 @@ struct ColorEditorView: View {
             .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onChange(of: hexText) { _, newValue in
+            if let normalized = Self.normalizeHex(newValue), normalized != editingHex {
+                editingHex = normalized
+                pickerColor = Color(hex: normalized, fallback: .gray)
+            }
+        }
     }
 
     private var swatch: some View {
@@ -102,7 +86,6 @@ struct ColorEditorView: View {
                         .foregroundStyle(fgColor.opacity(0.7))
                 }
             }
-            .shadow(color: bgColor.opacity(0.5), radius: 12, x: 0, y: 6)
     }
 
     // MARK: - Helpers
@@ -148,9 +131,7 @@ struct ColorEditorView: View {
     }
 }
 
-// MARK: - NSColor → hex
-
-private extension Color {
+extension Color {
     var hexStringMac: String? {
         guard let components = NSColor(self).usingColorSpace(.sRGB)?.cgColor.components,
               components.count >= 3 else { return nil }

@@ -9,6 +9,7 @@ protocol ClipItemEditing {
     func updateImageData(objectID: NSManagedObjectID, imageData: Data) throws
     func renameItem(objectID: NSManagedObjectID, title: String?) throws
     func updateFileName(objectID: NSManagedObjectID, newFileName: String) throws
+    func deleteItem(objectID: NSManagedObjectID) throws
 }
 
 extension ClipItemStore: ClipItemEditing {}

@@ -12,10 +12,18 @@ final class OverlayWindowController {
     }
 
     private enum AnimationConstants {
-        static let showDuration: TimeInterval = 0.18
+        static let showDuration: TimeInterval = 0.22
         static let showTimingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0, 0.4, 1)
-        static let hideDuration: TimeInterval = 0.12
+        static let hideDuration: TimeInterval = 0.16
         static let hideTimingFunction = CAMediaTimingFunction(controlPoints: 0.4, 0, 0.6, 1)
+        static let cursorShowDuration: TimeInterval = 0.24
+        static let cursorShowTimingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+        static let cursorHideDuration: TimeInterval = 0.18
+        static let cursorHideTimingFunction = CAMediaTimingFunction(controlPoints: 0.4, 0, 0.2, 1)
+        static let cursorMorphSize = CGSize(width: 180, height: 140)
+        static let minimumDuration: TimeInterval = 0.16
+        static let maximumDuration: TimeInterval = 0.34
+        static let travelSpeedPointsPerSecond: CGFloat = 2_400
         static let activationObserverStartDelay: TimeInterval = 0.01
     }
 
@@ -28,6 +36,7 @@ final class OverlayWindowController {
     private let eventBroadcaster: any MartenEventBroadcaster
     private let screenSharingManager: ScreenSharingManager
     private let layoutSettings: OverlayLayoutSettings
+    private var lastCursorAnchor: CGPoint?
     private var cancellables: Set<AnyCancellable> = []
 
     init(
@@ -56,7 +65,7 @@ final class OverlayWindowController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        panel.hasShadow = false
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.titleVisibility = .hidden
@@ -148,19 +157,27 @@ final class OverlayWindowController {
         guard screenSharingManager.shouldShowOverlay else { return }
         guard let screen = preferredScreen() else { return }
         let edge = layoutSettings.overlayScreenEdge
+        let cursorLocation = NSEvent.mouseLocation
         let targetFrame: NSRect
         if edge == .cursor {
             targetFrame = OverlayFrameCalculator.cursorFrame(
-                cursorLocation: NSEvent.mouseLocation,
+                cursorLocation: cursorLocation,
                 visibleFrame: screen.visibleFrame
             )
+            lastCursorAnchor = cursorLocation
         } else {
             targetFrame = frame(for: screen)
+            lastCursorAnchor = nil
         }
-        let showOffset = OverlayFrameCalculator.showOffset(for: edge)
-        let startFrame = targetFrame.offsetBy(dx: showOffset.width, dy: showOffset.height)
+        let startFrame = showStartFrame(
+            for: edge,
+            targetFrame: targetFrame,
+            visibleFrame: screen.visibleFrame,
+            cursorLocation: cursorLocation
+        )
 
         panel.setFrame(startFrame, display: true)
+        panel.ignoresMouseEvents = false
         panel.alphaValue = 0
         panel.appearance = nil // Inherit current system appearance
 
@@ -169,10 +186,16 @@ final class OverlayWindowController {
 
         startOutsideClickMonitor()
 
+        let showAnimation = showAnimation(for: edge)
+        let showDuration = animationDuration(
+            baseDuration: showAnimation.baseDuration,
+            from: startFrame,
+            to: targetFrame
+        )
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = AnimationConstants.showDuration
-            // Softer ease-out to avoid abrupt overlay entry.
-            context.timingFunction = AnimationConstants.showTimingFunction
+            context.duration = showDuration
+            context.timingFunction = showAnimation.timingFunction
+            context.allowsImplicitAnimation = true
             panel.animator().alphaValue = 1
             panel.animator().setFrame(targetFrame, display: true)
         } completionHandler: { [weak self] in
@@ -199,25 +222,35 @@ final class OverlayWindowController {
         }
         isVisible = false
 
-        let hideOffset = OverlayFrameCalculator.hideOffset(for: layoutSettings.overlayScreenEdge)
-        let endFrame = panel.frame.offsetBy(dx: hideOffset.width, dy: hideOffset.height)
+        let edge = layoutSettings.overlayScreenEdge
+        let visibleFrame = panel.screen?.visibleFrame ?? preferredScreen()?.visibleFrame
+        let endFrame: NSRect
+        if let visibleFrame {
+            endFrame = hideEndFrame(
+                for: edge,
+                currentFrame: panel.frame,
+                visibleFrame: visibleFrame
+            )
+        } else {
+            endFrame = panel.frame
+        }
 
+        let hideAnimation = hideAnimation(for: edge)
+        let hideDuration = animationDuration(
+            baseDuration: hideAnimation.baseDuration,
+            from: panel.frame,
+            to: endFrame
+        )
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = AnimationConstants.hideDuration
-            context.timingFunction = AnimationConstants.hideTimingFunction
+            context.duration = hideDuration
+            context.timingFunction = hideAnimation.timingFunction
+            context.allowsImplicitAnimation = true
             panel.animator().alphaValue = 0
             panel.animator().setFrame(endFrame, display: true)
         } completionHandler: { [weak self] in
-            guard let self else { return }
-            self.panel.orderOut(nil)
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                if resetState {
-                    self.viewModel?.resetState()
-                }
-                self.stopOutsideClickMonitor()
-                self.stopActivationObservers()
-                completion?()
+                self.finalizeHide(resetState: resetState, completion: completion)
             }
         }
     }
@@ -231,6 +264,146 @@ final class OverlayWindowController {
             preferredVerticalSize: layoutSettings.verticalSize
         )
         return frame
+    }
+
+    private func showAnimation(
+        for edge: OverlayScreenEdge
+    ) -> (baseDuration: TimeInterval, timingFunction: CAMediaTimingFunction) {
+        if edge == .cursor {
+            return (
+                baseDuration: AnimationConstants.cursorShowDuration,
+                timingFunction: AnimationConstants.cursorShowTimingFunction
+            )
+        }
+        return (
+            baseDuration: AnimationConstants.showDuration,
+            timingFunction: AnimationConstants.showTimingFunction
+        )
+    }
+
+    private func hideAnimation(
+        for edge: OverlayScreenEdge
+    ) -> (baseDuration: TimeInterval, timingFunction: CAMediaTimingFunction) {
+        if edge == .cursor {
+            return (
+                baseDuration: AnimationConstants.cursorHideDuration,
+                timingFunction: AnimationConstants.cursorHideTimingFunction
+            )
+        }
+        return (
+            baseDuration: AnimationConstants.hideDuration,
+            timingFunction: AnimationConstants.hideTimingFunction
+        )
+    }
+
+    private func animationDuration(
+        baseDuration: TimeInterval,
+        from startFrame: NSRect,
+        to endFrame: NSRect
+    ) -> TimeInterval {
+        let dx = endFrame.midX - startFrame.midX
+        let dy = endFrame.midY - startFrame.midY
+        let distance = hypot(dx, dy)
+        let travelDuration = TimeInterval(distance / AnimationConstants.travelSpeedPointsPerSecond)
+        let candidate = max(baseDuration, travelDuration)
+        return min(
+            AnimationConstants.maximumDuration,
+            max(AnimationConstants.minimumDuration, candidate)
+        )
+    }
+
+    private func showStartFrame(
+        for edge: OverlayScreenEdge,
+        targetFrame: NSRect,
+        visibleFrame: NSRect,
+        cursorLocation: CGPoint
+    ) -> NSRect {
+        switch edge {
+        case .cursor:
+            return cursorMorphFrame(
+                for: targetFrame,
+                anchorPoint: cursorLocation,
+                collapsedSize: AnimationConstants.cursorMorphSize
+            )
+        case .bottom, .top, .left, .right:
+            return fullyOffscreenFrame(for: targetFrame, edge: edge, visibleFrame: visibleFrame)
+        }
+    }
+
+    private func hideEndFrame(
+        for edge: OverlayScreenEdge,
+        currentFrame: NSRect,
+        visibleFrame: NSRect
+    ) -> NSRect {
+        switch edge {
+        case .cursor:
+            let anchor = lastCursorAnchor ?? CGPoint(x: currentFrame.midX, y: currentFrame.midY)
+            return cursorMorphFrame(
+                for: currentFrame,
+                anchorPoint: anchor,
+                collapsedSize: AnimationConstants.cursorMorphSize
+            )
+        case .bottom, .top, .left, .right:
+            return fullyOffscreenFrame(for: currentFrame, edge: edge, visibleFrame: visibleFrame)
+        }
+    }
+
+    private func fullyOffscreenFrame(
+        for frame: NSRect,
+        edge: OverlayScreenEdge,
+        visibleFrame: NSRect
+    ) -> NSRect {
+        var offscreenFrame = frame
+        switch edge {
+        case .bottom:
+            offscreenFrame.origin.y = visibleFrame.minY - frame.height
+        case .top:
+            offscreenFrame.origin.y = visibleFrame.maxY
+        case .left:
+            offscreenFrame.origin.x = visibleFrame.minX - frame.width
+        case .right:
+            offscreenFrame.origin.x = visibleFrame.maxX
+        case .cursor:
+            break
+        }
+        return offscreenFrame
+    }
+
+    private func cursorMorphFrame(
+        for targetFrame: NSRect,
+        anchorPoint: CGPoint,
+        collapsedSize: CGSize
+    ) -> NSRect {
+        let normalizedAnchorX = min(
+            1,
+            max(0, (anchorPoint.x - targetFrame.minX) / max(targetFrame.width, 1))
+        )
+        let normalizedAnchorY = min(
+            1,
+            max(0, (anchorPoint.y - targetFrame.minY) / max(targetFrame.height, 1))
+        )
+
+        return NSRect(
+            x: anchorPoint.x - (collapsedSize.width * normalizedAnchorX),
+            y: anchorPoint.y - (collapsedSize.height * normalizedAnchorY),
+            width: collapsedSize.width,
+            height: collapsedSize.height
+        )
+    }
+
+    private func finalizeHide(resetState: Bool, completion: (() -> Void)?) {
+        panel.orderOut(nil)
+        panel.ignoresMouseEvents = false
+        panel.alphaValue = 1
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if resetState {
+                self.viewModel?.resetState()
+            }
+            self.stopOutsideClickMonitor()
+            self.stopActivationObservers()
+            completion?()
+        }
     }
 
     private func handleLayoutSettingsChange() {
@@ -323,6 +496,11 @@ final class OverlayWindowController {
                             if self.viewModel?.isAuthenticating == true {
                                 return
                             }
+                            // During native drag handoff we intentionally keep the panel alive
+                            // but fully transparent; hiding here can invalidate the drag source.
+                            if self.isTemporarilyTransparentForDrag {
+                                return
+                            }
                             if self.isVisible {
                                 self.hide()
                             }
@@ -346,6 +524,11 @@ final class OverlayWindowController {
                         if self.viewModel?.isAuthenticating == true {
                             return
                         }
+                        // During native drag handoff we intentionally keep the panel alive
+                        // but fully transparent; hiding here can invalidate the drag source.
+                        if self.isTemporarilyTransparentForDrag {
+                            return
+                        }
                         if self.isVisible {
                             self.hide()
                         }
@@ -353,6 +536,10 @@ final class OverlayWindowController {
                 }
             )
         )
+    }
+
+    private var isTemporarilyTransparentForDrag: Bool {
+        isVisible && panel.alphaValue <= 0.01
     }
 
     private func stopActivationObservers() {
@@ -370,6 +557,11 @@ private final class OverlayPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
     override var acceptsFirstResponder: Bool { true }
+
+    // Keep animation endpoints intact even when they are fully off-screen.
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
+    }
 
     override func becomeKey() {
         super.becomeKey()

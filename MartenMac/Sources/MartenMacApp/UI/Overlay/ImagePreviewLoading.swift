@@ -5,6 +5,10 @@ import ImageIO
 import MartenCore
     
 struct ImagePreviewSourceSnapshot: Equatable, Sendable {
+    private static let imageLikeFileExtensions: Set<String> = [
+        "png", "jpg", "jpeg", "gif", "tif", "tiff", "bmp", "heic", "heif", "webp", "svg", "pdf",
+    ]
+
     let kind: RepresentationKind
     let binaryData: Data?
     let assetRef: UUID?
@@ -36,7 +40,12 @@ struct ImagePreviewSourceSnapshot: Equatable, Sendable {
     }
 
     var isRenderableImageKind: Bool {
-        kind == .png || kind == .jpeg || kind == .tiff || kind == .pdf
+        kind == .png
+            || kind == .jpeg
+            || kind == .tiff
+            || kind == .pdf
+            || (kind == .custom
+                && normalizedFileExtension.map({ Self.imageLikeFileExtensions.contains($0) }) == true)
     }
 
     var assetFileURL: URL? {
@@ -60,10 +69,16 @@ struct ImagePreviewSourceSnapshot: Equatable, Sendable {
 
     var cacheSignature: String {
         let assetSignature = assetRef?.uuidString ?? "none"
-        let extensionSignature = fileExtension?.lowercased() ?? "none"
+        let extensionSignature = normalizedFileExtension ?? "none"
         let pathSignature = normalizedTextPath ?? "none"
         let byteCount = binaryData?.count ?? 0
         return "\(kind.rawValue).\(assetSignature).\(extensionSignature).\(byteCount).\(pathSignature)"
+    }
+
+    private var normalizedFileExtension: String? {
+        let trimmed = fileExtension?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+        return trimmed
     }
 
     private var normalizedTextPath: String? {
@@ -189,31 +204,47 @@ final class CardImagePreviewLoader {
 
     static func resolvePreview(for request: ImagePreviewRequest) -> ImagePreviewLoadResult? {
         for source in request.sources where source.isRenderableImageKind {
-            if let assetFileURL = source.assetFileURL,
-                let image = downsampleImage(at: assetFileURL, maxPixelSize: request.cachePixelSize)
-            {
-                return ImagePreviewLoadResult(image: image, source: .assetFileURL)
+            if let assetFileURL = source.assetFileURL {
+                if let image = downsampleImage(at: assetFileURL, maxPixelSize: request.cachePixelSize)
+                    ?? rasterizedImage(fromFileURL: assetFileURL, maxPixelSize: request.cachePixelSize)
+                {
+                    return ImagePreviewLoadResult(image: image, source: .assetFileURL)
+                }
             }
         }
 
         for source in request.sources where source.kind == .fileURL {
-            if let fileURL = source.fileURLRepresentation,
-                let image = downsampleImage(at: fileURL, maxPixelSize: request.cachePixelSize)
-            {
-                return ImagePreviewLoadResult(image: image, source: .fileURLRepresentation)
+            if let fileURL = source.fileURLRepresentation {
+                if let image = downsampleImage(at: fileURL, maxPixelSize: request.cachePixelSize)
+                    ?? rasterizedImage(fromFileURL: fileURL, maxPixelSize: request.cachePixelSize)
+                {
+                    return ImagePreviewLoadResult(image: image, source: .fileURLRepresentation)
+                }
             }
         }
 
         for source in request.sources where source.isRenderableImageKind {
-            if let binaryData = source.binaryData,
-                let image = downsampleImage(from: binaryData, maxPixelSize: request.cachePixelSize)
-            {
-                return ImagePreviewLoadResult(image: image, source: .inlineData)
+            if let binaryData = source.binaryData {
+                if let image = downsampleImage(from: binaryData, maxPixelSize: request.cachePixelSize)
+                    ?? rasterizedImage(fromData: binaryData, maxPixelSize: request.cachePixelSize)
+                {
+                    return ImagePreviewLoadResult(image: image, source: .inlineData)
+                }
             }
         }
 
         return nil
     }
+}
+
+private func rasterizedImage(fromFileURL url: URL, maxPixelSize: Int) -> NSImage? {
+    guard let image = NSImage(contentsOf: url) else { return nil }
+    return image.scaledForPreview(maxPixelSize: maxPixelSize)
+}
+
+private func rasterizedImage(fromData data: Data, maxPixelSize: Int) -> NSImage? {
+    guard let image = NSImage(data: data) else { return nil }
+    return image.scaledForPreview(maxPixelSize: maxPixelSize)
 }
 
 private func downsampleImage(at url: URL, maxPixelSize: Int) -> NSImage? {
@@ -261,6 +292,60 @@ private func downsampleImage(from source: CGImageSource, maxPixelSize: Int) -> N
 }
 
 private extension NSImage {
+    func scaledForPreview(maxPixelSize: Int) -> NSImage {
+        let targetMax = max(1, maxPixelSize)
+        if let cgImage = cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            let width = cgImage.width
+            let height = cgImage.height
+            let longest = max(width, height)
+            guard longest > targetMax else {
+                return NSImage(cgImage: cgImage, size: .zero)
+            }
+
+            let scale = CGFloat(targetMax) / CGFloat(longest)
+            let targetWidth = max(1, Int((CGFloat(width) * scale).rounded()))
+            let targetHeight = max(1, Int((CGFloat(height) * scale).rounded()))
+            let colorSpace = cgImage.colorSpace ?? CGColorSpaceCreateDeviceRGB()
+            let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+
+            guard
+                let context = CGContext(
+                    data: nil,
+                    width: targetWidth,
+                    height: targetHeight,
+                    bitsPerComponent: 8,
+                    bytesPerRow: 0,
+                    space: colorSpace,
+                    bitmapInfo: bitmapInfo
+                )
+            else {
+                return self
+            }
+
+            context.interpolationQuality = .high
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
+
+            guard let scaledCGImage = context.makeImage() else { return self }
+            return NSImage(cgImage: scaledCGImage, size: .zero)
+        }
+
+        guard size.width > 0, size.height > 0 else { return self }
+        let longest = max(size.width, size.height)
+        guard longest > CGFloat(targetMax) else { return self }
+
+        let scale = CGFloat(targetMax) / longest
+        let targetSize = NSSize(
+            width: max(1, (size.width * scale).rounded()),
+            height: max(1, (size.height * scale).rounded())
+        )
+        let image = NSImage(size: targetSize)
+        image.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        draw(in: NSRect(origin: .zero, size: targetSize))
+        image.unlockFocus()
+        return image
+    }
+
     var thumbnailByteCost: Int {
         let bitmapRepresentations = representations.compactMap { $0 as? NSBitmapImageRep }
         if

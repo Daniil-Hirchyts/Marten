@@ -57,8 +57,32 @@ extension ItemEditorContentView {
             }
             onSave(fileName)
 
+        case .color:
+            let trimmedText = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedText.isEmpty {
+                do {
+                    try clipItemEditor.deleteItem(objectID: item.objectID)
+                } catch {
+                    NSSound.beep()
+                }
+                return
+            }
+
+            do {
+                _ = try clipItemEditor.updateTextItem(objectID: item.objectID, newText: draftText)
+            } catch {
+                NSSound.beep()
+            }
+            onSave(draftText)
+
         default:
             do {
+                let trimmedText = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmedText.isEmpty {
+                    try clipItemEditor.deleteItem(objectID: item.objectID)
+                    return
+                }
+
                 let attributed =
                     draftAttributedText?.removingTextColorAttributes()
                     ?? NSAttributedString(

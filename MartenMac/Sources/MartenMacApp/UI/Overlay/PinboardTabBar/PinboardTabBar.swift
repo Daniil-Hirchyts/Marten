@@ -15,6 +15,17 @@ private struct ScrollViewBoundsKey: PreferenceKey {
     }
 }
 
+private struct AddButtonWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        let next = nextValue()
+        if next > 0 {
+            value = next
+        }
+    }
+}
+
 enum PinboardTabBarIDs {
     static let allTabObjectID = NSManagedObjectID()
 }
@@ -89,7 +100,7 @@ struct PinboardTabBar<CreatePopoverContent: View>: View {
     @State var dragOpacity: Double = 0
     @State var dropTarget: PinboardTabDropTarget?
     @State var commitState: CommitState = .none
-    @State var trailingTabWidth: CGFloat = 40
+    @State var addButtonWidth: CGFloat = 30
     @State var autoScrollTimer: Timer?
     @State var scrollViewBounds: CGRect = .zero
     @State var currentScrollProxy: ScrollViewProxy?
@@ -107,14 +118,12 @@ struct PinboardTabBar<CreatePopoverContent: View>: View {
         editingID == nil
     }
 
+    let tabsToAddSpacing: CGFloat = 6
     let scrollContentPadding: CGFloat = 10
+    let fallbackTabsContentWidth: CGFloat = 120
 
     var measuredContentWidth: CGFloat {
         frameManager.contentWidth
-    }
-
-    func availableScrollWidth(parentWidth: CGFloat) -> CGFloat {
-        max(0, parentWidth - trailingTabWidth - tabSpacing)
     }
 
     func overlayFrame(from proxy: GeometryProxy) -> CGRect {
@@ -125,27 +134,33 @@ struct PinboardTabBar<CreatePopoverContent: View>: View {
         proxy.frame(in: .named(localCoordinateSpaceName))
     }
 
-    func scrollViewWidth(parentWidth: CGFloat) -> CGFloat {
-        let availableWidth = availableScrollWidth(parentWidth: parentWidth)
-
-        if measuredContentWidth > 0 {
-            let contentWithPadding = measuredContentWidth + (scrollContentPadding * 2)
-            return min(contentWithPadding, availableWidth)
-        }
-
-        return availableWidth
+    func layoutMetrics(parentWidth: CGFloat) -> PinboardTabBarLayoutMetrics {
+        PinboardTabBarLayoutMetrics(
+            parentWidth: parentWidth,
+            addButtonWidth: addButtonWidth,
+            interControlSpacing: tabsToAddSpacing,
+            measuredContentWidth: measuredContentWidth,
+            lastNonZeroContentWidth: frameManager.lastNonZeroContentWidth,
+            scrollContentPadding: scrollContentPadding,
+            fallbackContentWidth: fallbackTabsContentWidth
+        )
     }
 
-    func shouldDisableScroll(parentWidth: CGFloat) -> Bool {
-        guard measuredContentWidth > 0 else { return true }
-        let availableWidth = availableScrollWidth(parentWidth: parentWidth)
-        let contentWithPadding = measuredContentWidth + (scrollContentPadding * 2)
-        return contentWithPadding <= availableWidth
+    func scrollToSelectedPinboard(using scrollProxy: ScrollViewProxy, selectedID: UUID?) {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            if let selectedID {
+                scrollProxy.scrollTo(selectedID, anchor: .center)
+            } else {
+                scrollProxy.scrollTo("all", anchor: .center)
+            }
+        }
     }
 
     var body: some View {
         GeometryReader { proxy in
-            HStack(spacing: 6) {
+            let metrics = layoutMetrics(parentWidth: proxy.size.width)
+
+            HStack(spacing: tabsToAddSpacing) {
                 ScrollViewReader { scrollProxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         pinboardsContent(isMeasuring: false)
@@ -153,29 +168,25 @@ struct PinboardTabBar<CreatePopoverContent: View>: View {
                             .padding(.horizontal, scrollContentPadding)
                     }
                     .scrollClipDisabled()
-                    .scrollDisabled(shouldDisableScroll(parentWidth: proxy.size.width))
+                    .scrollDisabled(metrics.isScrollDisabled)
                     .coordinateSpace(name: scrollSpaceName)
-                    .frame(width: scrollViewWidth(parentWidth: proxy.size.width))
+                    .frame(width: metrics.viewportWidth)
                     .background(
                         GeometryReader { scrollGeo in
                             let bounds = scrollGeo.frame(in: .named(localCoordinateSpaceName))
                             Color.clear
                                 .preference(key: ScrollViewBoundsKey.self, value: bounds)
                                 .onAppear {
-                                    DispatchQueue.main.async {
-                                        if !rectsApproximatelyEqual(scrollViewBounds, bounds) {
-                                            scrollViewBounds = bounds
-                                        }
-                                        currentScrollProxy = scrollProxy
+                                    if !rectsApproximatelyEqual(scrollViewBounds, bounds) {
+                                        scrollViewBounds = bounds
                                     }
+                                    currentScrollProxy = scrollProxy
                                 }
                         }
                     )
                     .onPreferenceChange(ScrollViewBoundsKey.self) { newBounds in
-                        DispatchQueue.main.async {
-                            if !rectsApproximatelyEqual(scrollViewBounds, newBounds) {
-                                scrollViewBounds = newBounds
-                            }
+                        if !rectsApproximatelyEqual(scrollViewBounds, newBounds) {
+                            scrollViewBounds = newBounds
                         }
                     }
                     .onChange(of: dragState) { newDragState, _ in
@@ -186,16 +197,20 @@ struct PinboardTabBar<CreatePopoverContent: View>: View {
                         guard let pinboard = pinboards.first(where: { $0.objectID == newEditingID }) else {
                             return
                         }
-                        DispatchQueue.main.async {
-                            withAnimation(.easeInOut(duration: 0.18)) {
-                                scrollProxy.scrollTo(pinboard.id, anchor: .center)
-                            }
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            scrollProxy.scrollTo(pinboard.id, anchor: .center)
                         }
+                    }
+                    .onChange(of: selectedID) { _, newSelectedID in
+                        scrollToSelectedPinboard(using: scrollProxy, selectedID: newSelectedID)
+                    }
+                    .onChange(of: pinboards.map(\.id)) { _, _ in
+                        scrollToSelectedPinboard(using: scrollProxy, selectedID: selectedID)
                     }
                 }
                 .mask {
-                    let width = scrollViewWidth(parentWidth: proxy.size.width)
-                    let fadeLocation = width > 0 ? scrollContentPadding / width : 0
+                    let width = metrics.viewportWidth
+                    let fadeLocation = width > 0 ? min(0.5, scrollContentPadding / width) : 0
                     
                     LinearGradient(
                         gradient: Gradient(stops: [
@@ -238,14 +253,19 @@ struct PinboardTabBar<CreatePopoverContent: View>: View {
                 }
                 .background(
                     GeometryReader { proxy in
-                        Color.clear.preference(
-                            key: PinboardLayoutInfoKey.self,
-                            value: PinboardLayoutInfo(editorOverlayFrame: overlayFrame(from: proxy))
-                        )
+                        Color.clear
+                            .preference(
+                                key: PinboardLayoutInfoKey.self,
+                                value: PinboardLayoutInfo(editorOverlayFrame: overlayFrame(from: proxy))
+                            )
+                            .preference(
+                                key: AddButtonWidthKey.self,
+                                value: proxy.size.width
+                            )
                     }
                 )
             }
-            .fixedSize(horizontal: true, vertical: false)
+            .frame(width: metrics.groupWidth, alignment: .leading)
             .coordinateSpace(name: localCoordinateSpaceName)
             .overlay(alignment: .topLeading) {
                 placeholderView()
@@ -253,24 +273,23 @@ struct PinboardTabBar<CreatePopoverContent: View>: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .onPreferenceChange(PinboardContentWidthKey.self) { width in
-            DispatchQueue.main.async {
-                if let width {
-                    frameManager.setContentWidth(width)
-                }
+            if let width {
+                frameManager.setContentWidth(width)
             }
         }
         .onPreferenceChange(PinboardLayoutInfoKey.self) { layout in
-            DispatchQueue.main.async {
-                frameManager.suppressUpdates = (dragState != nil || isGlobalDragActive)
-                if !layout.tabFrames.isEmpty {
-                    frameManager.updateTabFrames(layout.tabFrames)
-                }
-                if let offset = layout.scrollOffset {
-                    frameCoordinator.updateCurrentPinboardScrollOffset(offset)
-                }
-                if let w = layout.editorOverlayFrame?.width, trailingTabWidth != w {
-                    trailingTabWidth = w
-                }
+            frameManager.suppressUpdates = (dragState != nil || isGlobalDragActive)
+            if !layout.tabFrames.isEmpty {
+                frameManager.updateTabFrames(layout.tabFrames)
+            }
+            if let offset = layout.scrollOffset {
+                frameCoordinator.updateCurrentPinboardScrollOffset(offset)
+            }
+        }
+        .onPreferenceChange(AddButtonWidthKey.self) { width in
+            guard width > 0 else { return }
+            if abs(addButtonWidth - width) > 0.5 {
+                addButtonWidth = width
             }
         }
         .onChange(of: draftName) { newValue, _ in
@@ -302,6 +321,9 @@ struct PinboardTabBar<CreatePopoverContent: View>: View {
         }
         .onAppear {
             frameManager.clearCaches()
+            if addButtonWidth <= 0 {
+                addButtonWidth = headerButtonSize
+            }
         }
     }
 }

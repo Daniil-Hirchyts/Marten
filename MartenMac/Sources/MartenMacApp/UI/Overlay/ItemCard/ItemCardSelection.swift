@@ -74,7 +74,21 @@ extension ItemCard {
                     ),
                     lineWidth: 1
                 )
+        } else {
+            cardShape
+                .strokeBorder(defaultBorderGradient, lineWidth: 1)
         }
+    }
+
+    private var defaultBorderGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.white.opacity(colorScheme == .dark ? 0.15 : 0.8),
+                Color.white.opacity(colorScheme == .dark ? 0.04 : 0.2)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
     var headerBackgroundShape: UnevenRoundedRectangle {

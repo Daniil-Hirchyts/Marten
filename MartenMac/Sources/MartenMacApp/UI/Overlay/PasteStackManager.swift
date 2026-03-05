@@ -39,7 +39,8 @@ final class PasteStackManager {
         orderedItems: [ClipItem],
         viewModel: any OverlayPasting
     ) {
-        let draggedItems = orderedItems.filter { itemIDs.contains($0.objectID) }
+        let itemsByID = Dictionary(uniqueKeysWithValues: orderedItems.map { ($0.objectID, $0) })
+        let draggedItems = itemIDs.compactMap { itemsByID[$0] }
         guard let firstItem = draggedItems.first else {
             return
         }

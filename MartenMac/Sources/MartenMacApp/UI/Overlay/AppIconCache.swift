@@ -200,23 +200,36 @@ final class AppIconColorLoader: ObservableObject {
 }
 
 struct AppIconView: View {
+    enum LoadStrategy {
+        case async
+        case immediate
+    }
+
     let bundleID: String?
     let appName: String?
     let iconData: Data?
     let size: CGFloat
+    let loadStrategy: LoadStrategy
 
     @StateObject private var loader = AppIconLoader()
 
-    init(bundleID: String?, appName: String? = nil, iconData: Data? = nil, size: CGFloat = 16) {
+    init(
+        bundleID: String?,
+        appName: String? = nil,
+        iconData: Data? = nil,
+        size: CGFloat = 16,
+        loadStrategy: LoadStrategy = .async
+    ) {
         self.bundleID = bundleID
         self.appName = appName
         self.iconData = iconData
         self.size = size
+        self.loadStrategy = loadStrategy
     }
 
     var body: some View {
         Group {
-            if let icon = loader.icon {
+            if let icon = displayIcon {
                 Image(nsImage: icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -239,11 +252,66 @@ struct AppIconView: View {
         }
         .frame(width: size, height: size)
         .onAppear {
+            guard loadStrategy == .async else { return }
             loader.load(bundleID: bundleID, appName: appName, iconData: iconData)
         }
         .onChange(of: sourceIdentitySignature) { _, _ in
+            guard loadStrategy == .async else { return }
             loader.load(bundleID: bundleID, appName: appName, iconData: iconData)
         }
+    }
+
+    private var displayIcon: NSImage? {
+        switch loadStrategy {
+        case .async:
+            return loader.icon
+        case .immediate:
+            return immediateIcon ?? loader.icon
+        }
+    }
+
+    private var immediateIcon: NSImage? {
+        let resolvedBundleID = SourceAppIdentityResolver.resolvedBundleID(
+            bundleID: bundleID,
+            appName: appName
+        )
+
+        if let resolvedBundleID,
+            resolvedBundleID.isMartenBundleIdentifier,
+            let martenIcon = NSApplication.shared.applicationIconImage
+                ?? NSImage(named: NSImage.applicationIconName)
+        {
+            AppIconCache.shared.setIcon(martenIcon, bundleID: resolvedBundleID)
+            return martenIcon
+        }
+
+        if let iconData,
+            !iconData.isEmpty,
+            let embeddedIcon = NSImage(data: iconData)
+        {
+            if let resolvedBundleID {
+                AppIconCache.shared.setIcon(embeddedIcon, bundleID: resolvedBundleID)
+            }
+            return embeddedIcon
+        }
+
+        guard let resolvedBundleID else { return nil }
+
+        if let cached = AppIconCache.shared.cachedIcon(bundleID: resolvedBundleID) {
+            return cached
+        }
+
+        guard
+            let appURL = NSWorkspace.shared.urlForApplication(
+                withBundleIdentifier: resolvedBundleID
+            )
+        else {
+            return nil
+        }
+
+        let loadedIcon = NSWorkspace.shared.icon(forFile: appURL.path)
+        AppIconCache.shared.setIcon(loadedIcon, bundleID: resolvedBundleID)
+        return loadedIcon
     }
 
     private var sourceIdentitySignature: SourceIdentitySignature {

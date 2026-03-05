@@ -20,6 +20,8 @@ final class OverlayViewModel: ObservableObject {
     private let selectionHandler = ItemSelectionHandler()
 
     private let userDefaults = UserDefaults.standard
+    private var selectionAnchorID: NSManagedObjectID?
+    private var selectionCursorID: NSManagedObjectID?
 
     init(
         persistence: PersistenceController,
@@ -55,6 +57,8 @@ final class OverlayViewModel: ObservableObject {
     @MainActor
     func resetState() {
         selectedItemIDs.removeAll()
+        selectionAnchorID = nil
+        selectionCursorID = nil
         mode = .browse
     }
 
@@ -67,24 +71,33 @@ final class OverlayViewModel: ObservableObject {
     func selectItem(
         _ item: ClipItem, in orderedItems: [ClipItem], isShiftPressed: Bool, isCommandPressed: Bool
     ) {
-        selectedItemIDs = selectionHandler.updatedSelection(
+        let update = selectionHandler.updatedSelection(
             currentSelection: selectedItemIDs,
+            currentAnchorID: selectionAnchorID,
+            currentCursorID: selectionCursorID,
             orderedItems: orderedItems,
             tappedItem: item,
             isShiftPressed: isShiftPressed,
             isCommandPressed: isCommandPressed
         )
+        selectedItemIDs = update.selectedIDs
+        selectionAnchorID = update.anchorID
+        selectionCursorID = update.cursorID
     }
 
     @MainActor
     func clearSelection() {
         selectedItemIDs.removeAll()
+        selectionAnchorID = nil
+        selectionCursorID = nil
     }
 
     @MainActor
     func ensureDefaultSelection(in orderedItems: [ClipItem]) {
         guard !orderedItems.isEmpty else {
             selectedItemIDs.removeAll()
+            selectionAnchorID = nil
+            selectionCursorID = nil
             return
         }
 
@@ -95,92 +108,118 @@ final class OverlayViewModel: ObservableObject {
         if validSelection != selectedItemIDs {
             selectedItemIDs = validSelection
         }
+        reconcileSelectionEndpoints(in: orderedItems)
     }
 
     @MainActor
     func restoreSelection(_ ids: Set<NSManagedObjectID>, in orderedItems: [ClipItem]) {
-        selectedItemIDs = ids
+        let visibleIDs = Set(orderedItems.map(\.objectID))
+        selectedItemIDs = ids.intersection(visibleIDs)
+        reconcileSelectionEndpoints(in: orderedItems)
     }
-
-    private var selectionAnchorID: NSManagedObjectID?
 
     @MainActor
     func moveSelection(direction: Int, in orderedItems: [ClipItem], isShiftPressed: Bool = false) {
         guard !orderedItems.isEmpty else { return }
 
-        // If nothing selected, select first item
-        guard let firstSelectedID = selectedItemIDs.first else {
-            selectedItemIDs = [orderedItems[0].objectID]
-            selectionAnchorID = orderedItems[0].objectID
+        guard !selectedItemIDs.isEmpty else {
+            let firstID = orderedItems[0].objectID
+            selectedItemIDs = [firstID]
+            selectionAnchorID = firstID
+            selectionCursorID = firstID
             return
         }
-        
-        // Find current focus index (start point for movement)
-        // If we have an anchor, we should move relative to the "other end" of the selection
-        // But for simplicity in arrow nav, we usually move relative to the last focused item.
-        // Let's assume the "focus" is the item that changed last.
-        // If we don't track focus explicitly, we can infer:
-        // If moving Down (1), we probably want to extend from the max index?
-        // Actually, standard behavior:
-        // Anchor is fixed. Cursor moves.
-        // Range = [Anchor ... Cursor]
-        
-        // Let's find the current "cursor".
-        // If we just started shifting, cursor is the current selection (single).
-        // If we are already multi-selecting, the cursor is the item we just added.
-        // We need `selectionCursorID` ideally, but let's try to infer or just add it.
-        // Adding `selectionCursorID` is safer.
-        
-        let cursorID = selectionCursorID ?? firstSelectedID
-        guard let cursorIndex = orderedItems.firstIndex(where: { $0.objectID == cursorID }) else {
-             // Fallback
-            selectedItemIDs = [orderedItems[0].objectID]
-            selectionAnchorID = orderedItems[0].objectID
-            selectionCursorID = orderedItems[0].objectID
+
+        reconcileSelectionEndpoints(in: orderedItems)
+
+        guard
+            let cursorID = selectionCursorID,
+            let cursorIndex = orderedItems.firstIndex(where: { $0.objectID == cursorID })
+        else {
+            let firstID = orderedItems[0].objectID
+            selectedItemIDs = [firstID]
+            selectionAnchorID = firstID
+            selectionCursorID = firstID
             return
         }
 
         let newIndex = cursorIndex + direction
-        
-        // Clamp to bounds
         guard newIndex >= 0 && newIndex < orderedItems.count else { return }
-        
+
         let newItem = orderedItems[newIndex]
-        
+
         if isShiftPressed {
-            // Start of range selection?
-            if selectionAnchorID == nil {
+            if let anchorID = selectionAnchorID {
+                if !selectedItemIDs.contains(anchorID) {
+                    selectionAnchorID = cursorID
+                }
+            } else {
                 selectionAnchorID = cursorID
             }
-            
-            guard let anchorID = selectionAnchorID,
-                  let anchorIndex = orderedItems.firstIndex(where: { $0.objectID == anchorID })
+
+            guard
+                let anchorID = selectionAnchorID,
+                let anchorIndex = orderedItems.firstIndex(where: { $0.objectID == anchorID })
             else {
-                // Anchor lost? Reset
-                selectedItemIDs = [newItem.objectID]
-                selectionAnchorID = newItem.objectID
-                selectionCursorID = newItem.objectID
+                let id = newItem.objectID
+                selectedItemIDs = [id]
+                selectionAnchorID = id
+                selectionCursorID = id
                 return
             }
-            
-            // Select range [Anchor ... NewIndex]
+
             let start = min(anchorIndex, newIndex)
             let end = max(anchorIndex, newIndex)
-            let rangeItems = orderedItems[start...end]
-            
-            selectedItemIDs = Set(rangeItems.map(\.objectID))
-            selectionCursorID = newItem.objectID // Update cursor to where we moved
-            
-        } else {
-            // Normal navigation - reset anchor/cursor
-            selectedItemIDs = [newItem.objectID]
-            selectionAnchorID = newItem.objectID
+            let rangeItems = orderedItems[start...end].map(\.objectID)
+
+            selectedItemIDs = Set(rangeItems)
             selectionCursorID = newItem.objectID
+        } else {
+            let id = newItem.objectID
+            selectedItemIDs = [id]
+            selectionAnchorID = id
+            selectionCursorID = id
         }
     }
-    
-    // Track the "cursor" (the active end of the selection)
-    private var selectionCursorID: NSManagedObjectID?
+
+    @MainActor
+    private func reconcileSelectionEndpoints(in orderedItems: [ClipItem]) {
+        guard !selectedItemIDs.isEmpty else {
+            selectionAnchorID = nil
+            selectionCursorID = nil
+            return
+        }
+
+        if let anchorID = selectionAnchorID,
+            (!selectedItemIDs.contains(anchorID)
+                || !orderedItems.contains(where: { $0.objectID == anchorID }))
+        {
+            selectionAnchorID = nil
+        }
+
+        if let cursorID = selectionCursorID,
+            (!selectedItemIDs.contains(cursorID)
+                || !orderedItems.contains(where: { $0.objectID == cursorID }))
+        {
+            selectionCursorID = nil
+        }
+
+        if selectionAnchorID == nil {
+            selectionAnchorID = firstSelectedID(in: orderedItems, selectedIDs: selectedItemIDs)
+        }
+
+        if selectionCursorID == nil {
+            selectionCursorID = selectionAnchorID
+        }
+    }
+
+    @MainActor
+    private func firstSelectedID(
+        in orderedItems: [ClipItem],
+        selectedIDs: Set<NSManagedObjectID>
+    ) -> NSManagedObjectID? {
+        orderedItems.first(where: { selectedIDs.contains($0.objectID) })?.objectID
+    }
 
     @MainActor
     func paste(item: ClipItem, plainText: Bool) {

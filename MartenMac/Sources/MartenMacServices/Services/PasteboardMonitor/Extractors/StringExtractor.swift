@@ -5,7 +5,9 @@ import UniformTypeIdentifiers
 /// Extracts plain text from the pasteboard
 struct StringExtractor: PasteboardTypeExtractor {
     func extract(from pasteboard: NSPasteboard, displayOrder: Int16) -> ExtractionResult? {
-        guard let string = pasteboard.string(forType: .string), !string.isEmpty else {
+        guard let string = pasteboard.string(forType: .string),
+              !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
             return nil
         }
         

@@ -13,6 +13,9 @@ final class PinboardFrameManager: ObservableObject {
     /// Content width - published when significantly changed
     @Published private(set) var contentWidth: CGFloat = 0
 
+    /// Last known non-zero content width to avoid transient zero-width races.
+    @Published private(set) var lastNonZeroContentWidth: CGFloat = 0
+
     // MARK: - Non-Published Properties (always up-to-date, no re-renders)
 
     /// Latest tab frames (always current, doesn't trigger re-renders)
@@ -72,9 +75,11 @@ final class PinboardFrameManager: ObservableObject {
     }
 
     func setContentWidth(_ width: CGFloat) {
-        if suppressUpdates { return }
         if contentWidth != width {
             contentWidth = width
+        }
+        if width > 0, lastNonZeroContentWidth != width {
+            lastNonZeroContentWidth = width
         }
     }
 
@@ -83,6 +88,7 @@ final class PinboardFrameManager: ObservableObject {
         tabFrames = [:]
         latestTabFrames = [:]
         contentWidth = 0
+        lastNonZeroContentWidth = 0
         cachedOrderedFrames = nil
         suppressUpdates = false
     }

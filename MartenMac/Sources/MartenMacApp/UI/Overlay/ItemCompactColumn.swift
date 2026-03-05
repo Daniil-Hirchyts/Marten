@@ -61,6 +61,7 @@ struct ItemCompactColumn: View {
     @State private var pinboardDropTarget: PinboardDropTarget?
     @State private var dragOpacity: Double = 0
     @State private var dragSnapshotImage: NSImage?
+    @State private var draggedItemsByID: [NSManagedObjectID: ClipItem] = [:]
     @State private var pendingRowFrames: [NSManagedObjectID: CGRect]?
     @State private var isRowFrameUpdateScheduled = false
     @State private var isMeasuringRowFrames = false
@@ -139,7 +140,7 @@ struct ItemCompactColumn: View {
                                                 translation: state.translation
                                             )
                                         }
-                                        updateDragPreview(useCallback: true)
+                                        updateDragPreview()
                                     }
                                 }
                                 onTap(tappedItem)
@@ -263,8 +264,11 @@ struct ItemCompactColumn: View {
             pinboardDropTarget = nil
             dragState = nil
             dragOpacity = 0
+            dragSnapshotImage = nil
+            draggedItemsByID = [:]
             isMeasuringRowFrames = false
             rowFrames = [:]
+            publishDragPreview(nil)
             frameCoordinator.clearLatestItemFrames()
 
             let paginationEnabled = ItemCompactColumnPagination.isEnabled(
@@ -280,6 +284,8 @@ struct ItemCompactColumn: View {
         .onChange(of: dragPreviewData) { newData, _ in
             if newData == nil {
                 dragState = nil
+                dragSnapshotImage = nil
+                draggedItemsByID = [:]
             }
         }
     }
@@ -353,17 +359,11 @@ struct ItemCompactColumn: View {
             } else {
                 itemIDs = [draggedID]
             }
+            draggedItemsByID = draggedItemsSnapshot(for: itemIDs)
 
-            // Capture card snapshot from the overlay for instant AppKit display
-            if let window {
-                let cardOverlayRect = CGRect(
-                    x: frame.origin.x + columnFrame.minX,
-                    y: frame.origin.y + columnFrame.minY,
-                    width: frame.width,
-                    height: frame.height
-                )
-                dragSnapshotImage = captureCardSnapshot(from: window, cardRect: cardOverlayRect)
-            }
+            // Do not use snapshot fallback for compact/cursor drag preview.
+            // Snapshot can capture a transient generic app icon before async icon loading finishes.
+            dragSnapshotImage = nil
 
             dragState = DragState(
                 itemIDs: itemIDs,
@@ -373,10 +373,8 @@ struct ItemCompactColumn: View {
                 translation: .zero
             )
             dragOpacity = 1
-            // Set binding for parent state
-            updateDragPreview(useCallback: false)
-            // Also call callback directly to create the preview window immediately
-            updateDragPreview(useCallback: true)
+            // Publish drag preview to both SwiftUI state and preview-window callback.
+            updateDragPreview()
             // Clear snapshot after first use — SwiftUI renders on top by the next event
             dragSnapshotImage = nil
             isMeasuringRowFrames = false
@@ -384,7 +382,7 @@ struct ItemCompactColumn: View {
             state.pointerLocation = overlayPointer
             state.translation = value.translation
             dragState = state
-            updateDragPreview(useCallback: true)
+            updateDragPreview()
         }
 
         let previousDropTarget = dropTarget
@@ -438,10 +436,13 @@ struct ItemCompactColumn: View {
                     dropTarget = nil
                     pinboardDropTarget = nil
                     dragOpacity = 0
+                    dragSnapshotImage = nil
+                    draggedItemsByID = [:]
                     onPinboardDropTargetChanged?(nil)
                     self.dragState = nil
                     isMeasuringRowFrames = false
                     rowFrames = [:]
+                    publishDragPreview(nil)
                     frameCoordinator.clearLatestItemFrames()
                     return
                 }
@@ -452,28 +453,23 @@ struct ItemCompactColumn: View {
     private func handleDragEnded(item: ClipItem, value: DragGesture.Value) {
         if isNativeDragActive?() == true { return }
 
-        guard isDragEnabled, let dragState, dragState.primaryItemID == item.objectID else { return }
+        guard isDragEnabled, let dragState, dragState.itemIDs.contains(item.objectID) else { return }
 
-        let localPointer = CGPoint(
-            x: value.startLocation.x + value.translation.width,
-            y: value.startLocation.y + value.translation.height
-        )
-        let overlayPointer = overlayPointerLocation(localPointer: localPointer)
+        // Use the tracked pointer so end-drag cleanup executes even when the ending gesture
+        // arrives from another dragged row.
+        let overlayPointer = dragState.pointerLocation
         var handled = false
+        let draggedItems = orderedDraggedItems(for: dragState.itemIDs)
 
         if let pinboardTarget = computePinboardDropTarget(overlayLocation: overlayPointer) {
             switch pinboardTarget {
             case .all:
-                for itemID in dragState.itemIDs {
-                    if let draggedItem = items.first(where: { $0.objectID == itemID }) {
-                        onDropToAll(draggedItem)
-                    }
+                for draggedItem in draggedItems {
+                    onDropToAll(draggedItem)
                 }
             case .pinboard(let pinboardID):
-                for itemID in dragState.itemIDs {
-                    if let draggedItem = items.first(where: { $0.objectID == itemID }) {
-                        onDropToPinboard(draggedItem, pinboardID)
-                    }
+                for draggedItem in draggedItems {
+                    onDropToPinboard(draggedItem, pinboardID)
                 }
             }
             handled = true
@@ -509,15 +505,11 @@ struct ItemCompactColumn: View {
         pinboardDropTarget = nil
         dragOpacity = 0
         dragSnapshotImage = nil
+        draggedItemsByID = [:]
         onPinboardDropTargetChanged?(nil)
 
-        // Hide the preview window — must send nil explicitly (not just opacity 0)
-        // so the window is ordered out and recreated fresh for the next drag.
-        if let callback = onPreviewUpdate {
-            callback(nil)
-        } else {
-            dragPreviewData = nil
-        }
+        // Hide the preview window and clear local drag preview state.
+        publishDragPreview(nil)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             if dragState?.primaryItemID == itemID {
@@ -683,19 +675,32 @@ struct ItemCompactColumn: View {
         }
     }
 
-    private func updateDragPreview(useCallback: Bool = false) {
-        guard let dragState else {
-            if useCallback, let callback = onPreviewUpdate {
-                callback(nil)
-            } else {
-                dragPreviewData = nil
+    private func draggedItemsSnapshot(for itemIDs: [NSManagedObjectID]) -> [NSManagedObjectID: ClipItem] {
+        let itemsByID = Dictionary(uniqueKeysWithValues: items.map { ($0.objectID, $0) })
+        var snapshot: [NSManagedObjectID: ClipItem] = [:]
+        snapshot.reserveCapacity(itemIDs.count)
+        for id in itemIDs {
+            if let item = itemsByID[id] {
+                snapshot[id] = item
             }
+        }
+        return snapshot
+    }
+
+    private func orderedDraggedItems(for itemIDs: [NSManagedObjectID]) -> [ClipItem] {
+        let fallbackByID = Dictionary(uniqueKeysWithValues: items.map { ($0.objectID, $0) })
+        return itemIDs.compactMap { id in
+            draggedItemsByID[id] ?? fallbackByID[id]
+        }
+    }
+
+    private func updateDragPreview() {
+        guard let dragState else {
+            publishDragPreview(nil)
             return
         }
 
-        let draggedItems = dragState.itemIDs.compactMap { id in
-            items.first { $0.objectID == id }
-        }
+        let draggedItems = orderedDraggedItems(for: dragState.itemIDs)
         let previewSize = rowFrames[dragState.primaryItemID]?.width ?? min(220, max(150, (window?.frame.width ?? 220) - 40))
         let previewPosition = CGPoint(
             x: dragState.baseCenter.x + dragState.translation.width + columnFrame.minX,
@@ -713,11 +718,11 @@ struct ItemCompactColumn: View {
             snapshotImage: dragSnapshotImage
         )
 
-        if useCallback, let callback = onPreviewUpdate {
-            callback(data)
-        } else {
-            dragPreviewData = data
-        }
+        publishDragPreview(data)
+    }
+
+    private func publishDragPreview(_ data: DragPreviewData?) {
+        PreviewOutputPublisher.publish(data, binding: &dragPreviewData, callback: onPreviewUpdate)
     }
 }
 

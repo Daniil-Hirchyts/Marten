@@ -216,7 +216,7 @@ final class OverlayViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.selectedItemIDs.isEmpty)
     }
 
-    func testEnsureDefaultSelectionSelectsFirstOrderedItemWhenSelectionIsEmpty() throws {
+    func testEnsureDefaultSelectionLeavesSelectionEmptyWhenSelectionIsEmpty() throws {
         let persistence = PersistenceController(inMemory: true)
         let store = ClipItemStore(persistence: persistence)
         let itemA = try store.createTextItem(text: "a")
@@ -231,7 +231,7 @@ final class OverlayViewModelTests: XCTestCase {
         }
 
         viewModel.ensureDefaultSelection(in: [itemB, itemA])
-        XCTAssertEqual(viewModel.selectedItemIDs, [itemB.objectID])
+        XCTAssertTrue(viewModel.selectedItemIDs.isEmpty)
     }
 
     func testEnsureDefaultSelectionPreservesVisibleSelection() throws {
@@ -253,7 +253,7 @@ final class OverlayViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedItemIDs, [itemA.objectID])
     }
 
-    func testEnsureDefaultSelectionReplacesSelectionWhenNoItemsRemainVisible() throws {
+    func testEnsureDefaultSelectionPrunesSelectionWhenNoItemsRemainVisible() throws {
         let persistence = PersistenceController(inMemory: true)
         let store = ClipItemStore(persistence: persistence)
         let itemA = try store.createTextItem(text: "a")
@@ -269,6 +269,110 @@ final class OverlayViewModelTests: XCTestCase {
 
         viewModel.restoreSelection([itemA.objectID], in: [itemA, itemB])
         viewModel.ensureDefaultSelection(in: [itemB])
+        XCTAssertTrue(viewModel.selectedItemIDs.isEmpty)
+    }
+
+    func testSingleClickOnAlreadySelectedItemKeepsSelection() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let itemA = try store.createTextItem(text: "a")
+        let itemB = try store.createTextItem(text: "b")
+
+        let viewModel = OverlayViewModel(
+            persistence: persistence,
+            pasteEngine: TestPasteEngine(),
+            permissionManager: PermissionManager()
+        ) { completion in
+            completion()
+        }
+
+        viewModel.selectItem(itemA, in: [itemA, itemB], isShiftPressed: false, isCommandPressed: false)
+        viewModel.selectItem(itemA, in: [itemA, itemB], isShiftPressed: false, isCommandPressed: false)
+
+        XCTAssertEqual(viewModel.selectedItemIDs, [itemA.objectID])
+    }
+
+    func testShiftClickReplacesSelectionWithContiguousRange() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let itemA = try store.createTextItem(text: "a")
+        let itemB = try store.createTextItem(text: "b")
+        let itemC = try store.createTextItem(text: "c")
+        let itemD = try store.createTextItem(text: "d")
+
+        let viewModel = OverlayViewModel(
+            persistence: persistence,
+            pasteEngine: TestPasteEngine(),
+            permissionManager: PermissionManager()
+        ) { completion in
+            completion()
+        }
+
+        let orderedItems = [itemA, itemB, itemC, itemD]
+        viewModel.selectItem(itemB, in: orderedItems, isShiftPressed: false, isCommandPressed: false)
+        viewModel.selectItem(itemD, in: orderedItems, isShiftPressed: true, isCommandPressed: false)
+        XCTAssertEqual(viewModel.selectedItemIDs, [itemB.objectID, itemC.objectID, itemD.objectID])
+
+        // Shift-click back should replace range from same anchor (itemB) to itemC.
+        viewModel.selectItem(itemC, in: orderedItems, isShiftPressed: true, isCommandPressed: false)
+        XCTAssertEqual(viewModel.selectedItemIDs, [itemB.objectID, itemC.objectID])
+    }
+
+    func testKeyboardShiftNavigationUsesDeterministicMouseAnchor() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let itemA = try store.createTextItem(text: "a")
+        let itemB = try store.createTextItem(text: "b")
+        let itemC = try store.createTextItem(text: "c")
+        let itemD = try store.createTextItem(text: "d")
+
+        let viewModel = OverlayViewModel(
+            persistence: persistence,
+            pasteEngine: TestPasteEngine(),
+            permissionManager: PermissionManager()
+        ) { completion in
+            completion()
+        }
+
+        let orderedItems = [itemA, itemB, itemC, itemD]
+        viewModel.selectItem(itemB, in: orderedItems, isShiftPressed: false, isCommandPressed: false)
+        viewModel.selectItem(itemD, in: orderedItems, isShiftPressed: true, isCommandPressed: false)
+
+        // Cursor moves from D to C, anchor remains B.
+        viewModel.moveSelection(direction: -1, in: orderedItems, isShiftPressed: true)
+        XCTAssertEqual(viewModel.selectedItemIDs, [itemB.objectID, itemC.objectID])
+
+        // Non-shift arrow collapses to a single cursor selection.
+        viewModel.moveSelection(direction: -1, in: orderedItems, isShiftPressed: false)
+        XCTAssertEqual(viewModel.selectedItemIDs, [itemB.objectID])
+    }
+
+    func testPruningSelectionRepairsAnchorCursorForNextShiftSelection() throws {
+        let persistence = PersistenceController(inMemory: true)
+        let store = ClipItemStore(persistence: persistence)
+        let itemA = try store.createTextItem(text: "a")
+        let itemB = try store.createTextItem(text: "b")
+        let itemC = try store.createTextItem(text: "c")
+
+        let viewModel = OverlayViewModel(
+            persistence: persistence,
+            pasteEngine: TestPasteEngine(),
+            permissionManager: PermissionManager()
+        ) { completion in
+            completion()
+        }
+
+        let orderedItems = [itemA, itemB, itemC]
+        viewModel.selectItem(itemA, in: orderedItems, isShiftPressed: false, isCommandPressed: false)
+        viewModel.selectItem(itemC, in: orderedItems, isShiftPressed: true, isCommandPressed: false)
+        XCTAssertEqual(viewModel.selectedItemIDs, [itemA.objectID, itemB.objectID, itemC.objectID])
+
+        // Prune out the old anchor.
+        viewModel.ensureDefaultSelection(in: [itemB, itemC])
+        XCTAssertEqual(viewModel.selectedItemIDs, [itemB.objectID, itemC.objectID])
+
+        // Next shift-click should use repaired endpoints from visible items only.
+        viewModel.selectItem(itemB, in: [itemB, itemC], isShiftPressed: true, isCommandPressed: false)
         XCTAssertEqual(viewModel.selectedItemIDs, [itemB.objectID])
     }
 }

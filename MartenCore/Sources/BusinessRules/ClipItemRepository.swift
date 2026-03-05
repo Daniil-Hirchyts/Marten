@@ -123,6 +123,14 @@ final class ClipItemRepository {
             throw ClipItemStoreError.missingContent
         }
 
+        if Self.convertibleTextItemTypes.contains(payload.itemType) {
+            let hasBinaryContent = payload.representations.contains { $0.data != nil }
+            let textValue = payload.primaryText ?? ""
+            if !hasBinaryContent && textValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                throw ClipItemStoreError.missingContent
+            }
+        }
+
         let now = Date()
         let displayOrder = currentDisplayOrder(reference: now)
         let hash = try deduplicationService.computeContentHash(

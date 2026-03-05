@@ -18,6 +18,7 @@ struct ItemCard: View {
     let readOnly: Bool
     let isDragEnabled: Bool
     let cardSize: CGFloat
+    var appIconLoadStrategy: AppIconView.LoadStrategy = .async
     let onPaste: (ClipItem) -> Void
     let onPastePlainText: (ClipItem) -> Void
     let onCopy: (ClipItem) -> Void
@@ -76,19 +77,15 @@ struct ItemCard: View {
                     .frame(width: cardSize, height: cardSize, alignment: .topLeading)
                     .background(cardBackground)
                     .clipShape(cardShape)
-                    .shadow(
-                        color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.12),
-                        radius: isSelected ? 6 : 4,
-                        x: 0,
-                        y: isSelected ? 3 : 2
-                    )
                     .overlay(selectionBorder)
                     .contentShape(cardShape)
 
                 }
                 .onTapGesture {
                     let now = Date()
-                    if let lastTime = lastTapTime, now.timeIntervalSince(lastTime) < 0.3 {
+                    if let lastTime = lastTapTime,
+                        now.timeIntervalSince(lastTime) < NSEvent.doubleClickInterval
+                    {
                         onDoubleTap(item)
                         lastTapTime = nil
                     } else {

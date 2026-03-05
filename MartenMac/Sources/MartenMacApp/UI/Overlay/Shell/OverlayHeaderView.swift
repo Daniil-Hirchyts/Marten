@@ -3,40 +3,13 @@ import SwiftUI
 
 extension OverlayShellView {
     var horizontalHeaderBar: some View {
-        GeometryReader { geo in
-            let totalWidth = geo.size.width
-            let filterExtra: CGFloat = headerButtonSize + 1 // filter button + separator
-            let searchGroupCollapsed = searchCollapsedWidth + filterExtra
-            let searchGroupExpanded = searchCollapsedWidth + searchExpandedWidth + filterExtra
-            let searchWidth: CGFloat = isSearchExpanded ? searchGroupExpanded : searchGroupCollapsed
-            let leadingPad: CGFloat = 4
-            let trailingPad: CGFloat = 4
-            let spacing: CGFloat = 7
-            let settingsWidth: CGFloat = headerButtonSize
+        let spacing: CGFloat = 7
+        let filterExtra: CGFloat = headerButtonSize + 1
+        let searchGroupCollapsed = searchCollapsedWidth + filterExtra
+        let searchGroupExpanded = searchCollapsedWidth + searchExpandedWidth + filterExtra
+        let searchWidth: CGFloat = isSearchExpanded ? searchGroupExpanded : searchGroupCollapsed
 
-            // Pinboard area boundaries
-            let collapsedSearchEnd = leadingPad + searchGroupCollapsed + spacing
-            let expandedSearchEnd = leadingPad + searchGroupExpanded + spacing
-            let settingsLeadingEdge = totalWidth - trailingPad - settingsWidth
-            let pinboardEnd = settingsLeadingEdge - spacing
-
-            // Full pinboard width when search is collapsed
-            let fullPinboardWidth = max(0, pinboardEnd - collapsedSearchEnd)
-
-            // Estimated bar visual width (tabs + scroll padding + spacing + add button)
-            let barEstimatedWidth = pinboardTabsContentWidth + 56
-
-            // Free space on left side when bar is centered in full pinboard area
-            let freeSpaceLeft = max(0, (fullPinboardWidth - barEstimatedWidth) / 2)
-
-            // Would the expanded search overlap the centered tab content?
-            let searchExtension = searchGroupExpanded - searchGroupCollapsed
-            let wouldOverlap = freeSpaceLeft < searchExtension
-
-            // Effective pinboard leading edge: push only when content would overlap
-            let pinboardStart = (isSearchExpanded && wouldOverlap) ? expandedSearchEnd : collapsedSearchEnd
-            let pinboardWidth = max(0, pinboardEnd - pinboardStart)
-
+        return HStack(spacing: spacing) {
             OverlaySearchBarView(
                 isSearchExpanded: $isSearchExpanded,
                 isFilterPopoverPresented: $isFilterPopoverPresented,
@@ -57,8 +30,6 @@ extension OverlayShellView {
                 onClearFilters: searchModel.clearFilters
             )
             .frame(width: searchWidth, height: headerButtonSize, alignment: .leading)
-            .position(x: leadingPad + searchWidth / 2, y: headerButtonSize / 2)
-            .zIndex(1)
 
             PinboardTabBarSection(
                 pinboards: visiblePinboards,
@@ -103,13 +74,13 @@ extension OverlayShellView {
                     dragCoordinator.updateSearchFieldFrame(frame)
                 }
             )
-            .frame(width: pinboardWidth, height: headerButtonSize)
-            .position(x: pinboardStart + pinboardWidth / 2, y: headerButtonSize / 2)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .frame(height: headerButtonSize)
 
             settingsButton
-                .frame(width: settingsWidth, height: headerButtonSize)
-                .position(x: settingsLeadingEdge + settingsWidth / 2, y: headerButtonSize / 2)
+                .frame(width: headerButtonSize, height: headerButtonSize)
         }
+        .padding(.horizontal, 4)
         .onPreferenceChange(SearchFieldFrameKey.self) { frame in
             dragCoordinator.updateSearchFieldFrame(frame)
         }

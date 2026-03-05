@@ -14,6 +14,8 @@ final class DragCoordinator: ObservableObject {
 
     private var dragPreviewWindow: DragPreviewWindow?
     private var pinboardDragPreviewWindow: PinboardDragPreviewWindow?
+    private var dragMouseUpLocalMonitor: Any?
+    private var dragMouseUpGlobalMonitor: Any?
     private let nativeDragSource = NativeDragSource()
     private(set) var isNativeDragActive = false
 
@@ -57,6 +59,7 @@ final class DragCoordinator: ObservableObject {
     }
 
     func cleanupPreviewWindow() {
+        teardownDragMouseUpMonitors()
         dragPreviewWindow?.close()
         dragPreviewWindow = nil
         dragPreviewData = nil
@@ -69,50 +72,53 @@ final class DragCoordinator: ObservableObject {
     }
 
     func updateDragPreviewWindow(_ data: DragPreviewData?, parentWindow: NSWindow?) {
-        guard parentWindow != nil else { return }
+        // Always hide the floating preview if data is cleared or the parent overlay window
+        // is unavailable, to prevent orphaned previews.
+        guard let _ = parentWindow, let data else {
+            teardownDragMouseUpMonitors()
+            dragPreviewWindow?.updatePreview(nil)
+            return
+        }
         // Don't recreate the preview window while a native drag session owns the visuals
         guard !isNativeDragActive else { return }
+        ensureDragMouseUpMonitors()
 
-        if let data {
-            // Create a fresh preview window each time the drag starts (window not yet visible)
-            // to avoid a flash of stale content from a previous drag.
-            if dragPreviewWindow == nil || dragPreviewWindow.map({ !$0.isVisible }) == true {
-                dragPreviewWindow?.close()
-                dragPreviewWindow = DragPreviewWindow()
-            }
-
-            let mouseLocation = NSEvent.mouseLocation
-            let previewFrame = NSRect(
-                x: mouseLocation.x - 300,
-                y: mouseLocation.y - 300,
-                width: 600,
-                height: 600
-            )
-
-            dragPreviewWindow?.setFrame(previewFrame, display: false)
-            dragPreviewWindow?.updatePreview(data)
-        } else {
-            dragPreviewWindow?.updatePreview(nil)
+        // Create a fresh preview window each time the drag starts (window not yet visible)
+        // to avoid a flash of stale content from a previous drag.
+        if dragPreviewWindow == nil || dragPreviewWindow.map({ !$0.isVisible }) == true {
+            dragPreviewWindow?.close()
+            dragPreviewWindow = DragPreviewWindow()
         }
+
+        let mouseLocation = NSEvent.mouseLocation
+        let previewFrame = NSRect(
+            x: mouseLocation.x - 300,
+            y: mouseLocation.y - 300,
+            width: 600,
+            height: 600
+        )
+
+        dragPreviewWindow?.setFrame(previewFrame, display: false)
+        dragPreviewWindow?.updatePreview(data)
     }
 
     func updatePinboardDragPreviewWindow(_ data: PinboardDragPreviewData?, parentWindow: NSWindow?) {
-        guard let pinboardDragPreviewWindow, parentWindow != nil else { return }
-
-        if let data {
-            let mouseLocation = NSEvent.mouseLocation
-            let previewFrame = NSRect(
-                x: mouseLocation.x - 150,
-                y: mouseLocation.y - 50,
-                width: 300,
-                height: 100
-            )
-
-            pinboardDragPreviewWindow.setFrame(previewFrame, display: false)
-            pinboardDragPreviewWindow.updatePreview(data)
-        } else {
+        guard let pinboardDragPreviewWindow else { return }
+        guard parentWindow != nil, let data else {
             pinboardDragPreviewWindow.updatePreview(nil)
+            return
         }
+
+        let mouseLocation = NSEvent.mouseLocation
+        let previewFrame = NSRect(
+            x: mouseLocation.x - 150,
+            y: mouseLocation.y - 50,
+            width: 300,
+            height: 100
+        )
+
+        pinboardDragPreviewWindow.setFrame(previewFrame, display: false)
+        pinboardDragPreviewWindow.updatePreview(data)
     }
 
     // MARK: - Native Drag
@@ -157,5 +163,42 @@ final class DragCoordinator: ObservableObject {
         }
 
         return started
+    }
+
+    private func ensureDragMouseUpMonitors() {
+        guard dragMouseUpLocalMonitor == nil else { return }
+
+        dragMouseUpLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) {
+            [weak self] event in
+            guard let self else { return event }
+            Task { @MainActor in
+                self.handleFallbackMouseUp()
+            }
+            return event
+        }
+
+        dragMouseUpGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) {
+            [weak self] _ in
+            Task { @MainActor in
+                self?.handleFallbackMouseUp()
+            }
+        }
+    }
+
+    private func teardownDragMouseUpMonitors() {
+        if let dragMouseUpLocalMonitor {
+            NSEvent.removeMonitor(dragMouseUpLocalMonitor)
+            self.dragMouseUpLocalMonitor = nil
+        }
+        if let dragMouseUpGlobalMonitor {
+            NSEvent.removeMonitor(dragMouseUpGlobalMonitor)
+            self.dragMouseUpGlobalMonitor = nil
+        }
+    }
+
+    private func handleFallbackMouseUp() {
+        guard !isNativeDragActive else { return }
+        guard dragPreviewData != nil || dragPreviewWindow?.isVisible == true else { return }
+        cleanupPreviewWindow()
     }
 }

@@ -78,6 +78,49 @@ final class ImagePreviewLoadingTests: XCTestCase {
         XCTAssertEqual(pixelSize(of: result.image).width, 384)
     }
 
+    func testLoaderUsesInlineSVGCustomData() throws {
+        let request = try makePreviewRequest(
+            sources: [
+                ImagePreviewSourceSnapshot(
+                    kind: .custom,
+                    binaryData: makeSVGData(width: 480, height: 240),
+                    assetRef: nil,
+                    fileExtension: "svg",
+                    textData: nil
+                )
+            ],
+            requestedPixelSize: 256
+        )
+
+        let result = try XCTUnwrap(CardImagePreviewLoader.resolvePreview(for: request))
+        XCTAssertEqual(result.source, .inlineData)
+        XCTAssertGreaterThan(pixelSize(of: result.image).width, 0)
+        XCTAssertGreaterThan(pixelSize(of: result.image).height, 0)
+    }
+
+    func testLoaderUsesSVGFileURLRepresentation() throws {
+        let filePath = try writeTemporarySVG(data: makeSVGData(width: 512, height: 320))
+        defer { try? FileManager.default.removeItem(atPath: filePath) }
+
+        let request = try makePreviewRequest(
+            sources: [
+                ImagePreviewSourceSnapshot(
+                    kind: .fileURL,
+                    binaryData: nil,
+                    assetRef: nil,
+                    fileExtension: nil,
+                    textData: filePath.data(using: .utf8)
+                )
+            ],
+            requestedPixelSize: 300
+        )
+
+        let result = try XCTUnwrap(CardImagePreviewLoader.resolvePreview(for: request))
+        XCTAssertEqual(result.source, .fileURLRepresentation)
+        XCTAssertGreaterThan(pixelSize(of: result.image).width, 0)
+        XCTAssertGreaterThan(pixelSize(of: result.image).height, 0)
+    }
+
     func testLoaderReturnsNilWhenOnlyThumbnailPathExists() throws {
         let request = try makePreviewRequest(
             sources: [],
@@ -198,6 +241,24 @@ final class ImagePreviewLoadingTests: XCTestCase {
             .appendingPathExtension("png")
         try data.write(to: path)
         return path.path
+    }
+
+    private func writeTemporarySVG(data: Data) throws -> String {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("svg")
+        try data.write(to: path)
+        return path.path
+    }
+
+    private func makeSVGData(width: Int, height: Int) -> Data {
+        let svg = """
+        <svg xmlns="http://www.w3.org/2000/svg" width="\(width)" height="\(height)" viewBox="0 0 \(width) \(height)">
+          <rect width="100%" height="100%" fill="#111827"/>
+          <circle cx="\(width / 2)" cy="\(height / 2)" r="\(min(width, height) / 4)" fill="#34D399"/>
+        </svg>
+        """
+        return Data(svg.utf8)
     }
 
     private func pixelSize(of image: NSImage) -> CGSize {

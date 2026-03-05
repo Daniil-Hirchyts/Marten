@@ -278,7 +278,8 @@ extension ItemCard {
                     bundleID: item.sourceAppBundleID,
                     appName: item.sourceAppName,
                     iconData: item.sourceAppIconData,
-                    size: headerIconSize
+                    size: headerIconSize,
+                    loadStrategy: appIconLoadStrategy
                 )
             }
 

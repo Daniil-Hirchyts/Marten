@@ -13,6 +13,25 @@ struct ItemCompactRow: View {
     private let cardCornerRadius: CGFloat = 12
     private let sideBarWidth: CGFloat = 38
 
+    enum PresentationMode: Equatable {
+        case list
+        case dragPreview(width: CGFloat)
+
+        var isInteractive: Bool {
+            if case .list = self {
+                return true
+            }
+            return false
+        }
+
+        var previewWidth: CGFloat? {
+            if case let .dragPreview(width) = self {
+                return width
+            }
+            return nil
+        }
+    }
+
     let item: ClipItem
     let pinboards: [Pinboard]
     let lockedPinboardIDs: Set<UUID>
@@ -37,6 +56,7 @@ struct ItemCompactRow: View {
     let onDoubleTap: (ClipItem) -> Void
     @Binding var previewItemID: NSManagedObjectID?
     @Binding var isPreviewPopoverPresented: Bool
+    var presentationMode: PresentationMode = .list
 
     @State var thumbnailImage: NSImage?
     @State var linkPreviewResult: LinkPreviewImageResult?
@@ -62,57 +82,57 @@ struct ItemCompactRow: View {
         )
     }
 
-    private var cardShadowColor: Color {
-        Color.black.opacity(colorScheme == .dark ? 0.2 : 0.1)
-    }
-
-    private var cardShadowRadius: CGFloat {
-        isSelected ? 5 : 3
-    }
-
-    private var cardShadowY: CGFloat {
-        isSelected ? 2 : 1
-    }
-
     var body: some View {
+        if presentationMode.isInteractive {
+            rowContainer
+                .onTapGesture {
+                    handleTap()
+                }
+                .popover(isPresented: isPreviewPresentedBinding, arrowEdge: .trailing) {
+                    popoverContent
+                }
+                .contextMenu {
+                    contextMenuContent
+                }
+                .accessibilityElement(children: isEditing ? .contain : .ignore)
+                .accessibilityIdentifier("overlay.itemCompact.\(item.id.uuidString)")
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityHint("Single click to select, double click to paste")
+                .accessibilityAddTraits(.isButton)
+        } else {
+            rowContainer
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
 
-        mainRowContent
-            .padding(.trailing, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
-            .background(rowBackground)
-            .clipShape(cardShape)
-            .shadow(
-                color: cardShadowColor,
-                radius: cardShadowRadius,
-                x: 0,
-                y: cardShadowY
-            )
-            .contentShape(cardShape)
-            .overlay(selectionBorder)
-            .onTapGesture {
-                handleTap()
+    private var rowContainer: some View {
+        Group {
+            if let previewWidth = presentationMode.previewWidth {
+                mainRowContent
+                    .padding(.trailing, 12)
+                    .padding(.vertical, 10)
+                    .frame(width: previewWidth, height: 70, alignment: .leading)
+            } else {
+                mainRowContent
+                    .padding(.trailing, 12)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
             }
-            .onAppear {
-                refreshPreviewAssets()
-            }
-            .onChange(of: imagePreviewRequestPixelSize) { _, _ in
-                refreshThumbnailImage()
-            }
-            .onChange(of: contentSignature) { oldValue, newValue in
-                handleContentSignatureChange(oldValue: oldValue, newValue: newValue)
-            }
-            .popover(isPresented: isPreviewPresentedBinding, arrowEdge: .trailing) {
-                popoverContent
-            }
-            .contextMenu {
-                contextMenuContent
-            }
-            .accessibilityElement(children: isEditing ? .contain : .ignore)
-            .accessibilityIdentifier("overlay.itemCompact.\(item.id.uuidString)")
-            .accessibilityLabel(accessibilityLabel)
-            .accessibilityHint("Single click to select, double click to paste")
-            .accessibilityAddTraits(.isButton)
+        }
+        .background(rowBackground)
+        .clipShape(cardShape)
+        .contentShape(cardShape)
+        .overlay(selectionBorder)
+        .onAppear {
+            refreshPreviewAssets()
+        }
+        .onChange(of: imagePreviewRequestPixelSize) { _, _ in
+            refreshThumbnailImage()
+        }
+        .onChange(of: contentSignature) { oldValue, newValue in
+            handleContentSignatureChange(oldValue: oldValue, newValue: newValue)
+        }
     }
 
     private func handleContentSignatureChange(oldValue: ContentSignature, newValue: ContentSignature) {
@@ -263,12 +283,16 @@ struct ItemCompactRow: View {
                     pinboardSignView(signKind)
                 }
             } else {
-                AppIconView(
-                    bundleID: item.sourceAppBundleID,
-                    appName: item.sourceAppName,
-                    iconData: item.sourceAppIconData,
-                    size: 19
-                )
+                if presentationMode.isInteractive {
+                    AppIconView(
+                        bundleID: item.sourceAppBundleID,
+                        appName: item.sourceAppName,
+                        iconData: item.sourceAppIconData,
+                        size: 19
+                    )
+                } else {
+                    dragPreviewAppIconView
+                }
             }
         }
         .frame(width: sideBarWidth, alignment: .center)
@@ -290,6 +314,66 @@ struct ItemCompactRow: View {
                 .foregroundStyle(sideBarContentColor)
                 .shadow(color: sideBarContentShadowColor, radius: 1, y: 0.4)
         }
+    }
+
+    @ViewBuilder
+    private var dragPreviewAppIconView: some View {
+        if let icon = immediateDragPreviewAppIcon {
+            Image(nsImage: icon)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 19, height: 19)
+        } else if SourceAppIdentityResolver.isMartenSource(bundleID: item.sourceAppBundleID, appName: item.sourceAppName),
+                  let martenIcon = NSApplication.shared.applicationIconImage
+                    ?? NSImage(named: NSImage.applicationIconName) {
+            Image(nsImage: martenIcon)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 19, height: 19)
+        } else {
+            Image(systemName: "app")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 19, height: 19)
+        }
+    }
+
+    private var immediateDragPreviewAppIcon: NSImage? {
+        let resolvedBundleID = SourceAppIdentityResolver.resolvedBundleID(
+            bundleID: item.sourceAppBundleID,
+            appName: item.sourceAppName
+        )
+
+        if let resolvedBundleID,
+           resolvedBundleID.isMartenBundleIdentifier,
+           let martenIcon = NSApplication.shared.applicationIconImage
+                ?? NSImage(named: NSImage.applicationIconName) {
+            AppIconCache.shared.setIcon(martenIcon, bundleID: resolvedBundleID)
+            return martenIcon
+        }
+
+        if let iconData = item.sourceAppIconData,
+           !iconData.isEmpty,
+           let embeddedIcon = NSImage(data: iconData) {
+            if let resolvedBundleID {
+                AppIconCache.shared.setIcon(embeddedIcon, bundleID: resolvedBundleID)
+            }
+            return embeddedIcon
+        }
+
+        guard let resolvedBundleID else { return nil }
+
+        if let cached = AppIconCache.shared.cachedIcon(bundleID: resolvedBundleID) {
+            return cached
+        }
+
+        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: resolvedBundleID) else {
+            return nil
+        }
+
+        let loadedIcon = NSWorkspace.shared.icon(forFile: appURL.path)
+        AppIconCache.shared.setIcon(loadedIcon, bundleID: resolvedBundleID)
+        return loadedIcon
     }
 
     private var accessibilityLabel: String {
@@ -538,7 +622,32 @@ struct ItemCompactRow: View {
         if isSelected {
             cardShape
                 .strokeBorder(Color(nsColor: .controlAccentColor), lineWidth: 2)
+        } else {
+            cardShape
+                .strokeBorder(unselectedBorderGradient, lineWidth: 1)
         }
+    }
+
+    private var unselectedBorderGradient: LinearGradient {
+        if colorScheme == .light, let pinboardColor {
+            return LinearGradient(
+                colors: [
+                    pinboardColor.opacity(0.72),
+                    pinboardColor.opacity(0.22)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+
+        return LinearGradient(
+            colors: [
+                Color.white.opacity(colorScheme == .dark ? 0.16 : 0.78),
+                Color.white.opacity(colorScheme == .dark ? 0.04 : 0.2)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
     private var assignedPinboardIDs: Set<UUID> {
@@ -658,13 +767,81 @@ struct ItemCompactRow: View {
 
     private func handleTap() {
         let now = Date()
-        if let lastTapTime, now.timeIntervalSince(lastTapTime) < 0.3 {
+        if let lastTapTime, now.timeIntervalSince(lastTapTime) < NSEvent.doubleClickInterval {
             onDoubleTap(item)
             self.lastTapTime = nil
         } else {
             onTap(item)
             self.lastTapTime = now
         }
+    }
+}
+
+extension ItemCompactRow {
+    init(dragPreviewItem item: ClipItem, pinboards: [Pinboard], width: CGFloat) {
+        self.init(
+            item: item,
+            pinboards: pinboards,
+            lockedPinboardIDs: [],
+            itemPinboardSignature: pinboardSignature(for: item),
+            isSelected: false,
+            isEditing: false,
+            allowPinning: false,
+            readOnly: true,
+            clipItemEditor: DragPreviewClipItemEditor.shared,
+            onPaste: { _ in },
+            onPastePlainText: { _ in },
+            onCopy: { _ in },
+            onDelete: { _ in },
+            onTogglePin: { _ in },
+            onConvertType: { _, _ in },
+            onMoveToPinboard: { _, _ in },
+            onCreatePinboard: { _ in },
+            onEdit: { _ in },
+            onRename: { _ in },
+            onCommitRename: { _, _ in },
+            onTap: { _ in },
+            onDoubleTap: { _ in },
+            previewItemID: .constant(nil),
+            isPreviewPopoverPresented: .constant(false),
+            presentationMode: .dragPreview(width: width)
+        )
+    }
+}
+
+private enum DragPreviewClipItemEditorError: Error {
+    case unsupported
+}
+
+private final class DragPreviewClipItemEditor: ClipItemEditing {
+    static let shared = DragPreviewClipItemEditor()
+
+    private init() {}
+
+    func updateTextItem(objectID _: NSManagedObjectID, newText _: String) throws -> ClipItem {
+        throw DragPreviewClipItemEditorError.unsupported
+    }
+
+    func updateRichTextItem(objectID _: NSManagedObjectID, newText _: String, rtfData _: Data) throws
+        -> ClipItem
+    {
+        throw DragPreviewClipItemEditorError.unsupported
+    }
+
+    func updateImageData(objectID _: NSManagedObjectID, imageData _: Data) throws {
+        throw DragPreviewClipItemEditorError.unsupported
+    }
+
+    func renameItem(objectID _: NSManagedObjectID, title _: String?) throws {
+        throw DragPreviewClipItemEditorError.unsupported
+    }
+
+    func updateFileName(objectID _: NSManagedObjectID, newFileName _: String) throws {
+        throw DragPreviewClipItemEditorError.unsupported
+    }
+
+    func deleteItem(objectID _: NSManagedObjectID) throws {
+        throw DragPreviewClipItemEditorError.unsupported
     }
 }
 

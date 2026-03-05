@@ -66,8 +66,6 @@ extension OverlayShellView {
 
     func handleCardTap(_ item: ClipItem) {
         closeSearchIfEmpty()
-        // During an active drag, force toggle behavior so clicking adds/removes from the drag group
-        let forceToggle = dragCoordinator.dragPreviewData != nil
         // Read modifier state live from NSEvent.modifierFlags rather than the cached ModifierKeyMonitor
         // value, which can get stuck as `true` if a key-release flagsChanged event fires while the
         // overlay is not the key window (e.g. right after dismissing a context menu).
@@ -76,7 +74,7 @@ extension OverlayShellView {
             item,
             in: filteredItems,
             isShiftPressed: flags.contains(.shift),
-            isCommandPressed: forceToggle || flags.contains(.command)
+            isCommandPressed: flags.contains(.command)
         )
     }
 
@@ -102,22 +100,27 @@ extension OverlayShellView {
         pasteStackManager.pasteOutside(
             itemIDs: itemIDs,
             plainText: modifierMonitor.isShiftPressed,
-            orderedItems: filteredItems,
+            orderedItems: Array(items),
             viewModel: viewModel
         )
     }
 
     func handleBeginNativeDrag(_ itemIDs: [NSManagedObjectID]) -> Bool {
-        let items = filteredItems.filter { itemIDs.contains($0.objectID) }
-        guard !items.isEmpty else { return false }
+        let allItemsByID = Dictionary(uniqueKeysWithValues: items.map { ($0.objectID, $0) })
+        let draggedItems = itemIDs.compactMap { allItemsByID[$0] }
+        guard !draggedItems.isEmpty else { return false }
 
         let vm = viewModel
+        let overlayWindow = window
         let started = dragCoordinator.beginNativeDrag(
-            from: window,
-            items: items,
+            from: overlayWindow,
+            items: draggedItems,
             plainText: modifierMonitor.isShiftPressed,
             onCompleted: {},
             onEnded: {
+                // Re-enable panel hit testing in case the window remains around briefly
+                // while hide animation/completion is running.
+                overlayWindow?.ignoresMouseEvents = false
                 // Close the overlay after the native drag session ends.
                 // We can't close it earlier because the NSDraggingSession
                 // requires its source view (the panel's contentView) to
@@ -130,7 +133,8 @@ extension OverlayShellView {
             // Visually hide the overlay so the user can focus on the target
             // app's drop zone, but keep the panel ordered-in so the dragging
             // session's source view stays valid.
-            window?.alphaValue = 0
+            overlayWindow?.ignoresMouseEvents = true
+            overlayWindow?.alphaValue = 0
         }
 
         return started

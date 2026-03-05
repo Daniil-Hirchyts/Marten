@@ -75,10 +75,12 @@ final class NativeDragSource: NSObject, NSDraggingSource, @unchecked Sendable {
 
         let windowPoint = view.window?.convertPoint(fromScreen: screenPoint) ?? screenPoint
         let viewPoint = view.convert(windowPoint, from: nil)
+        let clampedViewPoint = clamp(point: viewPoint, to: view.bounds)
+        let eventLocation = view.convert(clampedViewPoint, to: nil)
 
         guard let event = NSEvent.mouseEvent(
             with: .leftMouseDown,
-            location: windowPoint,
+            location: eventLocation,
             modifierFlags: [],
             timestamp: ProcessInfo.processInfo.systemUptime,
             windowNumber: view.window?.windowNumber ?? 0,
@@ -94,8 +96,8 @@ final class NativeDragSource: NSObject, NSDraggingSource, @unchecked Sendable {
         for (index, draggingItem) in draggingItems.enumerated() {
             draggingItem.setDraggingFrame(
                 NSRect(
-                    x: viewPoint.x - imageSize.width / 2,
-                    y: viewPoint.y - imageSize.height / 2,
+                    x: clampedViewPoint.x - imageSize.width / 2,
+                    y: clampedViewPoint.y - imageSize.height / 2,
                     width: imageSize.width,
                     height: imageSize.height
                 ),
@@ -142,5 +144,13 @@ final class NativeDragSource: NSObject, NSDraggingSource, @unchecked Sendable {
         NSBezierPath(roundedRect: NSRect(origin: .zero, size: size), xRadius: 8, yRadius: 8).fill()
         image.unlockFocus()
         return image
+    }
+
+    private func clamp(point: CGPoint, to bounds: CGRect) -> CGPoint {
+        guard !bounds.isEmpty else { return point }
+        return CGPoint(
+            x: min(max(point.x, bounds.minX), bounds.maxX),
+            y: min(max(point.y, bounds.minY), bounds.maxY)
+        )
     }
 }

@@ -245,6 +245,24 @@ struct ItemEditorContentView: View {
 
     private var colorControls: some View {
         HStack(spacing: 2) {
+            ColorPicker(
+                "",
+                selection: Binding(
+                    get: {
+                        let hex = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return Color(hex: hex, fallback: .gray)
+                    },
+                    set: { newColor in
+                        if let newHex = newColor.hexStringMac {
+                            draftText = newHex
+                        }
+                    }
+                ),
+                supportsOpacity: false
+            )
+            .labelsHidden()
+            .padding(.trailing, 4)
+
             Button(action: {
                 let hex = ColorEditorView.normalizeHex(draftText) ?? draftText
                 NSPasteboard.general.clearContents()
