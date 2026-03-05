@@ -2,52 +2,55 @@
 
 ## Requirements
 
-- macOS 26 or later for the desktop application and host-side Swift package builds.
-- An Xcode toolchain with the required Apple platform SDKs.
-- iOS 26 and watchOS 26 SDKs/runtimes for the corresponding application hosts and extensions.
-- Apple signing capabilities and a configured iCloud container for CloudKit integrations.
-
-The package manifests declare Swift tools version 5.9. The source uses Apple platform APIs introduced in the 26-generation SDKs.
+- Xcode with the macOS 26, iOS 26 and watchOS 26 SDKs.
+- An Apple developer account for signing, CloudKit and App Groups.
 
 ## Swift packages
 
-The repository contains three packages with local dependencies:
+| Package | Products |
+| --- | --- |
+| `MartenCore` | `MartenCore`: data model, asset store, search, item operations, CloudKit sync |
+| `MartenMac` | `MartenMacServices` library and the `MartenMac` executable |
+| `MartenIOS` | `MartenIOSApp` and `MartenWatchApp` libraries |
 
 ```bash
 swift build --package-path MartenCore
 swift build --package-path MartenMac
 swift build --package-path MartenIOS
-```
-
-The macOS package also exposes a development executable:
-
-```bash
 swift run --package-path MartenMac MartenMac
 ```
 
-The SwiftPM runner is useful for desktop development. Signed application hosts are needed for capabilities such as iCloud, app groups and system extensions.
+`swift run` starts the macOS app without a signed host. Sync and anything else that needs entitlements only
+works from a signed Xcode host.
 
 ## Xcode hosts
 
-`Marten.xcworkspace` references the macOS and iOS wrapper projects. This Git snapshot includes the workspace, wrapper source, assets, property lists and entitlements; the `.xcodeproj` bundles themselves are excluded by the repository's `.gitignore`.
+`*.xcodeproj` is in `.gitignore`, so the repository has the host sources, Info.plists, entitlements and
+assets but not the projects. `Marten.xcworkspace` expects `MartenMacWrapper/MartenMacWrapper.xcodeproj` and
+`MartenIOSWrapper/MartenIOSWrapper.xcodeproj`.
 
-For a fresh checkout, build the Swift packages directly or create local Xcode application and extension hosts using the supplied wrapper source. Add the local packages to those hosts and configure their signing and capabilities. A machine with the local wrapper projects already configured can open `Marten.xcworkspace`.
+To recreate them, add an app target for each host folder, link the local packages, and set your team,
+bundle identifiers, iCloud container and App Group:
 
-The macOS host consumes `MartenMacServices` and `MartenCore`. The iOS hosts consume `MartenIOSApp` and `MartenCore`; the watch host consumes `MartenWatchApp`.
-
-## Capabilities and permissions
-
-| Capability | Purpose |
+| Host | Links |
 | --- | --- |
-| Accessibility | Paste automation and the global hotkey event tap |
-| Input Monitoring | Global keyboard interaction |
-| Screen Recording | Optional screen-region OCR capture |
-| iCloud / CloudKit | Private and shared record synchronisation |
-| App groups | Shared storage for iOS application and extension targets |
-| Local authentication | Unlocking protected pinboard views |
-| Speech / microphone | Optional iOS voice input, where enabled |
+| macOS app | `MartenCore`, `MartenMacServices` |
+| iOS app, keyboard, share, action and widget extensions | `MartenCore`, `MartenIOSApp` |
+| watchOS app | `MartenCore`, `MartenWatchApp` |
 
-The supplied entitlement files document the project's container and app-group configuration. Configure identifiers and signing for the developer account used to run the hosts.
+The entitlement files use `iCloud.com.hirchyts.marten` and `group.com.hirchyts.marten`. Replace them with
+identifiers from your own account.
+
+## Permissions
+
+| Permission | Used for |
+| --- | --- |
+| Accessibility | Pasting into the frontmost app and the global shortcut event tap |
+| Input Monitoring | Global keyboard shortcuts |
+| Screen Recording | OCR region capture |
+| iCloud (CloudKit) | Sync and shared pinboards |
+| App Groups | Storage shared between the iOS app and its extensions |
+| Local Authentication | Locked pinboards |
 
 ## Tests
 
@@ -57,4 +60,4 @@ swift test --package-path MartenMac
 swift test --package-path MartenIOS
 ```
 
-The packages include unit tests for persistence, searching, representations, assets, pinboards, sync, paste behaviour, UI state and extension integrations. Platform-dependent tests require the corresponding Apple SDK or host environment.
+Some tests need the matching platform SDK or a host app.

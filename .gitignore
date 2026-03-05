@@ -74,19 +74,13 @@ build/
 *.test
 *.log
 
-# Agent Skills
-skills/
-.agent/skills/
-.agents/skills/
-.claude/skills/
-.codex/skills/
-.cursor/skills/
-.gemini/skills/
-.github/skills/
-.trae/skills/
-.claude/
+# Build logs
+build_log.txt
+*build_output.txt
 
-# AI agent and editor tooling
+# Local AI tooling
+/skills/
+skills-lock.json
 .agent/
 .agents/
 .claude/
@@ -94,8 +88,7 @@ skills/
 .cursor/
 .gemini/
 .trae/
-.vscode/
 .github/skills/
-CLAUDE.md
 AGENTS.md
+CLAUDE.md
 GEMINI.md
