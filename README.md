@@ -27,34 +27,38 @@ and CloudKit synchronisation used by the platform hosts.
 
 ## Demo
 
-### Native macOS walkthrough
+### Clipboard history
 
-[![Marten native macOS screenshot walkthrough](docs/demo/macos-walkthrough.gif)](docs/demo/macos-walkthrough.mp4)
+![Marten clipboard history with text, code, links and named pinboards](docs/screenshots/macos-history.jpg)
 
-[Open the MP4 walkthrough](docs/demo/macos-walkthrough.mp4) · [Capture notes and screen index](docs/demo/README.md)
+The main overlay brought copied content into one workspace. Content-aware cards displayed text, code and link
+previews, while the pinboard tabs switched between reusable collections.
 
-The walkthrough is a paced sequence of real screenshots captured from the running macOS application in an
-isolated local build. It presents onboarding, behaviour settings, overlay placement, keyboard shortcuts and
-privacy controls. The application interface was captured directly from the native SwiftUI host.
+### Browse a pinboard and find a clip
 
-### Screenshots
+<p align="center">
+  <a href="docs/demo/native-workflow.mp4"><img src="docs/demo/native-workflow.gif" alt="Real Marten capture: browse history, open the Work pinboard and search for Sprint" width="360"/></a>
+</p>
 
-| Behaviour and startup | Keyboard shortcuts |
+[Watch the native workflow demo](docs/demo/native-workflow.mp4) · [Capture details](docs/demo/README.md)
+
+The demo was captured from the running app during scripted interactions: browse **All Items**, open **Work**,
+and type **Sprint** to filter the collection. It uses the native interface and synthetic starter clips in a
+separate local store. The animation follows the captured interaction timing.
+
+### Pinboards and search
+
+| Work pinboard | Search within the collection |
 | --- | --- |
-| [![Marten behaviour and startup settings](docs/screenshots/macos-general.jpg)](docs/screenshots/macos-general.jpg) | [![Marten global shortcuts and quick-paste bindings](docs/screenshots/macos-shortcuts.jpg)](docs/screenshots/macos-shortcuts.jpg) |
-| Plain-text pasting, sound and menu-bar preferences | Global access, OCR and numbered quick-paste bindings |
+| [![Marten Work pinboard containing reusable code and a checklist](docs/screenshots/macos-compact-pinboard.jpg)](docs/screenshots/macos-compact-pinboard.jpg) | [![Marten showing the Sprint checklist after filtering the Work pinboard](docs/screenshots/macos-compact-search.jpg)](docs/screenshots/macos-compact-search.jpg) |
+| A collection of related clips, ready to reuse | Live filtering narrowed the board to the matching clip |
 
-| Overlay and OCR configuration | Privacy controls |
-| --- | --- |
-| [![Marten overlay placement and OCR options](docs/screenshots/macos-overlay-options.jpg)](docs/screenshots/macos-overlay-options.jpg) | [![Marten screen-sharing visibility and capture filters](docs/screenshots/macos-privacy.jpg)](docs/screenshots/macos-privacy.jpg) |
-| Five overlay positions, OCR mode and language selection | Screen-sharing visibility, link previews and content filtering |
+### Native clip editor
 
-<details>
-<summary>First-launch experience</summary>
+![Marten native code clip editor with editable content, character counts, copy and save controls](docs/screenshots/macos-code-editor.jpg)
 
-![Marten native first-launch welcome screen](docs/screenshots/macos-onboarding.jpg)
-
-</details>
+Content-specific editors let clips be inspected and revised before reuse. The code editor retained a monospaced
+view, content statistics and native copy/save controls.
 
 ## What this project shows
 
@@ -176,7 +180,7 @@ demonstrates the macOS app. Application code was left unchanged.
 | [`MartenMacWrapper/`](MartenMacWrapper/) | Desktop host source, entitlements and app assets |
 | [`MartenIOSWrapper/`](MartenIOSWrapper/) | iOS, watchOS, keyboard, share, action and widget host source |
 | [`Marten.xcworkspace`](Marten.xcworkspace/) | Workspace references for locally configured Xcode hosts |
-| [`docs/`](docs/) | Real screenshots, a screenshot walkthrough and development notes |
+| [`docs/`](docs/) | Real clipboard-workflow captures, a native demo and development notes |
 
 ## Author
 

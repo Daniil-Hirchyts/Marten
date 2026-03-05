@@ -1,17 +1,27 @@
-# Native macOS walkthrough
+# Native clipboard workflow demo
 
-[Animated walkthrough](macos-walkthrough.gif) · [MP4 version](macos-walkthrough.mp4)
+[Watch the MP4](native-workflow.mp4) · [Animated GIF](native-workflow.gif)
 
-The GIF and MP4 present a paced sequence of screenshots from Marten's running native macOS host. They show the configuration and first-launch interface. Each screen was captured directly from the app, with no generated interface artwork or simulated controls.
+The demo shows Marten's running native macOS application during scripted UI interactions:
 
-| Position | Screen | What it shows |
-| --- | --- | --- |
-| 1 | [Welcome](../screenshots/macos-onboarding.jpg) | First-launch introduction |
-| 2 | [General](../screenshots/macos-general.jpg) | Startup, plain-text paste, sounds and menu-bar visibility |
-| 3 | [Overlay and OCR](../screenshots/macos-overlay-options.jpg) | Overlay placement, capture mode, OCR language and notifications |
-| 4 | [Shortcuts](../screenshots/macos-shortcuts.jpg) | Global commands and numbered quick-paste bindings |
-| 5 | [Privacy](../screenshots/macos-privacy.jpg) | Screen-sharing visibility and clipboard-content filters |
+1. Browse the clipboard history in **All Items**.
+2. Open the **Work** pinboard, containing a reusable command snippet and sprint checklist.
+3. Enter **S**, **Sp**, **Spri**, then **Sprint** and observe the history filter to the matching clip.
 
-The capture host used the repository's application source with a separate sandboxed bundle identity, local storage and no CloudKit entitlement. The screenshot files preserve the captured screens; the walkthrough resizes them to fit a consistent frame and holds each screen for readability.
+The video was encoded from successive app-window captures taken during these interactions. Frame timing follows the capture timestamps; it is a recording of the native interface, with no simulated controls or generated artwork. Recordly was not used for this media.
 
-The media covers macOS onboarding and settings. Clipboard-history interactions, device synchronisation, iOS and watchOS are described from the source and are outside this walkthrough's scope. Build and test results are recorded in the [development guide](../development.md).
+## Screenshots
+
+| Screen | File |
+| --- | --- |
+| Horizontal clipboard history | [History](../screenshots/macos-history.jpg) |
+| Horizontal Work pinboard | [Pinboard](../screenshots/macos-pinboard.jpg) |
+| Horizontal search result | [Search](../screenshots/macos-search.jpg) |
+| Compact clipboard history | [Compact history](../screenshots/macos-compact-history.jpg) |
+| Compact Work pinboard | [Compact pinboard](../screenshots/macos-compact-pinboard.jpg) |
+| Compact search result | [Compact search](../screenshots/macos-compact-search.jpg) |
+| Native code clip editor | [Code editor](../screenshots/macos-code-editor.jpg) |
+
+The capture build used the repository's application source with a separate sandboxed bundle identity and local store. The visible content came from the project's synthetic starter-data seeder. The capture host had no CloudKit entitlement. Application code was unchanged.
+
+This demo covers history browsing, pinboards and live search. The editor is shown in a separate real screenshot. Cross-device sync, iOS and watchOS are documented from the source and are outside this recording's scope. Build and test results are recorded in the [development guide](../development.md).
