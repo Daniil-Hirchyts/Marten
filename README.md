@@ -27,38 +27,85 @@ and CloudKit synchronisation used by the platform hosts.
 
 ## Demo
 
-### Clipboard history
+Every image and clip below comes from the running app with synthetic sample clips in an isolated local store.
+None of it is a mock-up. [How the media was captured](docs/demo/README.md).
 
-![Marten clipboard history with text, code, links and named pinboards](docs/screenshots/macos-history.jpg)
+### macOS
 
-The main overlay brought copied content into one workspace. Content-aware cards displayed text, code and link
-previews, while the pinboard tabs switched between reusable collections.
+![Marten clipboard history with file, image, formatted text, colour, link and code cards](docs/screenshots/macos-history-content-types.jpg)
 
-### Browse a pinboard and find a clip
+The main overlay keeps copied content in one place. Each card is drawn for its content type: a file, image,
+formatted text, colour, link or code. Pinboard tabs switch between reusable collections.
 
 <p align="center">
   <a href="docs/demo/native-workflow.mp4"><img src="docs/demo/native-workflow.gif" alt="Real Marten capture: browse history, open the Work pinboard and search for Sprint" width="360"/></a>
 </p>
 
-[Watch the native workflow demo](docs/demo/native-workflow.mp4) · [Capture details](docs/demo/README.md)
+<p align="center"><a href="docs/demo/native-workflow.mp4">Watch the macOS demo</a>: browse <b>All Items</b>, open <b>Work</b>, type <b>Sprint</b>.</p>
 
-The demo was captured from the running app during scripted interactions: browse **All Items**, open **Work**,
-and type **Sprint** to filter the collection. It uses the native interface and synthetic starter clips in a
-separate local store. The animation follows the captured interaction timing.
+#### Layouts and selection
 
-### Pinboards and search
+The overlay can sit on the bottom or top edge (horizontal), on the left or right edge (vertical), or open as a
+compact panel at the cursor.
 
-| Work pinboard | Search within the collection |
-| --- | --- |
-| [![Marten Work pinboard containing reusable code and a checklist](docs/screenshots/macos-compact-pinboard.jpg)](docs/screenshots/macos-compact-pinboard.jpg) | [![Marten showing the Sprint checklist after filtering the Work pinboard](docs/screenshots/macos-compact-search.jpg)](docs/screenshots/macos-compact-search.jpg) |
-| A collection of related clips, ready to reuse | Live filtering narrowed the board to the matching clip |
+| Vertical edge layout | Multiple selection | Compact pinboard | Compact search |
+| :---: | :---: | :---: | :---: |
+| [<img src="docs/screenshots/macos-vertical-history.jpg" alt="Marten vertical history list on the left screen edge" width="190"/>](docs/screenshots/macos-vertical-history.jpg) | [<img src="docs/screenshots/macos-multiple-selection.jpg" alt="Two clips selected as a range in the vertical list" width="190"/>](docs/screenshots/macos-multiple-selection.jpg) | [<img src="docs/screenshots/macos-compact-pinboard.jpg" alt="Compact overlay showing the Work pinboard" width="190"/>](docs/screenshots/macos-compact-pinboard.jpg) | [<img src="docs/screenshots/macos-compact-search.jpg" alt="Compact overlay filtered by the Sprint search" width="190"/>](docs/screenshots/macos-compact-search.jpg) |
+| Full-height list on the left edge | Shift + ↓ extends a range selection | A pinboard in the cursor panel | Live filtering in the cursor panel |
 
-### Native clip editor
+#### Content-specific editors
 
-![Marten native code clip editor with editable content, character counts, copy and save controls](docs/screenshots/macos-code-editor.jpg)
+| Rich text | Code | Image | Colour | Link |
+| :---: | :---: | :---: | :---: | :---: |
+| [<img src="docs/screenshots/macos-rich-text-editor.jpg" alt="Rich-text editor with formatting toolbar" width="160"/>](docs/screenshots/macos-rich-text-editor.jpg) | [<img src="docs/screenshots/macos-code-editor.jpg" alt="Monospaced code editor" width="160"/>](docs/screenshots/macos-code-editor.jpg) | [<img src="docs/screenshots/macos-image-editor.jpg" alt="Image editor with rotate, copy and export controls" width="160"/>](docs/screenshots/macos-image-editor.jpg) | [<img src="docs/screenshots/macos-color-editor.jpg" alt="Colour editor showing #6366F1 with RGB values" width="160"/>](docs/screenshots/macos-color-editor.jpg) | [<img src="docs/screenshots/macos-url-editor.jpg" alt="Link editor" width="160"/>](docs/screenshots/macos-url-editor.jpg) |
+| Bold, italic, underline, strikethrough, fonts | Monospaced, with counts | Rotate, flip, copy, export | Swatch, RGB, hex validation | Editable URL |
 
-Content-specific editors let clips be inspected and revised before reuse. The code editor retained a monospaced
-view, content statistics and native copy/save controls.
+More macOS captures: [horizontal history](docs/screenshots/macos-history.jpg) ·
+[Work pinboard](docs/screenshots/macos-pinboard.jpg) · [search](docs/screenshots/macos-search.jpg) ·
+[compact history](docs/screenshots/macos-compact-history.jpg).
+
+### iOS
+
+<p align="center">
+  <a href="docs/demo/ios-workflow.mp4"><img src="docs/demo/ios-workflow.gif" alt="Real Marten iPhone recording: copy a clip, search for Sprint, switch to the Design pinboard" width="260"/></a>
+</p>
+
+<p align="center"><a href="docs/demo/ios-workflow.mp4">Watch the iPhone demo</a>: tap a clip to copy it (it moves to the top), search
+for <b>Sprint</b>, then switch to the <b>Design</b> pinboard.</p>
+
+| Library | Work pinboard | Pinboard picker | Search |
+| :---: | :---: | :---: | :---: |
+| [<img src="docs/screenshots/ios-home.png" alt="iPhone library with seven clips across pinboards" width="180"/>](docs/screenshots/ios-home.png) | [<img src="docs/screenshots/ios-work.png" alt="Work pinboard with four clips" width="180"/>](docs/screenshots/ios-work.png) | [<img src="docs/screenshots/ios-pinboards.png" alt="Pinboard picker sheet: All, Work, Design, Learning" width="180"/>](docs/screenshots/ios-pinboards.png) | [<img src="docs/screenshots/ios-search.png" alt="Search for Sprint showing two matching clips" width="180"/>](docs/screenshots/ios-search.png) |
+| **New pinboard** | **Quick Add** | **Search filters** | **Design pinboard** |
+| [<img src="docs/screenshots/ios-new-pinboard.png" alt="New pinboard sheet with colours and emoji" width="180"/>](docs/screenshots/ios-new-pinboard.png) | [<img src="docs/screenshots/ios-quick-add.png" alt="Quick Add sheet: New Text, Paste, Scan" width="180"/>](docs/screenshots/ios-quick-add.png) | [<img src="docs/screenshots/ios-filters.png" alt="Search filters by date and content type" width="180"/>](docs/screenshots/ios-filters.png) | [<img src="docs/screenshots/ios-design.png" alt="Design pinboard with image and colour clips" width="180"/>](docs/screenshots/ios-design.png) |
+
+The iPhone app also has its own preview and edit screens for each content type:
+
+| Text preview | Rich-text editor | Code preview | Code editor | Image editor | Colour editor |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| [<img src="docs/screenshots/ios-text.png" alt="Text clip preview" width="120"/>](docs/screenshots/ios-text.png) | [<img src="docs/screenshots/ios-rich-text.png" alt="Rich-text edit screen" width="120"/>](docs/screenshots/ios-rich-text.png) | [<img src="docs/screenshots/ios-code.png" alt="Code preview with syntax colouring" width="120"/>](docs/screenshots/ios-code.png) | [<img src="docs/screenshots/ios-code-edit.png" alt="Code edit screen" width="120"/>](docs/screenshots/ios-code-edit.png) | [<img src="docs/screenshots/ios-image.png" alt="Image edit screen with rotate and flip" width="120"/>](docs/screenshots/ios-image.png) | [<img src="docs/screenshots/ios-color.png" alt="Colour edit screen for #6366F1" width="120"/>](docs/screenshots/ios-color.png) |
+
+### watchOS
+
+<p align="center">
+  <a href="docs/demo/watchos-navigation.mp4"><img src="docs/demo/watchos-navigation.gif" alt="Real Apple Watch recording: open the Work pinboard and return" width="180"/></a>
+</p>
+
+<p align="center"><a href="docs/demo/watchos-navigation.mp4">Watch the short Apple Watch clip</a>: open <b>Work</b> from the pinboard list and go back.</p>
+
+| Pinboards | Work clips | Text preview | Colour preview | Move to pinboard |
+| :---: | :---: | :---: | :---: | :---: |
+| [<img src="docs/screenshots/watchos-pinboards.png" alt="Watch pinboard list: All, Work, Design" width="140"/>](docs/screenshots/watchos-pinboards.png) | [<img src="docs/screenshots/watchos-work.png" alt="Watch Work pinboard clips with add button" width="140"/>](docs/screenshots/watchos-work.png) | [<img src="docs/screenshots/watchos-text-preview.png" alt="Watch preview of the Sprint checklist" width="140"/>](docs/screenshots/watchos-text-preview.png) | [<img src="docs/screenshots/watchos-color-preview.png" alt="Watch colour preview for #6366F1" width="140"/>](docs/screenshots/watchos-color-preview.png) | [<img src="docs/screenshots/watchos-move.png" alt="Watch move sheet listing Work, Design, Learning" width="140"/>](docs/screenshots/watchos-move.png) |
+
+### What the media does and does not demonstrate
+
+**Shown running:** macOS history, pinboards, search, layouts, range selection and editors. iOS library,
+pinboards, search, filters, Quick Add, pinboard creation, copy on tap, and the preview and edit screens.
+watchOS pinboards, clip lists, previews and the move sheet.
+
+**Described from source only, not shown running:** CloudKit sync and sharing, phone and watch sync, paste
+into another app, OCR, Apple Intelligence text tools, and the iOS keyboard, share and action extensions,
+widgets and Shortcuts.
 
 ## What this project shows
 
@@ -167,8 +214,9 @@ The [development guide](docs/development.md) covers the package targets, Xcode-h
 commands. It also records the validation performed for this presentation, including the existing core-test failure.
 
 **Validation:** the native macOS host built successfully. The core suite ran **281 tests: 280 passed and 1 failed**
-in the capture environment. The available simulator runtime was older than the iOS target, so the media here
-demonstrates the macOS app. Application code was left unchanged.
+in the capture environment. The iOS and watchOS media came from documentation-only capture hosts. These were built
+from the repository packages with Xcode 27.2 and run on iOS 27.0 and watchOS 27.0 simulators with CloudKit
+disabled. Repository application code was left unchanged. See the [development guide](docs/development.md#validation-performed-for-this-presentation).
 
 ## Repository layout
 
@@ -180,7 +228,7 @@ demonstrates the macOS app. Application code was left unchanged.
 | [`MartenMacWrapper/`](MartenMacWrapper/) | Desktop host source, entitlements and app assets |
 | [`MartenIOSWrapper/`](MartenIOSWrapper/) | iOS, watchOS, keyboard, share, action and widget host source |
 | [`Marten.xcworkspace`](Marten.xcworkspace/) | Workspace references for locally configured Xcode hosts |
-| [`docs/`](docs/) | Real clipboard-workflow captures, a native demo and development notes |
+| [`docs/`](docs/) | Native macOS, iOS and watchOS captures, demo recordings and development notes |
 
 ## Author
 

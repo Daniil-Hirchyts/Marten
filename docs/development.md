@@ -64,6 +64,6 @@ The packages include unit tests for persistence, searching, representations, ass
 - The native macOS wrapper built successfully against the installed macOS SDK.
 - The showcase app used the repository's application source with a separate sandboxed capture identity and local store.
 - The core test suite executed **281 tests: 280 passed and 1 failed**. The failing case was `RepresentationNormalizationTests.testSearchableTextFallbacksToRepresentationText`, which raised `missingContent` in the existing source.
-- The available simulator runtime was older than the iOS 26 deployment target, so this presentation does not claim an iOS or watchOS runtime validation.
+- iOS and watchOS screens were captured on iOS 27.0 and watchOS 27.0 simulators with Xcode 27.2. The original wrapper projects use a WatchKit extension product type that Xcode 27 no longer supports, so minimal capture-only hosts were built from copies of the repository packages, with CloudKit and watch sync switched off in the Simulator. This validates that the iOS and watchOS interfaces launch and navigate with local data. It does not validate CloudKit, phone and watch sync, or the iOS extensions. See [capture details](demo/README.md#capture-environment).
 
 Application code was left unchanged for the documentation work. These results describe the capture environment and are not a claim of a fully passing cross-platform test run.
