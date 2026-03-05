@@ -85,3 +85,17 @@ skills/
 .github/skills/
 .trae/skills/
 .claude/
+
+# AI agent and editor tooling
+.agent/
+.agents/
+.claude/
+.codex/
+.cursor/
+.gemini/
+.trae/
+.vscode/
+.github/skills/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
